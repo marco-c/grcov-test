@@ -51,7 +51,6 @@ def get_github_commit(mercurial_commit):
     return r.text.split(" ")[0]
 
 
-
 last_task_id = get_last_task()
 task_data = get_task_details(last_task_id)
 revision = task_data["payload"]["env"]["GECKO_HEAD_REV"]
