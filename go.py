@@ -22,7 +22,7 @@ def get_task_artifacts(task_id):
 
 def get_tasks_in_group(group_id):
     r = requests.get('https://queue.taskcluster.net/v1/task-group/' + group_id + '/list', params={
-        'limit':200
+        'limit': 200
     })
     reply = r.json()
     tasks = reply['tasks']
