@@ -88,10 +88,6 @@ cmd.extend(ordered_files)
 proc = subprocess.Popen(cmd, stdout=fout, stderr=ferr)
 proc.wait()
 
-# XXX: Debug.
-subprocess.call(["cat", "error"])
-subprocess.call(["ls", "-al"])
-
 if not os.path.isdir("gecko-dev"):
     subprocess.call(["git", "clone", "https://github.com/mozilla/gecko-dev.git"])
 
