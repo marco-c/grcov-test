@@ -1,0 +1,505 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/security/sandbox/chromium/sandbox/linux/seccomp-bpf/syscall.cc</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../../../index.html">top level</a> - <a href="index.html">gecko-dev/security/sandbox/chromium/sandbox/linux/seccomp-bpf</a> - syscall.cc<span style="font-size: 80%;"> (source / <a href="syscall.cc.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">9</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">3</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : // Copyright (c) 2012 The Chromium Authors. All rights reserved.</a>
+<span class="lineNum">       2 </span>            : // Use of this source code is governed by a BSD-style license that can be
+<span class="lineNum">       3 </span>            : // found in the LICENSE file.
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : #include &quot;sandbox/linux/seccomp-bpf/syscall.h&quot;
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #include &lt;errno.h&gt;
+<span class="lineNum">       8 </span>            : #include &lt;stdint.h&gt;
+<span class="lineNum">       9 </span>            : 
+<span class="lineNum">      10 </span>            : #include &quot;base/logging.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;sandbox/linux/bpf_dsl/seccomp_macros.h&quot;
+<span class="lineNum">      12 </span>            : 
+<span class="lineNum">      13 </span>            : namespace sandbox {
+<span class="lineNum">      14 </span>            : 
+<span class="lineNum">      15 </span>            : namespace {
+<span class="lineNum">      16 </span>            : 
+<span class="lineNum">      17 </span>            : #if defined(ARCH_CPU_X86_FAMILY) || defined(ARCH_CPU_ARM_FAMILY) || \
+<span class="lineNum">      18 </span>            :     defined(ARCH_CPU_MIPS_FAMILY)
+<span class="lineNum">      19 </span>            : // Number that's not currently used by any Linux kernel ABIs.
+<span class="lineNum">      20 </span>            : const int kInvalidSyscallNumber = 0x351d3;
+<span class="lineNum">      21 </span>            : #else
+<span class="lineNum">      22 </span>            : #error Unrecognized architecture
+<span class="lineNum">      23 </span>            : #endif
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : asm(// We need to be able to tell the kernel exactly where we made a
+<span class="lineNum">      26 </span>            :     // system call. The C++ compiler likes to sometimes clone or
+<span class="lineNum">      27 </span>            :     // inline code, which would inadvertently end up duplicating
+<span class="lineNum">      28 </span>            :     // the entry point.
+<span class="lineNum">      29 </span>            :     // &quot;gcc&quot; can suppress code duplication with suitable function
+<span class="lineNum">      30 </span>            :     // attributes, but &quot;clang&quot; doesn't have this ability.
+<span class="lineNum">      31 </span>            :     // The &quot;clang&quot; developer mailing list suggested that the correct
+<span class="lineNum">      32 </span>            :     // and portable solution is a file-scope assembly block.
+<span class="lineNum">      33 </span>            :     // N.B. We do mark our code as a proper function so that backtraces
+<span class="lineNum">      34 </span>            :     // work correctly. But we make absolutely no attempt to use the
+<span class="lineNum">      35 </span>            :     // ABI's calling conventions for passing arguments. We will only
+<span class="lineNum">      36 </span>            :     // ever be called from assembly code and thus can pick more
+<span class="lineNum">      37 </span>            :     // suitable calling conventions.
+<span class="lineNum">      38 </span>            : #if defined(__i386__)
+<span class="lineNum">      39 </span>            :     &quot;.text\n&quot;
+<span class="lineNum">      40 </span>            :     &quot;.align 16, 0x90\n&quot;
+<span class="lineNum">      41 </span>            :     &quot;.type SyscallAsm, @function\n&quot;
+<span class="lineNum">      42 </span>            :     &quot;SyscallAsm:.cfi_startproc\n&quot;
+<span class="lineNum">      43 </span>            :     // Check if &quot;%eax&quot; is negative. If so, do not attempt to make a
+<span class="lineNum">      44 </span>            :     // system call. Instead, compute the return address that is visible
+<span class="lineNum">      45 </span>            :     // to the kernel after we execute &quot;int $0x80&quot;. This address can be
+<span class="lineNum">      46 </span>            :     // used as a marker that BPF code inspects.
+<span class="lineNum">      47 </span>            :     &quot;test %eax, %eax\n&quot;
+<span class="lineNum">      48 </span>            :     &quot;jge  1f\n&quot;
+<span class="lineNum">      49 </span>            :     // Always, make sure that our code is position-independent, or
+<span class="lineNum">      50 </span>            :     // address space randomization might not work on i386. This means,
+<span class="lineNum">      51 </span>            :     // we can't use &quot;lea&quot;, but instead have to rely on &quot;call/pop&quot;.
+<span class="lineNum">      52 </span>            :     &quot;call 0f;   .cfi_adjust_cfa_offset  4\n&quot;
+<span class="lineNum">      53 </span>            :     &quot;0:pop  %eax; .cfi_adjust_cfa_offset -4\n&quot;
+<span class="lineNum">      54 </span>            :     &quot;addl $2f-0b, %eax\n&quot;
+<span class="lineNum">      55 </span>            :     &quot;ret\n&quot;
+<span class="lineNum">      56 </span>            :     // Save register that we don't want to clobber. On i386, we need to
+<span class="lineNum">      57 </span>            :     // save relatively aggressively, as there are a couple or registers
+<span class="lineNum">      58 </span>            :     // that are used internally (e.g. %ebx for position-independent
+<span class="lineNum">      59 </span>            :     // code, and %ebp for the frame pointer), and as we need to keep at
+<span class="lineNum">      60 </span>            :     // least a few registers available for the register allocator.
+<span class="lineNum">      61 </span>            :     &quot;1:push %esi; .cfi_adjust_cfa_offset 4; .cfi_rel_offset esi, 0\n&quot;
+<span class="lineNum">      62 </span>            :     &quot;push %edi; .cfi_adjust_cfa_offset 4; .cfi_rel_offset edi, 0\n&quot;
+<span class="lineNum">      63 </span>            :     &quot;push %ebx; .cfi_adjust_cfa_offset 4; .cfi_rel_offset ebx, 0\n&quot;
+<span class="lineNum">      64 </span>            :     &quot;push %ebp; .cfi_adjust_cfa_offset 4; .cfi_rel_offset ebp, 0\n&quot;
+<span class="lineNum">      65 </span>            :     // Copy entries from the array holding the arguments into the
+<span class="lineNum">      66 </span>            :     // correct CPU registers.
+<span class="lineNum">      67 </span>            :     &quot;movl  0(%edi), %ebx\n&quot;
+<span class="lineNum">      68 </span>            :     &quot;movl  4(%edi), %ecx\n&quot;
+<span class="lineNum">      69 </span>            :     &quot;movl  8(%edi), %edx\n&quot;
+<span class="lineNum">      70 </span>            :     &quot;movl 12(%edi), %esi\n&quot;
+<span class="lineNum">      71 </span>            :     &quot;movl 20(%edi), %ebp\n&quot;
+<span class="lineNum">      72 </span>            :     &quot;movl 16(%edi), %edi\n&quot;
+<span class="lineNum">      73 </span>            :     // Enter the kernel.
+<span class="lineNum">      74 </span>            :     &quot;int  $0x80\n&quot;
+<span class="lineNum">      75 </span>            :     // This is our &quot;magic&quot; return address that the BPF filter sees.
+<span class="lineNum">      76 </span>            :     &quot;2:&quot;
+<span class="lineNum">      77 </span>            :     // Restore any clobbered registers that we didn't declare to the
+<span class="lineNum">      78 </span>            :     // compiler.
+<span class="lineNum">      79 </span>            :     &quot;pop  %ebp; .cfi_restore ebp; .cfi_adjust_cfa_offset -4\n&quot;
+<span class="lineNum">      80 </span>            :     &quot;pop  %ebx; .cfi_restore ebx; .cfi_adjust_cfa_offset -4\n&quot;
+<span class="lineNum">      81 </span>            :     &quot;pop  %edi; .cfi_restore edi; .cfi_adjust_cfa_offset -4\n&quot;
+<span class="lineNum">      82 </span>            :     &quot;pop  %esi; .cfi_restore esi; .cfi_adjust_cfa_offset -4\n&quot;
+<span class="lineNum">      83 </span>            :     &quot;ret\n&quot;
+<span class="lineNum">      84 </span>            :     &quot;.cfi_endproc\n&quot;
+<span class="lineNum">      85 </span>            :     &quot;9:.size SyscallAsm, 9b-SyscallAsm\n&quot;
+<span class="lineNum">      86 </span>            : #elif defined(__x86_64__)
+<span class="lineNum">      87 </span>            :     &quot;.text\n&quot;
+<span class="lineNum">      88 </span>            :     &quot;.align 16, 0x90\n&quot;
+<span class="lineNum">      89 </span>            :     &quot;.type SyscallAsm, @function\n&quot;
+<span class="lineNum">      90 </span>            :     &quot;SyscallAsm:.cfi_startproc\n&quot;
+<span class="lineNum">      91 </span>            :     // Check if &quot;%rdi&quot; is negative. If so, do not attempt to make a
+<span class="lineNum">      92 </span>            :     // system call. Instead, compute the return address that is visible
+<span class="lineNum">      93 </span>            :     // to the kernel after we execute &quot;syscall&quot;. This address can be
+<span class="lineNum">      94 </span>            :     // used as a marker that BPF code inspects.
+<span class="lineNum">      95 </span>            :     &quot;test %rdi, %rdi\n&quot;
+<span class="lineNum">      96 </span>            :     &quot;jge  1f\n&quot;
+<span class="lineNum">      97 </span>            :     // Always make sure that our code is position-independent, or the
+<span class="lineNum">      98 </span>            :     // linker will throw a hissy fit on x86-64.
+<span class="lineNum">      99 </span>            :     &quot;lea 2f(%rip), %rax\n&quot;
+<span class="lineNum">     100 </span>            :     &quot;ret\n&quot;
+<span class="lineNum">     101 </span>            :     // Now we load the registers used to pass arguments to the system
+<span class="lineNum">     102 </span>            :     // call: system call number in %rax, and arguments in %rdi, %rsi,
+<span class="lineNum">     103 </span>            :     // %rdx, %r10, %r8, %r9. Note: These are all caller-save registers
+<span class="lineNum">     104 </span>            :     // (only %rbx, %rbp, %rsp, and %r12-%r15 are callee-save), so no
+<span class="lineNum">     105 </span>            :     // need to worry here about spilling registers or CFI directives.
+<span class="lineNum">     106 </span>            :     &quot;1:movq %rdi, %rax\n&quot;
+<span class="lineNum">     107 </span>            :     &quot;movq  0(%rsi), %rdi\n&quot;
+<span class="lineNum">     108 </span>            :     &quot;movq 16(%rsi), %rdx\n&quot;
+<span class="lineNum">     109 </span>            :     &quot;movq 24(%rsi), %r10\n&quot;
+<span class="lineNum">     110 </span>            :     &quot;movq 32(%rsi), %r8\n&quot;
+<span class="lineNum">     111 </span>            :     &quot;movq 40(%rsi), %r9\n&quot;
+<span class="lineNum">     112 </span>            :     &quot;movq  8(%rsi), %rsi\n&quot;
+<span class="lineNum">     113 </span>            :     // Enter the kernel.
+<span class="lineNum">     114 </span>            :     &quot;syscall\n&quot;
+<span class="lineNum">     115 </span>            :     // This is our &quot;magic&quot; return address that the BPF filter sees.
+<span class="lineNum">     116 </span>            :     &quot;2:ret\n&quot;
+<span class="lineNum">     117 </span>            :     &quot;.cfi_endproc\n&quot;
+<span class="lineNum">     118 </span>            :     &quot;9:.size SyscallAsm, 9b-SyscallAsm\n&quot;
+<span class="lineNum">     119 </span>            : #elif defined(__arm__)
+<span class="lineNum">     120 </span>            :     // Throughout this file, we use the same mode (ARM vs. thumb)
+<span class="lineNum">     121 </span>            :     // that the C++ compiler uses. This means, when transfering control
+<span class="lineNum">     122 </span>            :     // from C++ to assembly code, we do not need to switch modes (e.g.
+<span class="lineNum">     123 </span>            :     // by using the &quot;bx&quot; instruction). It also means that our assembly
+<span class="lineNum">     124 </span>            :     // code should not be invoked directly from code that lives in
+<span class="lineNum">     125 </span>            :     // other compilation units, as we don't bother implementing thumb
+<span class="lineNum">     126 </span>            :     // interworking. That's OK, as we don't make any of the assembly
+<span class="lineNum">     127 </span>            :     // symbols public. They are all local to this file.
+<span class="lineNum">     128 </span>            :     &quot;.text\n&quot;
+<span class="lineNum">     129 </span>            :     &quot;.align 2\n&quot;
+<span class="lineNum">     130 </span>            :     &quot;.type SyscallAsm, %function\n&quot;
+<span class="lineNum">     131 </span>            : #if defined(__thumb__)
+<span class="lineNum">     132 </span>            :     &quot;.thumb_func\n&quot;
+<span class="lineNum">     133 </span>            : #else
+<span class="lineNum">     134 </span>            :     &quot;.arm\n&quot;
+<span class="lineNum">     135 </span>            : #endif
+<span class="lineNum">     136 </span>            :     &quot;SyscallAsm:\n&quot;
+<span class="lineNum">     137 </span>            : #if !defined(__native_client_nonsfi__)
+<span class="lineNum">     138 </span>            :     // .fnstart and .fnend pseudo operations creates unwind table.
+<span class="lineNum">     139 </span>            :     // It also creates a reference to the symbol __aeabi_unwind_cpp_pr0, which
+<span class="lineNum">     140 </span>            :     // is not provided by PNaCl toolchain. Disable it.
+<span class="lineNum">     141 </span>            :     &quot;.fnstart\n&quot;
+<span class="lineNum">     142 </span>            : #endif
+<span class="lineNum">     143 </span>            :     &quot;@ args = 0, pretend = 0, frame = 8\n&quot;
+<span class="lineNum">     144 </span>            :     &quot;@ frame_needed = 1, uses_anonymous_args = 0\n&quot;
+<span class="lineNum">     145 </span>            : #if defined(__thumb__)
+<span class="lineNum">     146 </span>            :     &quot;.cfi_startproc\n&quot;
+<span class="lineNum">     147 </span>            :     &quot;push {r7, lr}\n&quot;
+<span class="lineNum">     148 </span>            :     &quot;.save {r7, lr}\n&quot;
+<span class="lineNum">     149 </span>            :     &quot;.cfi_offset 14, -4\n&quot;
+<span class="lineNum">     150 </span>            :     &quot;.cfi_offset  7, -8\n&quot;
+<span class="lineNum">     151 </span>            :     &quot;.cfi_def_cfa_offset 8\n&quot;
+<span class="lineNum">     152 </span>            : #else
+<span class="lineNum">     153 </span>            :     &quot;stmfd sp!, {fp, lr}\n&quot;
+<span class="lineNum">     154 </span>            :     &quot;add fp, sp, #4\n&quot;
+<span class="lineNum">     155 </span>            : #endif
+<span class="lineNum">     156 </span>            :     // Check if &quot;r0&quot; is negative. If so, do not attempt to make a
+<span class="lineNum">     157 </span>            :     // system call. Instead, compute the return address that is visible
+<span class="lineNum">     158 </span>            :     // to the kernel after we execute &quot;swi 0&quot;. This address can be
+<span class="lineNum">     159 </span>            :     // used as a marker that BPF code inspects.
+<span class="lineNum">     160 </span>            :     &quot;cmp r0, #0\n&quot;
+<span class="lineNum">     161 </span>            :     &quot;bge 1f\n&quot;
+<span class="lineNum">     162 </span>            :     &quot;adr r0, 2f\n&quot;
+<span class="lineNum">     163 </span>            :     &quot;b   2f\n&quot;
+<span class="lineNum">     164 </span>            :     // We declared (almost) all clobbered registers to the compiler. On
+<span class="lineNum">     165 </span>            :     // ARM there is no particular register pressure. So, we can go
+<span class="lineNum">     166 </span>            :     // ahead and directly copy the entries from the arguments array
+<span class="lineNum">     167 </span>            :     // into the appropriate CPU registers.
+<span class="lineNum">     168 </span>            :     &quot;1:ldr r5, [r6, #20]\n&quot;
+<span class="lineNum">     169 </span>            :     &quot;ldr r4, [r6, #16]\n&quot;
+<span class="lineNum">     170 </span>            :     &quot;ldr r3, [r6, #12]\n&quot;
+<span class="lineNum">     171 </span>            :     &quot;ldr r2, [r6, #8]\n&quot;
+<span class="lineNum">     172 </span>            :     &quot;ldr r1, [r6, #4]\n&quot;
+<span class="lineNum">     173 </span>            :     &quot;mov r7, r0\n&quot;
+<span class="lineNum">     174 </span>            :     &quot;ldr r0, [r6, #0]\n&quot;
+<span class="lineNum">     175 </span>            :     // Enter the kernel
+<span class="lineNum">     176 </span>            :     &quot;swi 0\n&quot;
+<span class="lineNum">     177 </span>            : // Restore the frame pointer. Also restore the program counter from
+<span class="lineNum">     178 </span>            : // the link register; this makes us return to the caller.
+<span class="lineNum">     179 </span>            : #if defined(__thumb__)
+<span class="lineNum">     180 </span>            :     &quot;2:pop {r7, pc}\n&quot;
+<span class="lineNum">     181 </span>            :     &quot;.cfi_endproc\n&quot;
+<span class="lineNum">     182 </span>            : #else
+<span class="lineNum">     183 </span>            :     &quot;2:ldmfd sp!, {fp, pc}\n&quot;
+<span class="lineNum">     184 </span>            : #endif
+<span class="lineNum">     185 </span>            : #if !defined(__native_client_nonsfi__)
+<span class="lineNum">     186 </span>            :     // Do not use .fnstart and .fnend for PNaCl toolchain. See above comment,
+<span class="lineNum">     187 </span>            :     // for more details.
+<span class="lineNum">     188 </span>            :     &quot;.fnend\n&quot;
+<span class="lineNum">     189 </span>            : #endif
+<span class="lineNum">     190 </span>            :     &quot;9:.size SyscallAsm, 9b-SyscallAsm\n&quot;
+<span class="lineNum">     191 </span>            : #elif defined(__mips__)
+<span class="lineNum">     192 </span>            :     &quot;.text\n&quot;
+<span class="lineNum">     193 </span>            :     &quot;.align 4\n&quot;
+<span class="lineNum">     194 </span>            :     &quot;.type SyscallAsm, @function\n&quot;
+<span class="lineNum">     195 </span>            :     &quot;SyscallAsm:.ent SyscallAsm\n&quot;
+<span class="lineNum">     196 </span>            :     &quot;.frame  $sp, 40, $ra\n&quot;
+<span class="lineNum">     197 </span>            :     &quot;.set   push\n&quot;
+<span class="lineNum">     198 </span>            :     &quot;.set   noreorder\n&quot;
+<span class="lineNum">     199 </span>            :     &quot;addiu  $sp, $sp, -40\n&quot;
+<span class="lineNum">     200 </span>            :     &quot;sw     $ra, 36($sp)\n&quot;
+<span class="lineNum">     201 </span>            :     // Check if &quot;v0&quot; is negative. If so, do not attempt to make a
+<span class="lineNum">     202 </span>            :     // system call. Instead, compute the return address that is visible
+<span class="lineNum">     203 </span>            :     // to the kernel after we execute &quot;syscall&quot;. This address can be
+<span class="lineNum">     204 </span>            :     // used as a marker that BPF code inspects.
+<span class="lineNum">     205 </span>            :     &quot;bgez   $v0, 1f\n&quot;
+<span class="lineNum">     206 </span>            :     &quot; nop\n&quot;
+<span class="lineNum">     207 </span>            :     &quot;la     $v0, 2f\n&quot;
+<span class="lineNum">     208 </span>            :     &quot;b      2f\n&quot;
+<span class="lineNum">     209 </span>            :     &quot; nop\n&quot;
+<span class="lineNum">     210 </span>            :     // On MIPS first four arguments go to registers a0 - a3 and any
+<span class="lineNum">     211 </span>            :     // argument after that goes to stack. We can go ahead and directly
+<span class="lineNum">     212 </span>            :     // copy the entries from the arguments array into the appropriate
+<span class="lineNum">     213 </span>            :     // CPU registers and on the stack.
+<span class="lineNum">     214 </span>            :     &quot;1:lw     $a3, 28($a0)\n&quot;
+<span class="lineNum">     215 </span>            :     &quot;lw     $a2, 24($a0)\n&quot;
+<span class="lineNum">     216 </span>            :     &quot;lw     $a1, 20($a0)\n&quot;
+<span class="lineNum">     217 </span>            :     &quot;lw     $t0, 16($a0)\n&quot;
+<span class="lineNum">     218 </span>            :     &quot;sw     $a3, 28($sp)\n&quot;
+<span class="lineNum">     219 </span>            :     &quot;sw     $a2, 24($sp)\n&quot;
+<span class="lineNum">     220 </span>            :     &quot;sw     $a1, 20($sp)\n&quot;
+<span class="lineNum">     221 </span>            :     &quot;sw     $t0, 16($sp)\n&quot;
+<span class="lineNum">     222 </span>            :     &quot;lw     $a3, 12($a0)\n&quot;
+<span class="lineNum">     223 </span>            :     &quot;lw     $a2, 8($a0)\n&quot;
+<span class="lineNum">     224 </span>            :     &quot;lw     $a1, 4($a0)\n&quot;
+<span class="lineNum">     225 </span>            :     &quot;lw     $a0, 0($a0)\n&quot;
+<span class="lineNum">     226 </span>            :     // Enter the kernel
+<span class="lineNum">     227 </span>            :     &quot;syscall\n&quot;
+<span class="lineNum">     228 </span>            :     // This is our &quot;magic&quot; return address that the BPF filter sees.
+<span class="lineNum">     229 </span>            :     // Restore the return address from the stack.
+<span class="lineNum">     230 </span>            :     &quot;2:lw     $ra, 36($sp)\n&quot;
+<span class="lineNum">     231 </span>            :     &quot;jr     $ra\n&quot;
+<span class="lineNum">     232 </span>            :     &quot; addiu  $sp, $sp, 40\n&quot;
+<span class="lineNum">     233 </span>            :     &quot;.set    pop\n&quot;
+<span class="lineNum">     234 </span>            :     &quot;.end    SyscallAsm\n&quot;
+<span class="lineNum">     235 </span>            :     &quot;.size   SyscallAsm,.-SyscallAsm\n&quot;
+<span class="lineNum">     236 </span>            : #elif defined(__aarch64__)
+<span class="lineNum">     237 </span>            :     &quot;.text\n&quot;
+<span class="lineNum">     238 </span>            :     &quot;.align 2\n&quot;
+<span class="lineNum">     239 </span>            :     &quot;.type SyscallAsm, %function\n&quot;
+<span class="lineNum">     240 </span>            :     &quot;SyscallAsm:\n&quot;
+<span class="lineNum">     241 </span>            :     &quot;.cfi_startproc\n&quot;
+<span class="lineNum">     242 </span>            :     &quot;cmp x0, #0\n&quot;
+<span class="lineNum">     243 </span>            :     &quot;b.ge 1f\n&quot;
+<span class="lineNum">     244 </span>            :     &quot;adr x0,2f\n&quot;
+<span class="lineNum">     245 </span>            :     &quot;b 2f\n&quot;
+<span class="lineNum">     246 </span>            :     &quot;1:ldr x5, [x6, #40]\n&quot;
+<span class="lineNum">     247 </span>            :     &quot;ldr x4, [x6, #32]\n&quot;
+<span class="lineNum">     248 </span>            :     &quot;ldr x3, [x6, #24]\n&quot;
+<span class="lineNum">     249 </span>            :     &quot;ldr x2, [x6, #16]\n&quot;
+<span class="lineNum">     250 </span>            :     &quot;ldr x1, [x6, #8]\n&quot;
+<span class="lineNum">     251 </span>            :     &quot;mov x8, x0\n&quot;
+<span class="lineNum">     252 </span>            :     &quot;ldr x0, [x6, #0]\n&quot;
+<span class="lineNum">     253 </span>            :     // Enter the kernel
+<span class="lineNum">     254 </span>            :     &quot;svc 0\n&quot;
+<span class="lineNum">     255 </span>            :     &quot;2:ret\n&quot;
+<span class="lineNum">     256 </span>            :     &quot;.cfi_endproc\n&quot;
+<span class="lineNum">     257 </span>            :     &quot;.size SyscallAsm, .-SyscallAsm\n&quot;
+<span class="lineNum">     258 </span>            : #endif
+<span class="lineNum">     259 </span>            :     );  // asm
+<span class="lineNum">     260 </span>            : 
+<span class="lineNum">     261 </span>            : #if defined(__x86_64__)
+<span class="lineNum">     262 </span>            : extern &quot;C&quot; {
+<span class="lineNum">     263 </span>            : intptr_t SyscallAsm(intptr_t nr, const intptr_t args[6]);
+<span class="lineNum">     264 </span>            : }
+<span class="lineNum">     265 </span>            : #endif
+<span class="lineNum">     266 </span>            : 
+<a name="267"><span class="lineNum">     267 </span>            : }  // namespace</a>
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span><span class="lineNoCov">          0 : intptr_t Syscall::InvalidCall() {</span>
+<span class="lineNum">     270 </span>            :   // Explicitly pass eight zero arguments just in case.
+<span class="lineNum">     271 </span><span class="lineNoCov">          0 :   return Call(kInvalidSyscallNumber, 0, 0, 0, 0, 0, 0, 0, 0);</span>
+<a name="272"><span class="lineNum">     272 </span>            : }</a>
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span><span class="lineNoCov">          0 : intptr_t Syscall::Call(int nr,</span>
+<span class="lineNum">     275 </span>            :                        intptr_t p0,
+<span class="lineNum">     276 </span>            :                        intptr_t p1,
+<span class="lineNum">     277 </span>            :                        intptr_t p2,
+<span class="lineNum">     278 </span>            :                        intptr_t p3,
+<span class="lineNum">     279 </span>            :                        intptr_t p4,
+<span class="lineNum">     280 </span>            :                        intptr_t p5,
+<span class="lineNum">     281 </span>            :                        intptr_t p6,
+<span class="lineNum">     282 </span>            :                        intptr_t p7) {
+<span class="lineNum">     283 </span>            :   // We rely on &quot;intptr_t&quot; to be the exact size as a &quot;void *&quot;. This is
+<span class="lineNum">     284 </span>            :   // typically true, but just in case, we add a check. The language
+<span class="lineNum">     285 </span>            :   // specification allows platforms some leeway in cases, where
+<span class="lineNum">     286 </span>            :   // &quot;sizeof(void *)&quot; is not the same as &quot;sizeof(void (*)())&quot;. We expect
+<span class="lineNum">     287 </span>            :   // that this would only be an issue for IA64, which we are currently not
+<span class="lineNum">     288 </span>            :   // planning on supporting. And it is even possible that this would work
+<span class="lineNum">     289 </span>            :   // on IA64, but for lack of actual hardware, I cannot test.
+<span class="lineNum">     290 </span>            :   static_assert(sizeof(void*) == sizeof(intptr_t),
+<span class="lineNum">     291 </span>            :                 &quot;pointer types and intptr_t must be exactly the same size&quot;);
+<span class="lineNum">     292 </span>            : 
+<span class="lineNum">     293 </span>            :   // TODO(nedeljko): Enable use of more than six parameters on architectures
+<span class="lineNum">     294 </span>            :   //                 where that makes sense.
+<span class="lineNum">     295 </span>            : #if defined(__mips__)
+<span class="lineNum">     296 </span>            :   const intptr_t args[8] = {p0, p1, p2, p3, p4, p5, p6, p7};
+<span class="lineNum">     297 </span>            : #else
+<span class="lineNum">     298 </span>            :   DCHECK_EQ(p6, 0) &lt;&lt; &quot; Support for syscalls with more than six arguments not &quot;
+<span class="lineNum">     299 </span>            :                       &quot;added for this architecture&quot;;
+<span class="lineNum">     300 </span>            :   DCHECK_EQ(p7, 0) &lt;&lt; &quot; Support for syscalls with more than six arguments not &quot;
+<span class="lineNum">     301 </span>            :                       &quot;added for this architecture&quot;;
+<span class="lineNum">     302 </span><span class="lineNoCov">          0 :   const intptr_t args[6] = {p0, p1, p2, p3, p4, p5};</span>
+<span class="lineNum">     303 </span>            : #endif  // defined(__mips__)
+<span class="lineNum">     304 </span>            : 
+<span class="lineNum">     305 </span>            : // Invoke our file-scope assembly code. The constraints have been picked
+<span class="lineNum">     306 </span>            : // carefully to match what the rest of the assembly code expects in input,
+<span class="lineNum">     307 </span>            : // output, and clobbered registers.
+<span class="lineNum">     308 </span>            : #if defined(__i386__)
+<span class="lineNum">     309 </span>            :   intptr_t ret = nr;
+<span class="lineNum">     310 </span>            :   asm volatile(
+<span class="lineNum">     311 </span>            :       &quot;call SyscallAsm\n&quot;
+<span class="lineNum">     312 </span>            :       // N.B. These are not the calling conventions normally used by the ABI.
+<span class="lineNum">     313 </span>            :       : &quot;=a&quot;(ret)
+<span class="lineNum">     314 </span>            :       : &quot;0&quot;(ret), &quot;D&quot;(args)
+<span class="lineNum">     315 </span>            :       : &quot;cc&quot;, &quot;esp&quot;, &quot;memory&quot;, &quot;ecx&quot;, &quot;edx&quot;);
+<span class="lineNum">     316 </span>            : #elif defined(__x86_64__)
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :   intptr_t ret = SyscallAsm(nr, args);</span>
+<span class="lineNum">     318 </span>            : #elif defined(__arm__)
+<span class="lineNum">     319 </span>            :   intptr_t ret;
+<span class="lineNum">     320 </span>            :   {
+<span class="lineNum">     321 </span>            :     register intptr_t inout __asm__(&quot;r0&quot;) = nr;
+<span class="lineNum">     322 </span>            :     register const intptr_t* data __asm__(&quot;r6&quot;) = args;
+<span class="lineNum">     323 </span>            :     asm volatile(
+<span class="lineNum">     324 </span>            :         &quot;bl SyscallAsm\n&quot;
+<span class="lineNum">     325 </span>            :         // N.B. These are not the calling conventions normally used by the ABI.
+<span class="lineNum">     326 </span>            :         : &quot;=r&quot;(inout)
+<span class="lineNum">     327 </span>            :         : &quot;0&quot;(inout), &quot;r&quot;(data)
+<span class="lineNum">     328 </span>            :         : &quot;cc&quot;,
+<span class="lineNum">     329 </span>            :           &quot;lr&quot;,
+<span class="lineNum">     330 </span>            :           &quot;memory&quot;,
+<span class="lineNum">     331 </span>            :           &quot;r1&quot;,
+<span class="lineNum">     332 </span>            :           &quot;r2&quot;,
+<span class="lineNum">     333 </span>            :           &quot;r3&quot;,
+<span class="lineNum">     334 </span>            :           &quot;r4&quot;,
+<span class="lineNum">     335 </span>            :           &quot;r5&quot;
+<span class="lineNum">     336 </span>            : #if !defined(__thumb__)
+<span class="lineNum">     337 </span>            :           // In thumb mode, we cannot use &quot;r7&quot; as a general purpose register, as
+<span class="lineNum">     338 </span>            :           // it is our frame pointer. We have to manually manage and preserve
+<span class="lineNum">     339 </span>            :           // it.
+<span class="lineNum">     340 </span>            :           // In ARM mode, we have a dedicated frame pointer register and &quot;r7&quot; is
+<span class="lineNum">     341 </span>            :           // thus available as a general purpose register. We don't preserve it,
+<span class="lineNum">     342 </span>            :           // but instead mark it as clobbered.
+<span class="lineNum">     343 </span>            :           ,
+<span class="lineNum">     344 </span>            :           &quot;r7&quot;
+<span class="lineNum">     345 </span>            : #endif  // !defined(__thumb__)
+<span class="lineNum">     346 </span>            :         );
+<span class="lineNum">     347 </span>            :     ret = inout;
+<span class="lineNum">     348 </span>            :   }
+<span class="lineNum">     349 </span>            : #elif defined(__mips__)
+<span class="lineNum">     350 </span>            :   int err_status;
+<span class="lineNum">     351 </span>            :   intptr_t ret = Syscall::SandboxSyscallRaw(nr, args, &amp;err_status);
+<span class="lineNum">     352 </span>            : 
+<span class="lineNum">     353 </span>            :   if (err_status) {
+<span class="lineNum">     354 </span>            :     // On error, MIPS returns errno from syscall instead of -errno.
+<span class="lineNum">     355 </span>            :     // The purpose of this negation is for SandboxSyscall() to behave
+<span class="lineNum">     356 </span>            :     // more like it would on other architectures.
+<span class="lineNum">     357 </span>            :     ret = -ret;
+<span class="lineNum">     358 </span>            :   }
+<span class="lineNum">     359 </span>            : #elif defined(__aarch64__)
+<span class="lineNum">     360 </span>            :   intptr_t ret;
+<span class="lineNum">     361 </span>            :   {
+<span class="lineNum">     362 </span>            :     register intptr_t inout __asm__(&quot;x0&quot;) = nr;
+<span class="lineNum">     363 </span>            :     register const intptr_t* data __asm__(&quot;x6&quot;) = args;
+<span class="lineNum">     364 </span>            :     asm volatile(&quot;bl SyscallAsm\n&quot;
+<span class="lineNum">     365 </span>            :                  : &quot;=r&quot;(inout)
+<span class="lineNum">     366 </span>            :                  : &quot;0&quot;(inout), &quot;r&quot;(data)
+<span class="lineNum">     367 </span>            :                  : &quot;memory&quot;, &quot;x1&quot;, &quot;x2&quot;, &quot;x3&quot;, &quot;x4&quot;, &quot;x5&quot;, &quot;x8&quot;, &quot;x30&quot;);
+<span class="lineNum">     368 </span>            :     ret = inout;
+<span class="lineNum">     369 </span>            :   }
+<span class="lineNum">     370 </span>            : 
+<span class="lineNum">     371 </span>            : #else
+<span class="lineNum">     372 </span>            : #error &quot;Unimplemented architecture&quot;
+<span class="lineNum">     373 </span>            : #endif
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :   return ret;</span>
+<a name="375"><span class="lineNum">     375 </span>            : }</a>
+<span class="lineNum">     376 </span>            : 
+<span class="lineNum">     377 </span><span class="lineNoCov">          0 : void Syscall::PutValueInUcontext(intptr_t ret_val, ucontext_t* ctx) {</span>
+<span class="lineNum">     378 </span>            : #if defined(__mips__)
+<span class="lineNum">     379 </span>            :   // Mips ABI states that on error a3 CPU register has non zero value and if
+<span class="lineNum">     380 </span>            :   // there is no error, it should be zero.
+<span class="lineNum">     381 </span>            :   if (ret_val &lt;= -1 &amp;&amp; ret_val &gt;= -4095) {
+<span class="lineNum">     382 </span>            :     // |ret_val| followes the Syscall::Call() convention of being -errno on
+<span class="lineNum">     383 </span>            :     // errors. In order to write correct value to return register this sign
+<span class="lineNum">     384 </span>            :     // needs to be changed back.
+<span class="lineNum">     385 </span>            :     ret_val = -ret_val;
+<span class="lineNum">     386 </span>            :     SECCOMP_PARM4(ctx) = 1;
+<span class="lineNum">     387 </span>            :   } else
+<span class="lineNum">     388 </span>            :     SECCOMP_PARM4(ctx) = 0;
+<span class="lineNum">     389 </span>            : #endif
+<span class="lineNum">     390 </span><span class="lineNoCov">          0 :   SECCOMP_RESULT(ctx) = static_cast&lt;greg_t&gt;(ret_val);</span>
+<span class="lineNum">     391 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     392 </span>            : 
+<span class="lineNum">     393 </span>            : #if defined(__mips__)
+<span class="lineNum">     394 </span>            : intptr_t Syscall::SandboxSyscallRaw(int nr,
+<span class="lineNum">     395 </span>            :                                     const intptr_t* args,
+<span class="lineNum">     396 </span>            :                                     intptr_t* err_ret) {
+<span class="lineNum">     397 </span>            :   register intptr_t ret __asm__(&quot;v0&quot;) = nr;
+<span class="lineNum">     398 </span>            :   // a3 register becomes non zero on error.
+<span class="lineNum">     399 </span>            :   register intptr_t err_stat __asm__(&quot;a3&quot;) = 0;
+<span class="lineNum">     400 </span>            :   {
+<span class="lineNum">     401 </span>            :     register const intptr_t* data __asm__(&quot;a0&quot;) = args;
+<span class="lineNum">     402 </span>            :     asm volatile(
+<span class="lineNum">     403 </span>            :         &quot;la $t9, SyscallAsm\n&quot;
+<span class="lineNum">     404 </span>            :         &quot;jalr $t9\n&quot;
+<span class="lineNum">     405 </span>            :         &quot; nop\n&quot;
+<span class="lineNum">     406 </span>            :         : &quot;=r&quot;(ret), &quot;=r&quot;(err_stat)
+<span class="lineNum">     407 </span>            :         : &quot;0&quot;(ret),
+<span class="lineNum">     408 </span>            :           &quot;r&quot;(data)
+<span class="lineNum">     409 </span>            :           // a2 is in the clober list so inline assembly can not change its
+<span class="lineNum">     410 </span>            :           // value.
+<span class="lineNum">     411 </span>            :         : &quot;memory&quot;, &quot;ra&quot;, &quot;t9&quot;, &quot;a2&quot;);
+<span class="lineNum">     412 </span>            :   }
+<span class="lineNum">     413 </span>            : 
+<span class="lineNum">     414 </span>            :   // Set an error status so it can be used outside of this function
+<span class="lineNum">     415 </span>            :   *err_ret = err_stat;
+<span class="lineNum">     416 </span>            : 
+<span class="lineNum">     417 </span>            :   return ret;
+<span class="lineNum">     418 </span>            : }
+<span class="lineNum">     419 </span>            : #endif  // defined(__mips__)
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span>            : }  // namespace sandbox
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

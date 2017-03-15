@@ -1,0 +1,618 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/security/nss/lib/freebl/shvfy.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">gecko-dev/security/nss/lib/freebl</a> - shvfy.c<span style="font-size: 80%;"> (source / <a href="shvfy.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">113</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">8</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : </a>
+<span class="lineNum">       2 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       3 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       4 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       5 </span>            : 
+<span class="lineNum">       6 </span>            : #ifdef FREEBL_NO_DEPEND
+<span class="lineNum">       7 </span>            : #include &quot;stubs.h&quot;
+<span class="lineNum">       8 </span>            : #endif
+<span class="lineNum">       9 </span>            : 
+<span class="lineNum">      10 </span>            : #include &quot;shsign.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;prlink.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;prio.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;blapi.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;seccomon.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;stdio.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;prmem.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;hasht.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;pqg.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;blapii.h&quot;
+<span class="lineNum">      20 </span>            : 
+<span class="lineNum">      21 </span>            : /*
+<span class="lineNum">      22 </span>            :  * Most modern version of Linux support a speed optimization scheme where an
+<span class="lineNum">      23 </span>            :  * application called prelink modifies programs and shared libraries to quickly
+<span class="lineNum">      24 </span>            :  * load if they fit into an already designed address space. In short, prelink
+<span class="lineNum">      25 </span>            :  * scans the list of programs and libraries on your system, assigns them a
+<span class="lineNum">      26 </span>            :  * predefined space in the the address space, then provides the fixups to the
+<span class="lineNum">      27 </span>            :  * library.
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            :  * The modification of the shared library is correctly detected by the freebl
+<span class="lineNum">      30 </span>            :  * FIPS checksum scheme where we check a signed hash of the library against the
+<span class="lineNum">      31 </span>            :  * library itself.
+<span class="lineNum">      32 </span>            :  *
+<span class="lineNum">      33 </span>            :  * The prelink command itself can reverse the process of modification and
+<span class="lineNum">      34 </span>            :  * output the prestine shared library as it was before prelink made it's
+<span class="lineNum">      35 </span>            :  * changes. If FREEBL_USE_PRELINK is set Freebl uses prelink to output the
+<span class="lineNum">      36 </span>            :  * original copy of the shared library before prelink modified it.
+<span class="lineNum">      37 </span>            :  */
+<span class="lineNum">      38 </span>            : #ifdef FREEBL_USE_PRELINK
+<span class="lineNum">      39 </span>            : #ifndef FREELB_PRELINK_COMMAND
+<span class="lineNum">      40 </span>            : #define FREEBL_PRELINK_COMMAND &quot;/usr/sbin/prelink -u -o -&quot;
+<span class="lineNum">      41 </span>            : #endif
+<span class="lineNum">      42 </span>            : #include &quot;private/pprio.h&quot;
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span>            : #include &lt;stdlib.h&gt;
+<span class="lineNum">      45 </span>            : #include &lt;unistd.h&gt;
+<span class="lineNum">      46 </span>            : #include &lt;fcntl.h&gt;
+<span class="lineNum">      47 </span>            : #include &lt;sys/wait.h&gt;
+<span class="lineNum">      48 </span>            : #include &lt;sys/stat.h&gt;
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            : /*
+<span class="lineNum">      51 </span>            :  * This function returns an NSPR PRFileDesc * which the caller can read to
+<span class="lineNum">      52 </span>            :  * obtain the prestine value of the shared library, before any OS related
+<span class="lineNum">      53 </span>            :  * changes to it (usually address fixups).
+<span class="lineNum">      54 </span>            :  *
+<span class="lineNum">      55 </span>            :  * If prelink is installed, this
+<span class="lineNum">      56 </span>            :  * file descriptor is a pipe connecting the output of
+<span class="lineNum">      57 </span>            :  *            /usr/sbin/prelink -u -o - {Library}
+<span class="lineNum">      58 </span>            :  * and *pid returns the process id of the prelink child.
+<span class="lineNum">      59 </span>            :  *
+<span class="lineNum">      60 </span>            :  * If prelink is not installed, it returns a normal readonly handle to the
+<span class="lineNum">      61 </span>            :  * library itself and *pid is set to '0'.
+<span class="lineNum">      62 </span>            :  */
+<span class="lineNum">      63 </span>            : PRFileDesc *
+<span class="lineNum">      64 </span>            : bl_OpenUnPrelink(const char *shName, int *pid)
+<span class="lineNum">      65 </span>            : {
+<span class="lineNum">      66 </span>            :     char *command = strdup(FREEBL_PRELINK_COMMAND);
+<span class="lineNum">      67 </span>            :     char *argString = NULL;
+<span class="lineNum">      68 </span>            :     char **argv = NULL;
+<span class="lineNum">      69 </span>            :     char *shNameArg = NULL;
+<span class="lineNum">      70 </span>            :     char *cp;
+<span class="lineNum">      71 </span>            :     pid_t child;
+<span class="lineNum">      72 </span>            :     int argc = 0, argNext = 0;
+<span class="lineNum">      73 </span>            :     struct stat statBuf;
+<span class="lineNum">      74 </span>            :     int pipefd[2] = { -1, -1 };
+<span class="lineNum">      75 </span>            :     int ret;
+<span class="lineNum">      76 </span>            : 
+<span class="lineNum">      77 </span>            :     *pid = 0;
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span>            :     /* make sure the prelink command exists first. If not, fall back to
+<span class="lineNum">      80 </span>            :      * just reading the file */
+<span class="lineNum">      81 </span>            :     for (cp = command; *cp; cp++) {
+<span class="lineNum">      82 </span>            :         if (*cp == ' ') {
+<span class="lineNum">      83 </span>            :             *cp++ = 0;
+<span class="lineNum">      84 </span>            :             argString = cp;
+<span class="lineNum">      85 </span>            :             break;
+<span class="lineNum">      86 </span>            :         }
+<span class="lineNum">      87 </span>            :     }
+<span class="lineNum">      88 </span>            :     memset(&amp;statBuf, 0, sizeof(statBuf));
+<span class="lineNum">      89 </span>            :     /* stat the file, follow the link */
+<span class="lineNum">      90 </span>            :     ret = stat(command, &amp;statBuf);
+<span class="lineNum">      91 </span>            :     if (ret &lt; 0) {
+<span class="lineNum">      92 </span>            :         free(command);
+<span class="lineNum">      93 </span>            :         return PR_Open(shName, PR_RDONLY, 0);
+<span class="lineNum">      94 </span>            :     }
+<span class="lineNum">      95 </span>            :     /* file exits, make sure it's an executable */
+<span class="lineNum">      96 </span>            :     if (!S_ISREG(statBuf.st_mode) ||
+<span class="lineNum">      97 </span>            :         ((statBuf.st_mode &amp; (S_IXUSR | S_IXGRP | S_IXOTH)) == 0)) {
+<span class="lineNum">      98 </span>            :         free(command);
+<span class="lineNum">      99 </span>            :         return PR_Open(shName, PR_RDONLY, 0);
+<span class="lineNum">     100 </span>            :     }
+<span class="lineNum">     101 </span>            : 
+<span class="lineNum">     102 </span>            :     /* OK, the prelink command exists and looks correct, use it */
+<span class="lineNum">     103 </span>            :     /* build the arglist while we can still malloc */
+<span class="lineNum">     104 </span>            :     /* count the args if any */
+<span class="lineNum">     105 </span>            :     if (argString &amp;&amp; *argString) {
+<span class="lineNum">     106 </span>            :         /* argString may have leading spaces, strip them off*/
+<span class="lineNum">     107 </span>            :         for (cp = argString; *cp &amp;&amp; *cp == ' '; cp++)
+<span class="lineNum">     108 </span>            :             ;
+<span class="lineNum">     109 </span>            :         argString = cp;
+<span class="lineNum">     110 </span>            :         if (*cp) {
+<span class="lineNum">     111 </span>            :             /* there is at least one arg.. */
+<span class="lineNum">     112 </span>            :             argc = 1;
+<span class="lineNum">     113 </span>            :         }
+<span class="lineNum">     114 </span>            : 
+<span class="lineNum">     115 </span>            :         /* count the rest: Note there is no provision for escaped
+<span class="lineNum">     116 </span>            :          * spaces here */
+<span class="lineNum">     117 </span>            :         for (cp = argString; *cp; cp++) {
+<span class="lineNum">     118 </span>            :             if (*cp == ' ') {
+<span class="lineNum">     119 </span>            :                 while (*cp &amp;&amp; *cp == ' ')
+<span class="lineNum">     120 </span>            :                     cp++;
+<span class="lineNum">     121 </span>            :                 if (*cp)
+<span class="lineNum">     122 </span>            :                     argc++;
+<span class="lineNum">     123 </span>            :             }
+<span class="lineNum">     124 </span>            :         }
+<span class="lineNum">     125 </span>            :     }
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span>            :     /* add the additional args: argv[0] (command), shName, NULL*/
+<span class="lineNum">     128 </span>            :     argc += 3;
+<span class="lineNum">     129 </span>            :     argv = PORT_NewArray(char *, argc);
+<span class="lineNum">     130 </span>            :     if (argv == NULL) {
+<span class="lineNum">     131 </span>            :         goto loser;
+<span class="lineNum">     132 </span>            :     }
+<span class="lineNum">     133 </span>            : 
+<span class="lineNum">     134 </span>            :     /* fill in the arglist */
+<span class="lineNum">     135 </span>            :     argv[argNext++] = command;
+<span class="lineNum">     136 </span>            :     if (argString &amp;&amp; *argString) {
+<span class="lineNum">     137 </span>            :         argv[argNext++] = argString;
+<span class="lineNum">     138 </span>            :         for (cp = argString; *cp; cp++) {
+<span class="lineNum">     139 </span>            :             if (*cp == ' ') {
+<span class="lineNum">     140 </span>            :                 *cp++ = 0;
+<span class="lineNum">     141 </span>            :                 while (*cp &amp;&amp; *cp == ' ')
+<span class="lineNum">     142 </span>            :                     cp++;
+<span class="lineNum">     143 </span>            :                 if (*cp)
+<span class="lineNum">     144 </span>            :                     argv[argNext++] = cp;
+<span class="lineNum">     145 </span>            :             }
+<span class="lineNum">     146 </span>            :         }
+<span class="lineNum">     147 </span>            :     }
+<span class="lineNum">     148 </span>            :     /* exec doesn't advertise taking const char **argv, do the paranoid
+<span class="lineNum">     149 </span>            :      * copy */
+<span class="lineNum">     150 </span>            :     shNameArg = strdup(shName);
+<span class="lineNum">     151 </span>            :     if (shNameArg == NULL) {
+<span class="lineNum">     152 </span>            :         goto loser;
+<span class="lineNum">     153 </span>            :     }
+<span class="lineNum">     154 </span>            :     argv[argNext++] = shNameArg;
+<span class="lineNum">     155 </span>            :     argv[argNext++] = 0;
+<span class="lineNum">     156 </span>            : 
+<span class="lineNum">     157 </span>            :     ret = pipe(pipefd);
+<span class="lineNum">     158 </span>            :     if (ret &lt; 0) {
+<span class="lineNum">     159 </span>            :         goto loser;
+<span class="lineNum">     160 </span>            :     }
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span>            :     /* use vfork() so we don't trigger the pthread_at_fork() handlers */
+<span class="lineNum">     163 </span>            :     child = vfork();
+<span class="lineNum">     164 </span>            :     if (child &lt; 0)
+<span class="lineNum">     165 </span>            :         goto loser;
+<span class="lineNum">     166 </span>            :     if (child == 0) {
+<span class="lineNum">     167 </span>            :         /* set up the file descriptors */
+<span class="lineNum">     168 </span>            :         /* if we need to support BSD, this will need to be an open of
+<span class="lineNum">     169 </span>            :          * /dev/null and dup2(nullFD, 0)*/
+<span class="lineNum">     170 </span>            :         close(0);
+<span class="lineNum">     171 </span>            :         /* associate pipefd[1] with stdout */
+<span class="lineNum">     172 </span>            :         if (pipefd[1] != 1)
+<span class="lineNum">     173 </span>            :             dup2(pipefd[1], 1);
+<span class="lineNum">     174 </span>            :         close(2);
+<span class="lineNum">     175 </span>            :         close(pipefd[0]);
+<span class="lineNum">     176 </span>            :         /* should probably close the other file descriptors? */
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span>            :         execv(command, argv);
+<span class="lineNum">     179 </span>            :         /* avoid at_exit() handlers */
+<span class="lineNum">     180 </span>            :         _exit(1); /* shouldn't reach here except on an error */
+<span class="lineNum">     181 </span>            :     }
+<span class="lineNum">     182 </span>            :     close(pipefd[1]);
+<span class="lineNum">     183 </span>            :     pipefd[1] = -1;
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span>            :     /* this is safe because either vfork() as full fork() semantics, and thus
+<span class="lineNum">     186 </span>            :      * already has it's own address space, or because vfork() has paused
+<span class="lineNum">     187 </span>            :      * the parent util the exec or exit */
+<span class="lineNum">     188 </span>            :     free(command);
+<span class="lineNum">     189 </span>            :     free(shNameArg);
+<span class="lineNum">     190 </span>            :     PORT_Free(argv);
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span>            :     *pid = child;
+<span class="lineNum">     193 </span>            : 
+<span class="lineNum">     194 </span>            :     return PR_ImportPipe(pipefd[0]);
+<span class="lineNum">     195 </span>            : 
+<span class="lineNum">     196 </span>            : loser:
+<span class="lineNum">     197 </span>            :     if (pipefd[0] != -1) {
+<span class="lineNum">     198 </span>            :         close(pipefd[0]);
+<span class="lineNum">     199 </span>            :     }
+<span class="lineNum">     200 </span>            :     if (pipefd[1] != -1) {
+<span class="lineNum">     201 </span>            :         close(pipefd[1]);
+<span class="lineNum">     202 </span>            :     }
+<span class="lineNum">     203 </span>            :     free(command);
+<span class="lineNum">     204 </span>            :     free(shNameArg);
+<span class="lineNum">     205 </span>            :     PORT_Free(argv);
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span>            :     return NULL;
+<span class="lineNum">     208 </span>            : }
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span>            : /*
+<span class="lineNum">     211 </span>            :  * bl_CloseUnPrelink -
+<span class="lineNum">     212 </span>            :  *
+<span class="lineNum">     213 </span>            :  * This closes the file descripter and reaps and children openned and crated by
+<span class="lineNum">     214 </span>            :  * b;_OpenUnprelink. It's primary difference between it and just close is
+<span class="lineNum">     215 </span>            :  * that it calls wait on the pid if one is supplied, preventing zombie children
+<span class="lineNum">     216 </span>            :  * from hanging around.
+<span class="lineNum">     217 </span>            :  */
+<span class="lineNum">     218 </span>            : void
+<span class="lineNum">     219 </span>            : bl_CloseUnPrelink(PRFileDesc *file, int pid)
+<span class="lineNum">     220 </span>            : {
+<span class="lineNum">     221 </span>            :     /* close the file descriptor */
+<span class="lineNum">     222 </span>            :     PR_Close(file);
+<span class="lineNum">     223 </span>            :     /* reap the child */
+<span class="lineNum">     224 </span>            :     if (pid) {
+<span class="lineNum">     225 </span>            :         waitpid(pid, NULL, 0);
+<span class="lineNum">     226 </span>            :     }
+<span class="lineNum">     227 </span>            : }
+<span class="lineNum">     228 </span>            : #endif
+<span class="lineNum">     229 </span>            : 
+<span class="lineNum">     230 </span>            : /* #define DEBUG_SHVERIFY 1 */
+<a name="231"><span class="lineNum">     231 </span>            : </a>
+<span class="lineNum">     232 </span>            : static char *
+<span class="lineNum">     233 </span><span class="lineNoCov">          0 : mkCheckFileName(const char *libName)</span>
+<span class="lineNum">     234 </span>            : {
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :     int ln_len = PORT_Strlen(libName);</span>
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :     char *output = PORT_Alloc(ln_len + sizeof(SGN_SUFFIX));</span>
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :     int index = ln_len + 1 - sizeof(&quot;.&quot; SHLIB_SUFFIX);</span>
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span><span class="lineNoCov">          0 :     if ((index &gt; 0) &amp;&amp;</span>
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 :         (PORT_Strncmp(&amp;libName[index],</span>
+<span class="lineNum">     241 </span>            :                       &quot;.&quot; SHLIB_SUFFIX, sizeof(&quot;.&quot; SHLIB_SUFFIX)) == 0)) {
+<span class="lineNum">     242 </span><span class="lineNoCov">          0 :         ln_len = index;</span>
+<span class="lineNum">     243 </span>            :     }
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :     PORT_Memcpy(output, libName, ln_len);</span>
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :     PORT_Memcpy(&amp;output[ln_len], SGN_SUFFIX, sizeof(SGN_SUFFIX));</span>
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :     return output;</span>
+<span class="lineNum">     247 </span>            : }
+<a name="248"><span class="lineNum">     248 </span>            : </a>
+<span class="lineNum">     249 </span>            : static int
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 : decodeInt(unsigned char *buf)</span>
+<span class="lineNum">     251 </span>            : {
+<span class="lineNum">     252 </span><span class="lineNoCov">          0 :     return (buf[3]) | (buf[2] &lt;&lt; 8) | (buf[1] &lt;&lt; 16) | (buf[0] &lt;&lt; 24);</span>
+<span class="lineNum">     253 </span>            : }
+<a name="254"><span class="lineNum">     254 </span>            : </a>
+<span class="lineNum">     255 </span>            : static SECStatus
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 : readItem(PRFileDesc *fd, SECItem *item)</span>
+<span class="lineNum">     257 </span>            : {
+<span class="lineNum">     258 </span>            :     unsigned char buf[4];
+<span class="lineNum">     259 </span>            :     int bytesRead;
+<span class="lineNum">     260 </span>            : 
+<span class="lineNum">     261 </span><span class="lineNoCov">          0 :     bytesRead = PR_Read(fd, buf, 4);</span>
+<span class="lineNum">     262 </span><span class="lineNoCov">          0 :     if (bytesRead != 4) {</span>
+<span class="lineNum">     263 </span>            :         return SECFailure;
+<span class="lineNum">     264 </span>            :     }
+<span class="lineNum">     265 </span><span class="lineNoCov">          0 :     item-&gt;len = decodeInt(buf);</span>
+<span class="lineNum">     266 </span>            : 
+<span class="lineNum">     267 </span><span class="lineNoCov">          0 :     item-&gt;data = PORT_Alloc(item-&gt;len);</span>
+<span class="lineNum">     268 </span><span class="lineNoCov">          0 :     if (item-&gt;data == NULL) {</span>
+<span class="lineNum">     269 </span><span class="lineNoCov">          0 :         item-&gt;len = 0;</span>
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     271 </span>            :     }
+<span class="lineNum">     272 </span><span class="lineNoCov">          0 :     bytesRead = PR_Read(fd, item-&gt;data, item-&gt;len);</span>
+<span class="lineNum">     273 </span><span class="lineNoCov">          0 :     if (bytesRead != item-&gt;len) {</span>
+<span class="lineNum">     274 </span><span class="lineNoCov">          0 :         PORT_Free(item-&gt;data);</span>
+<span class="lineNum">     275 </span><span class="lineNoCov">          0 :         item-&gt;data = NULL;</span>
+<span class="lineNum">     276 </span><span class="lineNoCov">          0 :         item-&gt;len = 0;</span>
+<span class="lineNum">     277 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     278 </span>            :     }
+<span class="lineNum">     279 </span>            :     return SECSuccess;
+<span class="lineNum">     280 </span>            : }
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span>            : static PRBool blapi_SHVerifyFile(const char *shName, PRBool self);
+<a name="283"><span class="lineNum">     283 </span>            : </a>
+<span class="lineNum">     284 </span>            : static PRBool
+<span class="lineNum">     285 </span><span class="lineNoCov">          0 : blapi_SHVerify(const char *name, PRFuncPtr addr, PRBool self)</span>
+<span class="lineNum">     286 </span>            : {
+<span class="lineNum">     287 </span><span class="lineNoCov">          0 :     PRBool result = PR_FALSE; /* if anything goes wrong,</span>
+<span class="lineNum">     288 </span>            :                    * the signature does not verify */
+<span class="lineNum">     289 </span>            :     /* find our shared library name */
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :     char *shName = PR_GetLibraryFilePathname(name, addr);</span>
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :     if (!shName) {</span>
+<span class="lineNum">     292 </span>            :         goto loser;
+<span class="lineNum">     293 </span>            :     }
+<span class="lineNum">     294 </span><span class="lineNoCov">          0 :     result = blapi_SHVerifyFile(shName, self);</span>
+<span class="lineNum">     295 </span>            : 
+<span class="lineNum">     296 </span>            : loser:
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :     if (shName != NULL) {</span>
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 :         PR_Free(shName);</span>
+<span class="lineNum">     299 </span>            :     }
+<span class="lineNum">     300 </span>            : 
+<span class="lineNum">     301 </span><span class="lineNoCov">          0 :     return result;</span>
+<span class="lineNum">     302 </span>            : }
+<a name="303"><span class="lineNum">     303 </span>            : </a>
+<span class="lineNum">     304 </span>            : PRBool
+<span class="lineNum">     305 </span><span class="lineNoCov">          0 : BLAPI_SHVerify(const char *name, PRFuncPtr addr)</span>
+<span class="lineNum">     306 </span>            : {
+<span class="lineNum">     307 </span><span class="lineNoCov">          0 :     return blapi_SHVerify(name, addr, PR_FALSE);</span>
+<span class="lineNum">     308 </span>            : }
+<a name="309"><span class="lineNum">     309 </span>            : </a>
+<span class="lineNum">     310 </span>            : PRBool
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 : BLAPI_SHVerifyFile(const char *shName)</span>
+<span class="lineNum">     312 </span>            : {
+<span class="lineNum">     313 </span><span class="lineNoCov">          0 :     return blapi_SHVerifyFile(shName, PR_FALSE);</span>
+<span class="lineNum">     314 </span>            : }
+<a name="315"><span class="lineNum">     315 </span>            : </a>
+<span class="lineNum">     316 </span>            : static PRBool
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 : blapi_SHVerifyFile(const char *shName, PRBool self)</span>
+<span class="lineNum">     318 </span>            : {
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :     char *checkName = NULL;</span>
+<span class="lineNum">     320 </span><span class="lineNoCov">          0 :     PRFileDesc *checkFD = NULL;</span>
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :     PRFileDesc *shFD = NULL;</span>
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 :     void *hashcx = NULL;</span>
+<span class="lineNum">     323 </span><span class="lineNoCov">          0 :     const SECHashObject *hashObj = NULL;</span>
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 :     SECItem signature = { 0, NULL, 0 };</span>
+<span class="lineNum">     325 </span>            :     SECItem hash;
+<span class="lineNum">     326 </span>            :     int bytesRead, offset;
+<span class="lineNum">     327 </span>            :     SECStatus rv;
+<span class="lineNum">     328 </span>            :     DSAPublicKey key;
+<span class="lineNum">     329 </span>            :     int count;
+<span class="lineNum">     330 </span>            : #ifdef FREEBL_USE_PRELINK
+<span class="lineNum">     331 </span>            :     int pid = 0;
+<span class="lineNum">     332 </span>            : #endif
+<span class="lineNum">     333 </span>            : 
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :     PRBool result = PR_FALSE; /* if anything goes wrong,</span>
+<span class="lineNum">     335 </span>            :                    * the signature does not verify */
+<span class="lineNum">     336 </span>            :     unsigned char buf[4096];
+<span class="lineNum">     337 </span>            :     unsigned char hashBuf[HASH_LENGTH_MAX];
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 :     PORT_Memset(&amp;key, 0, sizeof(key));</span>
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :     hash.data = hashBuf;</span>
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :     hash.len = sizeof(hashBuf);</span>
+<span class="lineNum">     342 </span>            : 
+<span class="lineNum">     343 </span>            :     /* If our integrity check was never ran or failed, fail any other
+<span class="lineNum">     344 </span>            :      * integrity checks to prevent any token going into FIPS mode. */
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 :     if (!self &amp;&amp; (BL_FIPSEntryOK(PR_FALSE) != SECSuccess)) {</span>
+<span class="lineNum">     346 </span>            :         return PR_FALSE;
+<span class="lineNum">     347 </span>            :     }
+<span class="lineNum">     348 </span>            : 
+<span class="lineNum">     349 </span><span class="lineNoCov">          0 :     if (!shName) {</span>
+<span class="lineNum">     350 </span>            :         goto loser;
+<span class="lineNum">     351 </span>            :     }
+<span class="lineNum">     352 </span>            : 
+<span class="lineNum">     353 </span>            :     /* figure out the name of our check file */
+<span class="lineNum">     354 </span><span class="lineNoCov">          0 :     checkName = mkCheckFileName(shName);</span>
+<span class="lineNum">     355 </span><span class="lineNoCov">          0 :     if (!checkName) {</span>
+<span class="lineNum">     356 </span>            :         goto loser;
+<span class="lineNum">     357 </span>            :     }
+<span class="lineNum">     358 </span>            : 
+<span class="lineNum">     359 </span>            :     /* open the check File */
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 :     checkFD = PR_Open(checkName, PR_RDONLY, 0);</span>
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 :     if (checkFD == NULL) {</span>
+<span class="lineNum">     362 </span>            : #ifdef DEBUG_SHVERIFY
+<span class="lineNum">     363 </span>            :         fprintf(stderr, &quot;Failed to open the check file %s: (%d, %d)\n&quot;,
+<span class="lineNum">     364 </span>            :                 checkName, (int)PR_GetError(), (int)PR_GetOSError());
+<span class="lineNum">     365 </span>            : #endif /* DEBUG_SHVERIFY */
+<span class="lineNum">     366 </span>            :         goto loser;
+<span class="lineNum">     367 </span>            :     }
+<span class="lineNum">     368 </span>            : 
+<span class="lineNum">     369 </span>            :     /* read and Verify the headerthe header */
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :     bytesRead = PR_Read(checkFD, buf, 12);</span>
+<span class="lineNum">     371 </span><span class="lineNoCov">          0 :     if (bytesRead != 12) {</span>
+<span class="lineNum">     372 </span>            :         goto loser;
+<span class="lineNum">     373 </span>            :     }
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :     if ((buf[0] != NSS_SIGN_CHK_MAGIC1) || (buf[1] != NSS_SIGN_CHK_MAGIC2)) {</span>
+<span class="lineNum">     375 </span>            :         goto loser;
+<span class="lineNum">     376 </span>            :     }
+<span class="lineNum">     377 </span><span class="lineNoCov">          0 :     if ((buf[2] != NSS_SIGN_CHK_MAJOR_VERSION) ||</span>
+<span class="lineNum">     378 </span><span class="lineNoCov">          0 :         (buf[3] &lt; NSS_SIGN_CHK_MINOR_VERSION)) {</span>
+<span class="lineNum">     379 </span>            :         goto loser;
+<span class="lineNum">     380 </span>            :     }
+<span class="lineNum">     381 </span>            : #ifdef notdef
+<span class="lineNum">     382 </span>            :     if (decodeInt(&amp;buf[8]) != CKK_DSA) {
+<span class="lineNum">     383 </span>            :         goto loser;
+<span class="lineNum">     384 </span>            :     }
+<span class="lineNum">     385 </span>            : #endif
+<span class="lineNum">     386 </span>            : 
+<span class="lineNum">     387 </span>            :     /* seek past any future header extensions */
+<span class="lineNum">     388 </span><span class="lineNoCov">          0 :     offset = decodeInt(&amp;buf[4]);</span>
+<span class="lineNum">     389 </span><span class="lineNoCov">          0 :     if (PR_Seek(checkFD, offset, PR_SEEK_SET) &lt; 0) {</span>
+<span class="lineNum">     390 </span>            :         goto loser;
+<span class="lineNum">     391 </span>            :     }
+<span class="lineNum">     392 </span>            : 
+<span class="lineNum">     393 </span>            :     /* read the key */
+<span class="lineNum">     394 </span><span class="lineNoCov">          0 :     rv = readItem(checkFD, &amp;key.params.prime);</span>
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     396 </span>            :         goto loser;
+<span class="lineNum">     397 </span>            :     }
+<span class="lineNum">     398 </span><span class="lineNoCov">          0 :     rv = readItem(checkFD, &amp;key.params.subPrime);</span>
+<span class="lineNum">     399 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     400 </span>            :         goto loser;
+<span class="lineNum">     401 </span>            :     }
+<span class="lineNum">     402 </span><span class="lineNoCov">          0 :     rv = readItem(checkFD, &amp;key.params.base);</span>
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     404 </span>            :         goto loser;
+<span class="lineNum">     405 </span>            :     }
+<span class="lineNum">     406 </span><span class="lineNoCov">          0 :     rv = readItem(checkFD, &amp;key.publicValue);</span>
+<span class="lineNum">     407 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     408 </span>            :         goto loser;
+<span class="lineNum">     409 </span>            :     }
+<span class="lineNum">     410 </span>            :     /* read the siganture */
+<span class="lineNum">     411 </span><span class="lineNoCov">          0 :     rv = readItem(checkFD, &amp;signature);</span>
+<span class="lineNum">     412 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     413 </span>            :         goto loser;
+<span class="lineNum">     414 </span>            :     }
+<span class="lineNum">     415 </span>            : 
+<span class="lineNum">     416 </span>            :     /* done with the check file */
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :     PR_Close(checkFD);</span>
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 :     checkFD = NULL;</span>
+<span class="lineNum">     419 </span>            : 
+<span class="lineNum">     420 </span><span class="lineNoCov">          0 :     hashObj = HASH_GetRawHashObject(PQG_GetHashType(&amp;key.params));</span>
+<span class="lineNum">     421 </span><span class="lineNoCov">          0 :     if (hashObj == NULL) {</span>
+<span class="lineNum">     422 </span>            :         goto loser;
+<span class="lineNum">     423 </span>            :     }
+<span class="lineNum">     424 </span>            : 
+<span class="lineNum">     425 </span>            : /* open our library file */
+<span class="lineNum">     426 </span>            : #ifdef FREEBL_USE_PRELINK
+<span class="lineNum">     427 </span>            :     shFD = bl_OpenUnPrelink(shName, &amp;pid);
+<span class="lineNum">     428 </span>            : #else
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 :     shFD = PR_Open(shName, PR_RDONLY, 0);</span>
+<span class="lineNum">     430 </span>            : #endif
+<span class="lineNum">     431 </span><span class="lineNoCov">          0 :     if (shFD == NULL) {</span>
+<span class="lineNum">     432 </span>            : #ifdef DEBUG_SHVERIFY
+<span class="lineNum">     433 </span>            :         fprintf(stderr, &quot;Failed to open the library file %s: (%d, %d)\n&quot;,
+<span class="lineNum">     434 </span>            :                 shName, (int)PR_GetError(), (int)PR_GetOSError());
+<span class="lineNum">     435 </span>            : #endif /* DEBUG_SHVERIFY */
+<span class="lineNum">     436 </span>            :         goto loser;
+<span class="lineNum">     437 </span>            :     }
+<span class="lineNum">     438 </span>            : 
+<span class="lineNum">     439 </span>            :     /* hash our library file with SHA1 */
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :     hashcx = hashObj-&gt;create();</span>
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :     if (hashcx == NULL) {</span>
+<span class="lineNum">     442 </span>            :         goto loser;
+<span class="lineNum">     443 </span>            :     }
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 :     hashObj-&gt;begin(hashcx);</span>
+<span class="lineNum">     445 </span>            : 
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :     count = 0;</span>
+<span class="lineNum">     447 </span><span class="lineNoCov">          0 :     while ((bytesRead = PR_Read(shFD, buf, sizeof(buf))) &gt; 0) {</span>
+<span class="lineNum">     448 </span><span class="lineNoCov">          0 :         hashObj-&gt;update(hashcx, buf, bytesRead);</span>
+<span class="lineNum">     449 </span><span class="lineNoCov">          0 :         count += bytesRead;</span>
+<span class="lineNum">     450 </span>            :     }
+<span class="lineNum">     451 </span>            : #ifdef FREEBL_USE_PRELINK
+<span class="lineNum">     452 </span>            :     bl_CloseUnPrelink(shFD, pid);
+<span class="lineNum">     453 </span>            : #else
+<span class="lineNum">     454 </span><span class="lineNoCov">          0 :     PR_Close(shFD);</span>
+<span class="lineNum">     455 </span>            : #endif
+<span class="lineNum">     456 </span><span class="lineNoCov">          0 :     shFD = NULL;</span>
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span><span class="lineNoCov">          0 :     hashObj-&gt;end(hashcx, hash.data, &amp;hash.len, hash.len);</span>
+<span class="lineNum">     459 </span>            : 
+<span class="lineNum">     460 </span>            :     /* verify the hash against the check file */
+<span class="lineNum">     461 </span><span class="lineNoCov">          0 :     if (DSA_VerifyDigest(&amp;key, &amp;signature, &amp;hash) == SECSuccess) {</span>
+<span class="lineNum">     462 </span><span class="lineNoCov">          0 :         result = PR_TRUE;</span>
+<span class="lineNum">     463 </span>            :     }
+<span class="lineNum">     464 </span>            : #ifdef DEBUG_SHVERIFY
+<span class="lineNum">     465 </span>            :     {
+<span class="lineNum">     466 </span>            :         int i, j;
+<span class="lineNum">     467 </span>            :         fprintf(stderr, &quot;File %s: %d bytes\n&quot;, shName, count);
+<span class="lineNum">     468 </span>            :         fprintf(stderr, &quot;  hash: %d bytes\n&quot;, hash.len);
+<span class="lineNum">     469 </span>            : #define STEP 10
+<span class="lineNum">     470 </span>            :         for (i = 0; i &lt; hash.len; i += STEP) {
+<span class="lineNum">     471 </span>            :             fprintf(stderr, &quot;   &quot;);
+<span class="lineNum">     472 </span>            :             for (j = 0; j &lt; STEP &amp;&amp; (i + j) &lt; hash.len; j++) {
+<span class="lineNum">     473 </span>            :                 fprintf(stderr, &quot; %02x&quot;, hash.data[i + j]);
+<span class="lineNum">     474 </span>            :             }
+<span class="lineNum">     475 </span>            :             fprintf(stderr, &quot;\n&quot;);
+<span class="lineNum">     476 </span>            :         }
+<span class="lineNum">     477 </span>            :         fprintf(stderr, &quot;  signature: %d bytes\n&quot;, signature.len);
+<span class="lineNum">     478 </span>            :         for (i = 0; i &lt; signature.len; i += STEP) {
+<span class="lineNum">     479 </span>            :             fprintf(stderr, &quot;   &quot;);
+<span class="lineNum">     480 </span>            :             for (j = 0; j &lt; STEP &amp;&amp; (i + j) &lt; signature.len; j++) {
+<span class="lineNum">     481 </span>            :                 fprintf(stderr, &quot; %02x&quot;, signature.data[i + j]);
+<span class="lineNum">     482 </span>            :             }
+<span class="lineNum">     483 </span>            :             fprintf(stderr, &quot;\n&quot;);
+<span class="lineNum">     484 </span>            :         }
+<span class="lineNum">     485 </span>            :         fprintf(stderr, &quot;Verified : %s\n&quot;, result ? &quot;TRUE&quot; : &quot;FALSE&quot;);
+<span class="lineNum">     486 </span>            :     }
+<span class="lineNum">     487 </span>            : #endif /* DEBUG_SHVERIFY */
+<span class="lineNum">     488 </span>            : 
+<span class="lineNum">     489 </span>            : loser:
+<span class="lineNum">     490 </span><span class="lineNoCov">          0 :     if (checkName != NULL) {</span>
+<span class="lineNum">     491 </span><span class="lineNoCov">          0 :         PORT_Free(checkName);</span>
+<span class="lineNum">     492 </span>            :     }
+<span class="lineNum">     493 </span><span class="lineNoCov">          0 :     if (checkFD != NULL) {</span>
+<span class="lineNum">     494 </span><span class="lineNoCov">          0 :         PR_Close(checkFD);</span>
+<span class="lineNum">     495 </span>            :     }
+<span class="lineNum">     496 </span><span class="lineNoCov">          0 :     if (shFD != NULL) {</span>
+<span class="lineNum">     497 </span><span class="lineNoCov">          0 :         PR_Close(shFD);</span>
+<span class="lineNum">     498 </span>            :     }
+<span class="lineNum">     499 </span><span class="lineNoCov">          0 :     if (hashcx != NULL) {</span>
+<span class="lineNum">     500 </span><span class="lineNoCov">          0 :         if (hashObj) {</span>
+<span class="lineNum">     501 </span><span class="lineNoCov">          0 :             hashObj-&gt;destroy(hashcx, PR_TRUE);</span>
+<span class="lineNum">     502 </span>            :         }
+<span class="lineNum">     503 </span>            :     }
+<span class="lineNum">     504 </span><span class="lineNoCov">          0 :     if (signature.data != NULL) {</span>
+<span class="lineNum">     505 </span><span class="lineNoCov">          0 :         PORT_Free(signature.data);</span>
+<span class="lineNum">     506 </span>            :     }
+<span class="lineNum">     507 </span><span class="lineNoCov">          0 :     if (key.params.prime.data != NULL) {</span>
+<span class="lineNum">     508 </span><span class="lineNoCov">          0 :         PORT_Free(key.params.prime.data);</span>
+<span class="lineNum">     509 </span>            :     }
+<span class="lineNum">     510 </span><span class="lineNoCov">          0 :     if (key.params.subPrime.data != NULL) {</span>
+<span class="lineNum">     511 </span><span class="lineNoCov">          0 :         PORT_Free(key.params.subPrime.data);</span>
+<span class="lineNum">     512 </span>            :     }
+<span class="lineNum">     513 </span><span class="lineNoCov">          0 :     if (key.params.base.data != NULL) {</span>
+<span class="lineNum">     514 </span><span class="lineNoCov">          0 :         PORT_Free(key.params.base.data);</span>
+<span class="lineNum">     515 </span>            :     }
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :     if (key.publicValue.data != NULL) {</span>
+<span class="lineNum">     517 </span><span class="lineNoCov">          0 :         PORT_Free(key.publicValue.data);</span>
+<span class="lineNum">     518 </span>            :     }
+<span class="lineNum">     519 </span>            : 
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 :     return result;</span>
+<span class="lineNum">     521 </span>            : }
+<a name="522"><span class="lineNum">     522 </span>            : </a>
+<span class="lineNum">     523 </span>            : PRBool
+<span class="lineNum">     524 </span><span class="lineNoCov">          0 : BLAPI_VerifySelf(const char *name)</span>
+<span class="lineNum">     525 </span>            : {
+<span class="lineNum">     526 </span><span class="lineNoCov">          0 :     if (name == NULL) {</span>
+<span class="lineNum">     527 </span>            :         /*
+<span class="lineNum">     528 </span>            :          * If name is NULL, freebl is statically linked into softoken.
+<span class="lineNum">     529 </span>            :          * softoken will call BLAPI_SHVerify next to verify itself.
+<span class="lineNum">     530 </span>            :          */
+<span class="lineNum">     531 </span>            :         return PR_TRUE;
+<span class="lineNum">     532 </span>            :     }
+<span class="lineNum">     533 </span><span class="lineNoCov">          0 :     return blapi_SHVerify(name, (PRFuncPtr)decodeInt, PR_TRUE);</span>
+<span class="lineNum">     534 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

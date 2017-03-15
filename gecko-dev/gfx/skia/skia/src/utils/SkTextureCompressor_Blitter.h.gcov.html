@@ -1,0 +1,817 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/gfx/skia/skia/src/utils/SkTextureCompressor_Blitter.h</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../../index.html">top level</a> - <a href="index.html">gecko-dev/gfx/skia/skia/src/utils</a> - SkTextureCompressor_Blitter.h<span style="font-size: 80%;"> (source / <a href="SkTextureCompressor_Blitter.h.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">136</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">45</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  * Copyright 2014 Google Inc.
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  * Use of this source code is governed by a BSD-style license that can be
+<span class="lineNum">       5 </span>            :  * found in the LICENSE file.
+<span class="lineNum">       6 </span>            :  */
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #ifndef SkTextureCompressor_Blitter_DEFINED
+<span class="lineNum">       9 </span>            : #define SkTextureCompressor_Blitter_DEFINED
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;SkTypes.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;SkBlitter.h&quot;
+<span class="lineNum">      13 </span>            : 
+<span class="lineNum">      14 </span>            : namespace SkTextureCompressor {
+<span class="lineNum">      15 </span>            : 
+<span class="lineNum">      16 </span>            : // Ostensibly, SkBlitter::BlitRect is supposed to set a rect of pixels to full
+<span class="lineNum">      17 </span>            : // alpha. This becomes problematic when using compressed texture blitters, since
+<span class="lineNum">      18 </span>            : // the rect rarely falls along block boundaries. The proper way to handle this is
+<span class="lineNum">      19 </span>            : // to update the compressed encoding of a block by resetting the proper parameters
+<span class="lineNum">      20 </span>            : // (and even recompressing the block) where a rect falls inbetween block boundaries.
+<span class="lineNum">      21 </span>            : // PEDANTIC_BLIT_RECT attempts to do this by requiring the struct passed to
+<span class="lineNum">      22 </span>            : // SkTCompressedAlphaBlitter to implement an UpdateBlock function call.
+<span class="lineNum">      23 </span>            : //
+<span class="lineNum">      24 </span>            : // However, the way that BlitRect gets used almost exclusively is to bracket inverse
+<span class="lineNum">      25 </span>            : // fills for paths. In other words, the top few rows and bottom few rows of a path
+<span class="lineNum">      26 </span>            : // that's getting inverse filled are called using blitRect. The rest are called using
+<span class="lineNum">      27 </span>            : // the standard blitAntiH. As a result, we can just call  blitAntiH with a faux RLE
+<span class="lineNum">      28 </span>            : // of full alpha values, and then check in our flush() call that we don't run off the
+<span class="lineNum">      29 </span>            : // edge of the buffer. This is why we do not need this flag to be turned on.
+<span class="lineNum">      30 </span>            : //
+<span class="lineNum">      31 </span>            : // NOTE: This code is unfinished, but is inteded as a starting point if an when
+<span class="lineNum">      32 </span>            : // bugs are introduced from the existing code.
+<span class="lineNum">      33 </span>            : #define PEDANTIC_BLIT_RECT 0
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : // This class implements a blitter that blits directly into a buffer that will
+<span class="lineNum">      36 </span>            : // be used as an compressed alpha texture. We compute this buffer by
+<span class="lineNum">      37 </span>            : // buffering scan lines and then outputting them all at once. The number of
+<span class="lineNum">      38 </span>            : // scan lines buffered is controlled by kBlockSize
+<span class="lineNum">      39 </span>            : //
+<span class="lineNum">      40 </span>            : // The CompressorType is a struct with a bunch of static methods that provides
+<span class="lineNum">      41 </span>            : // the specialized compression functionality of the blitter. A complete CompressorType
+<span class="lineNum">      42 </span>            : // will implement the following static functions;
+<span class="lineNum">      43 </span>            : //
+<span class="lineNum">      44 </span>            : // struct CompressorType {
+<span class="lineNum">      45 </span>            : //     // The function used to compress an A8 block. The layout of the
+<span class="lineNum">      46 </span>            : //     // block is also expected to be in column-major order.
+<span class="lineNum">      47 </span>            : //     static void CompressA8Vertical(uint8_t* dst, const uint8_t block[]);
+<span class="lineNum">      48 </span>            : //
+<span class="lineNum">      49 </span>            : //     // The function used to compress an A8 block. The layout of the
+<span class="lineNum">      50 </span>            : //     // block is also expected to be in row-major order.
+<span class="lineNum">      51 </span>            : //     static void CompressA8Horizontal(uint8_t* dst, const uint8_t* src, int srcRowBytes);
+<span class="lineNum">      52 </span>            : //
+<span class="lineNum">      53 </span>            : #if PEDANTIC_BLIT_RECT
+<span class="lineNum">      54 </span>            : //     // The function used to update an already compressed block. This will
+<span class="lineNum">      55 </span>            : //     // most likely be implementation dependent. The mask variable will have
+<span class="lineNum">      56 </span>            : //     // 0xFF in positions where the block should be updated and 0 in positions
+<span class="lineNum">      57 </span>            : //     // where it shouldn't. src contains an uncompressed buffer of pixels.
+<span class="lineNum">      58 </span>            : //     static void UpdateBlock(uint8_t* dst, const uint8_t* src, int srcRowBytes,
+<span class="lineNum">      59 </span>            : //                             const uint8_t* mask);
+<span class="lineNum">      60 </span>            : #endif
+<span class="lineNum">      61 </span>            : // };
+<span class="lineNum">      62 </span>            : template&lt;int BlockDim, int EncodedBlockSize, typename CompressorType&gt;
+<a name="63"><span class="lineNum">      63 </span>            : class SkTCompressedAlphaBlitter : public SkBlitter {</a>
+<span class="lineNum">      64 </span>            : public:
+<span class="lineNum">      65 </span><span class="lineNoCov">          0 :     SkTCompressedAlphaBlitter(int width, int height, void *compressedBuffer)</span>
+<span class="lineNum">      66 </span>            :         // 0x7FFE is one minus the largest positive 16-bit int. We use it for
+<span class="lineNum">      67 </span>            :         // debugging to make sure that we're properly setting the nextX distance
+<span class="lineNum">      68 </span>            :         // in flushRuns().
+<span class="lineNum">      69 </span>            : #ifdef SK_DEBUG
+<span class="lineNum">      70 </span>            :         : fCalledOnceWithNonzeroY(false)
+<span class="lineNum">      71 </span>            :         , fBlitMaskCalled(false),
+<span class="lineNum">      72 </span>            : #else
+<span class="lineNum">      73 </span>            :         :
+<span class="lineNum">      74 </span>            : #endif
+<span class="lineNum">      75 </span>            :         kLongestRun(0x7FFE), kZeroAlpha(0)
+<span class="lineNum">      76 </span>            :         , fNextRun(0)
+<span class="lineNum">      77 </span>            :         , fWidth(width)
+<span class="lineNum">      78 </span>            :         , fHeight(height)
+<span class="lineNum">      79 </span><span class="lineNoCov">          0 :         , fBuffer(compressedBuffer)</span>
+<span class="lineNum">      80 </span>            :         {
+<span class="lineNum">      81 </span>            :             SkASSERT((width % BlockDim) == 0);
+<span class="lineNum">      82 </span>            :             SkASSERT((height % BlockDim) == 0);
+<a name="83"><span class="lineNum">      83 </span><span class="lineNoCov">          0 :         }</span></a>
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span><span class="lineNoCov">          0 :     virtual ~SkTCompressedAlphaBlitter() { this-&gt;flushRuns(); }</span>
+<a name="86"><span class="lineNum">      86 </span>            : </a>
+<span class="lineNum">      87 </span>            :     // Blit a horizontal run of one or more pixels.
+<span class="lineNum">      88 </span><span class="lineNoCov">          0 :     void blitH(int x, int y, int width) override {</span>
+<span class="lineNum">      89 </span>            :         // This function is intended to be called from any standard RGB
+<span class="lineNum">      90 </span>            :         // buffer, so we should never encounter it. However, if some code
+<span class="lineNum">      91 </span>            :         // path does end up here, then this needs to be investigated.
+<span class="lineNum">      92 </span><span class="lineNoCov">          0 :         SkFAIL(&quot;Not implemented!&quot;);</span>
+<span class="lineNum">      93 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">      94 </span>            : 
+<a name="95"><span class="lineNum">      95 </span>            :     // Blit a horizontal run of antialiased pixels; runs[] is a *sparse*</a>
+<span class="lineNum">      96 </span>            :     // zero-terminated run-length encoding of spans of constant alpha values.
+<span class="lineNum">      97 </span><span class="lineNoCov">          0 :     void blitAntiH(int x, int y,</span>
+<span class="lineNum">      98 </span>            :                    const SkAlpha antialias[],
+<span class="lineNum">      99 </span>            :                    const int16_t runs[]) override {
+<span class="lineNum">     100 </span>            :         SkASSERT(0 == x);
+<span class="lineNum">     101 </span>            : 
+<span class="lineNum">     102 </span>            :         // Make sure that the new row to blit is either the first
+<span class="lineNum">     103 </span>            :         // row that we're blitting, or it's exactly the next scan row
+<span class="lineNum">     104 </span>            :         // since the last row that we blit. This is to ensure that when
+<span class="lineNum">     105 </span>            :         // we go to flush the runs, that they are all the same four
+<span class="lineNum">     106 </span>            :         // runs.
+<span class="lineNum">     107 </span><span class="lineNoCov">          0 :         if (fNextRun &gt; 0 &amp;&amp;</span>
+<span class="lineNum">     108 </span>            :             ((x != fBufferedRuns[fNextRun-1].fX) ||
+<span class="lineNum">     109 </span>            :              (y-1 != fBufferedRuns[fNextRun-1].fY))) {
+<span class="lineNum">     110 </span><span class="lineNoCov">          0 :             this-&gt;flushRuns();</span>
+<span class="lineNum">     111 </span>            :         }
+<span class="lineNum">     112 </span>            : 
+<span class="lineNum">     113 </span>            :         // Align the rows to a block boundary. If we receive rows that
+<span class="lineNum">     114 </span>            :         // are not on a block boundary, then fill in the preceding runs
+<span class="lineNum">     115 </span>            :         // with zeros. We do this by producing a single RLE that says
+<span class="lineNum">     116 </span>            :         // that we have 0x7FFE pixels of zero (0x7FFE = 32766).
+<span class="lineNum">     117 </span><span class="lineNoCov">          0 :         const int row = BlockDim * (y / BlockDim);</span>
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :         while ((row + fNextRun) &lt; y) {</span>
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 :             fBufferedRuns[fNextRun].fAlphas = &amp;kZeroAlpha;</span>
+<span class="lineNum">     120 </span><span class="lineNoCov">          0 :             fBufferedRuns[fNextRun].fRuns = &amp;kLongestRun;</span>
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :             fBufferedRuns[fNextRun].fX = 0;</span>
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :             fBufferedRuns[fNextRun].fY = row + fNextRun;</span>
+<span class="lineNum">     123 </span><span class="lineNoCov">          0 :             ++fNextRun;</span>
+<span class="lineNum">     124 </span>            :         }
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span>            :         // Make sure that our assumptions aren't violated...
+<span class="lineNum">     127 </span>            :         SkASSERT(fNextRun == (y % BlockDim));
+<span class="lineNum">     128 </span>            :         SkASSERT(fNextRun == 0 || fBufferedRuns[fNextRun - 1].fY &lt; y);
+<span class="lineNum">     129 </span>            : 
+<span class="lineNum">     130 </span>            :         // Set the values of the next run
+<span class="lineNum">     131 </span><span class="lineNoCov">          0 :         fBufferedRuns[fNextRun].fAlphas = antialias;</span>
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :         fBufferedRuns[fNextRun].fRuns = runs;</span>
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :         fBufferedRuns[fNextRun].fX = x;</span>
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :         fBufferedRuns[fNextRun].fY = y;</span>
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span>            :         // If we've output a block of scanlines in a row that don't violate our
+<span class="lineNum">     137 </span>            :         // assumptions, then it's time to flush them...
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 :         if (BlockDim == ++fNextRun) {</span>
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :             this-&gt;flushRuns();</span>
+<span class="lineNum">     140 </span>            :         }
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :     }</span>
+<a name="142"><span class="lineNum">     142 </span>            : </a>
+<span class="lineNum">     143 </span>            :     // Blit a vertical run of pixels with a constant alpha value.
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :     void blitV(int x, int y, int height, SkAlpha alpha) override {</span>
+<span class="lineNum">     145 </span>            :         // This function is currently not implemented. It is not explicitly
+<span class="lineNum">     146 </span>            :         // required by the contract, but if at some time a code path runs into
+<span class="lineNum">     147 </span>            :         // this function (which is entirely possible), it needs to be implemented.
+<span class="lineNum">     148 </span>            :         //
+<span class="lineNum">     149 </span>            :         // TODO (krajcevski):
+<span class="lineNum">     150 </span>            :         // This function will be most easily implemented in one of two ways:
+<span class="lineNum">     151 </span>            :         // 1. Buffer each vertical column value and then construct a list
+<span class="lineNum">     152 </span>            :         //    of alpha values and output all of the blocks at once. This only
+<span class="lineNum">     153 </span>            :         //    requires a write to the compressed buffer
+<span class="lineNum">     154 </span>            :         // 2. Replace the indices of each block with the proper indices based
+<span class="lineNum">     155 </span>            :         //    on the alpha value. This requires a read and write of the compressed
+<span class="lineNum">     156 </span>            :         //    buffer, but much less overhead.
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :         SkFAIL(&quot;Not implemented!&quot;);</span>
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     159 </span>            : 
+<span class="lineNum">     160 </span>            :     // Blit a solid rectangle one or more pixels wide. It's assumed that blitRect
+<span class="lineNum">     161 </span>            :     // is called as a way to bracket blitAntiH where above and below the path the
+<span class="lineNum">     162 </span>            :     // called path just needs a solid rectangle to fill in the mask.
+<span class="lineNum">     163 </span>            : #ifdef SK_DEBUG
+<a name="164"><span class="lineNum">     164 </span>            :     bool fCalledOnceWithNonzeroY;</a>
+<span class="lineNum">     165 </span>            : #endif
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :     void blitRect(int x, int y, int width, int height) override {</span>
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span>            :         // Assumptions:
+<span class="lineNum">     169 </span>            :         SkASSERT(0 == x);
+<span class="lineNum">     170 </span>            :         SkASSERT(width &lt;= fWidth);
+<span class="lineNum">     171 </span>            : 
+<span class="lineNum">     172 </span>            :         // Make sure that we're only ever bracketing calls to blitAntiH.
+<span class="lineNum">     173 </span>            :         SkASSERT((0 == y) || (!fCalledOnceWithNonzeroY &amp;&amp; (fCalledOnceWithNonzeroY = true)));
+<span class="lineNum">     174 </span>            : 
+<span class="lineNum">     175 </span>            : #if !(PEDANTIC_BLIT_RECT)
+<span class="lineNum">     176 </span><span class="lineNoCov">          0 :         for (int i = 0; i &lt; height; ++i) {</span>
+<span class="lineNum">     177 </span><span class="lineNoCov">          0 :             const SkAlpha kFullAlpha = 0xFF;</span>
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :             this-&gt;blitAntiH(x, y+i, &amp;kFullAlpha, &amp;kLongestRun);</span>
+<span class="lineNum">     179 </span>            :         }
+<span class="lineNum">     180 </span>            : #else
+<span class="lineNum">     181 </span>            :         const int startBlockX = (x / BlockDim) * BlockDim;
+<span class="lineNum">     182 </span>            :         const int startBlockY = (y / BlockDim) * BlockDim;
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span>            :         const int endBlockX = ((x + width) / BlockDim) * BlockDim;
+<span class="lineNum">     185 </span>            :         const int endBlockY = ((y + height) / BlockDim) * BlockDim;
+<span class="lineNum">     186 </span>            : 
+<span class="lineNum">     187 </span>            :         // If start and end are the same, then we only need to update a single block...
+<span class="lineNum">     188 </span>            :         if (startBlockY == endBlockY &amp;&amp; startBlockX == endBlockX) {
+<span class="lineNum">     189 </span>            :             uint8_t mask[BlockDim*BlockDim];
+<span class="lineNum">     190 </span>            :             memset(mask, 0, sizeof(mask));
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span>            :             const int xoff = x - startBlockX;
+<span class="lineNum">     193 </span>            :             SkASSERT((xoff + width) &lt;= BlockDim);
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span>            :             const int yoff = y - startBlockY;
+<span class="lineNum">     196 </span>            :             SkASSERT((yoff + height) &lt;= BlockDim);
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span>            :             for (int j = 0; j &lt; height; ++j) {
+<span class="lineNum">     199 </span>            :                 memset(mask + (j + yoff)*BlockDim + xoff, 0xFF, width);
+<span class="lineNum">     200 </span>            :             }
+<span class="lineNum">     201 </span>            : 
+<span class="lineNum">     202 </span>            :             uint8_t* dst = this-&gt;getBlock(startBlockX, startBlockY);
+<span class="lineNum">     203 </span>            :             CompressorType::UpdateBlock(dst, mask, BlockDim, mask);
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span>            :         // If start and end are the same in the y dimension, then we can freely update an
+<span class="lineNum">     206 </span>            :         // entire row of blocks...
+<span class="lineNum">     207 </span>            :         } else if (startBlockY == endBlockY) {
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span>            :             this-&gt;updateBlockRow(x, y, width, height, startBlockY, startBlockX, endBlockX);
+<span class="lineNum">     210 </span>            : 
+<span class="lineNum">     211 </span>            :         // Similarly, if the start and end are in the same column, then we can just update
+<span class="lineNum">     212 </span>            :         // an entire column of blocks...
+<span class="lineNum">     213 </span>            :         } else if (startBlockX == endBlockX) {
+<span class="lineNum">     214 </span>            : 
+<span class="lineNum">     215 </span>            :             this-&gt;updateBlockCol(x, y, width, height, startBlockX, startBlockY, endBlockY);
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span>            :         // Otherwise, the rect spans a non-trivial region of blocks, and we have to construct
+<span class="lineNum">     218 </span>            :         // a kind of 9-patch to update each of the pieces of the rect. The top and bottom
+<span class="lineNum">     219 </span>            :         // rows are updated using updateBlockRow, and the left and right columns are updated
+<span class="lineNum">     220 </span>            :         // using updateBlockColumn. Anything in the middle is simply memset to an opaque block
+<span class="lineNum">     221 </span>            :         // encoding.
+<span class="lineNum">     222 </span>            :         } else {
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span>            :             const int innerStartBlockX = startBlockX + BlockDim;
+<span class="lineNum">     225 </span>            :             const int innerStartBlockY = startBlockY + BlockDim;
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span>            :             // Blit top row
+<span class="lineNum">     228 </span>            :             const int topRowHeight = innerStartBlockY - y;
+<span class="lineNum">     229 </span>            :             this-&gt;updateBlockRow(x, y, width, topRowHeight, startBlockY,
+<span class="lineNum">     230 </span>            :                                  startBlockX, endBlockX);
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span>            :             // Advance y
+<span class="lineNum">     233 </span>            :             y += topRowHeight;
+<span class="lineNum">     234 </span>            :             height -= topRowHeight;
+<span class="lineNum">     235 </span>            : 
+<span class="lineNum">     236 </span>            :             // Blit middle
+<span class="lineNum">     237 </span>            :             if (endBlockY &gt; innerStartBlockY) {
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span>            :                 // Update left row
+<span class="lineNum">     240 </span>            :                 this-&gt;updateBlockCol(x, y, innerStartBlockX - x, endBlockY, startBlockY,
+<span class="lineNum">     241 </span>            :                                      startBlockX, innerStartBlockX);
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span>            :                 // Update the middle with an opaque encoding...
+<span class="lineNum">     244 </span>            :                 uint8_t mask[BlockDim*BlockDim];
+<span class="lineNum">     245 </span>            :                 memset(mask, 0xFF, sizeof(mask));
+<span class="lineNum">     246 </span>            : 
+<span class="lineNum">     247 </span>            :                 uint8_t opaqueEncoding[EncodedBlockSize];
+<span class="lineNum">     248 </span>            :                 CompressorType::CompressA8Horizontal(opaqueEncoding, mask, BlockDim);
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span>            :                 for (int j = innerStartBlockY; j &lt; endBlockY; j += BlockDim) {
+<span class="lineNum">     251 </span>            :                     uint8_t* opaqueDst = this-&gt;getBlock(innerStartBlockX, j);
+<span class="lineNum">     252 </span>            :                     for (int i = innerStartBlockX; i &lt; endBlockX; i += BlockDim) {
+<span class="lineNum">     253 </span>            :                         memcpy(opaqueDst, opaqueEncoding, EncodedBlockSize);
+<span class="lineNum">     254 </span>            :                         opaqueDst += EncodedBlockSize;
+<span class="lineNum">     255 </span>            :                     }
+<span class="lineNum">     256 </span>            :                 }
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span>            :                 // If we need to update the right column, do that too
+<span class="lineNum">     259 </span>            :                 if (x + width &gt; endBlockX) {
+<span class="lineNum">     260 </span>            :                     this-&gt;updateBlockCol(endBlockX, y, x + width - endBlockX, endBlockY,
+<span class="lineNum">     261 </span>            :                                          endBlockX, innerStartBlockY, endBlockY);
+<span class="lineNum">     262 </span>            :                 }
+<span class="lineNum">     263 </span>            : 
+<span class="lineNum">     264 </span>            :                 // Advance y
+<span class="lineNum">     265 </span>            :                 height = y + height - endBlockY;
+<span class="lineNum">     266 </span>            :                 y = endBlockY;
+<span class="lineNum">     267 </span>            :             }
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span>            :             // If we need to update the last row, then do that, too.
+<span class="lineNum">     270 </span>            :             if (height &gt; 0) {
+<span class="lineNum">     271 </span>            :                 this-&gt;updateBlockRow(x, y, width, height, endBlockY,
+<span class="lineNum">     272 </span>            :                                      startBlockX, endBlockX);
+<span class="lineNum">     273 </span>            :             }
+<span class="lineNum">     274 </span>            :         }
+<span class="lineNum">     275 </span>            : #endif
+<span class="lineNum">     276 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span>            :     // Blit a rectangle with one alpha-blended column on the left,
+<a name="279"><span class="lineNum">     279 </span>            :     // width (zero or more) opaque pixels, and one alpha-blended column</a>
+<span class="lineNum">     280 </span>            :     // on the right. The result will always be at least two pixels wide.
+<span class="lineNum">     281 </span><span class="lineNoCov">          0 :     void blitAntiRect(int x, int y, int width, int height,</span>
+<span class="lineNum">     282 </span>            :                       SkAlpha leftAlpha, SkAlpha rightAlpha) override {
+<span class="lineNum">     283 </span>            :         // This function is currently not implemented. It is not explicitly
+<span class="lineNum">     284 </span>            :         // required by the contract, but if at some time a code path runs into
+<span class="lineNum">     285 </span>            :         // this function (which is entirely possible), it needs to be implemented.
+<span class="lineNum">     286 </span>            :         //
+<span class="lineNum">     287 </span>            :         // TODO (krajcevski):
+<span class="lineNum">     288 </span>            :         // This function will be most easily implemented as follows:
+<span class="lineNum">     289 </span>            :         // 1. If width/height are smaller than a block, then update the
+<span class="lineNum">     290 </span>            :         //    indices of the affected blocks.
+<span class="lineNum">     291 </span>            :         // 2. If width/height are larger than a block, then construct a 9-patch
+<span class="lineNum">     292 </span>            :         //    of block encodings that represent the rectangle, and write them
+<span class="lineNum">     293 </span>            :         //    to the compressed buffer as necessary. Whether or not the blocks
+<span class="lineNum">     294 </span>            :         //    are overwritten by zeros or just their indices are updated is up
+<span class="lineNum">     295 </span>            :         //    to debate.
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :         SkFAIL(&quot;Not implemented!&quot;);</span>
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     298 </span>            : 
+<span class="lineNum">     299 </span>            :     // Blit a pattern of pixels defined by a rectangle-clipped mask; We make an
+<span class="lineNum">     300 </span>            :     // assumption here that if this function gets called, then it will replace all
+<span class="lineNum">     301 </span>            :     // of the compressed texture blocks that it touches. Hence, two separate calls
+<span class="lineNum">     302 </span>            :     // to blitMask that have clips next to one another will cause artifacts. Most
+<span class="lineNum">     303 </span>            :     // of the time, however, this function gets called because constructing the mask
+<span class="lineNum">     304 </span>            :     // was faster than constructing the RLE for blitAntiH, and this function will
+<span class="lineNum">     305 </span>            :     // only be called once.
+<span class="lineNum">     306 </span>            : #ifdef SK_DEBUG
+<a name="307"><span class="lineNum">     307 </span>            :     bool fBlitMaskCalled;</a>
+<span class="lineNum">     308 </span>            : #endif
+<span class="lineNum">     309 </span><span class="lineNoCov">          0 :     void blitMask(const SkMask&amp; mask, const SkIRect&amp; clip) override {</span>
+<span class="lineNum">     310 </span>            : 
+<span class="lineNum">     311 </span>            :         // Assumptions:
+<span class="lineNum">     312 </span>            :         SkASSERT(!fBlitMaskCalled);
+<span class="lineNum">     313 </span>            :         SkDEBUGCODE(fBlitMaskCalled = true);
+<span class="lineNum">     314 </span>            :         SkASSERT(SkMask::kA8_Format == mask.fFormat);
+<span class="lineNum">     315 </span>            :         SkASSERT(mask.fBounds.contains(clip));
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span>            :         // Start from largest block boundary less than the clip boundaries.
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :         const int startI = BlockDim * (clip.left() / BlockDim);</span>
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :         const int startJ = BlockDim * (clip.top() / BlockDim);</span>
+<span class="lineNum">     320 </span>            : 
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :         for (int j = startJ; j &lt; clip.bottom(); j += BlockDim) {</span>
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span>            :             // Get the destination for this block row
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 :             uint8_t* dst = this-&gt;getBlock(startI, j);</span>
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :             for (int i = startI; i &lt; clip.right(); i += BlockDim) {</span>
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span>            :                 // At this point, the block should intersect the clip.
+<span class="lineNum">     328 </span>            :                 SkASSERT(SkIRect::IntersectsNoEmptyCheck(
+<span class="lineNum">     329 </span>            :                              SkIRect::MakeXYWH(i, j, BlockDim, BlockDim), clip));
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span>            :                 // Do we need to pad it?
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :                 if (i &lt; clip.left() || j &lt; clip.top() ||</span>
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :                     i + BlockDim &gt; clip.right() || j + BlockDim &gt; clip.bottom()) {</span>
+<span class="lineNum">     334 </span>            : 
+<span class="lineNum">     335 </span>            :                     uint8_t block[BlockDim*BlockDim];
+<span class="lineNum">     336 </span><span class="lineNoCov">          0 :                     memset(block, 0, sizeof(block));</span>
+<span class="lineNum">     337 </span>            : 
+<span class="lineNum">     338 </span><span class="lineNoCov">          0 :                     const int startX = SkMax32(i, clip.left());</span>
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 :                     const int startY = SkMax32(j, clip.top());</span>
+<span class="lineNum">     340 </span>            : 
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :                     const int endX = SkMin32(i + BlockDim, clip.right());</span>
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 :                     const int endY = SkMin32(j + BlockDim, clip.bottom());</span>
+<span class="lineNum">     343 </span>            : 
+<span class="lineNum">     344 </span><span class="lineNoCov">          0 :                     for (int y = startY; y &lt; endY; ++y) {</span>
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 :                         const int col = startX - i;</span>
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :                         const int row = y - j;</span>
+<span class="lineNum">     347 </span><span class="lineNoCov">          0 :                         const int valsWide = endX - startX;</span>
+<span class="lineNum">     348 </span>            :                         SkASSERT(valsWide &lt;= BlockDim);
+<span class="lineNum">     349 </span>            :                         SkASSERT(0 &lt;= col &amp;&amp; col &lt; BlockDim);
+<span class="lineNum">     350 </span>            :                         SkASSERT(0 &lt;= row &amp;&amp; row &lt; BlockDim);
+<span class="lineNum">     351 </span><span class="lineNoCov">          0 :                         memcpy(block + row*BlockDim + col,</span>
+<span class="lineNum">     352 </span><span class="lineNoCov">          0 :                                mask.getAddr8(startX, j + row), valsWide);</span>
+<span class="lineNum">     353 </span>            :                     }
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span><span class="lineNoCov">          0 :                     CompressorType::CompressA8Horizontal(dst, block, BlockDim);</span>
+<span class="lineNum">     356 </span>            :                 } else {
+<span class="lineNum">     357 </span>            :                     // Otherwise, just compress it.
+<span class="lineNum">     358 </span><span class="lineNoCov">          0 :                     uint8_t*const src = mask.getAddr8(i, j);</span>
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 :                     const uint32_t rb = mask.fRowBytes;</span>
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 :                     CompressorType::CompressA8Horizontal(dst, src, rb);</span>
+<span class="lineNum">     361 </span>            :                 }
+<span class="lineNum">     362 </span>            : 
+<span class="lineNum">     363 </span><span class="lineNoCov">          0 :                 dst += EncodedBlockSize;</span>
+<span class="lineNum">     364 </span>            :             }
+<span class="lineNum">     365 </span>            :         }
+<span class="lineNum">     366 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     367 </span>            : 
+<span class="lineNum">     368 </span>            :     // If the blitter just sets a single value for each pixel, return the
+<a name="369"><span class="lineNum">     369 </span>            :     // bitmap it draws into, and assign value. If not, return nullptr and ignore</a>
+<span class="lineNum">     370 </span>            :     // the value parameter.
+<span class="lineNum">     371 </span><span class="lineNoCov">          0 :     const SkPixmap* justAnOpaqueColor(uint32_t* value) override {</span>
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     373 </span>            :     }
+<span class="lineNum">     374 </span>            : 
+<span class="lineNum">     375 </span>            :     /**
+<span class="lineNum">     376 </span>            :      * Compressed texture blitters only really work correctly if they get
+<span class="lineNum">     377 </span>            :      * BlockDim rows at a time. That being said, this blitter tries it's best
+<span class="lineNum">     378 </span>            :      * to preserve semantics if blitAntiH doesn't get called in too many
+<a name="379"><span class="lineNum">     379 </span>            :      * weird ways...</a>
+<span class="lineNum">     380 </span>            :      */
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 :     int requestRowsPreserved() const override { return BlockDim; }</span>
+<span class="lineNum">     382 </span>            : 
+<span class="lineNum">     383 </span>            : private:
+<span class="lineNum">     384 </span>            :     static const int kPixelsPerBlock = BlockDim * BlockDim;
+<span class="lineNum">     385 </span>            : 
+<span class="lineNum">     386 </span>            :     // The longest possible run of pixels that this blitter will receive.
+<span class="lineNum">     387 </span>            :     // This is initialized in the constructor to 0x7FFE, which is one less
+<span class="lineNum">     388 </span>            :     // than the largest positive 16-bit integer. We make sure that it's one
+<span class="lineNum">     389 </span>            :     // less for debugging purposes. We also don't make this variable static
+<span class="lineNum">     390 </span>            :     // in order to make sure that we can construct a valid pointer to it.
+<span class="lineNum">     391 </span>            :     const int16_t kLongestRun;
+<span class="lineNum">     392 </span>            : 
+<span class="lineNum">     393 </span>            :     // Usually used in conjunction with kLongestRun. This is initialized to
+<span class="lineNum">     394 </span>            :     // zero.
+<span class="lineNum">     395 </span>            :     const SkAlpha kZeroAlpha;
+<span class="lineNum">     396 </span>            : 
+<span class="lineNum">     397 </span>            :     // This is the information that we buffer whenever we're asked to blit
+<span class="lineNum">     398 </span>            :     // a row with this blitter.
+<span class="lineNum">     399 </span>            :     struct BufferedRun {
+<span class="lineNum">     400 </span>            :         const SkAlpha* fAlphas;
+<span class="lineNum">     401 </span>            :         const int16_t* fRuns;
+<span class="lineNum">     402 </span>            :         int fX, fY;
+<span class="lineNum">     403 </span>            :     } fBufferedRuns[BlockDim];
+<span class="lineNum">     404 </span>            : 
+<span class="lineNum">     405 </span>            :     // The next row [0, BlockDim) that we need to blit.
+<span class="lineNum">     406 </span>            :     int fNextRun;
+<span class="lineNum">     407 </span>            : 
+<span class="lineNum">     408 </span>            :     // The width and height of the image that we're blitting
+<span class="lineNum">     409 </span>            :     const int fWidth;
+<span class="lineNum">     410 </span>            :     const int fHeight;
+<span class="lineNum">     411 </span>            : 
+<span class="lineNum">     412 </span>            :     // The compressed buffer that we're blitting into. It is assumed that the buffer
+<span class="lineNum">     413 </span>            :     // is large enough to store a compressed image of size fWidth*fHeight.
+<span class="lineNum">     414 </span>            :     void* const fBuffer;
+<span class="lineNum">     415 </span>            : 
+<span class="lineNum">     416 </span>            :     // Various utility functions
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :     int blocksWide() const { return fWidth / BlockDim; }</span>
+<span class="lineNum">     418 </span>            :     int blocksTall() const { return fHeight / BlockDim; }
+<span class="lineNum">     419 </span>            :     int totalBlocks() const { return (fWidth * fHeight) / kPixelsPerBlock; }
+<span class="lineNum">     420 </span>            : 
+<a name="421"><span class="lineNum">     421 </span>            :     // Returns the block index for the block containing pixel (x, y). Block</a>
+<span class="lineNum">     422 </span>            :     // indices start at zero and proceed in raster order.
+<span class="lineNum">     423 </span><span class="lineNoCov">          0 :     int getBlockOffset(int x, int y) const {</span>
+<span class="lineNum">     424 </span>            :         SkASSERT(x &lt; fWidth);
+<span class="lineNum">     425 </span>            :         SkASSERT(y &lt; fHeight);
+<span class="lineNum">     426 </span><span class="lineNoCov">          0 :         const int blockCol = x / BlockDim;</span>
+<span class="lineNum">     427 </span><span class="lineNoCov">          0 :         const int blockRow = y / BlockDim;</span>
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :         return blockRow * this-&gt;blocksWide() + blockCol;</span>
+<span class="lineNum">     429 </span>            :     }
+<a name="430"><span class="lineNum">     430 </span>            : </a>
+<span class="lineNum">     431 </span>            :     // Returns a pointer to the block containing pixel (x, y)
+<span class="lineNum">     432 </span><span class="lineNoCov">          0 :     uint8_t *getBlock(int x, int y) const {</span>
+<span class="lineNum">     433 </span><span class="lineNoCov">          0 :         uint8_t* ptr = reinterpret_cast&lt;uint8_t*&gt;(fBuffer);</span>
+<span class="lineNum">     434 </span><span class="lineNoCov">          0 :         return ptr + EncodedBlockSize*this-&gt;getBlockOffset(x, y);</span>
+<span class="lineNum">     435 </span>            :     }
+<span class="lineNum">     436 </span>            : 
+<span class="lineNum">     437 </span>            :     // Updates the block whose columns are stored in block. curAlphai is expected
+<span class="lineNum">     438 </span>            :     // to store the alpha values that will be placed within each of the columns in
+<span class="lineNum">     439 </span>            :     // the range [col, col+colsLeft).
+<a name="440"><span class="lineNum">     440 </span>            :     typedef uint32_t Column[BlockDim/4];</a>
+<span class="lineNum">     441 </span>            :     typedef uint32_t Block[BlockDim][BlockDim/4];
+<span class="lineNum">     442 </span><span class="lineNoCov">          0 :     inline void updateBlockColumns(Block block, const int col,</span>
+<span class="lineNum">     443 </span>            :                                    const int colsLeft, const Column curAlphai) {
+<span class="lineNum">     444 </span>            :         SkASSERT(block);
+<span class="lineNum">     445 </span>            :         SkASSERT(col + colsLeft &lt;= BlockDim);
+<span class="lineNum">     446 </span>            : 
+<span class="lineNum">     447 </span><span class="lineNoCov">          0 :         for (int i = col; i &lt; (col + colsLeft); ++i) {</span>
+<span class="lineNum">     448 </span><span class="lineNoCov">          0 :             memcpy(block[i], curAlphai, sizeof(Column));</span>
+<span class="lineNum">     449 </span>            :         }
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     451 </span>            : 
+<span class="lineNum">     452 </span>            :     // The following function writes the buffered runs to compressed blocks.
+<a name="453"><span class="lineNum">     453 </span>            :     // If fNextRun &lt; BlockDim, then we fill the runs that we haven't buffered with</a>
+<span class="lineNum">     454 </span>            :     // the constant zero buffer.
+<span class="lineNum">     455 </span><span class="lineNoCov">          0 :     void flushRuns() {</span>
+<span class="lineNum">     456 </span>            :         // If we don't have any runs, then just return.
+<span class="lineNum">     457 </span><span class="lineNoCov">          0 :         if (0 == fNextRun) {</span>
+<span class="lineNum">     458 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">     459 </span>            :         }
+<span class="lineNum">     460 </span>            : 
+<span class="lineNum">     461 </span>            : #ifndef NDEBUG
+<span class="lineNum">     462 </span>            :         // Make sure that if we have any runs, they all match
+<span class="lineNum">     463 </span>            :         for (int i = 1; i &lt; fNextRun; ++i) {
+<span class="lineNum">     464 </span>            :             SkASSERT(fBufferedRuns[i].fY == fBufferedRuns[i-1].fY + 1);
+<span class="lineNum">     465 </span>            :             SkASSERT(fBufferedRuns[i].fX == fBufferedRuns[i-1].fX);
+<span class="lineNum">     466 </span>            :         }
+<span class="lineNum">     467 </span>            : #endif
+<span class="lineNum">     468 </span>            : 
+<span class="lineNum">     469 </span>            :         // If we don't have as many runs as we have rows, fill in the remaining
+<span class="lineNum">     470 </span>            :         // runs with constant zeros.
+<span class="lineNum">     471 </span><span class="lineNoCov">          0 :         for (int i = fNextRun; i &lt; BlockDim; ++i) {</span>
+<span class="lineNum">     472 </span><span class="lineNoCov">          0 :             fBufferedRuns[i].fY = fBufferedRuns[0].fY + i;</span>
+<span class="lineNum">     473 </span><span class="lineNoCov">          0 :             fBufferedRuns[i].fX = fBufferedRuns[0].fX;</span>
+<span class="lineNum">     474 </span><span class="lineNoCov">          0 :             fBufferedRuns[i].fAlphas = &amp;kZeroAlpha;</span>
+<span class="lineNum">     475 </span><span class="lineNoCov">          0 :             fBufferedRuns[i].fRuns = &amp;kLongestRun;</span>
+<span class="lineNum">     476 </span>            :         }
+<span class="lineNum">     477 </span>            : 
+<span class="lineNum">     478 </span>            :         // Make sure that our assumptions aren't violated.
+<span class="lineNum">     479 </span>            :         SkASSERT(fNextRun &gt; 0 &amp;&amp; fNextRun &lt;= BlockDim);
+<span class="lineNum">     480 </span>            :         SkASSERT((fBufferedRuns[0].fY % BlockDim) == 0);
+<span class="lineNum">     481 </span>            : 
+<span class="lineNum">     482 </span>            :         // The following logic walks BlockDim rows at a time and outputs compressed
+<span class="lineNum">     483 </span>            :         // blocks to the buffer passed into the constructor.
+<span class="lineNum">     484 </span>            :         // We do the following:
+<span class="lineNum">     485 </span>            :         //
+<span class="lineNum">     486 </span>            :         //      c1 c2 c3 c4
+<span class="lineNum">     487 </span>            :         // -----------------------------------------------------------------------
+<span class="lineNum">     488 </span>            :         // ... |  |  |  |  |  ----&gt; fBufferedRuns[0]
+<span class="lineNum">     489 </span>            :         // -----------------------------------------------------------------------
+<span class="lineNum">     490 </span>            :         // ... |  |  |  |  |  ----&gt; fBufferedRuns[1]
+<span class="lineNum">     491 </span>            :         // -----------------------------------------------------------------------
+<span class="lineNum">     492 </span>            :         // ... |  |  |  |  |  ----&gt; fBufferedRuns[2]
+<span class="lineNum">     493 </span>            :         // -----------------------------------------------------------------------
+<span class="lineNum">     494 </span>            :         // ... |  |  |  |  |  ----&gt; fBufferedRuns[3]
+<span class="lineNum">     495 </span>            :         // -----------------------------------------------------------------------
+<span class="lineNum">     496 </span>            :         //
+<span class="lineNum">     497 </span>            :         // curX -- the macro X value that we've gotten to.
+<span class="lineNum">     498 </span>            :         // c[BlockDim] -- the buffers that represent the columns of the current block
+<span class="lineNum">     499 </span>            :         //                  that we're operating on
+<span class="lineNum">     500 </span>            :         // curAlphaColumn -- buffer containing the column of alpha values from fBufferedRuns.
+<span class="lineNum">     501 </span>            :         // nextX -- for each run, the next point at which we need to update curAlphaColumn
+<span class="lineNum">     502 </span>            :         //          after the value of curX.
+<span class="lineNum">     503 </span>            :         // finalX -- the minimum of all the nextX values.
+<span class="lineNum">     504 </span>            :         //
+<span class="lineNum">     505 </span>            :         // curX advances to finalX outputting any blocks that it passes along
+<span class="lineNum">     506 </span>            :         // the way. Since finalX will not change when we reach the end of a
+<span class="lineNum">     507 </span>            :         // run, the termination criteria will be whenever curX == finalX at the
+<span class="lineNum">     508 </span>            :         // end of a loop.
+<span class="lineNum">     509 </span>            : 
+<span class="lineNum">     510 </span>            :         // Setup:
+<span class="lineNum">     511 </span>            :         Block block;
+<span class="lineNum">     512 </span><span class="lineNoCov">          0 :         sk_bzero(block, sizeof(block));</span>
+<span class="lineNum">     513 </span>            : 
+<span class="lineNum">     514 </span>            :         Column curAlphaColumn;
+<span class="lineNum">     515 </span><span class="lineNoCov">          0 :         sk_bzero(curAlphaColumn, sizeof(curAlphaColumn));</span>
+<span class="lineNum">     516 </span>            : 
+<span class="lineNum">     517 </span><span class="lineNoCov">          0 :         SkAlpha *curAlpha = reinterpret_cast&lt;SkAlpha*&gt;(&amp;curAlphaColumn);</span>
+<span class="lineNum">     518 </span>            : 
+<span class="lineNum">     519 </span>            :         int nextX[BlockDim];
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 :         for (int i = 0; i &lt; BlockDim; ++i) {</span>
+<span class="lineNum">     521 </span><span class="lineNoCov">          0 :             nextX[i] = 0x7FFFFF;</span>
+<span class="lineNum">     522 </span>            :         }
+<span class="lineNum">     523 </span>            : 
+<span class="lineNum">     524 </span><span class="lineNoCov">          0 :         uint8_t* outPtr = this-&gt;getBlock(fBufferedRuns[0].fX, fBufferedRuns[0].fY);</span>
+<span class="lineNum">     525 </span>            : 
+<span class="lineNum">     526 </span>            :         // Populate the first set of runs and figure out how far we need to
+<span class="lineNum">     527 </span>            :         // advance on the first step
+<span class="lineNum">     528 </span><span class="lineNoCov">          0 :         int curX = 0;</span>
+<span class="lineNum">     529 </span><span class="lineNoCov">          0 :         int finalX = 0xFFFFF;</span>
+<span class="lineNum">     530 </span><span class="lineNoCov">          0 :         for (int i = 0; i &lt; BlockDim; ++i) {</span>
+<span class="lineNum">     531 </span><span class="lineNoCov">          0 :             nextX[i] = *(fBufferedRuns[i].fRuns);</span>
+<span class="lineNum">     532 </span><span class="lineNoCov">          0 :             curAlpha[i] = *(fBufferedRuns[i].fAlphas);</span>
+<span class="lineNum">     533 </span>            : 
+<span class="lineNum">     534 </span><span class="lineNoCov">          0 :             finalX = SkMin32(nextX[i], finalX);</span>
+<span class="lineNum">     535 </span>            :         }
+<span class="lineNum">     536 </span>            : 
+<span class="lineNum">     537 </span>            :         // Make sure that we have a valid right-bound X value
+<span class="lineNum">     538 </span>            :         SkASSERT(finalX &lt; 0xFFFFF);
+<span class="lineNum">     539 </span>            : 
+<span class="lineNum">     540 </span>            :         // If the finalX is the longest run, then just blit until we have
+<span class="lineNum">     541 </span>            :         // width...
+<span class="lineNum">     542 </span><span class="lineNoCov">          0 :         if (kLongestRun == finalX) {</span>
+<span class="lineNum">     543 </span><span class="lineNoCov">          0 :             finalX = fWidth;</span>
+<span class="lineNum">     544 </span>            :         }
+<span class="lineNum">     545 </span>            : 
+<span class="lineNum">     546 </span>            :         // Run the blitter...
+<span class="lineNum">     547 </span><span class="lineNoCov">          0 :         while (curX != finalX) {</span>
+<span class="lineNum">     548 </span>            :             SkASSERT(finalX &gt;= curX);
+<span class="lineNum">     549 </span>            : 
+<span class="lineNum">     550 </span>            :             // Do we need to populate the rest of the block?
+<span class="lineNum">     551 </span><span class="lineNoCov">          0 :             if ((finalX - (BlockDim*(curX / BlockDim))) &gt;= BlockDim) {</span>
+<span class="lineNum">     552 </span><span class="lineNoCov">          0 :                 const int col = curX % BlockDim;</span>
+<span class="lineNum">     553 </span><span class="lineNoCov">          0 :                 const int colsLeft = BlockDim - col;</span>
+<span class="lineNum">     554 </span>            :                 SkASSERT(curX + colsLeft &lt;= finalX);
+<span class="lineNum">     555 </span>            : 
+<span class="lineNum">     556 </span><span class="lineNoCov">          0 :                 this-&gt;updateBlockColumns(block, col, colsLeft, curAlphaColumn);</span>
+<span class="lineNum">     557 </span>            : 
+<span class="lineNum">     558 </span>            :                 // Write this block
+<span class="lineNum">     559 </span><span class="lineNoCov">          0 :                 CompressorType::CompressA8Vertical(outPtr, reinterpret_cast&lt;uint8_t*&gt;(block));</span>
+<span class="lineNum">     560 </span><span class="lineNoCov">          0 :                 outPtr += EncodedBlockSize;</span>
+<span class="lineNum">     561 </span><span class="lineNoCov">          0 :                 curX += colsLeft;</span>
+<span class="lineNum">     562 </span>            :             }
+<span class="lineNum">     563 </span>            : 
+<span class="lineNum">     564 </span>            :             // If we can advance even further, then just keep memsetting the block
+<span class="lineNum">     565 </span><span class="lineNoCov">          0 :             if ((finalX - curX) &gt;= BlockDim) {</span>
+<span class="lineNum">     566 </span>            :                 SkASSERT((curX % BlockDim) == 0);
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span><span class="lineNoCov">          0 :                 const int col = 0;</span>
+<span class="lineNum">     569 </span><span class="lineNoCov">          0 :                 const int colsLeft = BlockDim;</span>
+<span class="lineNum">     570 </span>            : 
+<span class="lineNum">     571 </span><span class="lineNoCov">          0 :                 this-&gt;updateBlockColumns(block, col, colsLeft, curAlphaColumn);</span>
+<span class="lineNum">     572 </span>            : 
+<span class="lineNum">     573 </span>            :                 // While we can keep advancing, just keep writing the block.
+<span class="lineNum">     574 </span>            :                 uint8_t lastBlock[EncodedBlockSize];
+<span class="lineNum">     575 </span><span class="lineNoCov">          0 :                 CompressorType::CompressA8Vertical(lastBlock, reinterpret_cast&lt;uint8_t*&gt;(block));</span>
+<span class="lineNum">     576 </span><span class="lineNoCov">          0 :                 while((finalX - curX) &gt;= BlockDim) {</span>
+<span class="lineNum">     577 </span><span class="lineNoCov">          0 :                     memcpy(outPtr, lastBlock, EncodedBlockSize);</span>
+<span class="lineNum">     578 </span><span class="lineNoCov">          0 :                     outPtr += EncodedBlockSize;</span>
+<span class="lineNum">     579 </span><span class="lineNoCov">          0 :                     curX += BlockDim;</span>
+<span class="lineNum">     580 </span>            :                 }
+<span class="lineNum">     581 </span>            :             }
+<span class="lineNum">     582 </span>            : 
+<span class="lineNum">     583 </span>            :             // If we haven't advanced within the block then do so.
+<span class="lineNum">     584 </span><span class="lineNoCov">          0 :             if (curX &lt; finalX) {</span>
+<span class="lineNum">     585 </span><span class="lineNoCov">          0 :                 const int col = curX % BlockDim;</span>
+<span class="lineNum">     586 </span><span class="lineNoCov">          0 :                 const int colsLeft = finalX - curX;</span>
+<span class="lineNum">     587 </span>            : 
+<span class="lineNum">     588 </span><span class="lineNoCov">          0 :                 this-&gt;updateBlockColumns(block, col, colsLeft, curAlphaColumn);</span>
+<span class="lineNum">     589 </span><span class="lineNoCov">          0 :                 curX += colsLeft;</span>
+<span class="lineNum">     590 </span>            :             }
+<span class="lineNum">     591 </span>            : 
+<span class="lineNum">     592 </span>            :             SkASSERT(curX == finalX);
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span>            :             // Figure out what the next advancement is...
+<span class="lineNum">     595 </span><span class="lineNoCov">          0 :             if (finalX &lt; fWidth) {</span>
+<span class="lineNum">     596 </span><span class="lineNoCov">          0 :                 for (int i = 0; i &lt; BlockDim; ++i) {</span>
+<span class="lineNum">     597 </span><span class="lineNoCov">          0 :                     if (nextX[i] == finalX) {</span>
+<span class="lineNum">     598 </span><span class="lineNoCov">          0 :                         const int16_t run = *(fBufferedRuns[i].fRuns);</span>
+<span class="lineNum">     599 </span><span class="lineNoCov">          0 :                         fBufferedRuns[i].fRuns += run;</span>
+<span class="lineNum">     600 </span><span class="lineNoCov">          0 :                         fBufferedRuns[i].fAlphas += run;</span>
+<span class="lineNum">     601 </span><span class="lineNoCov">          0 :                         curAlpha[i] = *(fBufferedRuns[i].fAlphas);</span>
+<span class="lineNum">     602 </span><span class="lineNoCov">          0 :                         nextX[i] += *(fBufferedRuns[i].fRuns);</span>
+<span class="lineNum">     603 </span>            :                     }
+<span class="lineNum">     604 </span>            :                 }
+<span class="lineNum">     605 </span>            : 
+<span class="lineNum">     606 </span>            :                 finalX = 0xFFFFF;
+<span class="lineNum">     607 </span><span class="lineNoCov">          0 :                 for (int i = 0; i &lt; BlockDim; ++i) {</span>
+<span class="lineNum">     608 </span><span class="lineNoCov">          0 :                     finalX = SkMin32(nextX[i], finalX);</span>
+<span class="lineNum">     609 </span>            :                 }
+<span class="lineNum">     610 </span>            :             } else {
+<span class="lineNum">     611 </span>            :                 curX = finalX;
+<span class="lineNum">     612 </span>            :             }
+<span class="lineNum">     613 </span>            :         }
+<span class="lineNum">     614 </span>            : 
+<span class="lineNum">     615 </span>            :         // If we didn't land on a block boundary, output the block...
+<span class="lineNum">     616 </span><span class="lineNoCov">          0 :         if ((curX % BlockDim) &gt; 0) {</span>
+<span class="lineNum">     617 </span>            : #ifdef SK_DEBUG
+<span class="lineNum">     618 </span>            :             for (int i = 0; i &lt; BlockDim; ++i) {
+<span class="lineNum">     619 </span>            :                 SkASSERT(nextX[i] == kLongestRun || nextX[i] == curX);
+<span class="lineNum">     620 </span>            :             }
+<span class="lineNum">     621 </span>            : #endif
+<span class="lineNum">     622 </span><span class="lineNoCov">          0 :             const int col = curX % BlockDim;</span>
+<span class="lineNum">     623 </span><span class="lineNoCov">          0 :             const int colsLeft = BlockDim - col;</span>
+<span class="lineNum">     624 </span>            : 
+<span class="lineNum">     625 </span><span class="lineNoCov">          0 :             memset(curAlphaColumn, 0, sizeof(curAlphaColumn));</span>
+<span class="lineNum">     626 </span><span class="lineNoCov">          0 :             this-&gt;updateBlockColumns(block, col, colsLeft, curAlphaColumn);</span>
+<span class="lineNum">     627 </span>            : 
+<span class="lineNum">     628 </span><span class="lineNoCov">          0 :             CompressorType::CompressA8Vertical(outPtr, reinterpret_cast&lt;uint8_t*&gt;(block));</span>
+<span class="lineNum">     629 </span>            :         }
+<span class="lineNum">     630 </span>            : 
+<span class="lineNum">     631 </span><span class="lineNoCov">          0 :         fNextRun = 0;</span>
+<span class="lineNum">     632 </span>            :     }
+<span class="lineNum">     633 </span>            : 
+<span class="lineNum">     634 </span>            : #if PEDANTIC_BLIT_RECT
+<span class="lineNum">     635 </span>            :     void updateBlockRow(int x, int y, int width, int height,
+<span class="lineNum">     636 </span>            :                         int blockRow, int startBlockX, int endBlockX) {
+<span class="lineNum">     637 </span>            :         if (0 == width || 0 == height || startBlockX == endBlockX) {
+<span class="lineNum">     638 </span>            :             return;
+<span class="lineNum">     639 </span>            :         }
+<span class="lineNum">     640 </span>            : 
+<span class="lineNum">     641 </span>            :         uint8_t* dst = this-&gt;getBlock(startBlockX, BlockDim * (y / BlockDim));
+<span class="lineNum">     642 </span>            : 
+<span class="lineNum">     643 </span>            :         // One horizontal strip to update
+<span class="lineNum">     644 </span>            :         uint8_t mask[BlockDim*BlockDim];
+<span class="lineNum">     645 </span>            :         memset(mask, 0, sizeof(mask));
+<span class="lineNum">     646 </span>            : 
+<span class="lineNum">     647 </span>            :         // Update the left cap
+<span class="lineNum">     648 </span>            :         int blockX = startBlockX;
+<span class="lineNum">     649 </span>            :         const int yoff = y - blockRow;
+<span class="lineNum">     650 </span>            :         for (int j = 0; j &lt; height; ++j) {
+<span class="lineNum">     651 </span>            :             const int xoff = x - blockX;
+<span class="lineNum">     652 </span>            :             memset(mask + (j + yoff)*BlockDim + xoff, 0xFF, BlockDim - xoff);
+<span class="lineNum">     653 </span>            :         }
+<span class="lineNum">     654 </span>            :         CompressorType::UpdateBlock(dst, mask, BlockDim, mask);
+<span class="lineNum">     655 </span>            :         dst += EncodedBlockSize;
+<span class="lineNum">     656 </span>            :         blockX += BlockDim;
+<span class="lineNum">     657 </span>            : 
+<span class="lineNum">     658 </span>            :         // Update the middle
+<span class="lineNum">     659 </span>            :         if (blockX &lt; endBlockX) {
+<span class="lineNum">     660 </span>            :             for (int j = 0; j &lt; height; ++j) {
+<span class="lineNum">     661 </span>            :                 memset(mask + (j + yoff)*BlockDim, 0xFF, BlockDim);
+<span class="lineNum">     662 </span>            :             }
+<span class="lineNum">     663 </span>            :             while (blockX &lt; endBlockX) {
+<span class="lineNum">     664 </span>            :                 CompressorType::UpdateBlock(dst, mask, BlockDim, mask);
+<span class="lineNum">     665 </span>            :                 dst += EncodedBlockSize;
+<span class="lineNum">     666 </span>            :                 blockX += BlockDim;
+<span class="lineNum">     667 </span>            :             }
+<span class="lineNum">     668 </span>            :         }
+<span class="lineNum">     669 </span>            : 
+<span class="lineNum">     670 </span>            :         SkASSERT(endBlockX == blockX);
+<span class="lineNum">     671 </span>            : 
+<span class="lineNum">     672 </span>            :         // Update the right cap (if we need to)
+<span class="lineNum">     673 </span>            :         if (x + width &gt; endBlockX) {
+<span class="lineNum">     674 </span>            :             memset(mask, 0, sizeof(mask));
+<span class="lineNum">     675 </span>            :             for (int j = 0; j &lt; height; ++j) {
+<span class="lineNum">     676 </span>            :                 const int xoff = (x+width-blockX);
+<span class="lineNum">     677 </span>            :                 memset(mask + (j+yoff)*BlockDim, 0xFF, xoff);
+<span class="lineNum">     678 </span>            :             }
+<span class="lineNum">     679 </span>            :             CompressorType::UpdateBlock(dst, mask, BlockDim, mask);
+<span class="lineNum">     680 </span>            :         }
+<span class="lineNum">     681 </span>            :     }
+<span class="lineNum">     682 </span>            : 
+<span class="lineNum">     683 </span>            :     void updateBlockCol(int x, int y, int width, int height,
+<span class="lineNum">     684 </span>            :                         int blockCol, int startBlockY, int endBlockY) {
+<span class="lineNum">     685 </span>            :         if (0 == width || 0 == height || startBlockY == endBlockY) {
+<span class="lineNum">     686 </span>            :             return;
+<span class="lineNum">     687 </span>            :         }
+<span class="lineNum">     688 </span>            : 
+<span class="lineNum">     689 </span>            :         // One vertical strip to update
+<span class="lineNum">     690 </span>            :         uint8_t mask[BlockDim*BlockDim];
+<span class="lineNum">     691 </span>            :         memset(mask, 0, sizeof(mask));
+<span class="lineNum">     692 </span>            :         const int maskX0 = x - blockCol;
+<span class="lineNum">     693 </span>            :         const int maskWidth = maskX0 + width;
+<span class="lineNum">     694 </span>            :         SkASSERT(maskWidth &lt;= BlockDim);
+<span class="lineNum">     695 </span>            : 
+<span class="lineNum">     696 </span>            :         // Update the top cap
+<span class="lineNum">     697 </span>            :         int blockY = startBlockY;
+<span class="lineNum">     698 </span>            :         for (int j = (y - blockY); j &lt; BlockDim; ++j) {
+<span class="lineNum">     699 </span>            :             memset(mask + maskX0 + j*BlockDim, 0xFF, maskWidth);
+<span class="lineNum">     700 </span>            :         }
+<span class="lineNum">     701 </span>            :         CompressorType::UpdateBlock(this-&gt;getBlock(blockCol, blockY), mask, BlockDim, mask);
+<span class="lineNum">     702 </span>            :         blockY += BlockDim;
+<span class="lineNum">     703 </span>            : 
+<span class="lineNum">     704 </span>            :         // Update middle
+<span class="lineNum">     705 </span>            :         if (blockY &lt; endBlockY) {
+<span class="lineNum">     706 </span>            :             for (int j = 0; j &lt; BlockDim; ++j) {
+<span class="lineNum">     707 </span>            :                 memset(mask + maskX0 + j*BlockDim, 0xFF, maskWidth);
+<span class="lineNum">     708 </span>            :             }
+<span class="lineNum">     709 </span>            :             while (blockY &lt; endBlockY) {
+<span class="lineNum">     710 </span>            :                 CompressorType::UpdateBlock(this-&gt;getBlock(blockCol, blockY),
+<span class="lineNum">     711 </span>            :                                             mask, BlockDim, mask);
+<span class="lineNum">     712 </span>            :                 blockY += BlockDim;
+<span class="lineNum">     713 </span>            :             }
+<span class="lineNum">     714 </span>            :         }
+<span class="lineNum">     715 </span>            : 
+<span class="lineNum">     716 </span>            :         SkASSERT(endBlockY == blockY);
+<span class="lineNum">     717 </span>            : 
+<span class="lineNum">     718 </span>            :         // Update bottom
+<span class="lineNum">     719 </span>            :         if (y + height &gt; endBlockY) {
+<span class="lineNum">     720 </span>            :             for (int j = y+height; j &lt; endBlockY + BlockDim; ++j) {
+<span class="lineNum">     721 </span>            :                 memset(mask + (j-endBlockY)*BlockDim, 0, BlockDim);
+<span class="lineNum">     722 </span>            :             }
+<span class="lineNum">     723 </span>            :             CompressorType::UpdateBlock(this-&gt;getBlock(blockCol, blockY),
+<span class="lineNum">     724 </span>            :                                         mask, BlockDim, mask);
+<span class="lineNum">     725 </span>            :         }
+<span class="lineNum">     726 </span>            :     }
+<span class="lineNum">     727 </span>            : #endif  // PEDANTIC_BLIT_RECT
+<span class="lineNum">     728 </span>            : 
+<span class="lineNum">     729 </span>            : };
+<span class="lineNum">     730 </span>            : 
+<span class="lineNum">     731 </span>            : }  // namespace SkTextureCompressor
+<span class="lineNum">     732 </span>            : 
+<span class="lineNum">     733 </span>            : #endif  // SkTextureCompressor_Blitter_DEFINED
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

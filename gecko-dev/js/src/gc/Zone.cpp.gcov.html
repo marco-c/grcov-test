@@ -1,0 +1,559 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/js/src/gc/Zone.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">gecko-dev/js/src/gc</a> - Zone.cpp<span style="font-size: 80%;"> (source / <a href="Zone.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">134</td>
+            <td class="headerCovTableEntry">155</td>
+            <td class="headerCovTableEntryMed">86.5 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">26</td>
+            <td class="headerCovTableEntry">30</td>
+            <td class="headerCovTableEntryMed">86.7 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-</a>
+<span class="lineNum">       2 </span>            :  * vim: set ts=8 sts=4 et sw=4 tw=99:
+<span class="lineNum">       3 </span>            :  * This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #include &quot;gc/Zone.h&quot;
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &quot;jsgc.h&quot;
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;gc/Policy.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;jit/BaselineJIT.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;jit/Ion.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;jit/JitCompartment.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;vm/Debugger.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;vm/Runtime.h&quot;
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : #include &quot;jscompartmentinlines.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;jsgcinlines.h&quot;
+<span class="lineNum">      20 </span>            : 
+<span class="lineNum">      21 </span>            : using namespace js;
+<span class="lineNum">      22 </span>            : using namespace js::gc;
+<span class="lineNum">      23 </span>            : 
+<a name="24"><span class="lineNum">      24 </span>            : Zone * const Zone::NotOnList = reinterpret_cast&lt;Zone*&gt;(1);</a>
+<span class="lineNum">      25 </span>            : 
+<span class="lineNum">      26 </span><span class="lineCov">          1 : JS::Zone::Zone(JSRuntime* rt, ZoneGroup* group)</span>
+<span class="lineNum">      27 </span>            :   : JS::shadow::Zone(rt, &amp;rt-&gt;gc.marker),
+<span class="lineNum">      28 </span>            :     group_(group),
+<span class="lineNum">      29 </span>            :     debuggers(group, nullptr),
+<span class="lineNum">      30 </span>            :     uniqueIds_(group),
+<span class="lineNum">      31 </span>            :     suppressAllocationMetadataBuilder(group, false),
+<span class="lineNum">      32 </span>            :     arenas(rt, group),
+<span class="lineNum">      33 </span>            :     types(this),
+<span class="lineNum">      34 </span>            :     gcWeakMapList_(group),
+<span class="lineNum">      35 </span>            :     compartments_(),
+<span class="lineNum">      36 </span>            :     gcGrayRoots_(group),
+<span class="lineNum">      37 </span>            :     gcWeakRefs_(group),
+<span class="lineNum">      38 </span>            :     weakCaches_(group),
+<span class="lineNum">      39 </span>            :     gcWeakKeys_(group, SystemAllocPolicy(), rt-&gt;randomHashCodeScrambler()),
+<span class="lineNum">      40 </span>            :     gcZoneGroupEdges_(group),
+<span class="lineNum">      41 </span>            :     hasDeadProxies_(group),
+<span class="lineNum">      42 </span>            :     typeDescrObjects_(group, this, SystemAllocPolicy()),
+<span class="lineNum">      43 </span>            :     markedAtoms_(group),
+<span class="lineNum">      44 </span>            :     usage(&amp;rt-&gt;gc.usage),
+<span class="lineNum">      45 </span>            :     threshold(),
+<span class="lineNum">      46 </span>            :     gcDelayBytes(0),
+<span class="lineNum">      47 </span>            :     propertyTree_(group, this),
+<span class="lineNum">      48 </span>            :     baseShapes_(group, this, BaseShapeSet()),
+<span class="lineNum">      49 </span>            :     initialShapes_(group, this, InitialShapeSet()),
+<span class="lineNum">      50 </span>            :     data(group, nullptr),
+<span class="lineNum">      51 </span>            :     isSystem(group, false),
+<span class="lineNum">      52 </span>            : #ifdef DEBUG
+<span class="lineNum">      53 </span>            :     gcLastZoneGroupIndex(group, 0),
+<span class="lineNum">      54 </span>            : #endif
+<span class="lineNum">      55 </span>            :     jitZone_(group, nullptr),
+<span class="lineNum">      56 </span>            :     gcState_(NoGC),
+<span class="lineNum">      57 </span>            :     gcScheduled_(false),
+<span class="lineNum">      58 </span>            :     gcPreserveCode_(group, false),
+<span class="lineNum">      59 </span>            :     jitUsingBarriers_(group, false),
+<span class="lineNum">      60 </span>            :     keepShapeTables_(group, false),
+<span class="lineNum">      61 </span><span class="lineCov">          1 :     listNext_(group, NotOnList)</span>
+<span class="lineNum">      62 </span>            : {
+<span class="lineNum">      63 </span>            :     /* Ensure that there are no vtables to mess us up here. */
+<span class="lineNum">      64 </span>            :     MOZ_ASSERT(reinterpret_cast&lt;JS::shadow::Zone*&gt;(this) ==
+<span class="lineNum">      65 </span>            :                static_cast&lt;JS::shadow::Zone*&gt;(this));
+<span class="lineNum">      66 </span>            : 
+<span class="lineNum">      67 </span>            :     AutoLockGC lock(rt);
+<span class="lineNum">      68 </span><span class="lineCov">          1 :     threshold.updateAfterGC(8192, GC_NORMAL, rt-&gt;gc.tunables, rt-&gt;gc.schedulingState, lock);</span>
+<span class="lineNum">      69 </span><span class="lineCov">          1 :     setGCMaxMallocBytes(rt-&gt;gc.maxMallocBytesAllocated() * 0.9);</span>
+<span class="lineNum">      70 </span><span class="lineCov">          1 :     jitCodeCounter.setMax(jit::MaxCodeBytesPerProcess * 0.8);</span>
+<a name="71"><span class="lineNum">      71 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">      72 </span>            : 
+<span class="lineNum">      73 </span><span class="lineCov">          1 : Zone::~Zone()</span>
+<span class="lineNum">      74 </span>            : {
+<span class="lineNum">      75 </span><span class="lineCov">          1 :     JSRuntime* rt = runtimeFromAnyThread();</span>
+<span class="lineNum">      76 </span><span class="lineCov">          1 :     if (this == rt-&gt;gc.systemZone)</span>
+<span class="lineNum">      77 </span><span class="lineCov">          1 :         rt-&gt;gc.systemZone = nullptr;</span>
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span><span class="lineCov">          1 :     js_delete(debuggers.ref());</span>
+<span class="lineNum">      80 </span><span class="lineCov">          1 :     js_delete(jitZone_.ref());</span>
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            : #ifdef DEBUG
+<span class="lineNum">      83 </span>            :     // Avoid assertion destroying the weak map list if the embedding leaked GC things.
+<span class="lineNum">      84 </span>            :     if (!rt-&gt;gc.shutdownCollectedEverything())
+<span class="lineNum">      85 </span>            :         gcWeakMapList().clear();
+<span class="lineNum">      86 </span>            : #endif
+<a name="87"><span class="lineNum">      87 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">      88 </span>            : 
+<span class="lineNum">      89 </span><span class="lineCov">          1 : bool Zone::init(bool isSystemArg)</span>
+<span class="lineNum">      90 </span>            : {
+<span class="lineNum">      91 </span><span class="lineCov">          1 :     isSystem = isSystemArg;</span>
+<span class="lineNum">      92 </span><span class="lineCov">          1 :     return uniqueIds().init() &amp;&amp;</span>
+<span class="lineNum">      93 </span><span class="lineCov">          1 :            gcZoneGroupEdges().init() &amp;&amp;</span>
+<span class="lineNum">      94 </span><span class="lineCov">          1 :            gcWeakKeys().init() &amp;&amp;</span>
+<span class="lineNum">      95 </span><span class="lineCov">          1 :            typeDescrObjects().init() &amp;&amp;</span>
+<span class="lineNum">      96 </span><span class="lineCov">          1 :            markedAtoms().init();</span>
+<span class="lineNum">      97 </span>            : }
+<a name="98"><span class="lineNum">      98 </span>            : </a>
+<span class="lineNum">      99 </span>            : void
+<span class="lineNum">     100 </span><span class="lineCov">          1 : Zone::setNeedsIncrementalBarrier(bool needs, ShouldUpdateJit updateJit)</span>
+<span class="lineNum">     101 </span>            : {
+<span class="lineNum">     102 </span><span class="lineCov">          1 :     if (updateJit == UpdateJit &amp;&amp; needs != jitUsingBarriers_) {</span>
+<span class="lineNum">     103 </span><span class="lineCov">          1 :         jit::ToggleBarriers(this, needs);</span>
+<span class="lineNum">     104 </span><span class="lineCov">          1 :         jitUsingBarriers_ = needs;</span>
+<span class="lineNum">     105 </span>            :     }
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span>            :     MOZ_ASSERT_IF(needs &amp;&amp; isAtomsZone(),
+<span class="lineNum">     108 </span>            :                   !runtimeFromActiveCooperatingThread()-&gt;hasHelperThreadZones());
+<span class="lineNum">     109 </span>            :     MOZ_ASSERT_IF(needs, canCollect());
+<span class="lineNum">     110 </span><span class="lineCov">          1 :     needsIncrementalBarrier_ = needs;</span>
+<span class="lineNum">     111 </span><span class="lineCov">          1 : }</span>
+<a name="112"><span class="lineNum">     112 </span>            : </a>
+<span class="lineNum">     113 </span>            : void
+<span class="lineNum">     114 </span><span class="lineCov">          1 : Zone::beginSweepTypes(FreeOp* fop, bool releaseTypes)</span>
+<span class="lineNum">     115 </span>            : {
+<span class="lineNum">     116 </span><span class="lineCov">          1 :     AutoClearTypeInferenceStateOnOOM oom(this);</span>
+<span class="lineNum">     117 </span><span class="lineCov">          1 :     types.beginSweep(fop, releaseTypes, oom);</span>
+<span class="lineNum">     118 </span><span class="lineCov">          1 : }</span>
+<a name="119"><span class="lineNum">     119 </span>            : </a>
+<span class="lineNum">     120 </span>            : Zone::DebuggerVector*
+<span class="lineNum">     121 </span><span class="lineCov">          1 : Zone::getOrCreateDebuggers(JSContext* cx)</span>
+<span class="lineNum">     122 </span>            : {
+<span class="lineNum">     123 </span><span class="lineCov">          1 :     if (debuggers)</span>
+<span class="lineNum">     124 </span>            :         return debuggers;
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span><span class="lineCov">          1 :     debuggers = js_new&lt;DebuggerVector&gt;();</span>
+<span class="lineNum">     127 </span><span class="lineCov">          1 :     if (!debuggers)</span>
+<span class="lineNum">     128 </span><span class="lineNoCov">          0 :         ReportOutOfMemory(cx);</span>
+<span class="lineNum">     129 </span><span class="lineCov">          1 :     return debuggers;</span>
+<span class="lineNum">     130 </span>            : }
+<a name="131"><span class="lineNum">     131 </span>            : </a>
+<span class="lineNum">     132 </span>            : void
+<span class="lineNum">     133 </span><span class="lineCov">          1 : Zone::sweepBreakpoints(FreeOp* fop)</span>
+<span class="lineNum">     134 </span>            : {
+<span class="lineNum">     135 </span><span class="lineCov">          1 :     if (!group() || group()-&gt;debuggerList().isEmpty())</span>
+<span class="lineNum">     136 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     137 </span>            : 
+<span class="lineNum">     138 </span>            :     /*
+<span class="lineNum">     139 </span>            :      * Sweep all compartments in a zone at the same time, since there is no way
+<span class="lineNum">     140 </span>            :      * to iterate over the scripts belonging to a single compartment in a zone.
+<span class="lineNum">     141 </span>            :      */
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span>            :     MOZ_ASSERT(isGCSweepingOrCompacting());
+<span class="lineNum">     144 </span><span class="lineCov">          1 :     for (auto iter = cellIter&lt;JSScript&gt;(); !iter.done(); iter.next()) {</span>
+<span class="lineNum">     145 </span><span class="lineCov">          1 :         JSScript* script = iter;</span>
+<span class="lineNum">     146 </span><span class="lineCov">          1 :         if (!script-&gt;hasAnyBreakpointsOrStepMode())</span>
+<span class="lineNum">     147 </span><span class="lineCov">          1 :             continue;</span>
+<span class="lineNum">     148 </span>            : 
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :         bool scriptGone = IsAboutToBeFinalizedUnbarriered(&amp;script);</span>
+<span class="lineNum">     150 </span>            :         MOZ_ASSERT(script == iter);
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :         for (unsigned i = 0; i &lt; script-&gt;length(); i++) {</span>
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :             BreakpointSite* site = script-&gt;getBreakpointSite(script-&gt;offsetToPC(i));</span>
+<span class="lineNum">     153 </span><span class="lineNoCov">          0 :             if (!site)</span>
+<span class="lineNum">     154 </span>            :                 continue;
+<span class="lineNum">     155 </span>            : 
+<span class="lineNum">     156 </span>            :             Breakpoint* nextbp;
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :             for (Breakpoint* bp = site-&gt;firstBreakpoint(); bp; bp = nextbp) {</span>
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :                 nextbp = bp-&gt;nextInSite();</span>
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :                 GCPtrNativeObject&amp; dbgobj = bp-&gt;debugger-&gt;toJSObjectRef();</span>
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span>            :                 // If we are sweeping, then we expect the script and the
+<span class="lineNum">     162 </span>            :                 // debugger object to be swept in the same zone group, except if
+<span class="lineNum">     163 </span>            :                 // the breakpoint was added after we computed the zone
+<span class="lineNum">     164 </span>            :                 // groups. In this case both script and debugger object must be
+<span class="lineNum">     165 </span>            :                 // live.
+<span class="lineNum">     166 </span>            :                 MOZ_ASSERT_IF(isGCSweeping() &amp;&amp; dbgobj-&gt;zone()-&gt;isCollecting(),
+<span class="lineNum">     167 </span>            :                               dbgobj-&gt;zone()-&gt;isGCSweeping() ||
+<span class="lineNum">     168 </span>            :                               (!scriptGone &amp;&amp; dbgobj-&gt;asTenured().isMarked()));
+<span class="lineNum">     169 </span>            : 
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :                 bool dying = scriptGone || IsAboutToBeFinalized(&amp;dbgobj);</span>
+<span class="lineNum">     171 </span>            :                 MOZ_ASSERT_IF(!dying, !IsAboutToBeFinalized(&amp;bp-&gt;getHandlerRef()));
+<span class="lineNum">     172 </span><span class="lineNoCov">          0 :                 if (dying)</span>
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 :                     bp-&gt;destroy(fop);</span>
+<span class="lineNum">     174 </span>            :             }
+<span class="lineNum">     175 </span>            :         }
+<span class="lineNum">     176 </span>            :     }
+<span class="lineNum">     177 </span>            : }
+<a name="178"><span class="lineNum">     178 </span>            : </a>
+<span class="lineNum">     179 </span>            : void
+<span class="lineNum">     180 </span><span class="lineCov">          1 : Zone::sweepWeakMaps()</span>
+<span class="lineNum">     181 </span>            : {
+<span class="lineNum">     182 </span>            :     /* Finalize unreachable (key,value) pairs in all weak maps. */
+<span class="lineNum">     183 </span><span class="lineCov">          1 :     WeakMapBase::sweepZone(this);</span>
+<span class="lineNum">     184 </span><span class="lineCov">          1 : }</span>
+<a name="185"><span class="lineNum">     185 </span>            : </a>
+<span class="lineNum">     186 </span>            : void
+<span class="lineNum">     187 </span><span class="lineCov">          1 : Zone::discardJitCode(FreeOp* fop, bool discardBaselineCode)</span>
+<span class="lineNum">     188 </span>            : {
+<span class="lineNum">     189 </span><span class="lineCov">          1 :     if (!jitZone())</span>
+<span class="lineNum">     190 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span><span class="lineCov">          1 :     if (isPreservingCode()) {</span>
+<span class="lineNum">     193 </span><span class="lineCov">          1 :         PurgeJITCaches(this);</span>
+<span class="lineNum">     194 </span>            :     } else {
+<span class="lineNum">     195 </span>            : 
+<span class="lineNum">     196 </span><span class="lineCov">          1 :         if (discardBaselineCode) {</span>
+<span class="lineNum">     197 </span>            : #ifdef DEBUG
+<span class="lineNum">     198 </span>            :             /* Assert no baseline scripts are marked as active. */
+<span class="lineNum">     199 </span>            :             for (auto script = cellIter&lt;JSScript&gt;(); !script.done(); script.next())
+<span class="lineNum">     200 </span>            :                 MOZ_ASSERT_IF(script-&gt;hasBaselineScript(), !script-&gt;baselineScript()-&gt;active());
+<span class="lineNum">     201 </span>            : #endif
+<span class="lineNum">     202 </span>            : 
+<span class="lineNum">     203 </span>            :             /* Mark baseline scripts on the stack as active. */
+<span class="lineNum">     204 </span><span class="lineCov">          1 :             jit::MarkActiveBaselineScripts(this);</span>
+<span class="lineNum">     205 </span>            :         }
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span>            :         /* Only mark OSI points if code is being discarded. */
+<span class="lineNum">     208 </span><span class="lineCov">          1 :         jit::InvalidateAll(fop, this);</span>
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span><span class="lineCov">          1 :         for (auto script = cellIter&lt;JSScript&gt;(); !script.done(); script.next())  {</span>
+<span class="lineNum">     211 </span><span class="lineCov">          1 :             jit::FinishInvalidation(fop, script);</span>
+<span class="lineNum">     212 </span>            : 
+<span class="lineNum">     213 </span>            :             /*
+<span class="lineNum">     214 </span>            :              * Discard baseline script if it's not marked as active. Note that
+<span class="lineNum">     215 </span>            :              * this also resets the active flag.
+<span class="lineNum">     216 </span>            :              */
+<span class="lineNum">     217 </span><span class="lineCov">          1 :             if (discardBaselineCode)</span>
+<span class="lineNum">     218 </span><span class="lineCov">          1 :                 jit::FinishDiscardBaselineScript(fop, script);</span>
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span>            :             /*
+<span class="lineNum">     221 </span>            :              * Warm-up counter for scripts are reset on GC. After discarding code we
+<span class="lineNum">     222 </span>            :              * need to let it warm back up to get information such as which
+<span class="lineNum">     223 </span>            :              * opcodes are setting array holes or accessing getter properties.
+<span class="lineNum">     224 </span>            :              */
+<span class="lineNum">     225 </span><span class="lineCov">          1 :             script-&gt;resetWarmUpCounter();</span>
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span>            :             /*
+<span class="lineNum">     228 </span>            :              * Make it impossible to use the control flow graphs cached on the
+<span class="lineNum">     229 </span>            :              * BaselineScript. They get deleted.
+<span class="lineNum">     230 </span>            :              */
+<span class="lineNum">     231 </span><span class="lineCov">          1 :             if (script-&gt;hasBaselineScript())</span>
+<span class="lineNum">     232 </span><span class="lineCov">          1 :                 script-&gt;baselineScript()-&gt;setControlFlowGraph(nullptr);</span>
+<span class="lineNum">     233 </span>            :         }
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span>            :         /*
+<span class="lineNum">     236 </span>            :          * When scripts contains pointers to nursery things, the store buffer
+<span class="lineNum">     237 </span>            :          * can contain entries that point into the optimized stub space. Since
+<span class="lineNum">     238 </span>            :          * this method can be called outside the context of a GC, this situation
+<span class="lineNum">     239 </span>            :          * could result in us trying to mark invalid store buffer entries.
+<span class="lineNum">     240 </span>            :          *
+<span class="lineNum">     241 </span>            :          * Defer freeing any allocated blocks until after the next minor GC.
+<span class="lineNum">     242 </span>            :          */
+<span class="lineNum">     243 </span><span class="lineCov">          1 :         if (discardBaselineCode) {</span>
+<span class="lineNum">     244 </span><span class="lineCov">          1 :             jitZone()-&gt;optimizedStubSpace()-&gt;freeAllAfterMinorGC(this);</span>
+<span class="lineNum">     245 </span><span class="lineCov">          1 :             jitZone()-&gt;purgeIonCacheIRStubInfo();</span>
+<span class="lineNum">     246 </span>            :         }
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span>            :         /*
+<span class="lineNum">     249 </span>            :          * Free all control flow graphs that are cached on BaselineScripts.
+<span class="lineNum">     250 </span>            :          * Assuming this happens on the active thread and all control flow
+<span class="lineNum">     251 </span>            :          * graph reads happen on the active thread, this is safe.
+<span class="lineNum">     252 </span>            :          */
+<span class="lineNum">     253 </span><span class="lineCov">          1 :         jitZone()-&gt;cfgSpace()-&gt;lifoAlloc().freeAll();</span>
+<span class="lineNum">     254 </span>            :     }
+<span class="lineNum">     255 </span>            : }
+<span class="lineNum">     256 </span>            : 
+<span class="lineNum">     257 </span>            : #ifdef JSGC_HASH_TABLE_CHECKS
+<span class="lineNum">     258 </span>            : void
+<span class="lineNum">     259 </span>            : JS::Zone::checkUniqueIdTableAfterMovingGC()
+<span class="lineNum">     260 </span>            : {
+<span class="lineNum">     261 </span>            :     for (UniqueIdMap::Enum e(uniqueIds()); !e.empty(); e.popFront())
+<span class="lineNum">     262 </span>            :         js::gc::CheckGCThingAfterMovingGC(e.front().key());
+<span class="lineNum">     263 </span>            : }
+<span class="lineNum">     264 </span>            : #endif
+<a name="265"><span class="lineNum">     265 </span>            : </a>
+<span class="lineNum">     266 </span>            : uint64_t
+<span class="lineNum">     267 </span><span class="lineCov">          1 : Zone::gcNumber()</span>
+<span class="lineNum">     268 </span>            : {
+<span class="lineNum">     269 </span>            :     // Zones in use by exclusive threads are not collected, and threads using
+<span class="lineNum">     270 </span>            :     // them cannot access the main runtime's gcNumber without racing.
+<span class="lineNum">     271 </span><span class="lineCov">          1 :     return usedByHelperThread() ? 0 : runtimeFromActiveCooperatingThread()-&gt;gc.gcNumber();</span>
+<span class="lineNum">     272 </span>            : }
+<a name="273"><span class="lineNum">     273 </span>            : </a>
+<span class="lineNum">     274 </span>            : js::jit::JitZone*
+<span class="lineNum">     275 </span><span class="lineCov">          1 : Zone::createJitZone(JSContext* cx)</span>
+<span class="lineNum">     276 </span>            : {
+<span class="lineNum">     277 </span>            :     MOZ_ASSERT(!jitZone_);
+<span class="lineNum">     278 </span>            : 
+<span class="lineNum">     279 </span><span class="lineCov">          1 :     if (!cx-&gt;runtime()-&gt;getJitRuntime(cx))</span>
+<span class="lineNum">     280 </span>            :         return nullptr;
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span><span class="lineCov">          1 :     jitZone_ = cx-&gt;new_&lt;js::jit::JitZone&gt;();</span>
+<span class="lineNum">     283 </span><span class="lineCov">          1 :     return jitZone_;</span>
+<span class="lineNum">     284 </span>            : }
+<a name="285"><span class="lineNum">     285 </span>            : </a>
+<span class="lineNum">     286 </span>            : bool
+<span class="lineNum">     287 </span><span class="lineCov">          1 : Zone::hasMarkedCompartments()</span>
+<span class="lineNum">     288 </span>            : {
+<span class="lineNum">     289 </span><span class="lineCov">          1 :     for (CompartmentsInZoneIter comp(this); !comp.done(); comp.next()) {</span>
+<span class="lineNum">     290 </span><span class="lineCov">          1 :         if (comp-&gt;marked)</span>
+<span class="lineNum">     291 </span>            :             return true;
+<span class="lineNum">     292 </span>            :     }
+<span class="lineNum">     293 </span><span class="lineCov">          1 :     return false;</span>
+<span class="lineNum">     294 </span>            : }
+<a name="295"><span class="lineNum">     295 </span>            : </a>
+<span class="lineNum">     296 </span>            : bool
+<span class="lineNum">     297 </span><span class="lineCov">          1 : Zone::canCollect()</span>
+<span class="lineNum">     298 </span>            : {
+<span class="lineNum">     299 </span>            :     // Zones cannot be collected while in use by other threads.
+<span class="lineNum">     300 </span><span class="lineCov">          1 :     if (usedByHelperThread())</span>
+<span class="lineNum">     301 </span>            :         return false;
+<span class="lineNum">     302 </span><span class="lineCov">          1 :     JSRuntime* rt = runtimeFromAnyThread();</span>
+<span class="lineNum">     303 </span><span class="lineCov">          1 :     if (isAtomsZone() &amp;&amp; rt-&gt;hasHelperThreadZones())</span>
+<span class="lineNum">     304 </span>            :         return false;
+<span class="lineNum">     305 </span><span class="lineCov">          1 :     return true;</span>
+<span class="lineNum">     306 </span>            : }
+<a name="307"><span class="lineNum">     307 </span>            : </a>
+<span class="lineNum">     308 </span>            : void
+<span class="lineNum">     309 </span><span class="lineCov">          1 : Zone::notifyObservingDebuggers()</span>
+<span class="lineNum">     310 </span>            : {
+<span class="lineNum">     311 </span><span class="lineCov">          1 :     for (CompartmentsInZoneIter comps(this); !comps.done(); comps.next()) {</span>
+<span class="lineNum">     312 </span><span class="lineCov">          1 :         JSRuntime* rt = runtimeFromAnyThread();</span>
+<span class="lineNum">     313 </span><span class="lineCov">          1 :         RootedGlobalObject global(TlsContext.get(), comps-&gt;unsafeUnbarrieredMaybeGlobal());</span>
+<span class="lineNum">     314 </span><span class="lineCov">          1 :         if (!global)</span>
+<span class="lineNum">     315 </span>            :             continue;
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span><span class="lineCov">          1 :         GlobalObject::DebuggerVector* dbgs = global-&gt;getDebuggers();</span>
+<span class="lineNum">     318 </span><span class="lineCov">          1 :         if (!dbgs)</span>
+<span class="lineNum">     319 </span>            :             continue;
+<span class="lineNum">     320 </span>            : 
+<span class="lineNum">     321 </span><span class="lineCov">          1 :         for (GlobalObject::DebuggerVector::Range r = dbgs-&gt;all(); !r.empty(); r.popFront()) {</span>
+<span class="lineNum">     322 </span><span class="lineCov">          1 :             if (!r.front()-&gt;debuggeeIsBeingCollected(rt-&gt;gc.majorGCCount())) {</span>
+<span class="lineNum">     323 </span>            : #ifdef DEBUG
+<span class="lineNum">     324 </span>            :                 fprintf(stderr,
+<span class="lineNum">     325 </span>            :                         &quot;OOM while notifying observing Debuggers of a GC: The onGarbageCollection\n&quot;
+<span class="lineNum">     326 </span>            :                         &quot;hook will not be fired for this GC for some Debuggers!\n&quot;);
+<span class="lineNum">     327 </span>            : #endif
+<span class="lineNum">     328 </span><span class="lineCov">          1 :                 return;</span>
+<span class="lineNum">     329 </span>            :             }
+<span class="lineNum">     330 </span>            :         }
+<span class="lineNum">     331 </span>            :     }
+<span class="lineNum">     332 </span>            : }
+<a name="333"><span class="lineNum">     333 </span>            : </a>
+<span class="lineNum">     334 </span>            : bool
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 : Zone::isOnList() const</span>
+<span class="lineNum">     336 </span>            : {
+<span class="lineNum">     337 </span><span class="lineCov">          1 :     return listNext_ != NotOnList;</span>
+<span class="lineNum">     338 </span>            : }
+<a name="339"><span class="lineNum">     339 </span>            : </a>
+<span class="lineNum">     340 </span>            : Zone*
+<span class="lineNum">     341 </span><span class="lineCov">          1 : Zone::nextZone() const</span>
+<span class="lineNum">     342 </span>            : {
+<span class="lineNum">     343 </span>            :     MOZ_ASSERT(isOnList());
+<span class="lineNum">     344 </span><span class="lineCov">          1 :     return listNext_;</span>
+<span class="lineNum">     345 </span>            : }
+<a name="346"><span class="lineNum">     346 </span>            : </a>
+<span class="lineNum">     347 </span>            : void
+<span class="lineNum">     348 </span><span class="lineCov">          1 : Zone::clearTables()</span>
+<span class="lineNum">     349 </span>            : {
+<span class="lineNum">     350 </span><span class="lineCov">          1 :     if (baseShapes().initialized())</span>
+<span class="lineNum">     351 </span><span class="lineCov">          1 :         baseShapes().clear();</span>
+<span class="lineNum">     352 </span><span class="lineCov">          1 :     if (initialShapes().initialized())</span>
+<span class="lineNum">     353 </span><span class="lineCov">          1 :         initialShapes().clear();</span>
+<span class="lineNum">     354 </span><span class="lineCov">          1 : }</span>
+<a name="355"><span class="lineNum">     355 </span>            : </a>
+<span class="lineNum">     356 </span>            : void
+<span class="lineNum">     357 </span><span class="lineCov">          1 : Zone::fixupAfterMovingGC()</span>
+<span class="lineNum">     358 </span>            : {
+<span class="lineNum">     359 </span><span class="lineCov">          1 :     fixupInitialShapeTable();</span>
+<span class="lineNum">     360 </span><span class="lineCov">          1 : }</span>
+<a name="361"><span class="lineNum">     361 </span>            : </a>
+<span class="lineNum">     362 </span>            : bool
+<span class="lineNum">     363 </span><span class="lineCov">          1 : Zone::addTypeDescrObject(JSContext* cx, HandleObject obj)</span>
+<span class="lineNum">     364 </span>            : {
+<span class="lineNum">     365 </span>            :     // Type descriptor objects are always tenured so we don't need post barriers
+<span class="lineNum">     366 </span>            :     // on the set.
+<span class="lineNum">     367 </span>            :     MOZ_ASSERT(!IsInsideNursery(obj));
+<span class="lineNum">     368 </span>            : 
+<span class="lineNum">     369 </span><span class="lineCov">          1 :     if (!typeDescrObjects().put(obj)) {</span>
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :         ReportOutOfMemory(cx);</span>
+<span class="lineNum">     371 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     372 </span>            :     }
+<span class="lineNum">     373 </span>            : 
+<span class="lineNum">     374 </span>            :     return true;
+<a name="375"><span class="lineNum">     375 </span>            : }</a>
+<span class="lineNum">     376 </span>            : 
+<span class="lineNum">     377 </span><span class="lineCov">          1 : ZoneList::ZoneList()</span>
+<span class="lineNum">     378 </span><span class="lineCov">          1 :   : head(nullptr), tail(nullptr)</span>
+<a name="379"><span class="lineNum">     379 </span><span class="lineCov">          1 : {}</span></a>
+<span class="lineNum">     380 </span>            : 
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 : ZoneList::ZoneList(Zone* zone)</span>
+<span class="lineNum">     382 </span><span class="lineCov">          1 :   : head(zone), tail(zone)</span>
+<span class="lineNum">     383 </span>            : {
+<span class="lineNum">     384 </span><span class="lineCov">          1 :     MOZ_RELEASE_ASSERT(!zone-&gt;isOnList());</span>
+<span class="lineNum">     385 </span><span class="lineCov">          1 :     zone-&gt;listNext_ = nullptr;</span>
+<a name="386"><span class="lineNum">     386 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     387 </span>            : 
+<span class="lineNum">     388 </span><span class="lineCov">          1 : ZoneList::~ZoneList()</span>
+<span class="lineNum">     389 </span>            : {
+<span class="lineNum">     390 </span>            :     MOZ_ASSERT(isEmpty());
+<span class="lineNum">     391 </span><span class="lineCov">          1 : }</span>
+<a name="392"><span class="lineNum">     392 </span>            : </a>
+<span class="lineNum">     393 </span>            : void
+<span class="lineNum">     394 </span><span class="lineNoCov">          0 : ZoneList::check() const</span>
+<span class="lineNum">     395 </span>            : {
+<span class="lineNum">     396 </span>            : #ifdef DEBUG
+<span class="lineNum">     397 </span>            :     MOZ_ASSERT((head == nullptr) == (tail == nullptr));
+<span class="lineNum">     398 </span>            :     if (!head)
+<span class="lineNum">     399 </span>            :         return;
+<span class="lineNum">     400 </span>            : 
+<span class="lineNum">     401 </span>            :     Zone* zone = head;
+<span class="lineNum">     402 </span>            :     for (;;) {
+<span class="lineNum">     403 </span>            :         MOZ_ASSERT(zone &amp;&amp; zone-&gt;isOnList());
+<span class="lineNum">     404 </span>            :         if  (zone == tail)
+<span class="lineNum">     405 </span>            :             break;
+<span class="lineNum">     406 </span>            :         zone = zone-&gt;listNext_;
+<span class="lineNum">     407 </span>            :     }
+<span class="lineNum">     408 </span>            :     MOZ_ASSERT(!zone-&gt;listNext_);
+<span class="lineNum">     409 </span>            : #endif
+<span class="lineNum">     410 </span><span class="lineNoCov">          0 : }</span>
+<a name="411"><span class="lineNum">     411 </span>            : </a>
+<span class="lineNum">     412 </span>            : bool
+<span class="lineNum">     413 </span><span class="lineCov">          1 : ZoneList::isEmpty() const</span>
+<span class="lineNum">     414 </span>            : {
+<span class="lineNum">     415 </span><span class="lineCov">          1 :     return head == nullptr;</span>
+<span class="lineNum">     416 </span>            : }
+<a name="417"><span class="lineNum">     417 </span>            : </a>
+<span class="lineNum">     418 </span>            : Zone*
+<span class="lineNum">     419 </span><span class="lineCov">          1 : ZoneList::front() const</span>
+<span class="lineNum">     420 </span>            : {
+<span class="lineNum">     421 </span>            :     MOZ_ASSERT(!isEmpty());
+<span class="lineNum">     422 </span>            :     MOZ_ASSERT(head-&gt;isOnList());
+<span class="lineNum">     423 </span><span class="lineCov">          1 :     return head;</span>
+<span class="lineNum">     424 </span>            : }
+<a name="425"><span class="lineNum">     425 </span>            : </a>
+<span class="lineNum">     426 </span>            : void
+<span class="lineNum">     427 </span><span class="lineCov">          1 : ZoneList::append(Zone* zone)</span>
+<span class="lineNum">     428 </span>            : {
+<span class="lineNum">     429 </span>            :     ZoneList singleZone(zone);
+<span class="lineNum">     430 </span>            :     transferFrom(singleZone);
+<span class="lineNum">     431 </span><span class="lineCov">          1 : }</span>
+<a name="432"><span class="lineNum">     432 </span>            : </a>
+<span class="lineNum">     433 </span>            : void
+<span class="lineNum">     434 </span><span class="lineCov">          1 : ZoneList::transferFrom(ZoneList&amp; other)</span>
+<span class="lineNum">     435 </span>            : {
+<span class="lineNum">     436 </span>            :     check();
+<span class="lineNum">     437 </span>            :     other.check();
+<span class="lineNum">     438 </span>            :     MOZ_ASSERT(tail != other.tail);
+<span class="lineNum">     439 </span>            : 
+<span class="lineNum">     440 </span><span class="lineCov">          1 :     if (tail)</span>
+<span class="lineNum">     441 </span><span class="lineCov">          1 :         tail-&gt;listNext_ = other.head;</span>
+<span class="lineNum">     442 </span>            :     else
+<span class="lineNum">     443 </span><span class="lineCov">          1 :         head = other.head;</span>
+<span class="lineNum">     444 </span><span class="lineCov">          1 :     tail = other.tail;</span>
+<span class="lineNum">     445 </span>            : 
+<span class="lineNum">     446 </span><span class="lineCov">          1 :     other.head = nullptr;</span>
+<span class="lineNum">     447 </span><span class="lineCov">          1 :     other.tail = nullptr;</span>
+<span class="lineNum">     448 </span><span class="lineCov">          1 : }</span>
+<a name="449"><span class="lineNum">     449 </span>            : </a>
+<span class="lineNum">     450 </span>            : void
+<span class="lineNum">     451 </span><span class="lineCov">          1 : ZoneList::removeFront()</span>
+<span class="lineNum">     452 </span>            : {
+<span class="lineNum">     453 </span>            :     MOZ_ASSERT(!isEmpty());
+<span class="lineNum">     454 </span>            :     check();
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span><span class="lineCov">          1 :     Zone* front = head;</span>
+<span class="lineNum">     457 </span><span class="lineCov">          1 :     head = head-&gt;listNext_;</span>
+<span class="lineNum">     458 </span><span class="lineCov">          1 :     if (!head)</span>
+<span class="lineNum">     459 </span><span class="lineCov">          1 :         tail = nullptr;</span>
+<span class="lineNum">     460 </span>            : 
+<span class="lineNum">     461 </span><span class="lineCov">          1 :     front-&gt;listNext_ = Zone::NotOnList;</span>
+<span class="lineNum">     462 </span><span class="lineCov">          1 : }</span>
+<a name="463"><span class="lineNum">     463 </span>            : </a>
+<span class="lineNum">     464 </span>            : void
+<span class="lineNum">     465 </span><span class="lineNoCov">          0 : ZoneList::clear()</span>
+<span class="lineNum">     466 </span>            : {
+<span class="lineNum">     467 </span><span class="lineNoCov">          0 :     while (!isEmpty())</span>
+<span class="lineNum">     468 </span>            :         removeFront();
+<span class="lineNum">     469 </span><span class="lineNoCov">          0 : }</span>
+<a name="470"><span class="lineNum">     470 </span>            : </a>
+<span class="lineNum">     471 </span>            : JS_PUBLIC_API(void)
+<span class="lineNum">     472 </span><span class="lineCov">          1 : JS::shadow::RegisterWeakCache(JS::Zone* zone, WeakCache&lt;void*&gt;* cachep)</span>
+<span class="lineNum">     473 </span>            : {
+<span class="lineNum">     474 </span>            :     zone-&gt;registerWeakCache(cachep);
+<span class="lineNum">     475 </span><span class="lineCov">          1 : }</span>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

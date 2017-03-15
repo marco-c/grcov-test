@@ -1,0 +1,1642 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/security/nss/lib/dev/devtoken.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">gecko-dev/security/nss/lib/dev</a> - devtoken.c<span style="font-size: 80%;"> (source / <a href="devtoken.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">366</td>
+            <td class="headerCovTableEntry">664</td>
+            <td class="headerCovTableEntryLo">55.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">28</td>
+            <td class="headerCovTableEntry">43</td>
+            <td class="headerCovTableEntryLo">65.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public</a>
+<span class="lineNum">       2 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       3 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : #include &quot;pkcs11.h&quot;
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #ifndef DEVM_H
+<span class="lineNum">       8 </span>            : #include &quot;devm.h&quot;
+<span class="lineNum">       9 </span>            : #endif /* DEVM_H */
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #ifndef CKHELPER_H
+<span class="lineNum">      12 </span>            : #include &quot;ckhelper.h&quot;
+<span class="lineNum">      13 </span>            : #endif /* CKHELPER_H */
+<span class="lineNum">      14 </span>            : 
+<span class="lineNum">      15 </span>            : #include &quot;pk11func.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;dev3hack.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;secerr.h&quot;
+<span class="lineNum">      18 </span>            : 
+<span class="lineNum">      19 </span>            : extern const NSSError NSS_ERROR_NOT_FOUND;
+<span class="lineNum">      20 </span>            : extern const NSSError NSS_ERROR_INVALID_ARGUMENT;
+<span class="lineNum">      21 </span>            : extern const NSSError NSS_ERROR_PKCS11;
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : /* The number of object handles to grab during each call to C_FindObjects */
+<span class="lineNum">      24 </span>            : #define OBJECT_STACK_SIZE 16
+<a name="25"><span class="lineNum">      25 </span>            : </a>
+<span class="lineNum">      26 </span>            : NSS_IMPLEMENT PRStatus
+<span class="lineNum">      27 </span><span class="lineCov">          1 : nssToken_Destroy(</span>
+<span class="lineNum">      28 </span>            :     NSSToken *tok)
+<span class="lineNum">      29 </span>            : {
+<span class="lineNum">      30 </span><span class="lineCov">          1 :     if (tok) {</span>
+<span class="lineNum">      31 </span><span class="lineCov">          1 :         if (PR_ATOMIC_DECREMENT(&amp;tok-&gt;base.refCount) == 0) {</span>
+<span class="lineNum">      32 </span><span class="lineCov">          1 :             PZ_DestroyLock(tok-&gt;base.lock);</span>
+<span class="lineNum">      33 </span><span class="lineCov">          1 :             nssTokenObjectCache_Destroy(tok-&gt;cache);</span>
+<span class="lineNum">      34 </span>            :             /* The token holds the first/last reference to the slot.
+<span class="lineNum">      35 </span>            :              * When the token is actually destroyed, that ref must go too.
+<span class="lineNum">      36 </span>            :              */
+<span class="lineNum">      37 </span><span class="lineCov">          1 :             (void)nssSlot_Destroy(tok-&gt;slot);</span>
+<span class="lineNum">      38 </span><span class="lineCov">          1 :             return nssArena_Destroy(tok-&gt;base.arena);</span>
+<span class="lineNum">      39 </span>            :         }
+<span class="lineNum">      40 </span>            :     }
+<span class="lineNum">      41 </span>            :     return PR_SUCCESS;
+<span class="lineNum">      42 </span>            : }
+<a name="43"><span class="lineNum">      43 </span>            : </a>
+<span class="lineNum">      44 </span>            : NSS_IMPLEMENT void
+<span class="lineNum">      45 </span><span class="lineCov">          1 : nssToken_Remove(</span>
+<span class="lineNum">      46 </span>            :     NSSToken *tok)
+<span class="lineNum">      47 </span>            : {
+<span class="lineNum">      48 </span><span class="lineCov">          1 :     nssTokenObjectCache_Clear(tok-&gt;cache);</span>
+<span class="lineNum">      49 </span><span class="lineCov">          1 : }</span>
+<a name="50"><span class="lineNum">      50 </span>            : </a>
+<span class="lineNum">      51 </span>            : NSS_IMPLEMENT void
+<span class="lineNum">      52 </span><span class="lineNoCov">          0 : NSSToken_Destroy(</span>
+<span class="lineNum">      53 </span>            :     NSSToken *tok)
+<span class="lineNum">      54 </span>            : {
+<span class="lineNum">      55 </span><span class="lineNoCov">          0 :     (void)nssToken_Destroy(tok);</span>
+<span class="lineNum">      56 </span><span class="lineNoCov">          0 : }</span>
+<a name="57"><span class="lineNum">      57 </span>            : </a>
+<span class="lineNum">      58 </span>            : NSS_IMPLEMENT NSSToken *
+<span class="lineNum">      59 </span><span class="lineCov">          1 : nssToken_AddRef(</span>
+<span class="lineNum">      60 </span>            :     NSSToken *tok)
+<span class="lineNum">      61 </span>            : {
+<span class="lineNum">      62 </span><span class="lineCov">          1 :     PR_ATOMIC_INCREMENT(&amp;tok-&gt;base.refCount);</span>
+<span class="lineNum">      63 </span><span class="lineCov">          1 :     return tok;</span>
+<span class="lineNum">      64 </span>            : }
+<a name="65"><span class="lineNum">      65 </span>            : </a>
+<span class="lineNum">      66 </span>            : NSS_IMPLEMENT NSSSlot *
+<span class="lineNum">      67 </span><span class="lineCov">          1 : nssToken_GetSlot(</span>
+<span class="lineNum">      68 </span>            :     NSSToken *tok)
+<span class="lineNum">      69 </span>            : {
+<span class="lineNum">      70 </span><span class="lineCov">          1 :     return nssSlot_AddRef(tok-&gt;slot);</span>
+<span class="lineNum">      71 </span>            : }
+<a name="72"><span class="lineNum">      72 </span>            : </a>
+<span class="lineNum">      73 </span>            : NSS_IMPLEMENT void *
+<span class="lineNum">      74 </span><span class="lineCov">          1 : nssToken_GetCryptokiEPV(</span>
+<span class="lineNum">      75 </span>            :     NSSToken *token)
+<span class="lineNum">      76 </span>            : {
+<span class="lineNum">      77 </span><span class="lineCov">          1 :     return nssSlot_GetCryptokiEPV(token-&gt;slot);</span>
+<span class="lineNum">      78 </span>            : }
+<a name="79"><span class="lineNum">      79 </span>            : </a>
+<span class="lineNum">      80 </span>            : NSS_IMPLEMENT nssSession *
+<span class="lineNum">      81 </span><span class="lineCov">          1 : nssToken_GetDefaultSession(</span>
+<span class="lineNum">      82 </span>            :     NSSToken *token)
+<span class="lineNum">      83 </span>            : {
+<span class="lineNum">      84 </span><span class="lineCov">          1 :     return token-&gt;defaultSession;</span>
+<span class="lineNum">      85 </span>            : }
+<a name="86"><span class="lineNum">      86 </span>            : </a>
+<span class="lineNum">      87 </span>            : NSS_IMPLEMENT NSSUTF8 *
+<span class="lineNum">      88 </span><span class="lineCov">          1 : nssToken_GetName(</span>
+<span class="lineNum">      89 </span>            :     NSSToken *tok)
+<span class="lineNum">      90 </span>            : {
+<span class="lineNum">      91 </span><span class="lineCov">          1 :     if (tok == NULL) {</span>
+<span class="lineNum">      92 </span>            :         return &quot;&quot;;
+<span class="lineNum">      93 </span>            :     }
+<span class="lineNum">      94 </span><span class="lineCov">          1 :     if (tok-&gt;base.name[0] == 0) {</span>
+<span class="lineNum">      95 </span><span class="lineNoCov">          0 :         (void)nssSlot_IsTokenPresent(tok-&gt;slot);</span>
+<span class="lineNum">      96 </span>            :     }
+<span class="lineNum">      97 </span><span class="lineCov">          1 :     return tok-&gt;base.name;</span>
+<span class="lineNum">      98 </span>            : }
+<a name="99"><span class="lineNum">      99 </span>            : </a>
+<span class="lineNum">     100 </span>            : NSS_IMPLEMENT NSSUTF8 *
+<span class="lineNum">     101 </span><span class="lineNoCov">          0 : NSSToken_GetName(</span>
+<span class="lineNum">     102 </span>            :     NSSToken *token)
+<span class="lineNum">     103 </span>            : {
+<span class="lineNum">     104 </span><span class="lineNoCov">          0 :     return nssToken_GetName(token);</span>
+<span class="lineNum">     105 </span>            : }
+<a name="106"><span class="lineNum">     106 </span>            : </a>
+<span class="lineNum">     107 </span>            : NSS_IMPLEMENT PRBool
+<span class="lineNum">     108 </span><span class="lineNoCov">          0 : nssToken_IsLoginRequired(</span>
+<span class="lineNum">     109 </span>            :     NSSToken *token)
+<span class="lineNum">     110 </span>            : {
+<span class="lineNum">     111 </span><span class="lineNoCov">          0 :     return (token-&gt;ckFlags &amp; CKF_LOGIN_REQUIRED);</span>
+<span class="lineNum">     112 </span>            : }
+<a name="113"><span class="lineNum">     113 </span>            : </a>
+<span class="lineNum">     114 </span>            : NSS_IMPLEMENT PRBool
+<span class="lineNum">     115 </span><span class="lineNoCov">          0 : nssToken_NeedsPINInitialization(</span>
+<span class="lineNum">     116 </span>            :     NSSToken *token)
+<span class="lineNum">     117 </span>            : {
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :     return (!(token-&gt;ckFlags &amp; CKF_USER_PIN_INITIALIZED));</span>
+<span class="lineNum">     119 </span>            : }
+<a name="120"><span class="lineNum">     120 </span>            : </a>
+<span class="lineNum">     121 </span>            : NSS_IMPLEMENT PRStatus
+<span class="lineNum">     122 </span><span class="lineCov">          1 : nssToken_DeleteStoredObject(</span>
+<span class="lineNum">     123 </span>            :     nssCryptokiObject *instance)
+<span class="lineNum">     124 </span>            : {
+<span class="lineNum">     125 </span>            :     CK_RV ckrv;
+<span class="lineNum">     126 </span>            :     PRStatus status;
+<span class="lineNum">     127 </span><span class="lineCov">          1 :     PRBool createdSession = PR_FALSE;</span>
+<span class="lineNum">     128 </span><span class="lineCov">          1 :     NSSToken *token = instance-&gt;token;</span>
+<span class="lineNum">     129 </span><span class="lineCov">          1 :     nssSession *session = NULL;</span>
+<span class="lineNum">     130 </span><span class="lineCov">          1 :     void *epv = nssToken_GetCryptokiEPV(instance-&gt;token);</span>
+<span class="lineNum">     131 </span><span class="lineCov">          1 :     if (token-&gt;cache) {</span>
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :         nssTokenObjectCache_RemoveObject(token-&gt;cache, instance);</span>
+<span class="lineNum">     133 </span>            :     }
+<span class="lineNum">     134 </span><span class="lineCov">          1 :     if (instance-&gt;isTokenObject) {</span>
+<span class="lineNum">     135 </span><span class="lineCov">          1 :         if (token-&gt;defaultSession &amp;&amp;</span>
+<span class="lineNum">     136 </span><span class="lineCov">          1 :             nssSession_IsReadWrite(token-&gt;defaultSession)) {</span>
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :             session = token-&gt;defaultSession;</span>
+<span class="lineNum">     138 </span>            :         } else {
+<span class="lineNum">     139 </span><span class="lineCov">          1 :             session = nssSlot_CreateSession(token-&gt;slot, NULL, PR_TRUE);</span>
+<span class="lineNum">     140 </span><span class="lineCov">          1 :             createdSession = PR_TRUE;</span>
+<span class="lineNum">     141 </span>            :         }
+<span class="lineNum">     142 </span>            :     }
+<span class="lineNum">     143 </span><span class="lineCov">          1 :     if (session == NULL) {</span>
+<span class="lineNum">     144 </span>            :         return PR_FAILURE;
+<span class="lineNum">     145 </span>            :     }
+<span class="lineNum">     146 </span><span class="lineCov">          1 :     nssSession_EnterMonitor(session);</span>
+<span class="lineNum">     147 </span><span class="lineCov">          1 :     ckrv = CKAPI(epv)-&gt;C_DestroyObject(session-&gt;handle, instance-&gt;handle);</span>
+<span class="lineNum">     148 </span><span class="lineCov">          1 :     nssSession_ExitMonitor(session);</span>
+<span class="lineNum">     149 </span><span class="lineCov">          1 :     if (createdSession) {</span>
+<span class="lineNum">     150 </span><span class="lineCov">          1 :         nssSession_Destroy(session);</span>
+<span class="lineNum">     151 </span>            :     }
+<span class="lineNum">     152 </span><span class="lineCov">          1 :     status = PR_SUCCESS;</span>
+<span class="lineNum">     153 </span><span class="lineCov">          1 :     if (ckrv != CKR_OK) {</span>
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :         status = PR_FAILURE;</span>
+<span class="lineNum">     155 </span>            :         /* use the error stack to pass the PKCS #11 error out  */
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :         nss_SetError(ckrv);</span>
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :         nss_SetError(NSS_ERROR_PKCS11);</span>
+<span class="lineNum">     158 </span>            :     }
+<span class="lineNum">     159 </span><span class="lineCov">          1 :     return status;</span>
+<span class="lineNum">     160 </span>            : }
+<a name="161"><span class="lineNum">     161 </span>            : </a>
+<span class="lineNum">     162 </span>            : static nssCryptokiObject *
+<span class="lineNum">     163 </span><span class="lineCov">          1 : import_object(</span>
+<span class="lineNum">     164 </span>            :     NSSToken *tok,
+<span class="lineNum">     165 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">     166 </span>            :     CK_ATTRIBUTE_PTR objectTemplate,
+<span class="lineNum">     167 </span>            :     CK_ULONG otsize)
+<span class="lineNum">     168 </span>            : {
+<span class="lineNum">     169 </span><span class="lineCov">          1 :     nssSession *session = NULL;</span>
+<span class="lineNum">     170 </span><span class="lineCov">          1 :     PRBool createdSession = PR_FALSE;</span>
+<span class="lineNum">     171 </span><span class="lineCov">          1 :     nssCryptokiObject *object = NULL;</span>
+<span class="lineNum">     172 </span>            :     CK_OBJECT_HANDLE handle;
+<span class="lineNum">     173 </span>            :     CK_RV ckrv;
+<span class="lineNum">     174 </span><span class="lineCov">          1 :     void *epv = nssToken_GetCryptokiEPV(tok);</span>
+<span class="lineNum">     175 </span><span class="lineCov">          1 :     if (nssCKObject_IsTokenObjectTemplate(objectTemplate, otsize)) {</span>
+<span class="lineNum">     176 </span><span class="lineCov">          1 :         if (sessionOpt) {</span>
+<span class="lineNum">     177 </span><span class="lineNoCov">          0 :             if (!nssSession_IsReadWrite(sessionOpt)) {</span>
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :                 nss_SetError(NSS_ERROR_INVALID_ARGUMENT);</span>
+<span class="lineNum">     179 </span><span class="lineNoCov">          0 :                 return NULL;</span>
+<span class="lineNum">     180 </span>            :             }
+<span class="lineNum">     181 </span>            :             session = sessionOpt;
+<span class="lineNum">     182 </span><span class="lineCov">          1 :         } else if (tok-&gt;defaultSession &amp;&amp;</span>
+<span class="lineNum">     183 </span><span class="lineCov">          1 :                    nssSession_IsReadWrite(tok-&gt;defaultSession)) {</span>
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :             session = tok-&gt;defaultSession;</span>
+<span class="lineNum">     185 </span>            :         } else {
+<span class="lineNum">     186 </span><span class="lineCov">          1 :             session = nssSlot_CreateSession(tok-&gt;slot, NULL, PR_TRUE);</span>
+<span class="lineNum">     187 </span><span class="lineCov">          1 :             createdSession = PR_TRUE;</span>
+<span class="lineNum">     188 </span>            :         }
+<span class="lineNum">     189 </span>            :     } else {
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :         session = (sessionOpt) ? sessionOpt : tok-&gt;defaultSession;</span>
+<span class="lineNum">     191 </span>            :     }
+<span class="lineNum">     192 </span><span class="lineCov">          1 :     if (session == NULL) {</span>
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 :         nss_SetError(NSS_ERROR_INVALID_ARGUMENT);</span>
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     195 </span>            :     }
+<span class="lineNum">     196 </span><span class="lineCov">          1 :     nssSession_EnterMonitor(session);</span>
+<span class="lineNum">     197 </span><span class="lineCov">          1 :     ckrv = CKAPI(epv)-&gt;C_CreateObject(session-&gt;handle,</span>
+<span class="lineNum">     198 </span>            :                                       objectTemplate, otsize,
+<span class="lineNum">     199 </span>            :                                       &amp;handle);
+<span class="lineNum">     200 </span><span class="lineCov">          1 :     nssSession_ExitMonitor(session);</span>
+<span class="lineNum">     201 </span><span class="lineCov">          1 :     if (ckrv == CKR_OK) {</span>
+<span class="lineNum">     202 </span><span class="lineCov">          1 :         object = nssCryptokiObject_Create(tok, session, handle);</span>
+<span class="lineNum">     203 </span>            :     } else {
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 :         nss_SetError(ckrv);</span>
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :         nss_SetError(NSS_ERROR_PKCS11);</span>
+<span class="lineNum">     206 </span>            :     }
+<span class="lineNum">     207 </span><span class="lineCov">          1 :     if (createdSession) {</span>
+<span class="lineNum">     208 </span><span class="lineCov">          1 :         nssSession_Destroy(session);</span>
+<span class="lineNum">     209 </span>            :     }
+<span class="lineNum">     210 </span><span class="lineCov">          1 :     return object;</span>
+<span class="lineNum">     211 </span>            : }
+<a name="212"><span class="lineNum">     212 </span>            : </a>
+<span class="lineNum">     213 </span>            : static nssCryptokiObject **
+<span class="lineNum">     214 </span><span class="lineCov">          1 : create_objects_from_handles(</span>
+<span class="lineNum">     215 </span>            :     NSSToken *tok,
+<span class="lineNum">     216 </span>            :     nssSession *session,
+<span class="lineNum">     217 </span>            :     CK_OBJECT_HANDLE *handles,
+<span class="lineNum">     218 </span>            :     PRUint32 numH)
+<span class="lineNum">     219 </span>            : {
+<span class="lineNum">     220 </span>            :     nssCryptokiObject **objects;
+<span class="lineNum">     221 </span><span class="lineCov">          1 :     objects = nss_ZNEWARRAY(NULL, nssCryptokiObject *, numH + 1);</span>
+<span class="lineNum">     222 </span><span class="lineCov">          1 :     if (objects) {</span>
+<span class="lineNum">     223 </span>            :         PRInt32 i;
+<span class="lineNum">     224 </span><span class="lineCov">          1 :         for (i = 0; i &lt; (PRInt32)numH; i++) {</span>
+<span class="lineNum">     225 </span><span class="lineCov">          1 :             objects[i] = nssCryptokiObject_Create(tok, session, handles[i]);</span>
+<span class="lineNum">     226 </span><span class="lineCov">          1 :             if (!objects[i]) {</span>
+<span class="lineNum">     227 </span><span class="lineNoCov">          0 :                 for (--i; i &gt; 0; --i) {</span>
+<span class="lineNum">     228 </span><span class="lineNoCov">          0 :                     nssCryptokiObject_Destroy(objects[i]);</span>
+<span class="lineNum">     229 </span>            :                 }
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :                 nss_ZFreeIf(objects);</span>
+<span class="lineNum">     231 </span><span class="lineNoCov">          0 :                 objects = NULL;</span>
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     233 </span>            :             }
+<span class="lineNum">     234 </span>            :         }
+<span class="lineNum">     235 </span>            :     }
+<span class="lineNum">     236 </span><span class="lineCov">          1 :     return objects;</span>
+<span class="lineNum">     237 </span>            : }
+<a name="238"><span class="lineNum">     238 </span>            : </a>
+<span class="lineNum">     239 </span>            : static nssCryptokiObject **
+<span class="lineNum">     240 </span><span class="lineCov">          1 : find_objects(</span>
+<span class="lineNum">     241 </span>            :     NSSToken *tok,
+<span class="lineNum">     242 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">     243 </span>            :     CK_ATTRIBUTE_PTR obj_template,
+<span class="lineNum">     244 </span>            :     CK_ULONG otsize,
+<span class="lineNum">     245 </span>            :     PRUint32 maximumOpt,
+<span class="lineNum">     246 </span>            :     PRStatus *statusOpt)
+<span class="lineNum">     247 </span>            : {
+<span class="lineNum">     248 </span><span class="lineCov">          1 :     CK_RV ckrv = CKR_OK;</span>
+<span class="lineNum">     249 </span>            :     CK_ULONG count;
+<span class="lineNum">     250 </span><span class="lineCov">          1 :     CK_OBJECT_HANDLE *objectHandles = NULL;</span>
+<span class="lineNum">     251 </span>            :     CK_OBJECT_HANDLE staticObjects[OBJECT_STACK_SIZE];
+<span class="lineNum">     252 </span>            :     PRUint32 arraySize, numHandles;
+<span class="lineNum">     253 </span><span class="lineCov">          1 :     void *epv = nssToken_GetCryptokiEPV(tok);</span>
+<span class="lineNum">     254 </span>            :     nssCryptokiObject **objects;
+<span class="lineNum">     255 </span><span class="lineCov">          1 :     nssSession *session = (sessionOpt) ? sessionOpt : tok-&gt;defaultSession;</span>
+<span class="lineNum">     256 </span>            : 
+<span class="lineNum">     257 </span>            :     /* Don't ask the module to use an invalid session handle. */
+<span class="lineNum">     258 </span><span class="lineCov">          1 :     if (!session || session-&gt;handle == CK_INVALID_SESSION) {</span>
+<span class="lineNum">     259 </span>            :         ckrv = CKR_SESSION_HANDLE_INVALID;
+<span class="lineNum">     260 </span>            :         goto loser;
+<span class="lineNum">     261 </span>            :     }
+<span class="lineNum">     262 </span>            : 
+<span class="lineNum">     263 </span>            :     /* the arena is only for the array of object handles */
+<span class="lineNum">     264 </span><span class="lineCov">          1 :     if (maximumOpt &gt; 0) {</span>
+<span class="lineNum">     265 </span><span class="lineCov">          1 :         arraySize = maximumOpt;</span>
+<span class="lineNum">     266 </span>            :     } else {
+<span class="lineNum">     267 </span>            :         arraySize = OBJECT_STACK_SIZE;
+<span class="lineNum">     268 </span>            :     }
+<span class="lineNum">     269 </span><span class="lineCov">          1 :     numHandles = 0;</span>
+<span class="lineNum">     270 </span><span class="lineCov">          1 :     if (arraySize &lt;= OBJECT_STACK_SIZE) {</span>
+<span class="lineNum">     271 </span>            :         objectHandles = staticObjects;
+<span class="lineNum">     272 </span>            :     } else {
+<span class="lineNum">     273 </span><span class="lineNoCov">          0 :         objectHandles = nss_ZNEWARRAY(NULL, CK_OBJECT_HANDLE, arraySize);</span>
+<span class="lineNum">     274 </span>            :     }
+<span class="lineNum">     275 </span><span class="lineCov">          1 :     if (!objectHandles) {</span>
+<span class="lineNum">     276 </span>            :         ckrv = CKR_HOST_MEMORY;
+<span class="lineNum">     277 </span>            :         goto loser;
+<span class="lineNum">     278 </span>            :     }
+<span class="lineNum">     279 </span><span class="lineCov">          1 :     nssSession_EnterMonitor(session); /* ==== session lock === */</span>
+<span class="lineNum">     280 </span>            :     /* Initialize the find with the template */
+<span class="lineNum">     281 </span><span class="lineCov">          1 :     ckrv = CKAPI(epv)-&gt;C_FindObjectsInit(session-&gt;handle,</span>
+<span class="lineNum">     282 </span>            :                                          obj_template, otsize);
+<span class="lineNum">     283 </span><span class="lineCov">          1 :     if (ckrv != CKR_OK) {</span>
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 :         nssSession_ExitMonitor(session);</span>
+<span class="lineNum">     285 </span><span class="lineNoCov">          0 :         goto loser;</span>
+<span class="lineNum">     286 </span>            :     }
+<span class="lineNum">     287 </span>            :     while (PR_TRUE) {
+<span class="lineNum">     288 </span>            :         /* Issue the find for up to arraySize - numHandles objects */
+<span class="lineNum">     289 </span><span class="lineCov">          1 :         ckrv = CKAPI(epv)-&gt;C_FindObjects(session-&gt;handle,</span>
+<span class="lineNum">     290 </span><span class="lineCov">          1 :                                          objectHandles + numHandles,</span>
+<span class="lineNum">     291 </span><span class="lineCov">          1 :                                          arraySize - numHandles,</span>
+<span class="lineNum">     292 </span>            :                                          &amp;count);
+<span class="lineNum">     293 </span><span class="lineCov">          1 :         if (ckrv != CKR_OK) {</span>
+<span class="lineNum">     294 </span><span class="lineNoCov">          0 :             nssSession_ExitMonitor(session);</span>
+<span class="lineNum">     295 </span><span class="lineNoCov">          0 :             goto loser;</span>
+<span class="lineNum">     296 </span>            :         }
+<span class="lineNum">     297 </span>            :         /* bump the number of found objects */
+<span class="lineNum">     298 </span><span class="lineCov">          1 :         numHandles += count;</span>
+<span class="lineNum">     299 </span><span class="lineCov">          1 :         if (maximumOpt &gt; 0 || numHandles &lt; arraySize) {</span>
+<span class="lineNum">     300 </span>            :             /* When a maximum is provided, the search is done all at once,
+<span class="lineNum">     301 </span>            :              * so the search is finished.  If the number returned was less
+<span class="lineNum">     302 </span>            :              * than the number sought, the search is finished.
+<span class="lineNum">     303 </span>            :              */
+<span class="lineNum">     304 </span>            :             break;
+<span class="lineNum">     305 </span>            :         }
+<span class="lineNum">     306 </span>            :         /* the array is filled, double it and continue */
+<span class="lineNum">     307 </span><span class="lineNoCov">          0 :         arraySize *= 2;</span>
+<span class="lineNum">     308 </span><span class="lineNoCov">          0 :         if (objectHandles == staticObjects) {</span>
+<span class="lineNum">     309 </span><span class="lineNoCov">          0 :             objectHandles = nss_ZNEWARRAY(NULL, CK_OBJECT_HANDLE, arraySize);</span>
+<span class="lineNum">     310 </span><span class="lineNoCov">          0 :             if (objectHandles) {</span>
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :                 PORT_Memcpy(objectHandles, staticObjects,</span>
+<span class="lineNum">     312 </span>            :                             OBJECT_STACK_SIZE * sizeof(objectHandles[1]));
+<span class="lineNum">     313 </span>            :             }
+<span class="lineNum">     314 </span>            :         } else {
+<span class="lineNum">     315 </span><span class="lineNoCov">          0 :             objectHandles = nss_ZREALLOCARRAY(objectHandles,</span>
+<span class="lineNum">     316 </span>            :                                               CK_OBJECT_HANDLE,
+<span class="lineNum">     317 </span>            :                                               arraySize);
+<span class="lineNum">     318 </span>            :         }
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :         if (!objectHandles) {</span>
+<span class="lineNum">     320 </span><span class="lineNoCov">          0 :             nssSession_ExitMonitor(session);</span>
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :             ckrv = CKR_HOST_MEMORY;</span>
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 :             goto loser;</span>
+<span class="lineNum">     323 </span>            :         }
+<span class="lineNum">     324 </span>            :     }
+<span class="lineNum">     325 </span><span class="lineCov">          1 :     ckrv = CKAPI(epv)-&gt;C_FindObjectsFinal(session-&gt;handle);</span>
+<span class="lineNum">     326 </span><span class="lineCov">          1 :     nssSession_ExitMonitor(session); /* ==== end session lock === */</span>
+<span class="lineNum">     327 </span><span class="lineCov">          1 :     if (ckrv != CKR_OK) {</span>
+<span class="lineNum">     328 </span>            :         goto loser;
+<span class="lineNum">     329 </span>            :     }
+<span class="lineNum">     330 </span><span class="lineCov">          1 :     if (numHandles &gt; 0) {</span>
+<span class="lineNum">     331 </span><span class="lineCov">          1 :         objects = create_objects_from_handles(tok, session,</span>
+<span class="lineNum">     332 </span>            :                                               objectHandles, numHandles);
+<span class="lineNum">     333 </span>            :     } else {
+<span class="lineNum">     334 </span><span class="lineCov">          1 :         nss_SetError(NSS_ERROR_NOT_FOUND);</span>
+<span class="lineNum">     335 </span><span class="lineCov">          1 :         objects = NULL;</span>
+<span class="lineNum">     336 </span>            :     }
+<span class="lineNum">     337 </span><span class="lineCov">          1 :     if (objectHandles &amp;&amp; objectHandles != staticObjects) {</span>
+<span class="lineNum">     338 </span><span class="lineNoCov">          0 :         nss_ZFreeIf(objectHandles);</span>
+<span class="lineNum">     339 </span>            :     }
+<span class="lineNum">     340 </span><span class="lineCov">          1 :     if (statusOpt)</span>
+<span class="lineNum">     341 </span><span class="lineCov">          1 :         *statusOpt = PR_SUCCESS;</span>
+<span class="lineNum">     342 </span><span class="lineCov">          1 :     return objects;</span>
+<span class="lineNum">     343 </span>            : loser:
+<span class="lineNum">     344 </span><span class="lineNoCov">          0 :     if (objectHandles &amp;&amp; objectHandles != staticObjects) {</span>
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 :         nss_ZFreeIf(objectHandles);</span>
+<span class="lineNum">     346 </span>            :     }
+<span class="lineNum">     347 </span>            :     /*
+<span class="lineNum">     348 </span>            :      * These errors should be treated the same as if the objects just weren't
+<span class="lineNum">     349 </span>            :      * found..
+<span class="lineNum">     350 </span>            :      */
+<span class="lineNum">     351 </span><span class="lineNoCov">          0 :     if ((ckrv == CKR_ATTRIBUTE_TYPE_INVALID) ||</span>
+<span class="lineNum">     352 </span><span class="lineNoCov">          0 :         (ckrv == CKR_ATTRIBUTE_VALUE_INVALID) ||</span>
+<span class="lineNum">     353 </span><span class="lineNoCov">          0 :         (ckrv == CKR_DATA_INVALID) ||</span>
+<span class="lineNum">     354 </span><span class="lineNoCov">          0 :         (ckrv == CKR_DATA_LEN_RANGE) ||</span>
+<span class="lineNum">     355 </span><span class="lineNoCov">          0 :         (ckrv == CKR_FUNCTION_NOT_SUPPORTED) ||</span>
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :         (ckrv == CKR_TEMPLATE_INCOMPLETE) ||</span>
+<span class="lineNum">     357 </span>            :         (ckrv == CKR_TEMPLATE_INCONSISTENT)) {
+<span class="lineNum">     358 </span>            : 
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 :         nss_SetError(NSS_ERROR_NOT_FOUND);</span>
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 :         if (statusOpt)</span>
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 :             *statusOpt = PR_SUCCESS;</span>
+<span class="lineNum">     362 </span>            :     } else {
+<span class="lineNum">     363 </span><span class="lineNoCov">          0 :         nss_SetError(ckrv);</span>
+<span class="lineNum">     364 </span><span class="lineNoCov">          0 :         nss_SetError(NSS_ERROR_PKCS11);</span>
+<span class="lineNum">     365 </span><span class="lineNoCov">          0 :         if (statusOpt)</span>
+<span class="lineNum">     366 </span><span class="lineNoCov">          0 :             *statusOpt = PR_FAILURE;</span>
+<span class="lineNum">     367 </span>            :     }
+<span class="lineNum">     368 </span>            :     return (nssCryptokiObject **)NULL;
+<span class="lineNum">     369 </span>            : }
+<a name="370"><span class="lineNum">     370 </span>            : </a>
+<span class="lineNum">     371 </span>            : static nssCryptokiObject **
+<span class="lineNum">     372 </span><span class="lineCov">          1 : find_objects_by_template(</span>
+<span class="lineNum">     373 </span>            :     NSSToken *token,
+<span class="lineNum">     374 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">     375 </span>            :     CK_ATTRIBUTE_PTR obj_template,
+<span class="lineNum">     376 </span>            :     CK_ULONG otsize,
+<span class="lineNum">     377 </span>            :     PRUint32 maximumOpt,
+<span class="lineNum">     378 </span>            :     PRStatus *statusOpt)
+<span class="lineNum">     379 </span>            : {
+<span class="lineNum">     380 </span><span class="lineCov">          1 :     CK_OBJECT_CLASS objclass = (CK_OBJECT_CLASS)-1;</span>
+<span class="lineNum">     381 </span><span class="lineCov">          1 :     nssCryptokiObject **objects = NULL;</span>
+<span class="lineNum">     382 </span>            :     PRUint32 i;
+<span class="lineNum">     383 </span>            : 
+<span class="lineNum">     384 </span><span class="lineCov">          1 :     if (!token) {</span>
+<span class="lineNum">     385 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_TOKEN);</span>
+<span class="lineNum">     386 </span><span class="lineNoCov">          0 :         if (statusOpt)</span>
+<span class="lineNum">     387 </span><span class="lineNoCov">          0 :             *statusOpt = PR_FAILURE;</span>
+<span class="lineNum">     388 </span>            :         return NULL;
+<span class="lineNum">     389 </span>            :     }
+<span class="lineNum">     390 </span><span class="lineCov">          1 :     for (i = 0; i &lt; otsize; i++) {</span>
+<span class="lineNum">     391 </span><span class="lineCov">          1 :         if (obj_template[i].type == CKA_CLASS) {</span>
+<span class="lineNum">     392 </span><span class="lineCov">          1 :             objclass = *(CK_OBJECT_CLASS *)obj_template[i].pValue;</span>
+<span class="lineNum">     393 </span><span class="lineCov">          1 :             break;</span>
+<span class="lineNum">     394 </span>            :         }
+<span class="lineNum">     395 </span>            :     }
+<span class="lineNum">     396 </span>            :     PR_ASSERT(i &lt; otsize);
+<span class="lineNum">     397 </span><span class="lineCov">          1 :     if (i == otsize) {</span>
+<span class="lineNum">     398 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);</span>
+<span class="lineNum">     399 </span><span class="lineNoCov">          0 :         if (statusOpt)</span>
+<span class="lineNum">     400 </span><span class="lineNoCov">          0 :             *statusOpt = PR_FAILURE;</span>
+<span class="lineNum">     401 </span>            :         return NULL;
+<span class="lineNum">     402 </span>            :     }
+<span class="lineNum">     403 </span>            :     /* If these objects are being cached, try looking there first */
+<span class="lineNum">     404 </span><span class="lineCov">          1 :     if (token-&gt;cache &amp;&amp;</span>
+<span class="lineNum">     405 </span><span class="lineNoCov">          0 :         nssTokenObjectCache_HaveObjectClass(token-&gt;cache, objclass)) {</span>
+<span class="lineNum">     406 </span>            :         PRStatus status;
+<span class="lineNum">     407 </span><span class="lineNoCov">          0 :         objects = nssTokenObjectCache_FindObjectsByTemplate(token-&gt;cache,</span>
+<span class="lineNum">     408 </span>            :                                                             objclass,
+<span class="lineNum">     409 </span>            :                                                             obj_template,
+<span class="lineNum">     410 </span>            :                                                             otsize,
+<span class="lineNum">     411 </span>            :                                                             maximumOpt,
+<span class="lineNum">     412 </span>            :                                                             &amp;status);
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 :         if (status == PR_SUCCESS) {</span>
+<span class="lineNum">     414 </span><span class="lineNoCov">          0 :             if (statusOpt)</span>
+<span class="lineNum">     415 </span><span class="lineNoCov">          0 :                 *statusOpt = status;</span>
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :             return objects;</span>
+<span class="lineNum">     417 </span>            :         }
+<span class="lineNum">     418 </span>            :     }
+<span class="lineNum">     419 </span>            :     /* Either they are not cached, or cache failed; look on token. */
+<span class="lineNum">     420 </span><span class="lineCov">          1 :     objects = find_objects(token, sessionOpt,</span>
+<span class="lineNum">     421 </span>            :                            obj_template, otsize,
+<span class="lineNum">     422 </span>            :                            maximumOpt, statusOpt);
+<span class="lineNum">     423 </span><span class="lineCov">          1 :     return objects;</span>
+<span class="lineNum">     424 </span>            : }
+<span class="lineNum">     425 </span>            : 
+<span class="lineNum">     426 </span>            : extern const NSSError NSS_ERROR_INVALID_CERTIFICATE;
+<a name="427"><span class="lineNum">     427 </span>            : </a>
+<span class="lineNum">     428 </span>            : NSS_IMPLEMENT nssCryptokiObject *
+<span class="lineNum">     429 </span><span class="lineCov">          1 : nssToken_ImportCertificate(</span>
+<span class="lineNum">     430 </span>            :     NSSToken *tok,
+<span class="lineNum">     431 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">     432 </span>            :     NSSCertificateType certType,
+<span class="lineNum">     433 </span>            :     NSSItem *id,
+<span class="lineNum">     434 </span>            :     const NSSUTF8 *nickname,
+<span class="lineNum">     435 </span>            :     NSSDER *encoding,
+<span class="lineNum">     436 </span>            :     NSSDER *issuer,
+<span class="lineNum">     437 </span>            :     NSSDER *subject,
+<span class="lineNum">     438 </span>            :     NSSDER *serial,
+<span class="lineNum">     439 </span>            :     NSSASCII7 *email,
+<span class="lineNum">     440 </span>            :     PRBool asTokenObject)
+<span class="lineNum">     441 </span>            : {
+<span class="lineNum">     442 </span>            :     PRStatus status;
+<span class="lineNum">     443 </span>            :     CK_CERTIFICATE_TYPE cert_type;
+<span class="lineNum">     444 </span>            :     CK_ATTRIBUTE_PTR attr;
+<span class="lineNum">     445 </span>            :     CK_ATTRIBUTE cert_tmpl[10];
+<span class="lineNum">     446 </span>            :     CK_ULONG ctsize;
+<span class="lineNum">     447 </span>            :     nssTokenSearchType searchType;
+<span class="lineNum">     448 </span><span class="lineCov">          1 :     nssCryptokiObject *rvObject = NULL;</span>
+<span class="lineNum">     449 </span>            : 
+<span class="lineNum">     450 </span><span class="lineCov">          1 :     if (!tok) {</span>
+<span class="lineNum">     451 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_TOKEN);</span>
+<span class="lineNum">     452 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     453 </span>            :     }
+<span class="lineNum">     454 </span><span class="lineCov">          1 :     if (certType == NSSCertificateType_PKIX) {</span>
+<span class="lineNum">     455 </span><span class="lineCov">          1 :         cert_type = CKC_X_509;</span>
+<span class="lineNum">     456 </span>            :     } else {
+<span class="lineNum">     457 </span>            :         return (nssCryptokiObject *)NULL;
+<span class="lineNum">     458 </span>            :     }
+<span class="lineNum">     459 </span><span class="lineCov">          1 :     NSS_CK_TEMPLATE_START(cert_tmpl, attr, ctsize);</span>
+<span class="lineNum">     460 </span><span class="lineCov">          1 :     if (asTokenObject) {</span>
+<span class="lineNum">     461 </span><span class="lineCov">          1 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_true);</span>
+<span class="lineNum">     462 </span><span class="lineCov">          1 :         searchType = nssTokenSearchType_TokenOnly;</span>
+<span class="lineNum">     463 </span>            :     } else {
+<span class="lineNum">     464 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_false);</span>
+<span class="lineNum">     465 </span><span class="lineNoCov">          0 :         searchType = nssTokenSearchType_SessionOnly;</span>
+<span class="lineNum">     466 </span>            :     }
+<span class="lineNum">     467 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_CLASS, &amp;g_ck_class_cert);</span>
+<span class="lineNum">     468 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_VAR(attr, CKA_CERTIFICATE_TYPE, cert_type);</span>
+<span class="lineNum">     469 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_ID, id);</span>
+<span class="lineNum">     470 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_UTF8(attr, CKA_LABEL, nickname);</span>
+<span class="lineNum">     471 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_VALUE, encoding);</span>
+<span class="lineNum">     472 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_ISSUER, issuer);</span>
+<span class="lineNum">     473 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_SUBJECT, subject);</span>
+<span class="lineNum">     474 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_SERIAL_NUMBER, serial);</span>
+<span class="lineNum">     475 </span><span class="lineCov">          1 :     if (email) {</span>
+<span class="lineNum">     476 </span><span class="lineCov">          1 :         NSS_CK_SET_ATTRIBUTE_UTF8(attr, CKA_NSS_EMAIL, email);</span>
+<span class="lineNum">     477 </span>            :     }
+<span class="lineNum">     478 </span><span class="lineCov">          1 :     NSS_CK_TEMPLATE_FINISH(cert_tmpl, attr, ctsize);</span>
+<span class="lineNum">     479 </span>            :     /* see if the cert is already there */
+<span class="lineNum">     480 </span><span class="lineCov">          1 :     rvObject = nssToken_FindCertificateByIssuerAndSerialNumber(tok,</span>
+<span class="lineNum">     481 </span>            :                                                                sessionOpt,
+<span class="lineNum">     482 </span>            :                                                                issuer,
+<span class="lineNum">     483 </span>            :                                                                serial,
+<span class="lineNum">     484 </span>            :                                                                searchType,
+<span class="lineNum">     485 </span>            :                                                                NULL);
+<span class="lineNum">     486 </span><span class="lineCov">          1 :     if (rvObject) {</span>
+<span class="lineNum">     487 </span>            :         NSSItem existingDER;
+<span class="lineNum">     488 </span><span class="lineCov">          1 :         NSSSlot *slot = nssToken_GetSlot(tok);</span>
+<span class="lineNum">     489 </span><span class="lineCov">          1 :         nssSession *session = nssSlot_CreateSession(slot, NULL, PR_TRUE);</span>
+<span class="lineNum">     490 </span><span class="lineCov">          1 :         if (!session) {</span>
+<span class="lineNum">     491 </span><span class="lineNoCov">          0 :             nssCryptokiObject_Destroy(rvObject);</span>
+<span class="lineNum">     492 </span><span class="lineNoCov">          0 :             nssSlot_Destroy(slot);</span>
+<span class="lineNum">     493 </span><span class="lineNoCov">          0 :             return (nssCryptokiObject *)NULL;</span>
+<span class="lineNum">     494 </span>            :         }
+<span class="lineNum">     495 </span>            :         /* Reject any attempt to import a new cert that has the same
+<span class="lineNum">     496 </span>            :          * issuer/serial as an existing cert, but does not have the
+<span class="lineNum">     497 </span>            :          * same encoding
+<span class="lineNum">     498 </span>            :          */
+<span class="lineNum">     499 </span><span class="lineCov">          1 :         NSS_CK_TEMPLATE_START(cert_tmpl, attr, ctsize);</span>
+<span class="lineNum">     500 </span><span class="lineCov">          1 :         NSS_CK_SET_ATTRIBUTE_NULL(attr, CKA_VALUE);</span>
+<span class="lineNum">     501 </span><span class="lineCov">          1 :         NSS_CK_TEMPLATE_FINISH(cert_tmpl, attr, ctsize);</span>
+<span class="lineNum">     502 </span><span class="lineCov">          1 :         status = nssCKObject_GetAttributes(rvObject-&gt;handle,</span>
+<span class="lineNum">     503 </span>            :                                            cert_tmpl, ctsize, NULL,
+<span class="lineNum">     504 </span>            :                                            session, slot);
+<span class="lineNum">     505 </span><span class="lineCov">          1 :         NSS_CK_ATTRIBUTE_TO_ITEM(cert_tmpl, &amp;existingDER);</span>
+<span class="lineNum">     506 </span><span class="lineCov">          1 :         if (status == PR_SUCCESS) {</span>
+<span class="lineNum">     507 </span><span class="lineCov">          1 :             if (!nssItem_Equal(encoding, &amp;existingDER, NULL)) {</span>
+<span class="lineNum">     508 </span><span class="lineNoCov">          0 :                 nss_SetError(NSS_ERROR_INVALID_CERTIFICATE);</span>
+<span class="lineNum">     509 </span><span class="lineNoCov">          0 :                 status = PR_FAILURE;</span>
+<span class="lineNum">     510 </span>            :             }
+<span class="lineNum">     511 </span><span class="lineCov">          1 :             nss_ZFreeIf(existingDER.data);</span>
+<span class="lineNum">     512 </span>            :         }
+<span class="lineNum">     513 </span><span class="lineCov">          1 :         if (status == PR_FAILURE) {</span>
+<span class="lineNum">     514 </span><span class="lineNoCov">          0 :             nssCryptokiObject_Destroy(rvObject);</span>
+<span class="lineNum">     515 </span><span class="lineNoCov">          0 :             nssSession_Destroy(session);</span>
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :             nssSlot_Destroy(slot);</span>
+<span class="lineNum">     517 </span><span class="lineNoCov">          0 :             return (nssCryptokiObject *)NULL;</span>
+<span class="lineNum">     518 </span>            :         }
+<span class="lineNum">     519 </span>            :         /* according to PKCS#11, label, ID, issuer, and serial number
+<span class="lineNum">     520 </span>            :          * may change after the object has been created.  For PKIX, the
+<span class="lineNum">     521 </span>            :          * last two attributes can't change, so for now we'll only worry
+<span class="lineNum">     522 </span>            :          * about the first two.
+<span class="lineNum">     523 </span>            :          */
+<span class="lineNum">     524 </span><span class="lineCov">          1 :         NSS_CK_TEMPLATE_START(cert_tmpl, attr, ctsize);</span>
+<span class="lineNum">     525 </span><span class="lineCov">          1 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_ID, id);</span>
+<span class="lineNum">     526 </span><span class="lineCov">          1 :         NSS_CK_SET_ATTRIBUTE_UTF8(attr, CKA_LABEL, nickname);</span>
+<span class="lineNum">     527 </span><span class="lineCov">          1 :         NSS_CK_TEMPLATE_FINISH(cert_tmpl, attr, ctsize);</span>
+<span class="lineNum">     528 </span>            :         /* reset the mutable attributes on the token */
+<span class="lineNum">     529 </span><span class="lineCov">          1 :         nssCKObject_SetAttributes(rvObject-&gt;handle,</span>
+<span class="lineNum">     530 </span>            :                                   cert_tmpl, ctsize,
+<span class="lineNum">     531 </span>            :                                   session, slot);
+<span class="lineNum">     532 </span><span class="lineCov">          1 :         if (!rvObject-&gt;label &amp;&amp; nickname) {</span>
+<span class="lineNum">     533 </span><span class="lineNoCov">          0 :             rvObject-&gt;label = nssUTF8_Duplicate(nickname, NULL);</span>
+<span class="lineNum">     534 </span>            :         }
+<span class="lineNum">     535 </span><span class="lineCov">          1 :         nssSession_Destroy(session);</span>
+<span class="lineNum">     536 </span><span class="lineCov">          1 :         nssSlot_Destroy(slot);</span>
+<span class="lineNum">     537 </span>            :     } else {
+<span class="lineNum">     538 </span>            :         /* Import the certificate onto the token */
+<span class="lineNum">     539 </span><span class="lineCov">          1 :         rvObject = import_object(tok, sessionOpt, cert_tmpl, ctsize);</span>
+<span class="lineNum">     540 </span>            :     }
+<span class="lineNum">     541 </span><span class="lineCov">          1 :     if (rvObject &amp;&amp; tok-&gt;cache) {</span>
+<span class="lineNum">     542 </span>            :         /* The cache will overwrite the attributes if the object already
+<span class="lineNum">     543 </span>            :          * exists.
+<span class="lineNum">     544 </span>            :          */
+<span class="lineNum">     545 </span><span class="lineNoCov">          0 :         nssTokenObjectCache_ImportObject(tok-&gt;cache, rvObject,</span>
+<span class="lineNum">     546 </span>            :                                          CKO_CERTIFICATE,
+<span class="lineNum">     547 </span>            :                                          cert_tmpl, ctsize);
+<span class="lineNum">     548 </span>            :     }
+<span class="lineNum">     549 </span><span class="lineCov">          1 :     return rvObject;</span>
+<span class="lineNum">     550 </span>            : }
+<span class="lineNum">     551 </span>            : 
+<span class="lineNum">     552 </span>            : /* traverse all objects of the given class - this should only happen
+<span class="lineNum">     553 </span>            :  * if the token has been marked as &quot;traversable&quot;
+<a name="554"><span class="lineNum">     554 </span>            :  */</a>
+<span class="lineNum">     555 </span>            : NSS_IMPLEMENT nssCryptokiObject **
+<span class="lineNum">     556 </span><span class="lineCov">          1 : nssToken_FindObjects(</span>
+<span class="lineNum">     557 </span>            :     NSSToken *token,
+<span class="lineNum">     558 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">     559 </span>            :     CK_OBJECT_CLASS objclass,
+<span class="lineNum">     560 </span>            :     nssTokenSearchType searchType,
+<span class="lineNum">     561 </span>            :     PRUint32 maximumOpt,
+<span class="lineNum">     562 </span>            :     PRStatus *statusOpt)
+<span class="lineNum">     563 </span>            : {
+<span class="lineNum">     564 </span>            :     CK_ATTRIBUTE_PTR attr;
+<span class="lineNum">     565 </span>            :     CK_ATTRIBUTE obj_template[2];
+<span class="lineNum">     566 </span>            :     CK_ULONG obj_size;
+<span class="lineNum">     567 </span>            :     nssCryptokiObject **objects;
+<span class="lineNum">     568 </span><span class="lineCov">          1 :     NSS_CK_TEMPLATE_START(obj_template, attr, obj_size);</span>
+<span class="lineNum">     569 </span>            :     /* Set the search to token/session only if provided */
+<span class="lineNum">     570 </span><span class="lineCov">          1 :     if (searchType == nssTokenSearchType_SessionOnly) {</span>
+<span class="lineNum">     571 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_false);</span>
+<span class="lineNum">     572 </span><span class="lineCov">          1 :     } else if (searchType == nssTokenSearchType_TokenOnly ||</span>
+<span class="lineNum">     573 </span>            :                searchType == nssTokenSearchType_TokenForced) {
+<span class="lineNum">     574 </span><span class="lineCov">          1 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_true);</span>
+<span class="lineNum">     575 </span>            :     }
+<span class="lineNum">     576 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_VAR(attr, CKA_CLASS, objclass);</span>
+<span class="lineNum">     577 </span><span class="lineCov">          1 :     NSS_CK_TEMPLATE_FINISH(obj_template, attr, obj_size);</span>
+<span class="lineNum">     578 </span>            : 
+<span class="lineNum">     579 </span><span class="lineCov">          1 :     if (searchType == nssTokenSearchType_TokenForced) {</span>
+<span class="lineNum">     580 </span><span class="lineNoCov">          0 :         objects = find_objects(token, sessionOpt,</span>
+<span class="lineNum">     581 </span>            :                                obj_template, obj_size,
+<span class="lineNum">     582 </span>            :                                maximumOpt, statusOpt);
+<span class="lineNum">     583 </span>            :     } else {
+<span class="lineNum">     584 </span><span class="lineCov">          1 :         objects = find_objects_by_template(token, sessionOpt,</span>
+<span class="lineNum">     585 </span>            :                                            obj_template, obj_size,
+<span class="lineNum">     586 </span>            :                                            maximumOpt, statusOpt);
+<span class="lineNum">     587 </span>            :     }
+<span class="lineNum">     588 </span><span class="lineCov">          1 :     return objects;</span>
+<span class="lineNum">     589 </span>            : }
+<a name="590"><span class="lineNum">     590 </span>            : </a>
+<span class="lineNum">     591 </span>            : NSS_IMPLEMENT nssCryptokiObject **
+<span class="lineNum">     592 </span><span class="lineCov">          1 : nssToken_FindCertificatesBySubject(</span>
+<span class="lineNum">     593 </span>            :     NSSToken *token,
+<span class="lineNum">     594 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">     595 </span>            :     NSSDER *subject,
+<span class="lineNum">     596 </span>            :     nssTokenSearchType searchType,
+<span class="lineNum">     597 </span>            :     PRUint32 maximumOpt,
+<span class="lineNum">     598 </span>            :     PRStatus *statusOpt)
+<span class="lineNum">     599 </span>            : {
+<span class="lineNum">     600 </span>            :     CK_ATTRIBUTE_PTR attr;
+<span class="lineNum">     601 </span>            :     CK_ATTRIBUTE subj_template[3];
+<span class="lineNum">     602 </span>            :     CK_ULONG stsize;
+<span class="lineNum">     603 </span>            :     nssCryptokiObject **objects;
+<span class="lineNum">     604 </span><span class="lineCov">          1 :     NSS_CK_TEMPLATE_START(subj_template, attr, stsize);</span>
+<span class="lineNum">     605 </span>            :     /* Set the search to token/session only if provided */
+<span class="lineNum">     606 </span><span class="lineCov">          1 :     if (searchType == nssTokenSearchType_SessionOnly) {</span>
+<span class="lineNum">     607 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_false);</span>
+<span class="lineNum">     608 </span><span class="lineCov">          1 :     } else if (searchType == nssTokenSearchType_TokenOnly) {</span>
+<span class="lineNum">     609 </span><span class="lineCov">          1 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_true);</span>
+<span class="lineNum">     610 </span>            :     }
+<span class="lineNum">     611 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_CLASS, &amp;g_ck_class_cert);</span>
+<span class="lineNum">     612 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_SUBJECT, subject);</span>
+<span class="lineNum">     613 </span><span class="lineCov">          1 :     NSS_CK_TEMPLATE_FINISH(subj_template, attr, stsize);</span>
+<span class="lineNum">     614 </span>            :     /* now locate the token certs matching this template */
+<span class="lineNum">     615 </span><span class="lineCov">          1 :     objects = find_objects_by_template(token, sessionOpt,</span>
+<span class="lineNum">     616 </span>            :                                        subj_template, stsize,
+<span class="lineNum">     617 </span>            :                                        maximumOpt, statusOpt);
+<span class="lineNum">     618 </span><span class="lineCov">          1 :     return objects;</span>
+<span class="lineNum">     619 </span>            : }
+<a name="620"><span class="lineNum">     620 </span>            : </a>
+<span class="lineNum">     621 </span>            : NSS_IMPLEMENT nssCryptokiObject **
+<span class="lineNum">     622 </span><span class="lineCov">          1 : nssToken_FindCertificatesByNickname(</span>
+<span class="lineNum">     623 </span>            :     NSSToken *token,
+<span class="lineNum">     624 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">     625 </span>            :     const NSSUTF8 *name,
+<span class="lineNum">     626 </span>            :     nssTokenSearchType searchType,
+<span class="lineNum">     627 </span>            :     PRUint32 maximumOpt,
+<span class="lineNum">     628 </span>            :     PRStatus *statusOpt)
+<span class="lineNum">     629 </span>            : {
+<span class="lineNum">     630 </span>            :     CK_ATTRIBUTE_PTR attr;
+<span class="lineNum">     631 </span>            :     CK_ATTRIBUTE nick_template[3];
+<span class="lineNum">     632 </span>            :     CK_ULONG ntsize;
+<span class="lineNum">     633 </span>            :     nssCryptokiObject **objects;
+<span class="lineNum">     634 </span><span class="lineCov">          1 :     NSS_CK_TEMPLATE_START(nick_template, attr, ntsize);</span>
+<span class="lineNum">     635 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_UTF8(attr, CKA_LABEL, name);</span>
+<span class="lineNum">     636 </span>            :     /* Set the search to token/session only if provided */
+<span class="lineNum">     637 </span><span class="lineCov">          1 :     if (searchType == nssTokenSearchType_SessionOnly) {</span>
+<span class="lineNum">     638 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_false);</span>
+<span class="lineNum">     639 </span><span class="lineCov">          1 :     } else if (searchType == nssTokenSearchType_TokenOnly) {</span>
+<span class="lineNum">     640 </span><span class="lineCov">          1 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_true);</span>
+<span class="lineNum">     641 </span>            :     }
+<span class="lineNum">     642 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_CLASS, &amp;g_ck_class_cert);</span>
+<span class="lineNum">     643 </span><span class="lineCov">          1 :     NSS_CK_TEMPLATE_FINISH(nick_template, attr, ntsize);</span>
+<span class="lineNum">     644 </span>            :     /* now locate the token certs matching this template */
+<span class="lineNum">     645 </span><span class="lineCov">          1 :     objects = find_objects_by_template(token, sessionOpt,</span>
+<span class="lineNum">     646 </span>            :                                        nick_template, ntsize,
+<span class="lineNum">     647 </span>            :                                        maximumOpt, statusOpt);
+<span class="lineNum">     648 </span><span class="lineCov">          1 :     if (!objects) {</span>
+<span class="lineNum">     649 </span>            :         /* This is to workaround the fact that PKCS#11 doesn't specify
+<span class="lineNum">     650 </span>            :          * whether the '\0' should be included.  XXX Is that still true?
+<span class="lineNum">     651 </span>            :          * im - this is not needed by the current softoken.  However, I'm
+<span class="lineNum">     652 </span>            :          * leaving it in until I have surveyed more tokens to see if it needed.
+<span class="lineNum">     653 </span>            :          * well, its needed by the builtin token...
+<span class="lineNum">     654 </span>            :          */
+<span class="lineNum">     655 </span><span class="lineCov">          1 :         nick_template[0].ulValueLen++;</span>
+<span class="lineNum">     656 </span><span class="lineCov">          1 :         objects = find_objects_by_template(token, sessionOpt,</span>
+<span class="lineNum">     657 </span>            :                                            nick_template, ntsize,
+<span class="lineNum">     658 </span>            :                                            maximumOpt, statusOpt);
+<span class="lineNum">     659 </span>            :     }
+<span class="lineNum">     660 </span><span class="lineCov">          1 :     return objects;</span>
+<span class="lineNum">     661 </span>            : }
+<span class="lineNum">     662 </span>            : 
+<span class="lineNum">     663 </span>            : /* XXX
+<span class="lineNum">     664 </span>            :  * This function *does not* use the token object cache, because not even
+<span class="lineNum">     665 </span>            :  * the softoken will return a value for CKA_NSS_EMAIL from a call
+<span class="lineNum">     666 </span>            :  * to GetAttributes.  The softoken does allow searches with that attribute,
+<span class="lineNum">     667 </span>            :  * it just won't return a value for it.
+<a name="668"><span class="lineNum">     668 </span>            :  */</a>
+<span class="lineNum">     669 </span>            : NSS_IMPLEMENT nssCryptokiObject **
+<span class="lineNum">     670 </span><span class="lineNoCov">          0 : nssToken_FindCertificatesByEmail(</span>
+<span class="lineNum">     671 </span>            :     NSSToken *token,
+<span class="lineNum">     672 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">     673 </span>            :     NSSASCII7 *email,
+<span class="lineNum">     674 </span>            :     nssTokenSearchType searchType,
+<span class="lineNum">     675 </span>            :     PRUint32 maximumOpt,
+<span class="lineNum">     676 </span>            :     PRStatus *statusOpt)
+<span class="lineNum">     677 </span>            : {
+<span class="lineNum">     678 </span>            :     CK_ATTRIBUTE_PTR attr;
+<span class="lineNum">     679 </span>            :     CK_ATTRIBUTE email_template[3];
+<span class="lineNum">     680 </span>            :     CK_ULONG etsize;
+<span class="lineNum">     681 </span>            :     nssCryptokiObject **objects;
+<span class="lineNum">     682 </span><span class="lineNoCov">          0 :     NSS_CK_TEMPLATE_START(email_template, attr, etsize);</span>
+<span class="lineNum">     683 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_UTF8(attr, CKA_NSS_EMAIL, email);</span>
+<span class="lineNum">     684 </span>            :     /* Set the search to token/session only if provided */
+<span class="lineNum">     685 </span><span class="lineNoCov">          0 :     if (searchType == nssTokenSearchType_SessionOnly) {</span>
+<span class="lineNum">     686 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_false);</span>
+<span class="lineNum">     687 </span><span class="lineNoCov">          0 :     } else if (searchType == nssTokenSearchType_TokenOnly) {</span>
+<span class="lineNum">     688 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_true);</span>
+<span class="lineNum">     689 </span>            :     }
+<span class="lineNum">     690 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_CLASS, &amp;g_ck_class_cert);</span>
+<span class="lineNum">     691 </span><span class="lineNoCov">          0 :     NSS_CK_TEMPLATE_FINISH(email_template, attr, etsize);</span>
+<span class="lineNum">     692 </span>            :     /* now locate the token certs matching this template */
+<span class="lineNum">     693 </span><span class="lineNoCov">          0 :     objects = find_objects(token, sessionOpt,</span>
+<span class="lineNum">     694 </span>            :                            email_template, etsize,
+<span class="lineNum">     695 </span>            :                            maximumOpt, statusOpt);
+<span class="lineNum">     696 </span><span class="lineNoCov">          0 :     if (!objects) {</span>
+<span class="lineNum">     697 </span>            :         /* This is to workaround the fact that PKCS#11 doesn't specify
+<span class="lineNum">     698 </span>            :          * whether the '\0' should be included.  XXX Is that still true?
+<span class="lineNum">     699 </span>            :          * im - this is not needed by the current softoken.  However, I'm
+<span class="lineNum">     700 </span>            :          * leaving it in until I have surveyed more tokens to see if it needed.
+<span class="lineNum">     701 </span>            :          * well, its needed by the builtin token...
+<span class="lineNum">     702 </span>            :          */
+<span class="lineNum">     703 </span><span class="lineNoCov">          0 :         email_template[0].ulValueLen++;</span>
+<span class="lineNum">     704 </span><span class="lineNoCov">          0 :         objects = find_objects(token, sessionOpt,</span>
+<span class="lineNum">     705 </span>            :                                email_template, etsize,
+<span class="lineNum">     706 </span>            :                                maximumOpt, statusOpt);
+<span class="lineNum">     707 </span>            :     }
+<span class="lineNum">     708 </span><span class="lineNoCov">          0 :     return objects;</span>
+<span class="lineNum">     709 </span>            : }
+<a name="710"><span class="lineNum">     710 </span>            : </a>
+<span class="lineNum">     711 </span>            : NSS_IMPLEMENT nssCryptokiObject **
+<span class="lineNum">     712 </span><span class="lineNoCov">          0 : nssToken_FindCertificatesByID(</span>
+<span class="lineNum">     713 </span>            :     NSSToken *token,
+<span class="lineNum">     714 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">     715 </span>            :     NSSItem *id,
+<span class="lineNum">     716 </span>            :     nssTokenSearchType searchType,
+<span class="lineNum">     717 </span>            :     PRUint32 maximumOpt,
+<span class="lineNum">     718 </span>            :     PRStatus *statusOpt)
+<span class="lineNum">     719 </span>            : {
+<span class="lineNum">     720 </span>            :     CK_ATTRIBUTE_PTR attr;
+<span class="lineNum">     721 </span>            :     CK_ATTRIBUTE id_template[3];
+<span class="lineNum">     722 </span>            :     CK_ULONG idtsize;
+<span class="lineNum">     723 </span>            :     nssCryptokiObject **objects;
+<span class="lineNum">     724 </span><span class="lineNoCov">          0 :     NSS_CK_TEMPLATE_START(id_template, attr, idtsize);</span>
+<span class="lineNum">     725 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_ID, id);</span>
+<span class="lineNum">     726 </span>            :     /* Set the search to token/session only if provided */
+<span class="lineNum">     727 </span><span class="lineNoCov">          0 :     if (searchType == nssTokenSearchType_SessionOnly) {</span>
+<span class="lineNum">     728 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_false);</span>
+<span class="lineNum">     729 </span><span class="lineNoCov">          0 :     } else if (searchType == nssTokenSearchType_TokenOnly) {</span>
+<span class="lineNum">     730 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_true);</span>
+<span class="lineNum">     731 </span>            :     }
+<span class="lineNum">     732 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_CLASS, &amp;g_ck_class_cert);</span>
+<span class="lineNum">     733 </span><span class="lineNoCov">          0 :     NSS_CK_TEMPLATE_FINISH(id_template, attr, idtsize);</span>
+<span class="lineNum">     734 </span>            :     /* now locate the token certs matching this template */
+<span class="lineNum">     735 </span><span class="lineNoCov">          0 :     objects = find_objects_by_template(token, sessionOpt,</span>
+<span class="lineNum">     736 </span>            :                                        id_template, idtsize,
+<span class="lineNum">     737 </span>            :                                        maximumOpt, statusOpt);
+<span class="lineNum">     738 </span><span class="lineNoCov">          0 :     return objects;</span>
+<span class="lineNum">     739 </span>            : }
+<span class="lineNum">     740 </span>            : 
+<span class="lineNum">     741 </span>            : /*
+<span class="lineNum">     742 </span>            :  * decode the serial item and return our result.
+<span class="lineNum">     743 </span>            :  * NOTE serialDecode's data is really stored in serial. Don't free it.
+<a name="744"><span class="lineNum">     744 </span>            :  */</a>
+<span class="lineNum">     745 </span>            : static PRStatus
+<span class="lineNum">     746 </span><span class="lineCov">          1 : nssToken_decodeSerialItem(NSSItem *serial, NSSItem *serialDecode)</span>
+<span class="lineNum">     747 </span>            : {
+<span class="lineNum">     748 </span><span class="lineCov">          1 :     unsigned char *data = (unsigned char *)serial-&gt;data;</span>
+<span class="lineNum">     749 </span>            :     int data_left, data_len, index;
+<span class="lineNum">     750 </span>            : 
+<span class="lineNum">     751 </span><span class="lineCov">          1 :     if ((serial-&gt;size &gt;= 3) &amp;&amp; (data[0] == 0x2)) {</span>
+<span class="lineNum">     752 </span>            :         /* remove the der encoding of the serial number before generating the
+<span class="lineNum">     753 </span>            :          * key.. */
+<span class="lineNum">     754 </span><span class="lineCov">          1 :         data_left = serial-&gt;size - 2;</span>
+<span class="lineNum">     755 </span><span class="lineCov">          1 :         data_len = data[1];</span>
+<span class="lineNum">     756 </span><span class="lineCov">          1 :         index = 2;</span>
+<span class="lineNum">     757 </span>            : 
+<span class="lineNum">     758 </span>            :         /* extended length ? (not very likely for a serial number) */
+<span class="lineNum">     759 </span><span class="lineCov">          1 :         if (data_len &amp; 0x80) {</span>
+<span class="lineNum">     760 </span><span class="lineNoCov">          0 :             int len_count = data_len &amp; 0x7f;</span>
+<span class="lineNum">     761 </span>            : 
+<span class="lineNum">     762 </span><span class="lineNoCov">          0 :             data_len = 0;</span>
+<span class="lineNum">     763 </span><span class="lineNoCov">          0 :             data_left -= len_count;</span>
+<span class="lineNum">     764 </span><span class="lineNoCov">          0 :             if (data_left &gt; 0) {</span>
+<span class="lineNum">     765 </span><span class="lineNoCov">          0 :                 while (len_count--) {</span>
+<span class="lineNum">     766 </span><span class="lineNoCov">          0 :                     data_len = (data_len &lt;&lt; 8) | data[index++];</span>
+<span class="lineNum">     767 </span>            :                 }
+<span class="lineNum">     768 </span>            :             }
+<span class="lineNum">     769 </span>            :         }
+<span class="lineNum">     770 </span>            :         /* XXX leaving any leading zeros on the serial number for backwards
+<span class="lineNum">     771 </span>            :          * compatibility
+<span class="lineNum">     772 </span>            :          */
+<span class="lineNum">     773 </span>            :         /* not a valid der, must be just an unlucky serial number value */
+<span class="lineNum">     774 </span><span class="lineCov">          1 :         if (data_len == data_left) {</span>
+<span class="lineNum">     775 </span><span class="lineCov">          1 :             serialDecode-&gt;size = data_len;</span>
+<span class="lineNum">     776 </span><span class="lineCov">          1 :             serialDecode-&gt;data = &amp;data[index];</span>
+<span class="lineNum">     777 </span><span class="lineCov">          1 :             return PR_SUCCESS;</span>
+<span class="lineNum">     778 </span>            :         }
+<span class="lineNum">     779 </span>            :     }
+<span class="lineNum">     780 </span>            :     return PR_FAILURE;
+<span class="lineNum">     781 </span>            : }
+<a name="782"><span class="lineNum">     782 </span>            : </a>
+<span class="lineNum">     783 </span>            : NSS_IMPLEMENT nssCryptokiObject *
+<span class="lineNum">     784 </span><span class="lineCov">          1 : nssToken_FindCertificateByIssuerAndSerialNumber(</span>
+<span class="lineNum">     785 </span>            :     NSSToken *token,
+<span class="lineNum">     786 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">     787 </span>            :     NSSDER *issuer,
+<span class="lineNum">     788 </span>            :     NSSDER *serial,
+<span class="lineNum">     789 </span>            :     nssTokenSearchType searchType,
+<span class="lineNum">     790 </span>            :     PRStatus *statusOpt)
+<span class="lineNum">     791 </span>            : {
+<span class="lineNum">     792 </span>            :     CK_ATTRIBUTE_PTR attr;
+<span class="lineNum">     793 </span>            :     CK_ATTRIBUTE_PTR serialAttr;
+<span class="lineNum">     794 </span>            :     CK_ATTRIBUTE cert_template[4];
+<span class="lineNum">     795 </span>            :     CK_ULONG ctsize;
+<span class="lineNum">     796 </span>            :     nssCryptokiObject **objects;
+<span class="lineNum">     797 </span><span class="lineCov">          1 :     nssCryptokiObject *rvObject = NULL;</span>
+<span class="lineNum">     798 </span><span class="lineCov">          1 :     NSS_CK_TEMPLATE_START(cert_template, attr, ctsize);</span>
+<span class="lineNum">     799 </span>            : 
+<span class="lineNum">     800 </span><span class="lineCov">          1 :     if (!token) {</span>
+<span class="lineNum">     801 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_TOKEN);</span>
+<span class="lineNum">     802 </span><span class="lineNoCov">          0 :         if (statusOpt)</span>
+<span class="lineNum">     803 </span><span class="lineNoCov">          0 :             *statusOpt = PR_FAILURE;</span>
+<span class="lineNum">     804 </span>            :         return NULL;
+<span class="lineNum">     805 </span>            :     }
+<span class="lineNum">     806 </span>            :     /* Set the search to token/session only if provided */
+<span class="lineNum">     807 </span><span class="lineCov">          1 :     if (searchType == nssTokenSearchType_SessionOnly) {</span>
+<span class="lineNum">     808 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_false);</span>
+<span class="lineNum">     809 </span><span class="lineCov">          1 :     } else if ((searchType == nssTokenSearchType_TokenOnly) ||</span>
+<span class="lineNum">     810 </span>            :                (searchType == nssTokenSearchType_TokenForced)) {
+<span class="lineNum">     811 </span><span class="lineCov">          1 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_true);</span>
+<span class="lineNum">     812 </span>            :     }
+<span class="lineNum">     813 </span>            :     /* Set the unique id */
+<span class="lineNum">     814 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_CLASS, &amp;g_ck_class_cert);</span>
+<span class="lineNum">     815 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_ISSUER, issuer);</span>
+<span class="lineNum">     816 </span><span class="lineCov">          1 :     serialAttr = attr;</span>
+<span class="lineNum">     817 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_SERIAL_NUMBER, serial);</span>
+<span class="lineNum">     818 </span><span class="lineCov">          1 :     NSS_CK_TEMPLATE_FINISH(cert_template, attr, ctsize);</span>
+<span class="lineNum">     819 </span>            :     /* get the object handle */
+<span class="lineNum">     820 </span><span class="lineCov">          1 :     if (searchType == nssTokenSearchType_TokenForced) {</span>
+<span class="lineNum">     821 </span><span class="lineNoCov">          0 :         objects = find_objects(token, sessionOpt,</span>
+<span class="lineNum">     822 </span>            :                                cert_template, ctsize,
+<span class="lineNum">     823 </span>            :                                1, statusOpt);
+<span class="lineNum">     824 </span>            :     } else {
+<span class="lineNum">     825 </span><span class="lineCov">          1 :         objects = find_objects_by_template(token, sessionOpt,</span>
+<span class="lineNum">     826 </span>            :                                            cert_template, ctsize,
+<span class="lineNum">     827 </span>            :                                            1, statusOpt);
+<span class="lineNum">     828 </span>            :     }
+<span class="lineNum">     829 </span><span class="lineCov">          1 :     if (objects) {</span>
+<span class="lineNum">     830 </span><span class="lineCov">          1 :         rvObject = objects[0];</span>
+<span class="lineNum">     831 </span><span class="lineCov">          1 :         nss_ZFreeIf(objects);</span>
+<span class="lineNum">     832 </span>            :     }
+<span class="lineNum">     833 </span>            : 
+<span class="lineNum">     834 </span>            :     /*
+<span class="lineNum">     835 </span>            :      * NSS used to incorrectly store serial numbers in their decoded form.
+<span class="lineNum">     836 </span>            :      * because of this old tokens have decoded serial numbers.
+<span class="lineNum">     837 </span>            :      */
+<span class="lineNum">     838 </span><span class="lineCov">          1 :     if (!objects) {</span>
+<span class="lineNum">     839 </span>            :         NSSItem serialDecode;
+<span class="lineNum">     840 </span>            :         PRStatus status;
+<span class="lineNum">     841 </span>            : 
+<span class="lineNum">     842 </span><span class="lineCov">          1 :         status = nssToken_decodeSerialItem(serial, &amp;serialDecode);</span>
+<span class="lineNum">     843 </span><span class="lineCov">          1 :         if (status != PR_SUCCESS) {</span>
+<span class="lineNum">     844 </span><span class="lineNoCov">          0 :             return NULL;</span>
+<span class="lineNum">     845 </span>            :         }
+<span class="lineNum">     846 </span><span class="lineCov">          1 :         NSS_CK_SET_ATTRIBUTE_ITEM(serialAttr, CKA_SERIAL_NUMBER, &amp;serialDecode);</span>
+<span class="lineNum">     847 </span><span class="lineCov">          1 :         if (searchType == nssTokenSearchType_TokenForced) {</span>
+<span class="lineNum">     848 </span><span class="lineNoCov">          0 :             objects = find_objects(token, sessionOpt,</span>
+<span class="lineNum">     849 </span>            :                                    cert_template, ctsize,
+<span class="lineNum">     850 </span>            :                                    1, statusOpt);
+<span class="lineNum">     851 </span>            :         } else {
+<span class="lineNum">     852 </span><span class="lineCov">          1 :             objects = find_objects_by_template(token, sessionOpt,</span>
+<span class="lineNum">     853 </span>            :                                                cert_template, ctsize,
+<span class="lineNum">     854 </span>            :                                                1, statusOpt);
+<span class="lineNum">     855 </span>            :         }
+<span class="lineNum">     856 </span><span class="lineCov">          1 :         if (objects) {</span>
+<span class="lineNum">     857 </span><span class="lineNoCov">          0 :             rvObject = objects[0];</span>
+<span class="lineNum">     858 </span><span class="lineNoCov">          0 :             nss_ZFreeIf(objects);</span>
+<span class="lineNum">     859 </span>            :         }
+<span class="lineNum">     860 </span>            :     }
+<span class="lineNum">     861 </span><span class="lineCov">          1 :     return rvObject;</span>
+<span class="lineNum">     862 </span>            : }
+<a name="863"><span class="lineNum">     863 </span>            : </a>
+<span class="lineNum">     864 </span>            : NSS_IMPLEMENT nssCryptokiObject *
+<span class="lineNum">     865 </span><span class="lineNoCov">          0 : nssToken_FindCertificateByEncodedCertificate(</span>
+<span class="lineNum">     866 </span>            :     NSSToken *token,
+<span class="lineNum">     867 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">     868 </span>            :     NSSBER *encodedCertificate,
+<span class="lineNum">     869 </span>            :     nssTokenSearchType searchType,
+<span class="lineNum">     870 </span>            :     PRStatus *statusOpt)
+<span class="lineNum">     871 </span>            : {
+<span class="lineNum">     872 </span>            :     CK_ATTRIBUTE_PTR attr;
+<span class="lineNum">     873 </span>            :     CK_ATTRIBUTE cert_template[3];
+<span class="lineNum">     874 </span>            :     CK_ULONG ctsize;
+<span class="lineNum">     875 </span>            :     nssCryptokiObject **objects;
+<span class="lineNum">     876 </span><span class="lineNoCov">          0 :     nssCryptokiObject *rvObject = NULL;</span>
+<span class="lineNum">     877 </span><span class="lineNoCov">          0 :     NSS_CK_TEMPLATE_START(cert_template, attr, ctsize);</span>
+<span class="lineNum">     878 </span>            :     /* Set the search to token/session only if provided */
+<span class="lineNum">     879 </span><span class="lineNoCov">          0 :     if (searchType == nssTokenSearchType_SessionOnly) {</span>
+<span class="lineNum">     880 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_false);</span>
+<span class="lineNum">     881 </span><span class="lineNoCov">          0 :     } else if (searchType == nssTokenSearchType_TokenOnly) {</span>
+<span class="lineNum">     882 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_true);</span>
+<span class="lineNum">     883 </span>            :     }
+<span class="lineNum">     884 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_CLASS, &amp;g_ck_class_cert);</span>
+<span class="lineNum">     885 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_VALUE, encodedCertificate);</span>
+<span class="lineNum">     886 </span><span class="lineNoCov">          0 :     NSS_CK_TEMPLATE_FINISH(cert_template, attr, ctsize);</span>
+<span class="lineNum">     887 </span>            :     /* get the object handle */
+<span class="lineNum">     888 </span><span class="lineNoCov">          0 :     objects = find_objects_by_template(token, sessionOpt,</span>
+<span class="lineNum">     889 </span>            :                                        cert_template, ctsize,
+<span class="lineNum">     890 </span>            :                                        1, statusOpt);
+<span class="lineNum">     891 </span><span class="lineNoCov">          0 :     if (objects) {</span>
+<span class="lineNum">     892 </span><span class="lineNoCov">          0 :         rvObject = objects[0];</span>
+<span class="lineNum">     893 </span><span class="lineNoCov">          0 :         nss_ZFreeIf(objects);</span>
+<span class="lineNum">     894 </span>            :     }
+<span class="lineNum">     895 </span><span class="lineNoCov">          0 :     return rvObject;</span>
+<span class="lineNum">     896 </span>            : }
+<a name="897"><span class="lineNum">     897 </span>            : </a>
+<span class="lineNum">     898 </span>            : NSS_IMPLEMENT nssCryptokiObject **
+<span class="lineNum">     899 </span><span class="lineNoCov">          0 : nssToken_FindPrivateKeys(</span>
+<span class="lineNum">     900 </span>            :     NSSToken *token,
+<span class="lineNum">     901 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">     902 </span>            :     nssTokenSearchType searchType,
+<span class="lineNum">     903 </span>            :     PRUint32 maximumOpt,
+<span class="lineNum">     904 </span>            :     PRStatus *statusOpt)
+<span class="lineNum">     905 </span>            : {
+<span class="lineNum">     906 </span>            :     CK_ATTRIBUTE_PTR attr;
+<span class="lineNum">     907 </span>            :     CK_ATTRIBUTE key_template[2];
+<span class="lineNum">     908 </span>            :     CK_ULONG ktsize;
+<span class="lineNum">     909 </span>            :     nssCryptokiObject **objects;
+<span class="lineNum">     910 </span>            : 
+<span class="lineNum">     911 </span><span class="lineNoCov">          0 :     NSS_CK_TEMPLATE_START(key_template, attr, ktsize);</span>
+<span class="lineNum">     912 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_CLASS, &amp;g_ck_class_privkey);</span>
+<span class="lineNum">     913 </span><span class="lineNoCov">          0 :     if (searchType == nssTokenSearchType_SessionOnly) {</span>
+<span class="lineNum">     914 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_false);</span>
+<span class="lineNum">     915 </span><span class="lineNoCov">          0 :     } else if (searchType == nssTokenSearchType_TokenOnly) {</span>
+<span class="lineNum">     916 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_true);</span>
+<span class="lineNum">     917 </span>            :     }
+<span class="lineNum">     918 </span><span class="lineNoCov">          0 :     NSS_CK_TEMPLATE_FINISH(key_template, attr, ktsize);</span>
+<span class="lineNum">     919 </span>            : 
+<span class="lineNum">     920 </span><span class="lineNoCov">          0 :     objects = find_objects_by_template(token, sessionOpt,</span>
+<span class="lineNum">     921 </span>            :                                        key_template, ktsize,
+<span class="lineNum">     922 </span>            :                                        maximumOpt, statusOpt);
+<span class="lineNum">     923 </span><span class="lineNoCov">          0 :     return objects;</span>
+<span class="lineNum">     924 </span>            : }
+<span class="lineNum">     925 </span>            : 
+<a name="926"><span class="lineNum">     926 </span>            : /* XXX ?there are no session cert objects, so only search token objects */</a>
+<span class="lineNum">     927 </span>            : NSS_IMPLEMENT nssCryptokiObject *
+<span class="lineNum">     928 </span><span class="lineNoCov">          0 : nssToken_FindPrivateKeyByID(</span>
+<span class="lineNum">     929 </span>            :     NSSToken *token,
+<span class="lineNum">     930 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">     931 </span>            :     NSSItem *keyID)
+<span class="lineNum">     932 </span>            : {
+<span class="lineNum">     933 </span>            :     CK_ATTRIBUTE_PTR attr;
+<span class="lineNum">     934 </span>            :     CK_ATTRIBUTE key_template[3];
+<span class="lineNum">     935 </span>            :     CK_ULONG ktsize;
+<span class="lineNum">     936 </span>            :     nssCryptokiObject **objects;
+<span class="lineNum">     937 </span><span class="lineNoCov">          0 :     nssCryptokiObject *rvKey = NULL;</span>
+<span class="lineNum">     938 </span>            : 
+<span class="lineNum">     939 </span><span class="lineNoCov">          0 :     NSS_CK_TEMPLATE_START(key_template, attr, ktsize);</span>
+<span class="lineNum">     940 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_CLASS, &amp;g_ck_class_privkey);</span>
+<span class="lineNum">     941 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_true);</span>
+<span class="lineNum">     942 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_ID, keyID);</span>
+<span class="lineNum">     943 </span><span class="lineNoCov">          0 :     NSS_CK_TEMPLATE_FINISH(key_template, attr, ktsize);</span>
+<span class="lineNum">     944 </span>            : 
+<span class="lineNum">     945 </span><span class="lineNoCov">          0 :     objects = find_objects_by_template(token, sessionOpt,</span>
+<span class="lineNum">     946 </span>            :                                        key_template, ktsize,
+<span class="lineNum">     947 </span>            :                                        1, NULL);
+<span class="lineNum">     948 </span><span class="lineNoCov">          0 :     if (objects) {</span>
+<span class="lineNum">     949 </span><span class="lineNoCov">          0 :         rvKey = objects[0];</span>
+<span class="lineNum">     950 </span><span class="lineNoCov">          0 :         nss_ZFreeIf(objects);</span>
+<span class="lineNum">     951 </span>            :     }
+<span class="lineNum">     952 </span><span class="lineNoCov">          0 :     return rvKey;</span>
+<span class="lineNum">     953 </span>            : }
+<span class="lineNum">     954 </span>            : 
+<a name="955"><span class="lineNum">     955 </span>            : /* XXX ?there are no session cert objects, so only search token objects */</a>
+<span class="lineNum">     956 </span>            : NSS_IMPLEMENT nssCryptokiObject *
+<span class="lineNum">     957 </span><span class="lineNoCov">          0 : nssToken_FindPublicKeyByID(</span>
+<span class="lineNum">     958 </span>            :     NSSToken *token,
+<span class="lineNum">     959 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">     960 </span>            :     NSSItem *keyID)
+<span class="lineNum">     961 </span>            : {
+<span class="lineNum">     962 </span>            :     CK_ATTRIBUTE_PTR attr;
+<span class="lineNum">     963 </span>            :     CK_ATTRIBUTE key_template[3];
+<span class="lineNum">     964 </span>            :     CK_ULONG ktsize;
+<span class="lineNum">     965 </span>            :     nssCryptokiObject **objects;
+<span class="lineNum">     966 </span><span class="lineNoCov">          0 :     nssCryptokiObject *rvKey = NULL;</span>
+<span class="lineNum">     967 </span>            : 
+<span class="lineNum">     968 </span><span class="lineNoCov">          0 :     NSS_CK_TEMPLATE_START(key_template, attr, ktsize);</span>
+<span class="lineNum">     969 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_CLASS, &amp;g_ck_class_pubkey);</span>
+<span class="lineNum">     970 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_true);</span>
+<span class="lineNum">     971 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_ID, keyID);</span>
+<span class="lineNum">     972 </span><span class="lineNoCov">          0 :     NSS_CK_TEMPLATE_FINISH(key_template, attr, ktsize);</span>
+<span class="lineNum">     973 </span>            : 
+<span class="lineNum">     974 </span><span class="lineNoCov">          0 :     objects = find_objects_by_template(token, sessionOpt,</span>
+<span class="lineNum">     975 </span>            :                                        key_template, ktsize,
+<span class="lineNum">     976 </span>            :                                        1, NULL);
+<span class="lineNum">     977 </span><span class="lineNoCov">          0 :     if (objects) {</span>
+<span class="lineNum">     978 </span><span class="lineNoCov">          0 :         rvKey = objects[0];</span>
+<span class="lineNum">     979 </span><span class="lineNoCov">          0 :         nss_ZFreeIf(objects);</span>
+<span class="lineNum">     980 </span>            :     }
+<span class="lineNum">     981 </span><span class="lineNoCov">          0 :     return rvKey;</span>
+<span class="lineNum">     982 </span>            : }
+<a name="983"><span class="lineNum">     983 </span>            : </a>
+<span class="lineNum">     984 </span>            : static void
+<span class="lineNum">     985 </span><span class="lineCov">          1 : sha1_hash(NSSItem *input, NSSItem *output)</span>
+<span class="lineNum">     986 </span>            : {
+<span class="lineNum">     987 </span>            :     NSSAlgorithmAndParameters *ap;
+<span class="lineNum">     988 </span><span class="lineCov">          1 :     PK11SlotInfo *internal = PK11_GetInternalSlot();</span>
+<span class="lineNum">     989 </span><span class="lineCov">          1 :     NSSToken *token = PK11Slot_GetNSSToken(internal);</span>
+<span class="lineNum">     990 </span><span class="lineCov">          1 :     ap = NSSAlgorithmAndParameters_CreateSHA1Digest(NULL);</span>
+<span class="lineNum">     991 </span><span class="lineCov">          1 :     (void)nssToken_Digest(token, NULL, ap, input, output, NULL);</span>
+<span class="lineNum">     992 </span><span class="lineCov">          1 :     PK11_FreeSlot(token-&gt;pk11slot);</span>
+<span class="lineNum">     993 </span><span class="lineCov">          1 :     nss_ZFreeIf(ap);</span>
+<span class="lineNum">     994 </span><span class="lineCov">          1 : }</span>
+<a name="995"><span class="lineNum">     995 </span>            : </a>
+<span class="lineNum">     996 </span>            : static void
+<span class="lineNum">     997 </span><span class="lineCov">          1 : md5_hash(NSSItem *input, NSSItem *output)</span>
+<span class="lineNum">     998 </span>            : {
+<span class="lineNum">     999 </span>            :     NSSAlgorithmAndParameters *ap;
+<span class="lineNum">    1000 </span><span class="lineCov">          1 :     PK11SlotInfo *internal = PK11_GetInternalSlot();</span>
+<span class="lineNum">    1001 </span><span class="lineCov">          1 :     NSSToken *token = PK11Slot_GetNSSToken(internal);</span>
+<span class="lineNum">    1002 </span><span class="lineCov">          1 :     ap = NSSAlgorithmAndParameters_CreateMD5Digest(NULL);</span>
+<span class="lineNum">    1003 </span><span class="lineCov">          1 :     (void)nssToken_Digest(token, NULL, ap, input, output, NULL);</span>
+<span class="lineNum">    1004 </span><span class="lineCov">          1 :     PK11_FreeSlot(token-&gt;pk11slot);</span>
+<span class="lineNum">    1005 </span><span class="lineCov">          1 :     nss_ZFreeIf(ap);</span>
+<span class="lineNum">    1006 </span><span class="lineCov">          1 : }</span>
+<a name="1007"><span class="lineNum">    1007 </span>            : </a>
+<span class="lineNum">    1008 </span>            : static CK_TRUST
+<span class="lineNum">    1009 </span><span class="lineCov">          1 : get_ck_trust(</span>
+<span class="lineNum">    1010 </span>            :     nssTrustLevel nssTrust)
+<span class="lineNum">    1011 </span>            : {
+<span class="lineNum">    1012 </span>            :     CK_TRUST t;
+<span class="lineNum">    1013 </span>            :     switch (nssTrust) {
+<span class="lineNum">    1014 </span>            :         case nssTrustLevel_NotTrusted:
+<span class="lineNum">    1015 </span>            :             t = CKT_NSS_NOT_TRUSTED;
+<span class="lineNum">    1016 </span>            :             break;
+<span class="lineNum">    1017 </span>            :         case nssTrustLevel_TrustedDelegator:
+<span class="lineNum">    1018 </span>            :             t = CKT_NSS_TRUSTED_DELEGATOR;
+<span class="lineNum">    1019 </span>            :             break;
+<span class="lineNum">    1020 </span>            :         case nssTrustLevel_ValidDelegator:
+<span class="lineNum">    1021 </span>            :             t = CKT_NSS_VALID_DELEGATOR;
+<span class="lineNum">    1022 </span>            :             break;
+<span class="lineNum">    1023 </span>            :         case nssTrustLevel_Trusted:
+<span class="lineNum">    1024 </span>            :             t = CKT_NSS_TRUSTED;
+<span class="lineNum">    1025 </span>            :             break;
+<span class="lineNum">    1026 </span>            :         case nssTrustLevel_MustVerify:
+<span class="lineNum">    1027 </span>            :             t = CKT_NSS_MUST_VERIFY_TRUST;
+<span class="lineNum">    1028 </span>            :             break;
+<span class="lineNum">    1029 </span>            :         case nssTrustLevel_Unknown:
+<span class="lineNum">    1030 </span>            :         default:
+<span class="lineNum">    1031 </span>            :             t = CKT_NSS_TRUST_UNKNOWN;
+<span class="lineNum">    1032 </span>            :             break;
+<span class="lineNum">    1033 </span>            :     }
+<span class="lineNum">    1034 </span><span class="lineCov">          1 :     return t;</span>
+<span class="lineNum">    1035 </span>            : }
+<a name="1036"><span class="lineNum">    1036 </span>            : </a>
+<span class="lineNum">    1037 </span>            : NSS_IMPLEMENT nssCryptokiObject *
+<span class="lineNum">    1038 </span><span class="lineCov">          1 : nssToken_ImportTrust(</span>
+<span class="lineNum">    1039 </span>            :     NSSToken *tok,
+<span class="lineNum">    1040 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">    1041 </span>            :     NSSDER *certEncoding,
+<span class="lineNum">    1042 </span>            :     NSSDER *certIssuer,
+<span class="lineNum">    1043 </span>            :     NSSDER *certSerial,
+<span class="lineNum">    1044 </span>            :     nssTrustLevel serverAuth,
+<span class="lineNum">    1045 </span>            :     nssTrustLevel clientAuth,
+<span class="lineNum">    1046 </span>            :     nssTrustLevel codeSigning,
+<span class="lineNum">    1047 </span>            :     nssTrustLevel emailProtection,
+<span class="lineNum">    1048 </span>            :     PRBool stepUpApproved,
+<span class="lineNum">    1049 </span>            :     PRBool asTokenObject)
+<span class="lineNum">    1050 </span>            : {
+<span class="lineNum">    1051 </span>            :     nssCryptokiObject *object;
+<span class="lineNum">    1052 </span><span class="lineCov">          1 :     CK_OBJECT_CLASS tobjc = CKO_NSS_TRUST;</span>
+<span class="lineNum">    1053 </span>            :     CK_TRUST ckSA, ckCA, ckCS, ckEP;
+<span class="lineNum">    1054 </span>            :     CK_ATTRIBUTE_PTR attr;
+<span class="lineNum">    1055 </span>            :     CK_ATTRIBUTE trust_tmpl[11];
+<span class="lineNum">    1056 </span>            :     CK_ULONG tsize;
+<span class="lineNum">    1057 </span>            :     PRUint8 sha1[20]; /* this is cheating... */
+<span class="lineNum">    1058 </span>            :     PRUint8 md5[16];
+<span class="lineNum">    1059 </span>            :     NSSItem sha1_result, md5_result;
+<span class="lineNum">    1060 </span><span class="lineCov">          1 :     sha1_result.data = sha1;</span>
+<span class="lineNum">    1061 </span><span class="lineCov">          1 :     sha1_result.size = sizeof sha1;</span>
+<span class="lineNum">    1062 </span><span class="lineCov">          1 :     md5_result.data = md5;</span>
+<span class="lineNum">    1063 </span><span class="lineCov">          1 :     md5_result.size = sizeof md5;</span>
+<span class="lineNum">    1064 </span><span class="lineCov">          1 :     sha1_hash(certEncoding, &amp;sha1_result);</span>
+<span class="lineNum">    1065 </span><span class="lineCov">          1 :     md5_hash(certEncoding, &amp;md5_result);</span>
+<span class="lineNum">    1066 </span><span class="lineCov">          1 :     ckSA = get_ck_trust(serverAuth);</span>
+<span class="lineNum">    1067 </span><span class="lineCov">          1 :     ckCA = get_ck_trust(clientAuth);</span>
+<span class="lineNum">    1068 </span><span class="lineCov">          1 :     ckCS = get_ck_trust(codeSigning);</span>
+<span class="lineNum">    1069 </span><span class="lineCov">          1 :     ckEP = get_ck_trust(emailProtection);</span>
+<span class="lineNum">    1070 </span><span class="lineCov">          1 :     NSS_CK_TEMPLATE_START(trust_tmpl, attr, tsize);</span>
+<span class="lineNum">    1071 </span><span class="lineCov">          1 :     if (asTokenObject) {</span>
+<span class="lineNum">    1072 </span><span class="lineCov">          1 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_true);</span>
+<span class="lineNum">    1073 </span>            :     } else {
+<span class="lineNum">    1074 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_false);</span>
+<span class="lineNum">    1075 </span>            :     }
+<span class="lineNum">    1076 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_VAR(attr, CKA_CLASS, tobjc);</span>
+<span class="lineNum">    1077 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_ISSUER, certIssuer);</span>
+<span class="lineNum">    1078 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_SERIAL_NUMBER, certSerial);</span>
+<span class="lineNum">    1079 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_CERT_SHA1_HASH, &amp;sha1_result);</span>
+<span class="lineNum">    1080 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_CERT_MD5_HASH, &amp;md5_result);</span>
+<span class="lineNum">    1081 </span>            :     /* now set the trust values */
+<span class="lineNum">    1082 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_VAR(attr, CKA_TRUST_SERVER_AUTH, ckSA);</span>
+<span class="lineNum">    1083 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_VAR(attr, CKA_TRUST_CLIENT_AUTH, ckCA);</span>
+<span class="lineNum">    1084 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_VAR(attr, CKA_TRUST_CODE_SIGNING, ckCS);</span>
+<span class="lineNum">    1085 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_VAR(attr, CKA_TRUST_EMAIL_PROTECTION, ckEP);</span>
+<span class="lineNum">    1086 </span><span class="lineCov">          1 :     if (stepUpApproved) {</span>
+<span class="lineNum">    1087 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TRUST_STEP_UP_APPROVED,</span>
+<span class="lineNum">    1088 </span>            :                                   &amp;g_ck_true);
+<span class="lineNum">    1089 </span>            :     } else {
+<span class="lineNum">    1090 </span><span class="lineCov">          1 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TRUST_STEP_UP_APPROVED,</span>
+<span class="lineNum">    1091 </span>            :                                   &amp;g_ck_false);
+<span class="lineNum">    1092 </span>            :     }
+<span class="lineNum">    1093 </span><span class="lineCov">          1 :     NSS_CK_TEMPLATE_FINISH(trust_tmpl, attr, tsize);</span>
+<span class="lineNum">    1094 </span>            :     /* import the trust object onto the token */
+<span class="lineNum">    1095 </span><span class="lineCov">          1 :     object = import_object(tok, sessionOpt, trust_tmpl, tsize);</span>
+<span class="lineNum">    1096 </span><span class="lineCov">          1 :     if (object &amp;&amp; tok-&gt;cache) {</span>
+<span class="lineNum">    1097 </span><span class="lineNoCov">          0 :         nssTokenObjectCache_ImportObject(tok-&gt;cache, object, tobjc,</span>
+<span class="lineNum">    1098 </span>            :                                          trust_tmpl, tsize);
+<span class="lineNum">    1099 </span>            :     }
+<span class="lineNum">    1100 </span><span class="lineCov">          1 :     return object;</span>
+<span class="lineNum">    1101 </span>            : }
+<a name="1102"><span class="lineNum">    1102 </span>            : </a>
+<span class="lineNum">    1103 </span>            : NSS_IMPLEMENT nssCryptokiObject *
+<span class="lineNum">    1104 </span><span class="lineCov">          1 : nssToken_FindTrustForCertificate(</span>
+<span class="lineNum">    1105 </span>            :     NSSToken *token,
+<span class="lineNum">    1106 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">    1107 </span>            :     NSSDER *certEncoding,
+<span class="lineNum">    1108 </span>            :     NSSDER *certIssuer,
+<span class="lineNum">    1109 </span>            :     NSSDER *certSerial,
+<span class="lineNum">    1110 </span>            :     nssTokenSearchType searchType)
+<span class="lineNum">    1111 </span>            : {
+<span class="lineNum">    1112 </span><span class="lineCov">          1 :     CK_OBJECT_CLASS tobjc = CKO_NSS_TRUST;</span>
+<span class="lineNum">    1113 </span>            :     CK_ATTRIBUTE_PTR attr;
+<span class="lineNum">    1114 </span>            :     CK_ATTRIBUTE tobj_template[5];
+<span class="lineNum">    1115 </span>            :     CK_ULONG tobj_size;
+<span class="lineNum">    1116 </span><span class="lineCov">          1 :     nssSession *session = sessionOpt ? sessionOpt : token-&gt;defaultSession;</span>
+<span class="lineNum">    1117 </span><span class="lineCov">          1 :     nssCryptokiObject *object = NULL, **objects;</span>
+<span class="lineNum">    1118 </span>            : 
+<span class="lineNum">    1119 </span>            :     /* Don't ask the module to use an invalid session handle. */
+<span class="lineNum">    1120 </span><span class="lineCov">          1 :     if (!session || session-&gt;handle == CK_INVALID_SESSION) {</span>
+<span class="lineNum">    1121 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_TOKEN);</span>
+<span class="lineNum">    1122 </span><span class="lineNoCov">          0 :         return object;</span>
+<span class="lineNum">    1123 </span>            :     }
+<span class="lineNum">    1124 </span>            : 
+<span class="lineNum">    1125 </span><span class="lineCov">          1 :     NSS_CK_TEMPLATE_START(tobj_template, attr, tobj_size);</span>
+<span class="lineNum">    1126 </span><span class="lineCov">          1 :     if (searchType == nssTokenSearchType_TokenOnly) {</span>
+<span class="lineNum">    1127 </span><span class="lineCov">          1 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_true);</span>
+<span class="lineNum">    1128 </span>            :     }
+<span class="lineNum">    1129 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_VAR(attr, CKA_CLASS, tobjc);</span>
+<span class="lineNum">    1130 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_ISSUER, certIssuer);</span>
+<span class="lineNum">    1131 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_SERIAL_NUMBER, certSerial);</span>
+<span class="lineNum">    1132 </span><span class="lineCov">          1 :     NSS_CK_TEMPLATE_FINISH(tobj_template, attr, tobj_size);</span>
+<span class="lineNum">    1133 </span><span class="lineCov">          1 :     objects = find_objects_by_template(token, session,</span>
+<span class="lineNum">    1134 </span>            :                                        tobj_template, tobj_size,
+<span class="lineNum">    1135 </span>            :                                        1, NULL);
+<span class="lineNum">    1136 </span><span class="lineCov">          1 :     if (objects) {</span>
+<span class="lineNum">    1137 </span><span class="lineCov">          1 :         object = objects[0];</span>
+<span class="lineNum">    1138 </span><span class="lineCov">          1 :         nss_ZFreeIf(objects);</span>
+<span class="lineNum">    1139 </span>            :     }
+<span class="lineNum">    1140 </span><span class="lineCov">          1 :     return object;</span>
+<span class="lineNum">    1141 </span>            : }
+<a name="1142"><span class="lineNum">    1142 </span>            : </a>
+<span class="lineNum">    1143 </span>            : NSS_IMPLEMENT nssCryptokiObject *
+<span class="lineNum">    1144 </span><span class="lineNoCov">          0 : nssToken_ImportCRL(</span>
+<span class="lineNum">    1145 </span>            :     NSSToken *token,
+<span class="lineNum">    1146 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">    1147 </span>            :     NSSDER *subject,
+<span class="lineNum">    1148 </span>            :     NSSDER *encoding,
+<span class="lineNum">    1149 </span>            :     PRBool isKRL,
+<span class="lineNum">    1150 </span>            :     NSSUTF8 *url,
+<span class="lineNum">    1151 </span>            :     PRBool asTokenObject)
+<span class="lineNum">    1152 </span>            : {
+<span class="lineNum">    1153 </span>            :     nssCryptokiObject *object;
+<span class="lineNum">    1154 </span><span class="lineNoCov">          0 :     CK_OBJECT_CLASS crlobjc = CKO_NSS_CRL;</span>
+<span class="lineNum">    1155 </span>            :     CK_ATTRIBUTE_PTR attr;
+<span class="lineNum">    1156 </span>            :     CK_ATTRIBUTE crl_tmpl[6];
+<span class="lineNum">    1157 </span>            :     CK_ULONG crlsize;
+<span class="lineNum">    1158 </span>            : 
+<span class="lineNum">    1159 </span><span class="lineNoCov">          0 :     NSS_CK_TEMPLATE_START(crl_tmpl, attr, crlsize);</span>
+<span class="lineNum">    1160 </span><span class="lineNoCov">          0 :     if (asTokenObject) {</span>
+<span class="lineNum">    1161 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_true);</span>
+<span class="lineNum">    1162 </span>            :     } else {
+<span class="lineNum">    1163 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_false);</span>
+<span class="lineNum">    1164 </span>            :     }
+<span class="lineNum">    1165 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_VAR(attr, CKA_CLASS, crlobjc);</span>
+<span class="lineNum">    1166 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_SUBJECT, subject);</span>
+<span class="lineNum">    1167 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_VALUE, encoding);</span>
+<span class="lineNum">    1168 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_UTF8(attr, CKA_NSS_URL, url);</span>
+<span class="lineNum">    1169 </span><span class="lineNoCov">          0 :     if (isKRL) {</span>
+<span class="lineNum">    1170 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_NSS_KRL, &amp;g_ck_true);</span>
+<span class="lineNum">    1171 </span>            :     } else {
+<span class="lineNum">    1172 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_NSS_KRL, &amp;g_ck_false);</span>
+<span class="lineNum">    1173 </span>            :     }
+<span class="lineNum">    1174 </span><span class="lineNoCov">          0 :     NSS_CK_TEMPLATE_FINISH(crl_tmpl, attr, crlsize);</span>
+<span class="lineNum">    1175 </span>            : 
+<span class="lineNum">    1176 </span>            :     /* import the crl object onto the token */
+<span class="lineNum">    1177 </span><span class="lineNoCov">          0 :     object = import_object(token, sessionOpt, crl_tmpl, crlsize);</span>
+<span class="lineNum">    1178 </span><span class="lineNoCov">          0 :     if (object &amp;&amp; token-&gt;cache) {</span>
+<span class="lineNum">    1179 </span><span class="lineNoCov">          0 :         nssTokenObjectCache_ImportObject(token-&gt;cache, object, crlobjc,</span>
+<span class="lineNum">    1180 </span>            :                                          crl_tmpl, crlsize);
+<span class="lineNum">    1181 </span>            :     }
+<span class="lineNum">    1182 </span><span class="lineNoCov">          0 :     return object;</span>
+<span class="lineNum">    1183 </span>            : }
+<a name="1184"><span class="lineNum">    1184 </span>            : </a>
+<span class="lineNum">    1185 </span>            : NSS_IMPLEMENT nssCryptokiObject **
+<span class="lineNum">    1186 </span><span class="lineNoCov">          0 : nssToken_FindCRLsBySubject(</span>
+<span class="lineNum">    1187 </span>            :     NSSToken *token,
+<span class="lineNum">    1188 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">    1189 </span>            :     NSSDER *subject,
+<span class="lineNum">    1190 </span>            :     nssTokenSearchType searchType,
+<span class="lineNum">    1191 </span>            :     PRUint32 maximumOpt,
+<span class="lineNum">    1192 </span>            :     PRStatus *statusOpt)
+<span class="lineNum">    1193 </span>            : {
+<span class="lineNum">    1194 </span><span class="lineNoCov">          0 :     CK_OBJECT_CLASS crlobjc = CKO_NSS_CRL;</span>
+<span class="lineNum">    1195 </span>            :     CK_ATTRIBUTE_PTR attr;
+<span class="lineNum">    1196 </span>            :     CK_ATTRIBUTE crlobj_template[3];
+<span class="lineNum">    1197 </span>            :     CK_ULONG crlobj_size;
+<span class="lineNum">    1198 </span><span class="lineNoCov">          0 :     nssCryptokiObject **objects = NULL;</span>
+<span class="lineNum">    1199 </span><span class="lineNoCov">          0 :     nssSession *session = sessionOpt ? sessionOpt : token-&gt;defaultSession;</span>
+<span class="lineNum">    1200 </span>            : 
+<span class="lineNum">    1201 </span>            :     /* Don't ask the module to use an invalid session handle. */
+<span class="lineNum">    1202 </span><span class="lineNoCov">          0 :     if (!session || session-&gt;handle == CK_INVALID_SESSION) {</span>
+<span class="lineNum">    1203 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_TOKEN);</span>
+<span class="lineNum">    1204 </span><span class="lineNoCov">          0 :         return objects;</span>
+<span class="lineNum">    1205 </span>            :     }
+<span class="lineNum">    1206 </span>            : 
+<span class="lineNum">    1207 </span><span class="lineNoCov">          0 :     NSS_CK_TEMPLATE_START(crlobj_template, attr, crlobj_size);</span>
+<span class="lineNum">    1208 </span><span class="lineNoCov">          0 :     if (searchType == nssTokenSearchType_SessionOnly) {</span>
+<span class="lineNum">    1209 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_false);</span>
+<span class="lineNum">    1210 </span><span class="lineNoCov">          0 :     } else if (searchType == nssTokenSearchType_TokenOnly ||</span>
+<span class="lineNum">    1211 </span>            :                searchType == nssTokenSearchType_TokenForced) {
+<span class="lineNum">    1212 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_true);</span>
+<span class="lineNum">    1213 </span>            :     }
+<span class="lineNum">    1214 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_VAR(attr, CKA_CLASS, crlobjc);</span>
+<span class="lineNum">    1215 </span><span class="lineNoCov">          0 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_SUBJECT, subject);</span>
+<span class="lineNum">    1216 </span><span class="lineNoCov">          0 :     NSS_CK_TEMPLATE_FINISH(crlobj_template, attr, crlobj_size);</span>
+<span class="lineNum">    1217 </span>            : 
+<span class="lineNum">    1218 </span><span class="lineNoCov">          0 :     objects = find_objects_by_template(token, session,</span>
+<span class="lineNum">    1219 </span>            :                                        crlobj_template, crlobj_size,
+<span class="lineNum">    1220 </span>            :                                        maximumOpt, statusOpt);
+<span class="lineNum">    1221 </span><span class="lineNoCov">          0 :     return objects;</span>
+<span class="lineNum">    1222 </span>            : }
+<a name="1223"><span class="lineNum">    1223 </span>            : </a>
+<span class="lineNum">    1224 </span>            : NSS_IMPLEMENT PRStatus
+<span class="lineNum">    1225 </span><span class="lineCov">          1 : nssToken_GetCachedObjectAttributes(</span>
+<span class="lineNum">    1226 </span>            :     NSSToken *token,
+<span class="lineNum">    1227 </span>            :     NSSArena *arenaOpt,
+<span class="lineNum">    1228 </span>            :     nssCryptokiObject *object,
+<span class="lineNum">    1229 </span>            :     CK_OBJECT_CLASS objclass,
+<span class="lineNum">    1230 </span>            :     CK_ATTRIBUTE_PTR atemplate,
+<span class="lineNum">    1231 </span>            :     CK_ULONG atlen)
+<span class="lineNum">    1232 </span>            : {
+<span class="lineNum">    1233 </span><span class="lineCov">          1 :     if (!token-&gt;cache) {</span>
+<span class="lineNum">    1234 </span>            :         return PR_FAILURE;
+<span class="lineNum">    1235 </span>            :     }
+<span class="lineNum">    1236 </span><span class="lineNoCov">          0 :     return nssTokenObjectCache_GetObjectAttributes(token-&gt;cache, arenaOpt,</span>
+<span class="lineNum">    1237 </span>            :                                                    object, objclass,
+<span class="lineNum">    1238 </span>            :                                                    atemplate, atlen);
+<span class="lineNum">    1239 </span>            : }
+<a name="1240"><span class="lineNum">    1240 </span>            : </a>
+<span class="lineNum">    1241 </span>            : NSS_IMPLEMENT NSSItem *
+<span class="lineNum">    1242 </span><span class="lineCov">          1 : nssToken_Digest(</span>
+<span class="lineNum">    1243 </span>            :     NSSToken *tok,
+<span class="lineNum">    1244 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">    1245 </span>            :     NSSAlgorithmAndParameters *ap,
+<span class="lineNum">    1246 </span>            :     NSSItem *data,
+<span class="lineNum">    1247 </span>            :     NSSItem *rvOpt,
+<span class="lineNum">    1248 </span>            :     NSSArena *arenaOpt)
+<span class="lineNum">    1249 </span>            : {
+<span class="lineNum">    1250 </span>            :     CK_RV ckrv;
+<span class="lineNum">    1251 </span>            :     CK_ULONG digestLen;
+<span class="lineNum">    1252 </span>            :     CK_BYTE_PTR digest;
+<span class="lineNum">    1253 </span><span class="lineCov">          1 :     NSSItem *rvItem = NULL;</span>
+<span class="lineNum">    1254 </span><span class="lineCov">          1 :     void *epv = nssToken_GetCryptokiEPV(tok);</span>
+<span class="lineNum">    1255 </span><span class="lineCov">          1 :     nssSession *session = (sessionOpt) ? sessionOpt : tok-&gt;defaultSession;</span>
+<span class="lineNum">    1256 </span>            : 
+<span class="lineNum">    1257 </span>            :     /* Don't ask the module to use an invalid session handle. */
+<span class="lineNum">    1258 </span><span class="lineCov">          1 :     if (!session || session-&gt;handle == CK_INVALID_SESSION) {</span>
+<span class="lineNum">    1259 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_TOKEN);</span>
+<span class="lineNum">    1260 </span><span class="lineNoCov">          0 :         return rvItem;</span>
+<span class="lineNum">    1261 </span>            :     }
+<span class="lineNum">    1262 </span>            : 
+<span class="lineNum">    1263 </span><span class="lineCov">          1 :     nssSession_EnterMonitor(session);</span>
+<span class="lineNum">    1264 </span><span class="lineCov">          1 :     ckrv = CKAPI(epv)-&gt;C_DigestInit(session-&gt;handle, &amp;ap-&gt;mechanism);</span>
+<span class="lineNum">    1265 </span><span class="lineCov">          1 :     if (ckrv != CKR_OK) {</span>
+<span class="lineNum">    1266 </span><span class="lineNoCov">          0 :         nssSession_ExitMonitor(session);</span>
+<span class="lineNum">    1267 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">    1268 </span>            :     }
+<span class="lineNum">    1269 </span>            : #if 0
+<span class="lineNum">    1270 </span>            :     /* XXX the standard says this should work, but it doesn't */
+<span class="lineNum">    1271 </span>            :     ckrv = CKAPI(epv)-&gt;C_Digest(session-&gt;handle, NULL, 0, NULL, &amp;digestLen);
+<span class="lineNum">    1272 </span>            :     if (ckrv != CKR_OK) {
+<span class="lineNum">    1273 </span>            :         nssSession_ExitMonitor(session);
+<span class="lineNum">    1274 </span>            :         return NULL;
+<span class="lineNum">    1275 </span>            :     }
+<span class="lineNum">    1276 </span>            : #endif
+<span class="lineNum">    1277 </span><span class="lineCov">          1 :     digestLen = 0; /* XXX for now */</span>
+<span class="lineNum">    1278 </span><span class="lineCov">          1 :     digest = NULL;</span>
+<span class="lineNum">    1279 </span><span class="lineCov">          1 :     if (rvOpt) {</span>
+<span class="lineNum">    1280 </span><span class="lineCov">          1 :         if (rvOpt-&gt;size &gt; 0 &amp;&amp; rvOpt-&gt;size &lt; digestLen) {</span>
+<span class="lineNum">    1281 </span>            :             nssSession_ExitMonitor(session);
+<span class="lineNum">    1282 </span>            :             /* the error should be bad args */
+<span class="lineNum">    1283 </span>            :             return NULL;
+<span class="lineNum">    1284 </span>            :         }
+<span class="lineNum">    1285 </span><span class="lineCov">          1 :         if (rvOpt-&gt;data) {</span>
+<span class="lineNum">    1286 </span><span class="lineCov">          1 :             digest = rvOpt-&gt;data;</span>
+<span class="lineNum">    1287 </span>            :         }
+<span class="lineNum">    1288 </span><span class="lineCov">          1 :         digestLen = rvOpt-&gt;size;</span>
+<span class="lineNum">    1289 </span>            :     }
+<span class="lineNum">    1290 </span><span class="lineCov">          1 :     if (!digest) {</span>
+<span class="lineNum">    1291 </span><span class="lineNoCov">          0 :         digest = (CK_BYTE_PTR)nss_ZAlloc(arenaOpt, digestLen);</span>
+<span class="lineNum">    1292 </span><span class="lineNoCov">          0 :         if (!digest) {</span>
+<span class="lineNum">    1293 </span><span class="lineNoCov">          0 :             nssSession_ExitMonitor(session);</span>
+<span class="lineNum">    1294 </span><span class="lineNoCov">          0 :             return NULL;</span>
+<span class="lineNum">    1295 </span>            :         }
+<span class="lineNum">    1296 </span>            :     }
+<span class="lineNum">    1297 </span><span class="lineCov">          1 :     ckrv = CKAPI(epv)-&gt;C_Digest(session-&gt;handle,</span>
+<span class="lineNum">    1298 </span><span class="lineCov">          1 :                                 (CK_BYTE_PTR)data-&gt;data,</span>
+<span class="lineNum">    1299 </span><span class="lineCov">          1 :                                 (CK_ULONG)data-&gt;size,</span>
+<span class="lineNum">    1300 </span>            :                                 (CK_BYTE_PTR)digest,
+<span class="lineNum">    1301 </span>            :                                 &amp;digestLen);
+<span class="lineNum">    1302 </span><span class="lineCov">          1 :     nssSession_ExitMonitor(session);</span>
+<span class="lineNum">    1303 </span><span class="lineCov">          1 :     if (ckrv != CKR_OK) {</span>
+<span class="lineNum">    1304 </span><span class="lineNoCov">          0 :         nss_ZFreeIf(digest);</span>
+<span class="lineNum">    1305 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">    1306 </span>            :     }
+<span class="lineNum">    1307 </span><span class="lineCov">          1 :     if (!rvOpt) {</span>
+<span class="lineNum">    1308 </span><span class="lineNoCov">          0 :         rvItem = nssItem_Create(arenaOpt, NULL, digestLen, (void *)digest);</span>
+<span class="lineNum">    1309 </span>            :     }
+<span class="lineNum">    1310 </span><span class="lineCov">          1 :     return rvItem;</span>
+<span class="lineNum">    1311 </span>            : }
+<a name="1312"><span class="lineNum">    1312 </span>            : </a>
+<span class="lineNum">    1313 </span>            : NSS_IMPLEMENT PRStatus
+<span class="lineNum">    1314 </span><span class="lineNoCov">          0 : nssToken_BeginDigest(</span>
+<span class="lineNum">    1315 </span>            :     NSSToken *tok,
+<span class="lineNum">    1316 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">    1317 </span>            :     NSSAlgorithmAndParameters *ap)
+<span class="lineNum">    1318 </span>            : {
+<span class="lineNum">    1319 </span>            :     CK_RV ckrv;
+<span class="lineNum">    1320 </span><span class="lineNoCov">          0 :     void *epv = nssToken_GetCryptokiEPV(tok);</span>
+<span class="lineNum">    1321 </span><span class="lineNoCov">          0 :     nssSession *session = (sessionOpt) ? sessionOpt : tok-&gt;defaultSession;</span>
+<span class="lineNum">    1322 </span>            : 
+<span class="lineNum">    1323 </span>            :     /* Don't ask the module to use an invalid session handle. */
+<span class="lineNum">    1324 </span><span class="lineNoCov">          0 :     if (!session || session-&gt;handle == CK_INVALID_SESSION) {</span>
+<span class="lineNum">    1325 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_TOKEN);</span>
+<span class="lineNum">    1326 </span><span class="lineNoCov">          0 :         return PR_FAILURE;</span>
+<span class="lineNum">    1327 </span>            :     }
+<span class="lineNum">    1328 </span>            : 
+<span class="lineNum">    1329 </span><span class="lineNoCov">          0 :     nssSession_EnterMonitor(session);</span>
+<span class="lineNum">    1330 </span><span class="lineNoCov">          0 :     ckrv = CKAPI(epv)-&gt;C_DigestInit(session-&gt;handle, &amp;ap-&gt;mechanism);</span>
+<span class="lineNum">    1331 </span><span class="lineNoCov">          0 :     nssSession_ExitMonitor(session);</span>
+<span class="lineNum">    1332 </span><span class="lineNoCov">          0 :     return (ckrv == CKR_OK) ? PR_SUCCESS : PR_FAILURE;</span>
+<span class="lineNum">    1333 </span>            : }
+<a name="1334"><span class="lineNum">    1334 </span>            : </a>
+<span class="lineNum">    1335 </span>            : NSS_IMPLEMENT PRStatus
+<span class="lineNum">    1336 </span><span class="lineNoCov">          0 : nssToken_ContinueDigest(</span>
+<span class="lineNum">    1337 </span>            :     NSSToken *tok,
+<span class="lineNum">    1338 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">    1339 </span>            :     NSSItem *item)
+<span class="lineNum">    1340 </span>            : {
+<span class="lineNum">    1341 </span>            :     CK_RV ckrv;
+<span class="lineNum">    1342 </span><span class="lineNoCov">          0 :     void *epv = nssToken_GetCryptokiEPV(tok);</span>
+<span class="lineNum">    1343 </span><span class="lineNoCov">          0 :     nssSession *session = (sessionOpt) ? sessionOpt : tok-&gt;defaultSession;</span>
+<span class="lineNum">    1344 </span>            : 
+<span class="lineNum">    1345 </span>            :     /* Don't ask the module to use an invalid session handle. */
+<span class="lineNum">    1346 </span><span class="lineNoCov">          0 :     if (!session || session-&gt;handle == CK_INVALID_SESSION) {</span>
+<span class="lineNum">    1347 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_TOKEN);</span>
+<span class="lineNum">    1348 </span><span class="lineNoCov">          0 :         return PR_FAILURE;</span>
+<span class="lineNum">    1349 </span>            :     }
+<span class="lineNum">    1350 </span>            : 
+<span class="lineNum">    1351 </span><span class="lineNoCov">          0 :     nssSession_EnterMonitor(session);</span>
+<span class="lineNum">    1352 </span><span class="lineNoCov">          0 :     ckrv = CKAPI(epv)-&gt;C_DigestUpdate(session-&gt;handle,</span>
+<span class="lineNum">    1353 </span><span class="lineNoCov">          0 :                                       (CK_BYTE_PTR)item-&gt;data,</span>
+<span class="lineNum">    1354 </span><span class="lineNoCov">          0 :                                       (CK_ULONG)item-&gt;size);</span>
+<span class="lineNum">    1355 </span><span class="lineNoCov">          0 :     nssSession_ExitMonitor(session);</span>
+<span class="lineNum">    1356 </span><span class="lineNoCov">          0 :     return (ckrv == CKR_OK) ? PR_SUCCESS : PR_FAILURE;</span>
+<span class="lineNum">    1357 </span>            : }
+<a name="1358"><span class="lineNum">    1358 </span>            : </a>
+<span class="lineNum">    1359 </span>            : NSS_IMPLEMENT NSSItem *
+<span class="lineNum">    1360 </span><span class="lineNoCov">          0 : nssToken_FinishDigest(</span>
+<span class="lineNum">    1361 </span>            :     NSSToken *tok,
+<span class="lineNum">    1362 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">    1363 </span>            :     NSSItem *rvOpt,
+<span class="lineNum">    1364 </span>            :     NSSArena *arenaOpt)
+<span class="lineNum">    1365 </span>            : {
+<span class="lineNum">    1366 </span>            :     CK_RV ckrv;
+<span class="lineNum">    1367 </span>            :     CK_ULONG digestLen;
+<span class="lineNum">    1368 </span>            :     CK_BYTE_PTR digest;
+<span class="lineNum">    1369 </span><span class="lineNoCov">          0 :     NSSItem *rvItem = NULL;</span>
+<span class="lineNum">    1370 </span><span class="lineNoCov">          0 :     void *epv = nssToken_GetCryptokiEPV(tok);</span>
+<span class="lineNum">    1371 </span><span class="lineNoCov">          0 :     nssSession *session = (sessionOpt) ? sessionOpt : tok-&gt;defaultSession;</span>
+<span class="lineNum">    1372 </span>            : 
+<span class="lineNum">    1373 </span>            :     /* Don't ask the module to use an invalid session handle. */
+<span class="lineNum">    1374 </span><span class="lineNoCov">          0 :     if (!session || session-&gt;handle == CK_INVALID_SESSION) {</span>
+<span class="lineNum">    1375 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_TOKEN);</span>
+<span class="lineNum">    1376 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">    1377 </span>            :     }
+<span class="lineNum">    1378 </span>            : 
+<span class="lineNum">    1379 </span><span class="lineNoCov">          0 :     nssSession_EnterMonitor(session);</span>
+<span class="lineNum">    1380 </span><span class="lineNoCov">          0 :     ckrv = CKAPI(epv)-&gt;C_DigestFinal(session-&gt;handle, NULL, &amp;digestLen);</span>
+<span class="lineNum">    1381 </span><span class="lineNoCov">          0 :     if (ckrv != CKR_OK || digestLen == 0) {</span>
+<span class="lineNum">    1382 </span><span class="lineNoCov">          0 :         nssSession_ExitMonitor(session);</span>
+<span class="lineNum">    1383 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">    1384 </span>            :     }
+<span class="lineNum">    1385 </span><span class="lineNoCov">          0 :     digest = NULL;</span>
+<span class="lineNum">    1386 </span><span class="lineNoCov">          0 :     if (rvOpt) {</span>
+<span class="lineNum">    1387 </span><span class="lineNoCov">          0 :         if (rvOpt-&gt;size &gt; 0 &amp;&amp; rvOpt-&gt;size &lt; digestLen) {</span>
+<span class="lineNum">    1388 </span><span class="lineNoCov">          0 :             nssSession_ExitMonitor(session);</span>
+<span class="lineNum">    1389 </span>            :             /* the error should be bad args */
+<span class="lineNum">    1390 </span><span class="lineNoCov">          0 :             return NULL;</span>
+<span class="lineNum">    1391 </span>            :         }
+<span class="lineNum">    1392 </span><span class="lineNoCov">          0 :         if (rvOpt-&gt;data) {</span>
+<span class="lineNum">    1393 </span><span class="lineNoCov">          0 :             digest = rvOpt-&gt;data;</span>
+<span class="lineNum">    1394 </span>            :         }
+<span class="lineNum">    1395 </span><span class="lineNoCov">          0 :         digestLen = rvOpt-&gt;size;</span>
+<span class="lineNum">    1396 </span>            :     }
+<span class="lineNum">    1397 </span><span class="lineNoCov">          0 :     if (!digest) {</span>
+<span class="lineNum">    1398 </span><span class="lineNoCov">          0 :         digest = (CK_BYTE_PTR)nss_ZAlloc(arenaOpt, digestLen);</span>
+<span class="lineNum">    1399 </span><span class="lineNoCov">          0 :         if (!digest) {</span>
+<span class="lineNum">    1400 </span><span class="lineNoCov">          0 :             nssSession_ExitMonitor(session);</span>
+<span class="lineNum">    1401 </span><span class="lineNoCov">          0 :             return NULL;</span>
+<span class="lineNum">    1402 </span>            :         }
+<span class="lineNum">    1403 </span>            :     }
+<span class="lineNum">    1404 </span><span class="lineNoCov">          0 :     ckrv = CKAPI(epv)-&gt;C_DigestFinal(session-&gt;handle, digest, &amp;digestLen);</span>
+<span class="lineNum">    1405 </span><span class="lineNoCov">          0 :     nssSession_ExitMonitor(session);</span>
+<span class="lineNum">    1406 </span><span class="lineNoCov">          0 :     if (ckrv != CKR_OK) {</span>
+<span class="lineNum">    1407 </span><span class="lineNoCov">          0 :         nss_ZFreeIf(digest);</span>
+<span class="lineNum">    1408 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">    1409 </span>            :     }
+<span class="lineNum">    1410 </span><span class="lineNoCov">          0 :     if (!rvOpt) {</span>
+<span class="lineNum">    1411 </span><span class="lineNoCov">          0 :         rvItem = nssItem_Create(arenaOpt, NULL, digestLen, (void *)digest);</span>
+<span class="lineNum">    1412 </span>            :     }
+<span class="lineNum">    1413 </span><span class="lineNoCov">          0 :     return rvItem;</span>
+<span class="lineNum">    1414 </span>            : }
+<a name="1415"><span class="lineNum">    1415 </span>            : </a>
+<span class="lineNum">    1416 </span>            : NSS_IMPLEMENT PRBool
+<span class="lineNum">    1417 </span><span class="lineCov">          1 : nssToken_IsPresent(</span>
+<span class="lineNum">    1418 </span>            :     NSSToken *token)
+<span class="lineNum">    1419 </span>            : {
+<span class="lineNum">    1420 </span><span class="lineCov">          1 :     return nssSlot_IsTokenPresent(token-&gt;slot);</span>
+<span class="lineNum">    1421 </span>            : }
+<span class="lineNum">    1422 </span>            : 
+<span class="lineNum">    1423 </span>            : /* Sigh.  The methods to find objects declared above cause problems with
+<span class="lineNum">    1424 </span>            :  * the low-level object cache in the softoken -- the objects are found in
+<span class="lineNum">    1425 </span>            :  * toto, then one wave of GetAttributes is done, then another.  Having a
+<span class="lineNum">    1426 </span>            :  * large number of objects causes the cache to be thrashed, as the objects
+<span class="lineNum">    1427 </span>            :  * are gone before there's any chance to ask for their attributes.
+<span class="lineNum">    1428 </span>            :  * So, for now, bringing back traversal methods for certs.  This way all of
+<span class="lineNum">    1429 </span>            :  * the cert's attributes can be grabbed immediately after finding it,
+<span class="lineNum">    1430 </span>            :  * increasing the likelihood that the cache takes care of it.
+<a name="1431"><span class="lineNum">    1431 </span>            :  */</a>
+<span class="lineNum">    1432 </span>            : NSS_IMPLEMENT PRStatus
+<span class="lineNum">    1433 </span><span class="lineCov">          1 : nssToken_TraverseCertificates(</span>
+<span class="lineNum">    1434 </span>            :     NSSToken *token,
+<span class="lineNum">    1435 </span>            :     nssSession *sessionOpt,
+<span class="lineNum">    1436 </span>            :     nssTokenSearchType searchType,
+<span class="lineNum">    1437 </span>            :     PRStatus (*callback)(nssCryptokiObject *instance, void *arg),
+<span class="lineNum">    1438 </span>            :     void *arg)
+<span class="lineNum">    1439 </span>            : {
+<span class="lineNum">    1440 </span>            :     CK_RV ckrv;
+<span class="lineNum">    1441 </span>            :     CK_ULONG count;
+<span class="lineNum">    1442 </span>            :     CK_OBJECT_HANDLE *objectHandles;
+<span class="lineNum">    1443 </span>            :     CK_ATTRIBUTE_PTR attr;
+<span class="lineNum">    1444 </span>            :     CK_ATTRIBUTE cert_template[2];
+<span class="lineNum">    1445 </span>            :     CK_ULONG ctsize;
+<span class="lineNum">    1446 </span>            :     NSSArena *arena;
+<span class="lineNum">    1447 </span>            :     PRUint32 arraySize, numHandles;
+<span class="lineNum">    1448 </span>            :     nssCryptokiObject **objects;
+<span class="lineNum">    1449 </span><span class="lineCov">          1 :     void *epv = nssToken_GetCryptokiEPV(token);</span>
+<span class="lineNum">    1450 </span><span class="lineCov">          1 :     nssSession *session = (sessionOpt) ? sessionOpt : token-&gt;defaultSession;</span>
+<span class="lineNum">    1451 </span>            : 
+<span class="lineNum">    1452 </span>            :     /* Don't ask the module to use an invalid session handle. */
+<span class="lineNum">    1453 </span><span class="lineCov">          1 :     if (!session || session-&gt;handle == CK_INVALID_SESSION) {</span>
+<span class="lineNum">    1454 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_TOKEN);</span>
+<span class="lineNum">    1455 </span><span class="lineNoCov">          0 :         return PR_FAILURE;</span>
+<span class="lineNum">    1456 </span>            :     }
+<span class="lineNum">    1457 </span>            : 
+<span class="lineNum">    1458 </span>            :     /* template for all certs */
+<span class="lineNum">    1459 </span><span class="lineCov">          1 :     NSS_CK_TEMPLATE_START(cert_template, attr, ctsize);</span>
+<span class="lineNum">    1460 </span><span class="lineCov">          1 :     if (searchType == nssTokenSearchType_SessionOnly) {</span>
+<span class="lineNum">    1461 </span><span class="lineNoCov">          0 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_false);</span>
+<span class="lineNum">    1462 </span><span class="lineCov">          1 :     } else if (searchType == nssTokenSearchType_TokenOnly ||</span>
+<span class="lineNum">    1463 </span>            :                searchType == nssTokenSearchType_TokenForced) {
+<span class="lineNum">    1464 </span><span class="lineCov">          1 :         NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_TOKEN, &amp;g_ck_true);</span>
+<span class="lineNum">    1465 </span>            :     }
+<span class="lineNum">    1466 </span><span class="lineCov">          1 :     NSS_CK_SET_ATTRIBUTE_ITEM(attr, CKA_CLASS, &amp;g_ck_class_cert);</span>
+<span class="lineNum">    1467 </span><span class="lineCov">          1 :     NSS_CK_TEMPLATE_FINISH(cert_template, attr, ctsize);</span>
+<span class="lineNum">    1468 </span>            : 
+<span class="lineNum">    1469 </span>            :     /* the arena is only for the array of object handles */
+<span class="lineNum">    1470 </span><span class="lineCov">          1 :     arena = nssArena_Create();</span>
+<span class="lineNum">    1471 </span><span class="lineCov">          1 :     if (!arena) {</span>
+<span class="lineNum">    1472 </span>            :         return PR_FAILURE;
+<span class="lineNum">    1473 </span>            :     }
+<span class="lineNum">    1474 </span><span class="lineCov">          1 :     arraySize = OBJECT_STACK_SIZE;</span>
+<span class="lineNum">    1475 </span><span class="lineCov">          1 :     numHandles = 0;</span>
+<span class="lineNum">    1476 </span><span class="lineCov">          1 :     objectHandles = nss_ZNEWARRAY(arena, CK_OBJECT_HANDLE, arraySize);</span>
+<span class="lineNum">    1477 </span><span class="lineCov">          1 :     if (!objectHandles) {</span>
+<span class="lineNum">    1478 </span>            :         goto loser;
+<span class="lineNum">    1479 </span>            :     }
+<span class="lineNum">    1480 </span><span class="lineCov">          1 :     nssSession_EnterMonitor(session); /* ==== session lock === */</span>
+<span class="lineNum">    1481 </span>            :     /* Initialize the find with the template */
+<span class="lineNum">    1482 </span><span class="lineCov">          1 :     ckrv = CKAPI(epv)-&gt;C_FindObjectsInit(session-&gt;handle,</span>
+<span class="lineNum">    1483 </span>            :                                          cert_template, ctsize);
+<span class="lineNum">    1484 </span><span class="lineCov">          1 :     if (ckrv != CKR_OK) {</span>
+<span class="lineNum">    1485 </span><span class="lineNoCov">          0 :         nssSession_ExitMonitor(session);</span>
+<span class="lineNum">    1486 </span><span class="lineNoCov">          0 :         goto loser;</span>
+<span class="lineNum">    1487 </span>            :     }
+<span class="lineNum">    1488 </span>            :     while (PR_TRUE) {
+<span class="lineNum">    1489 </span>            :         /* Issue the find for up to arraySize - numHandles objects */
+<span class="lineNum">    1490 </span><span class="lineCov">          1 :         ckrv = CKAPI(epv)-&gt;C_FindObjects(session-&gt;handle,</span>
+<span class="lineNum">    1491 </span><span class="lineCov">          1 :                                          objectHandles + numHandles,</span>
+<span class="lineNum">    1492 </span><span class="lineCov">          1 :                                          arraySize - numHandles,</span>
+<span class="lineNum">    1493 </span>            :                                          &amp;count);
+<span class="lineNum">    1494 </span><span class="lineCov">          1 :         if (ckrv != CKR_OK) {</span>
+<span class="lineNum">    1495 </span><span class="lineNoCov">          0 :             nssSession_ExitMonitor(session);</span>
+<span class="lineNum">    1496 </span><span class="lineNoCov">          0 :             goto loser;</span>
+<span class="lineNum">    1497 </span>            :         }
+<span class="lineNum">    1498 </span>            :         /* bump the number of found objects */
+<span class="lineNum">    1499 </span><span class="lineCov">          1 :         numHandles += count;</span>
+<span class="lineNum">    1500 </span><span class="lineCov">          1 :         if (numHandles &lt; arraySize) {</span>
+<span class="lineNum">    1501 </span>            :             break;
+<span class="lineNum">    1502 </span>            :         }
+<span class="lineNum">    1503 </span>            :         /* the array is filled, double it and continue */
+<span class="lineNum">    1504 </span><span class="lineCov">          1 :         arraySize *= 2;</span>
+<span class="lineNum">    1505 </span><span class="lineCov">          1 :         objectHandles = nss_ZREALLOCARRAY(objectHandles,</span>
+<span class="lineNum">    1506 </span>            :                                           CK_OBJECT_HANDLE,
+<span class="lineNum">    1507 </span>            :                                           arraySize);
+<span class="lineNum">    1508 </span><span class="lineCov">          1 :         if (!objectHandles) {</span>
+<span class="lineNum">    1509 </span><span class="lineNoCov">          0 :             nssSession_ExitMonitor(session);</span>
+<span class="lineNum">    1510 </span><span class="lineNoCov">          0 :             goto loser;</span>
+<span class="lineNum">    1511 </span>            :         }
+<span class="lineNum">    1512 </span>            :     }
+<span class="lineNum">    1513 </span><span class="lineCov">          1 :     ckrv = CKAPI(epv)-&gt;C_FindObjectsFinal(session-&gt;handle);</span>
+<span class="lineNum">    1514 </span><span class="lineCov">          1 :     nssSession_ExitMonitor(session); /* ==== end session lock === */</span>
+<span class="lineNum">    1515 </span><span class="lineCov">          1 :     if (ckrv != CKR_OK) {</span>
+<span class="lineNum">    1516 </span>            :         goto loser;
+<span class="lineNum">    1517 </span>            :     }
+<span class="lineNum">    1518 </span><span class="lineCov">          1 :     if (numHandles &gt; 0) {</span>
+<span class="lineNum">    1519 </span><span class="lineCov">          1 :         objects = create_objects_from_handles(token, session,</span>
+<span class="lineNum">    1520 </span>            :                                               objectHandles, numHandles);
+<span class="lineNum">    1521 </span><span class="lineCov">          1 :         if (objects) {</span>
+<span class="lineNum">    1522 </span>            :             nssCryptokiObject **op;
+<span class="lineNum">    1523 </span><span class="lineCov">          1 :             for (op = objects; *op; op++) {</span>
+<span class="lineNum">    1524 </span><span class="lineCov">          1 :                 (void)(*callback)(*op, arg);</span>
+<span class="lineNum">    1525 </span>            :             }
+<span class="lineNum">    1526 </span><span class="lineCov">          1 :             nss_ZFreeIf(objects);</span>
+<span class="lineNum">    1527 </span>            :         }
+<span class="lineNum">    1528 </span>            :     }
+<span class="lineNum">    1529 </span><span class="lineCov">          1 :     nssArena_Destroy(arena);</span>
+<span class="lineNum">    1530 </span><span class="lineCov">          1 :     return PR_SUCCESS;</span>
+<span class="lineNum">    1531 </span>            : loser:
+<span class="lineNum">    1532 </span><span class="lineNoCov">          0 :     nssArena_Destroy(arena);</span>
+<span class="lineNum">    1533 </span><span class="lineNoCov">          0 :     return PR_FAILURE;</span>
+<span class="lineNum">    1534 </span>            : }
+<a name="1535"><span class="lineNum">    1535 </span>            : </a>
+<span class="lineNum">    1536 </span>            : NSS_IMPLEMENT PRBool
+<span class="lineNum">    1537 </span><span class="lineCov">          1 : nssToken_IsPrivateKeyAvailable(</span>
+<span class="lineNum">    1538 </span>            :     NSSToken *token,
+<span class="lineNum">    1539 </span>            :     NSSCertificate *c,
+<span class="lineNum">    1540 </span>            :     nssCryptokiObject *instance)
+<span class="lineNum">    1541 </span>            : {
+<span class="lineNum">    1542 </span>            :     CK_OBJECT_CLASS theClass;
+<span class="lineNum">    1543 </span>            : 
+<span class="lineNum">    1544 </span><span class="lineCov">          1 :     if (token == NULL)</span>
+<span class="lineNum">    1545 </span>            :         return PR_FALSE;
+<span class="lineNum">    1546 </span><span class="lineCov">          1 :     if (c == NULL)</span>
+<span class="lineNum">    1547 </span>            :         return PR_FALSE;
+<span class="lineNum">    1548 </span>            : 
+<span class="lineNum">    1549 </span><span class="lineCov">          1 :     theClass = CKO_PRIVATE_KEY;</span>
+<span class="lineNum">    1550 </span><span class="lineCov">          1 :     if (!nssSlot_IsLoggedIn(token-&gt;slot)) {</span>
+<span class="lineNum">    1551 </span><span class="lineCov">          1 :         theClass = CKO_PUBLIC_KEY;</span>
+<span class="lineNum">    1552 </span>            :     }
+<span class="lineNum">    1553 </span><span class="lineCov">          1 :     if (PK11_MatchItem(token-&gt;pk11slot, instance-&gt;handle, theClass) !=</span>
+<span class="lineNum">    1554 </span>            :         CK_INVALID_HANDLE) {
+<span class="lineNum">    1555 </span>            :         return PR_TRUE;
+<span class="lineNum">    1556 </span>            :     }
+<span class="lineNum">    1557 </span><span class="lineCov">          1 :     return PR_FALSE;</span>
+<span class="lineNum">    1558 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

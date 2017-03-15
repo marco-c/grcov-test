@@ -1,0 +1,1255 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/js/src/vm/TypeInference-inl.h</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">gecko-dev/js/src/vm</a> - TypeInference-inl.h<span style="font-size: 80%;"> (source / <a href="TypeInference-inl.h.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">368</td>
+            <td class="headerCovTableEntry">398</td>
+            <td class="headerCovTableEntryHi">92.5 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">61</td>
+            <td class="headerCovTableEntry">73</td>
+            <td class="headerCovTableEntryMed">83.6 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-</a>
+<span class="lineNum">       2 </span>            :  * vim: set ts=8 sts=4 et sw=4 tw=99:
+<span class="lineNum">       3 </span>            :  * This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : /* Inline members for javascript type inference. */
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #ifndef vm_TypeInference_inl_h
+<span class="lineNum">      10 </span>            : #define vm_TypeInference_inl_h
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : #include &quot;vm/TypeInference.h&quot;
+<span class="lineNum">      13 </span>            : 
+<span class="lineNum">      14 </span>            : #include &quot;mozilla/BinarySearch.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;mozilla/Casting.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;mozilla/PodOperations.h&quot;
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : #include &quot;builtin/SymbolObject.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;jit/BaselineJIT.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;vm/ArrayObject.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;vm/BooleanObject.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;vm/NumberObject.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;vm/SharedArrayObject.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;vm/StringObject.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;vm/TypedArrayObject.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;vm/UnboxedObject.h&quot;
+<span class="lineNum">      27 </span>            : 
+<span class="lineNum">      28 </span>            : #include &quot;jscntxtinlines.h&quot;
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #include &quot;vm/ObjectGroup-inl.h&quot;
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : namespace js {
+<span class="lineNum">      33 </span>            : 
+<span class="lineNum">      34 </span>            : /////////////////////////////////////////////////////////////////////
+<span class="lineNum">      35 </span>            : // CompilerOutput &amp; RecompileInfo
+<span class="lineNum">      36 </span>            : /////////////////////////////////////////////////////////////////////
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : inline jit::IonScript*
+<span class="lineNum">      39 </span>            : CompilerOutput::ion() const
+<span class="lineNum">      40 </span>            : {
+<span class="lineNum">      41 </span>            :     // Note: If type constraints are generated before compilation has finished
+<span class="lineNum">      42 </span>            :     // (i.e. after IonBuilder but before CodeGenerator::link) then a valid
+<span class="lineNum">      43 </span>            :     // CompilerOutput may not yet have an associated IonScript.
+<span class="lineNum">      44 </span>            :     MOZ_ASSERT(isValid());
+<span class="lineNum">      45 </span><span class="lineCov">          1 :     jit::IonScript* ion = script()-&gt;maybeIonScript();</span>
+<span class="lineNum">      46 </span>            :     MOZ_ASSERT(ion != ION_COMPILING_SCRIPT);
+<span class="lineNum">      47 </span>            :     return ion;
+<span class="lineNum">      48 </span>            : }
+<a name="49"><span class="lineNum">      49 </span>            : </a>
+<span class="lineNum">      50 </span>            : inline CompilerOutput*
+<span class="lineNum">      51 </span><span class="lineCov">          1 : RecompileInfo::compilerOutput(TypeZone&amp; types) const</span>
+<span class="lineNum">      52 </span>            : {
+<span class="lineNum">      53 </span><span class="lineCov">          1 :     if (generation != types.generation) {</span>
+<span class="lineNum">      54 </span><span class="lineCov">          1 :         if (!types.sweepCompilerOutputs || outputIndex &gt;= types.sweepCompilerOutputs-&gt;length())</span>
+<span class="lineNum">      55 </span>            :             return nullptr;
+<span class="lineNum">      56 </span><span class="lineCov">          1 :         CompilerOutput* output = &amp;(*types.sweepCompilerOutputs)[outputIndex];</span>
+<span class="lineNum">      57 </span><span class="lineCov">          1 :         if (!output-&gt;isValid())</span>
+<span class="lineNum">      58 </span>            :             return nullptr;
+<span class="lineNum">      59 </span><span class="lineCov">          1 :         output = &amp;(*types.compilerOutputs)[output-&gt;sweepIndex()];</span>
+<span class="lineNum">      60 </span><span class="lineCov">          1 :         return output-&gt;isValid() ? output : nullptr;</span>
+<span class="lineNum">      61 </span>            :     }
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span><span class="lineCov">          1 :     if (!types.compilerOutputs || outputIndex &gt;= types.compilerOutputs-&gt;length())</span>
+<span class="lineNum">      64 </span>            :         return nullptr;
+<span class="lineNum">      65 </span><span class="lineCov">          1 :     CompilerOutput* output = &amp;(*types.compilerOutputs)[outputIndex];</span>
+<span class="lineNum">      66 </span><span class="lineCov">          1 :     return output-&gt;isValid() ? output : nullptr;</span>
+<span class="lineNum">      67 </span>            : }
+<span class="lineNum">      68 </span>            : 
+<span class="lineNum">      69 </span>            : inline CompilerOutput*
+<span class="lineNum">      70 </span>            : RecompileInfo::compilerOutput(JSContext* cx) const
+<span class="lineNum">      71 </span>            : {
+<span class="lineNum">      72 </span><span class="lineCov">          1 :     return compilerOutput(cx-&gt;zone()-&gt;types);</span>
+<span class="lineNum">      73 </span>            : }
+<a name="74"><span class="lineNum">      74 </span>            : </a>
+<span class="lineNum">      75 </span>            : inline bool
+<span class="lineNum">      76 </span><span class="lineCov">          1 : RecompileInfo::shouldSweep(TypeZone&amp; types)</span>
+<span class="lineNum">      77 </span>            : {
+<span class="lineNum">      78 </span><span class="lineCov">          1 :     CompilerOutput* output = compilerOutput(types);</span>
+<span class="lineNum">      79 </span><span class="lineCov">          1 :     if (!output || !output-&gt;isValid())</span>
+<span class="lineNum">      80 </span>            :         return true;
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            :     // If this info is for a compilation that occurred after sweeping started,
+<span class="lineNum">      83 </span>            :     // the index is already correct.
+<span class="lineNum">      84 </span>            :     MOZ_ASSERT_IF(generation == types.generation,
+<span class="lineNum">      85 </span>            :                   outputIndex == output - types.compilerOutputs-&gt;begin());
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span>            :     // Update this info for the output's index in the zone's compiler outputs.
+<span class="lineNum">      88 </span><span class="lineCov">          1 :     outputIndex = output - types.compilerOutputs-&gt;begin();</span>
+<span class="lineNum">      89 </span><span class="lineCov">          1 :     generation = types.generation;</span>
+<span class="lineNum">      90 </span><span class="lineCov">          1 :     return false;</span>
+<span class="lineNum">      91 </span>            : }
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span>            : /////////////////////////////////////////////////////////////////////
+<span class="lineNum">      94 </span>            : // Types
+<span class="lineNum">      95 </span>            : /////////////////////////////////////////////////////////////////////
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span>            : /* static */ inline TypeSet::ObjectKey*
+<span class="lineNum">      98 </span>            : TypeSet::ObjectKey::get(JSObject* obj)
+<span class="lineNum">      99 </span>            : {
+<span class="lineNum">     100 </span>            :     MOZ_ASSERT(obj);
+<span class="lineNum">     101 </span><span class="lineCov">          1 :     if (obj-&gt;isSingleton())</span>
+<span class="lineNum">     102 </span><span class="lineCov">          1 :         return (ObjectKey*) (uintptr_t(obj) | 1);</span>
+<span class="lineNum">     103 </span>            :     return (ObjectKey*) obj-&gt;group();
+<span class="lineNum">     104 </span>            : }
+<span class="lineNum">     105 </span>            : 
+<span class="lineNum">     106 </span>            : /* static */ inline TypeSet::ObjectKey*
+<span class="lineNum">     107 </span>            : TypeSet::ObjectKey::get(ObjectGroup* group)
+<span class="lineNum">     108 </span>            : {
+<span class="lineNum">     109 </span>            :     MOZ_ASSERT(group);
+<span class="lineNum">     110 </span><span class="lineCov">          1 :     if (group-&gt;singleton())</span>
+<span class="lineNum">     111 </span>            :         return (ObjectKey*) (uintptr_t(group-&gt;singleton()) | 1);
+<span class="lineNum">     112 </span>            :     return (ObjectKey*) group;
+<span class="lineNum">     113 </span>            : }
+<span class="lineNum">     114 </span>            : 
+<span class="lineNum">     115 </span>            : inline ObjectGroup*
+<span class="lineNum">     116 </span>            : TypeSet::ObjectKey::groupNoBarrier()
+<span class="lineNum">     117 </span>            : {
+<span class="lineNum">     118 </span>            :     MOZ_ASSERT(isGroup());
+<span class="lineNum">     119 </span>            :     return (ObjectGroup*) this;
+<span class="lineNum">     120 </span>            : }
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span>            : inline JSObject*
+<span class="lineNum">     123 </span>            : TypeSet::ObjectKey::singletonNoBarrier()
+<span class="lineNum">     124 </span>            : {
+<span class="lineNum">     125 </span>            :     MOZ_ASSERT(isSingleton());
+<span class="lineNum">     126 </span><span class="lineCov">          1 :     return (JSObject*) (uintptr_t(this) &amp; ~1);</span>
+<span class="lineNum">     127 </span>            : }
+<a name="128"><span class="lineNum">     128 </span>            : </a>
+<span class="lineNum">     129 </span>            : inline ObjectGroup*
+<span class="lineNum">     130 </span><span class="lineCov">          1 : TypeSet::ObjectKey::group()</span>
+<span class="lineNum">     131 </span>            : {
+<span class="lineNum">     132 </span><span class="lineCov">          1 :     ObjectGroup* res = groupNoBarrier();</span>
+<span class="lineNum">     133 </span>            :     ObjectGroup::readBarrier(res);
+<span class="lineNum">     134 </span><span class="lineCov">          1 :     return res;</span>
+<span class="lineNum">     135 </span>            : }
+<a name="136"><span class="lineNum">     136 </span>            : </a>
+<span class="lineNum">     137 </span>            : inline JSObject*
+<span class="lineNum">     138 </span><span class="lineCov">          1 : TypeSet::ObjectKey::singleton()</span>
+<span class="lineNum">     139 </span>            : {
+<span class="lineNum">     140 </span><span class="lineCov">          1 :     JSObject* res = singletonNoBarrier();</span>
+<span class="lineNum">     141 </span>            :     JSObject::readBarrier(res);
+<span class="lineNum">     142 </span><span class="lineCov">          1 :     return res;</span>
+<span class="lineNum">     143 </span>            : }
+<a name="144"><span class="lineNum">     144 </span>            : </a>
+<span class="lineNum">     145 </span>            : inline JSCompartment*
+<span class="lineNum">     146 </span><span class="lineNoCov">          0 : TypeSet::ObjectKey::maybeCompartment()</span>
+<span class="lineNum">     147 </span>            : {
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 :     if (isSingleton())</span>
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :         return singleton()-&gt;compartment();</span>
+<span class="lineNum">     150 </span>            : 
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :     return group()-&gt;compartment();</span>
+<span class="lineNum">     152 </span>            : }
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span>            : /* static */ inline TypeSet::Type
+<span class="lineNum">     155 </span>            : TypeSet::ObjectType(JSObject* obj)
+<span class="lineNum">     156 </span>            : {
+<span class="lineNum">     157 </span><span class="lineCov">          1 :     if (obj-&gt;isSingleton())</span>
+<span class="lineNum">     158 </span><span class="lineCov">          1 :         return Type(uintptr_t(obj) | 1);</span>
+<span class="lineNum">     159 </span><span class="lineCov">          1 :     return Type(uintptr_t(obj-&gt;group()));</span>
+<span class="lineNum">     160 </span>            : }
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span>            : /* static */ inline TypeSet::Type
+<span class="lineNum">     163 </span>            : TypeSet::ObjectType(ObjectGroup* group)
+<span class="lineNum">     164 </span>            : {
+<span class="lineNum">     165 </span><span class="lineCov">          1 :     if (group-&gt;singleton())</span>
+<span class="lineNum">     166 </span>            :         return Type(uintptr_t(group-&gt;singleton()) | 1);
+<span class="lineNum">     167 </span><span class="lineCov">          1 :     return Type(uintptr_t(group));</span>
+<span class="lineNum">     168 </span>            : }
+<span class="lineNum">     169 </span>            : 
+<span class="lineNum">     170 </span>            : /* static */ inline TypeSet::Type
+<span class="lineNum">     171 </span>            : TypeSet::ObjectType(ObjectKey* obj)
+<span class="lineNum">     172 </span>            : {
+<span class="lineNum">     173 </span><span class="lineCov">          1 :     return Type(uintptr_t(obj));</span>
+<span class="lineNum">     174 </span>            : }
+<a name="175"><span class="lineNum">     175 </span>            : </a>
+<span class="lineNum">     176 </span>            : inline TypeSet::Type
+<span class="lineNum">     177 </span><span class="lineCov">          1 : TypeSet::GetValueType(const Value&amp; val)</span>
+<span class="lineNum">     178 </span>            : {
+<span class="lineNum">     179 </span><span class="lineCov">          1 :     if (val.isDouble())</span>
+<span class="lineNum">     180 </span>            :         return TypeSet::DoubleType();
+<span class="lineNum">     181 </span><span class="lineCov">          1 :     if (val.isObject())</span>
+<span class="lineNum">     182 </span><span class="lineCov">          1 :         return TypeSet::ObjectType(&amp;val.toObject());</span>
+<span class="lineNum">     183 </span>            :     return TypeSet::PrimitiveType(val.extractNonDoubleType());
+<span class="lineNum">     184 </span>            : }
+<span class="lineNum">     185 </span>            : 
+<span class="lineNum">     186 </span>            : inline bool
+<span class="lineNum">     187 </span>            : TypeSet::IsUntrackedValue(const Value&amp; val)
+<span class="lineNum">     188 </span>            : {
+<span class="lineNum">     189 </span><span class="lineCov">          1 :     return val.isMagic() &amp;&amp; (val.whyMagic() == JS_OPTIMIZED_OUT ||</span>
+<span class="lineNum">     190 </span><span class="lineCov">          1 :                              val.whyMagic() == JS_UNINITIALIZED_LEXICAL);</span>
+<span class="lineNum">     191 </span>            : }
+<a name="192"><span class="lineNum">     192 </span>            : </a>
+<span class="lineNum">     193 </span>            : inline TypeSet::Type
+<span class="lineNum">     194 </span><span class="lineCov">          1 : TypeSet::GetMaybeUntrackedValueType(const Value&amp; val)</span>
+<span class="lineNum">     195 </span>            : {
+<span class="lineNum">     196 </span><span class="lineCov">          1 :     return IsUntrackedValue(val) ? UnknownType() : GetValueType(val);</span>
+<span class="lineNum">     197 </span>            : }
+<a name="198"><span class="lineNum">     198 </span>            : </a>
+<span class="lineNum">     199 </span>            : inline TypeFlags
+<span class="lineNum">     200 </span><span class="lineCov">          1 : PrimitiveTypeFlag(JSValueType type)</span>
+<span class="lineNum">     201 </span>            : {
+<span class="lineNum">     202 </span><span class="lineCov">          1 :     switch (type) {</span>
+<span class="lineNum">     203 </span>            :       case JSVAL_TYPE_UNDEFINED:
+<span class="lineNum">     204 </span>            :         return TYPE_FLAG_UNDEFINED;
+<span class="lineNum">     205 </span>            :       case JSVAL_TYPE_NULL:
+<span class="lineNum">     206 </span><span class="lineCov">          1 :         return TYPE_FLAG_NULL;</span>
+<span class="lineNum">     207 </span>            :       case JSVAL_TYPE_BOOLEAN:
+<span class="lineNum">     208 </span><span class="lineCov">          1 :         return TYPE_FLAG_BOOLEAN;</span>
+<span class="lineNum">     209 </span>            :       case JSVAL_TYPE_INT32:
+<span class="lineNum">     210 </span><span class="lineCov">          1 :         return TYPE_FLAG_INT32;</span>
+<span class="lineNum">     211 </span>            :       case JSVAL_TYPE_DOUBLE:
+<span class="lineNum">     212 </span><span class="lineCov">          1 :         return TYPE_FLAG_DOUBLE;</span>
+<span class="lineNum">     213 </span>            :       case JSVAL_TYPE_STRING:
+<span class="lineNum">     214 </span><span class="lineCov">          1 :         return TYPE_FLAG_STRING;</span>
+<span class="lineNum">     215 </span>            :       case JSVAL_TYPE_SYMBOL:
+<span class="lineNum">     216 </span><span class="lineCov">          1 :         return TYPE_FLAG_SYMBOL;</span>
+<span class="lineNum">     217 </span>            :       case JSVAL_TYPE_MAGIC:
+<span class="lineNum">     218 </span><span class="lineCov">          1 :         return TYPE_FLAG_LAZYARGS;</span>
+<span class="lineNum">     219 </span>            :       default:
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 :         MOZ_CRASH(&quot;Bad JSValueType&quot;);</span>
+<span class="lineNum">     221 </span>            :     }
+<span class="lineNum">     222 </span>            : }
+<a name="223"><span class="lineNum">     223 </span>            : </a>
+<span class="lineNum">     224 </span>            : inline JSValueType
+<span class="lineNum">     225 </span><span class="lineCov">          1 : TypeFlagPrimitive(TypeFlags flags)</span>
+<span class="lineNum">     226 </span>            : {
+<span class="lineNum">     227 </span><span class="lineCov">          1 :     switch (flags) {</span>
+<span class="lineNum">     228 </span>            :       case TYPE_FLAG_UNDEFINED:
+<span class="lineNum">     229 </span>            :         return JSVAL_TYPE_UNDEFINED;
+<span class="lineNum">     230 </span>            :       case TYPE_FLAG_NULL:
+<span class="lineNum">     231 </span><span class="lineCov">          1 :         return JSVAL_TYPE_NULL;</span>
+<span class="lineNum">     232 </span>            :       case TYPE_FLAG_BOOLEAN:
+<span class="lineNum">     233 </span><span class="lineCov">          1 :         return JSVAL_TYPE_BOOLEAN;</span>
+<span class="lineNum">     234 </span>            :       case TYPE_FLAG_INT32:
+<span class="lineNum">     235 </span><span class="lineCov">          1 :         return JSVAL_TYPE_INT32;</span>
+<span class="lineNum">     236 </span>            :       case TYPE_FLAG_DOUBLE:
+<span class="lineNum">     237 </span><span class="lineCov">          1 :         return JSVAL_TYPE_DOUBLE;</span>
+<span class="lineNum">     238 </span>            :       case TYPE_FLAG_STRING:
+<span class="lineNum">     239 </span><span class="lineCov">          1 :         return JSVAL_TYPE_STRING;</span>
+<span class="lineNum">     240 </span>            :       case TYPE_FLAG_SYMBOL:
+<span class="lineNum">     241 </span><span class="lineCov">          1 :         return JSVAL_TYPE_SYMBOL;</span>
+<span class="lineNum">     242 </span>            :       case TYPE_FLAG_LAZYARGS:
+<span class="lineNum">     243 </span><span class="lineCov">          1 :         return JSVAL_TYPE_MAGIC;</span>
+<span class="lineNum">     244 </span>            :       default:
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :         MOZ_CRASH(&quot;Bad TypeFlags&quot;);</span>
+<span class="lineNum">     246 </span>            :     }
+<span class="lineNum">     247 </span>            : }
+<span class="lineNum">     248 </span>            : 
+<span class="lineNum">     249 </span>            : /*
+<span class="lineNum">     250 </span>            :  * Get the canonical representation of an id to use when doing inference.  This
+<span class="lineNum">     251 </span>            :  * maintains the constraint that if two different jsids map to the same property
+<span class="lineNum">     252 </span>            :  * in JS (e.g. 3 and &quot;3&quot;), they have the same type representation.
+<span class="lineNum">     253 </span>            :  */
+<span class="lineNum">     254 </span>            : inline jsid
+<span class="lineNum">     255 </span>            : IdToTypeId(jsid id)
+<span class="lineNum">     256 </span>            : {
+<span class="lineNum">     257 </span>            :     MOZ_ASSERT(!JSID_IS_EMPTY(id));
+<span class="lineNum">     258 </span>            : 
+<span class="lineNum">     259 </span>            :     // All properties which can be stored in an object's dense elements must
+<span class="lineNum">     260 </span>            :     // map to the aggregate property for index types.
+<span class="lineNum">     261 </span><span class="lineCov">          1 :     return JSID_IS_INT(id) ? JSID_VOID : id;</span>
+<span class="lineNum">     262 </span>            : }
+<span class="lineNum">     263 </span>            : 
+<span class="lineNum">     264 </span>            : const char * TypeIdStringImpl(jsid id);
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span>            : /* Convert an id for printing during debug. */
+<span class="lineNum">     267 </span>            : static inline const char*
+<span class="lineNum">     268 </span>            : TypeIdString(jsid id)
+<span class="lineNum">     269 </span>            : {
+<span class="lineNum">     270 </span>            : #ifdef DEBUG
+<span class="lineNum">     271 </span>            :     return TypeIdStringImpl(id);
+<span class="lineNum">     272 </span>            : #else
+<span class="lineNum">     273 </span>            :     return &quot;(missing)&quot;;
+<span class="lineNum">     274 </span>            : #endif
+<span class="lineNum">     275 </span>            : }
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span>            : /*
+<span class="lineNum">     278 </span>            :  * Structure for type inference entry point functions. All functions which can
+<span class="lineNum">     279 </span>            :  * change type information must use this, and functions which depend on
+<span class="lineNum">     280 </span>            :  * intermediate types (i.e. JITs) can use this to ensure that intermediate
+<span class="lineNum">     281 </span>            :  * information is not collected and does not change.
+<span class="lineNum">     282 </span>            :  *
+<span class="lineNum">     283 </span>            :  * Ensures that GC cannot occur. Does additional sanity checking that inference
+<span class="lineNum">     284 </span>            :  * is not reentrant and that recompilations occur properly.
+<span class="lineNum">     285 </span>            :  */
+<span class="lineNum">     286 </span>            : struct AutoEnterAnalysis
+<span class="lineNum">     287 </span>            : {
+<span class="lineNum">     288 </span>            :     // For use when initializing an UnboxedLayout.  The UniquePtr's destructor
+<span class="lineNum">     289 </span>            :     // must run when GC is not suppressed.
+<span class="lineNum">     290 </span>            :     UniquePtr&lt;UnboxedLayout&gt; unboxedLayoutToCleanUp;
+<span class="lineNum">     291 </span>            : 
+<span class="lineNum">     292 </span>            :     // Prevent GC activity in the middle of analysis.
+<span class="lineNum">     293 </span>            :     gc::AutoSuppressGC suppressGC;
+<span class="lineNum">     294 </span>            : 
+<span class="lineNum">     295 </span>            :     // Allow clearing inference info on OOM during incremental sweeping.
+<span class="lineNum">     296 </span>            :     mozilla::Maybe&lt;AutoClearTypeInferenceStateOnOOM&gt; oom;
+<span class="lineNum">     297 </span>            : 
+<span class="lineNum">     298 </span>            :     // Pending recompilations to perform before execution of JIT code can resume.
+<span class="lineNum">     299 </span>            :     RecompileInfoVector pendingRecompiles;
+<span class="lineNum">     300 </span>            : 
+<span class="lineNum">     301 </span>            :     // Prevent us from calling the objectMetadataCallback.
+<span class="lineNum">     302 </span>            :     js::AutoSuppressAllocationMetadataBuilder suppressMetadata;
+<span class="lineNum">     303 </span>            : 
+<span class="lineNum">     304 </span>            :     FreeOp* freeOp;
+<a name="305"><span class="lineNum">     305 </span>            :     Zone* zone;</a>
+<span class="lineNum">     306 </span>            : 
+<span class="lineNum">     307 </span><span class="lineCov">          1 :     explicit AutoEnterAnalysis(JSContext* cx)</span>
+<span class="lineNum">     308 </span><span class="lineCov">          1 :       : suppressGC(cx), suppressMetadata(cx)</span>
+<span class="lineNum">     309 </span>            :     {
+<span class="lineNum">     310 </span><span class="lineCov">          1 :         init(cx-&gt;defaultFreeOp(), cx-&gt;zone());</span>
+<a name="311"><span class="lineNum">     311 </span><span class="lineCov">          1 :     }</span></a>
+<span class="lineNum">     312 </span>            : 
+<span class="lineNum">     313 </span><span class="lineCov">          1 :     AutoEnterAnalysis(FreeOp* fop, Zone* zone)</span>
+<span class="lineNum">     314 </span>            :       : suppressGC(TlsContext.get()),
+<span class="lineNum">     315 </span><span class="lineCov">          1 :         suppressMetadata(zone)</span>
+<span class="lineNum">     316 </span>            :     {
+<span class="lineNum">     317 </span><span class="lineCov">          1 :         init(fop, zone);</span>
+<a name="318"><span class="lineNum">     318 </span><span class="lineCov">          1 :     }</span></a>
+<span class="lineNum">     319 </span>            : 
+<span class="lineNum">     320 </span><span class="lineCov">          1 :     ~AutoEnterAnalysis()</span>
+<span class="lineNum">     321 </span><span class="lineCov">          1 :     {</span>
+<span class="lineNum">     322 </span><span class="lineCov">          1 :         if (this != zone-&gt;types.activeAnalysis)</span>
+<span class="lineNum">     323 </span>            :             return;
+<span class="lineNum">     324 </span>            : 
+<span class="lineNum">     325 </span><span class="lineCov">          1 :         zone-&gt;types.activeAnalysis = nullptr;</span>
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span><span class="lineCov">          1 :         if (!pendingRecompiles.empty())</span>
+<span class="lineNum">     328 </span><span class="lineCov">          1 :             zone-&gt;types.processPendingRecompiles(freeOp, pendingRecompiles);</span>
+<span class="lineNum">     329 </span><span class="lineCov">          1 :     }</span>
+<a name="330"><span class="lineNum">     330 </span>            : </a>
+<span class="lineNum">     331 </span>            :   private:
+<span class="lineNum">     332 </span><span class="lineCov">          1 :     void init(FreeOp* fop, Zone* zone) {</span>
+<span class="lineNum">     333 </span>            : #ifdef JS_CRASH_DIAGNOSTICS
+<span class="lineNum">     334 </span><span class="lineCov">          1 :         MOZ_RELEASE_ASSERT(CurrentThreadCanAccessZone(zone));</span>
+<span class="lineNum">     335 </span>            : #endif
+<span class="lineNum">     336 </span><span class="lineCov">          1 :         this-&gt;freeOp = fop;</span>
+<span class="lineNum">     337 </span><span class="lineCov">          1 :         this-&gt;zone = zone;</span>
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span><span class="lineCov">          1 :         if (!zone-&gt;types.activeAnalysis) {</span>
+<span class="lineNum">     340 </span><span class="lineCov">          1 :             MOZ_RELEASE_ASSERT(!zone-&gt;types.sweepingTypes);</span>
+<span class="lineNum">     341 </span><span class="lineCov">          1 :             zone-&gt;types.activeAnalysis = this;</span>
+<span class="lineNum">     342 </span>            :         }
+<span class="lineNum">     343 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     344 </span>            : };
+<span class="lineNum">     345 </span>            : 
+<span class="lineNum">     346 </span>            : /////////////////////////////////////////////////////////////////////
+<span class="lineNum">     347 </span>            : // Interface functions
+<span class="lineNum">     348 </span>            : /////////////////////////////////////////////////////////////////////
+<span class="lineNum">     349 </span>            : 
+<span class="lineNum">     350 </span>            : void MarkIteratorUnknownSlow(JSContext* cx);
+<span class="lineNum">     351 </span>            : 
+<span class="lineNum">     352 </span>            : void TypeMonitorCallSlow(JSContext* cx, JSObject* callee, const CallArgs&amp; args,
+<span class="lineNum">     353 </span>            :                          bool constructing);
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span>            : /*
+<span class="lineNum">     356 </span>            :  * Monitor a javascript call, either on entry to the interpreter or made
+<span class="lineNum">     357 </span>            :  * from within the interpreter.
+<a name="358"><span class="lineNum">     358 </span>            :  */</a>
+<span class="lineNum">     359 </span>            : inline void
+<span class="lineNum">     360 </span><span class="lineCov">          1 : TypeMonitorCall(JSContext* cx, const js::CallArgs&amp; args, bool constructing)</span>
+<span class="lineNum">     361 </span>            : {
+<span class="lineNum">     362 </span><span class="lineCov">          1 :     if (args.callee().is&lt;JSFunction&gt;()) {</span>
+<span class="lineNum">     363 </span><span class="lineCov">          1 :         JSFunction* fun = &amp;args.callee().as&lt;JSFunction&gt;();</span>
+<span class="lineNum">     364 </span><span class="lineCov">          1 :         if (fun-&gt;isInterpreted() &amp;&amp; fun-&gt;nonLazyScript()-&gt;types())</span>
+<span class="lineNum">     365 </span><span class="lineCov">          1 :             TypeMonitorCallSlow(cx, &amp;args.callee(), args, constructing);</span>
+<span class="lineNum">     366 </span>            :     }
+<span class="lineNum">     367 </span><span class="lineCov">          1 : }</span>
+<a name="368"><span class="lineNum">     368 </span>            : </a>
+<span class="lineNum">     369 </span>            : inline bool
+<span class="lineNum">     370 </span><span class="lineCov">          1 : TrackPropertyTypes(JSContext* cx, JSObject* obj, jsid id)</span>
+<span class="lineNum">     371 </span>            : {
+<span class="lineNum">     372 </span><span class="lineCov">          1 :     if (obj-&gt;hasLazyGroup() || obj-&gt;group()-&gt;unknownProperties())</span>
+<span class="lineNum">     373 </span>            :         return false;
+<span class="lineNum">     374 </span>            : 
+<span class="lineNum">     375 </span><span class="lineCov">          1 :     if (obj-&gt;isSingleton() &amp;&amp; !obj-&gt;group()-&gt;maybeGetProperty(id))</span>
+<span class="lineNum">     376 </span>            :         return false;
+<span class="lineNum">     377 </span>            : 
+<span class="lineNum">     378 </span>            :     return true;
+<span class="lineNum">     379 </span>            : }
+<span class="lineNum">     380 </span>            : 
+<span class="lineNum">     381 </span>            : void
+<span class="lineNum">     382 </span>            : EnsureTrackPropertyTypes(JSContext* cx, JSObject* obj, jsid id);
+<span class="lineNum">     383 </span>            : 
+<span class="lineNum">     384 </span>            : inline bool
+<span class="lineNum">     385 </span>            : CanHaveEmptyPropertyTypesForOwnProperty(JSObject* obj)
+<span class="lineNum">     386 </span>            : {
+<span class="lineNum">     387 </span>            :     // Per the comment on TypeSet::propertySet, property type sets for global
+<span class="lineNum">     388 </span>            :     // objects may be empty for 'own' properties if the global property still
+<span class="lineNum">     389 </span>            :     // has its initial undefined value.
+<span class="lineNum">     390 </span>            :     return obj-&gt;is&lt;GlobalObject&gt;();
+<span class="lineNum">     391 </span>            : }
+<a name="392"><span class="lineNum">     392 </span>            : </a>
+<span class="lineNum">     393 </span>            : inline bool
+<span class="lineNum">     394 </span><span class="lineCov">          1 : PropertyHasBeenMarkedNonConstant(JSObject* obj, jsid id)</span>
+<span class="lineNum">     395 </span>            : {
+<span class="lineNum">     396 </span>            :     // Non-constant properties are only relevant for singleton objects.
+<span class="lineNum">     397 </span><span class="lineCov">          1 :     if (!obj-&gt;isSingleton())</span>
+<span class="lineNum">     398 </span>            :         return true;
+<span class="lineNum">     399 </span>            : 
+<span class="lineNum">     400 </span>            :     // EnsureTrackPropertyTypes must have been called on this object.
+<span class="lineNum">     401 </span><span class="lineCov">          1 :     if (obj-&gt;group()-&gt;unknownProperties())</span>
+<span class="lineNum">     402 </span>            :         return true;
+<span class="lineNum">     403 </span><span class="lineCov">          1 :     HeapTypeSet* types = obj-&gt;group()-&gt;maybeGetProperty(IdToTypeId(id));</span>
+<span class="lineNum">     404 </span><span class="lineCov">          1 :     return types-&gt;nonConstantProperty();</span>
+<span class="lineNum">     405 </span>            : }
+<a name="406"><span class="lineNum">     406 </span>            : </a>
+<span class="lineNum">     407 </span>            : inline bool
+<span class="lineNum">     408 </span><span class="lineNoCov">          0 : HasTypePropertyId(JSObject* obj, jsid id, TypeSet::Type type)</span>
+<span class="lineNum">     409 </span>            : {
+<span class="lineNum">     410 </span><span class="lineNoCov">          0 :     if (obj-&gt;hasLazyGroup())</span>
+<span class="lineNum">     411 </span>            :         return true;
+<span class="lineNum">     412 </span>            : 
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 :     if (obj-&gt;group()-&gt;unknownProperties())</span>
+<span class="lineNum">     414 </span>            :         return true;
+<span class="lineNum">     415 </span>            : 
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :     if (HeapTypeSet* types = obj-&gt;group()-&gt;maybeGetProperty(IdToTypeId(id)))</span>
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :         return types-&gt;hasType(type);</span>
+<span class="lineNum">     418 </span>            : 
+<span class="lineNum">     419 </span>            :     return false;
+<span class="lineNum">     420 </span>            : }
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span>            : inline bool
+<span class="lineNum">     423 </span>            : HasTypePropertyId(JSObject* obj, jsid id, const Value&amp; value)
+<span class="lineNum">     424 </span>            : {
+<span class="lineNum">     425 </span><span class="lineNoCov">          0 :     return HasTypePropertyId(obj, id, TypeSet::GetValueType(value));</span>
+<span class="lineNum">     426 </span>            : }
+<span class="lineNum">     427 </span>            : 
+<span class="lineNum">     428 </span>            : void AddTypePropertyId(JSContext* cx, ObjectGroup* group, JSObject* obj, jsid id, TypeSet::Type type);
+<span class="lineNum">     429 </span>            : void AddTypePropertyId(JSContext* cx, ObjectGroup* group, JSObject* obj, jsid id, const Value&amp; value);
+<span class="lineNum">     430 </span>            : 
+<a name="431"><span class="lineNum">     431 </span>            : /* Add a possible type for a property of obj. */</a>
+<span class="lineNum">     432 </span>            : inline void
+<span class="lineNum">     433 </span><span class="lineCov">          1 : AddTypePropertyId(JSContext* cx, JSObject* obj, jsid id, TypeSet::Type type)</span>
+<span class="lineNum">     434 </span>            : {
+<span class="lineNum">     435 </span><span class="lineCov">          1 :     id = IdToTypeId(id);</span>
+<span class="lineNum">     436 </span><span class="lineCov">          1 :     if (TrackPropertyTypes(cx, obj, id))</span>
+<span class="lineNum">     437 </span><span class="lineCov">          1 :         AddTypePropertyId(cx, obj-&gt;group(), obj, id, type);</span>
+<span class="lineNum">     438 </span><span class="lineCov">          1 : }</span>
+<a name="439"><span class="lineNum">     439 </span>            : </a>
+<span class="lineNum">     440 </span>            : inline void
+<span class="lineNum">     441 </span><span class="lineCov">          1 : AddTypePropertyId(JSContext* cx, JSObject* obj, jsid id, const Value&amp; value)</span>
+<span class="lineNum">     442 </span>            : {
+<span class="lineNum">     443 </span><span class="lineCov">          1 :     id = IdToTypeId(id);</span>
+<span class="lineNum">     444 </span><span class="lineCov">          1 :     if (TrackPropertyTypes(cx, obj, id))</span>
+<span class="lineNum">     445 </span><span class="lineCov">          1 :         AddTypePropertyId(cx, obj-&gt;group(), obj, id, value);</span>
+<span class="lineNum">     446 </span><span class="lineCov">          1 : }</span>
+<a name="447"><span class="lineNum">     447 </span>            : </a>
+<span class="lineNum">     448 </span>            : inline void
+<span class="lineNum">     449 </span><span class="lineCov">          1 : MarkObjectGroupFlags(JSContext* cx, JSObject* obj, ObjectGroupFlags flags)</span>
+<span class="lineNum">     450 </span>            : {
+<span class="lineNum">     451 </span><span class="lineCov">          1 :     if (!obj-&gt;hasLazyGroup() &amp;&amp; !obj-&gt;group()-&gt;hasAllFlags(flags))</span>
+<span class="lineNum">     452 </span><span class="lineCov">          1 :         obj-&gt;group()-&gt;setFlags(cx, flags);</span>
+<span class="lineNum">     453 </span><span class="lineCov">          1 : }</span>
+<a name="454"><span class="lineNum">     454 </span>            : </a>
+<span class="lineNum">     455 </span>            : inline void
+<span class="lineNum">     456 </span><span class="lineCov">          1 : MarkObjectGroupUnknownProperties(JSContext* cx, ObjectGroup* obj)</span>
+<span class="lineNum">     457 </span>            : {
+<span class="lineNum">     458 </span><span class="lineCov">          1 :     if (!obj-&gt;unknownProperties())</span>
+<span class="lineNum">     459 </span><span class="lineCov">          1 :         obj-&gt;markUnknown(cx);</span>
+<span class="lineNum">     460 </span><span class="lineCov">          1 : }</span>
+<a name="461"><span class="lineNum">     461 </span>            : </a>
+<span class="lineNum">     462 </span>            : inline void
+<span class="lineNum">     463 </span><span class="lineCov">          1 : MarkTypePropertyNonData(JSContext* cx, JSObject* obj, jsid id)</span>
+<span class="lineNum">     464 </span>            : {
+<span class="lineNum">     465 </span><span class="lineCov">          1 :     id = IdToTypeId(id);</span>
+<span class="lineNum">     466 </span><span class="lineCov">          1 :     if (TrackPropertyTypes(cx, obj, id))</span>
+<span class="lineNum">     467 </span><span class="lineCov">          1 :         obj-&gt;group()-&gt;markPropertyNonData(cx, obj, id);</span>
+<span class="lineNum">     468 </span><span class="lineCov">          1 : }</span>
+<a name="469"><span class="lineNum">     469 </span>            : </a>
+<span class="lineNum">     470 </span>            : inline void
+<span class="lineNum">     471 </span><span class="lineCov">          1 : MarkTypePropertyNonWritable(JSContext* cx, JSObject* obj, jsid id)</span>
+<span class="lineNum">     472 </span>            : {
+<span class="lineNum">     473 </span><span class="lineCov">          1 :     id = IdToTypeId(id);</span>
+<span class="lineNum">     474 </span><span class="lineCov">          1 :     if (TrackPropertyTypes(cx, obj, id))</span>
+<span class="lineNum">     475 </span><span class="lineCov">          1 :         obj-&gt;group()-&gt;markPropertyNonWritable(cx, obj, id);</span>
+<span class="lineNum">     476 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     477 </span>            : 
+<a name="478"><span class="lineNum">     478 </span>            : /* Mark a state change on a particular object. */</a>
+<span class="lineNum">     479 </span>            : inline void
+<span class="lineNum">     480 </span><span class="lineCov">          1 : MarkObjectStateChange(JSContext* cx, JSObject* obj)</span>
+<span class="lineNum">     481 </span>            : {
+<span class="lineNum">     482 </span><span class="lineCov">          1 :     if (!obj-&gt;hasLazyGroup() &amp;&amp; !obj-&gt;group()-&gt;unknownProperties())</span>
+<span class="lineNum">     483 </span><span class="lineCov">          1 :         obj-&gt;group()-&gt;markStateChange(cx);</span>
+<span class="lineNum">     484 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     485 </span>            : 
+<span class="lineNum">     486 </span>            : /* Interface helpers for JSScript*. */
+<span class="lineNum">     487 </span>            : extern void TypeMonitorResult(JSContext* cx, JSScript* script, jsbytecode* pc, TypeSet::Type type);
+<span class="lineNum">     488 </span>            : extern void TypeMonitorResult(JSContext* cx, JSScript* script, jsbytecode* pc, const Value&amp; rval);
+<span class="lineNum">     489 </span>            : 
+<span class="lineNum">     490 </span>            : /////////////////////////////////////////////////////////////////////
+<span class="lineNum">     491 </span>            : // Script interface functions
+<span class="lineNum">     492 </span>            : /////////////////////////////////////////////////////////////////////
+<a name="493"><span class="lineNum">     493 </span>            : </a>
+<span class="lineNum">     494 </span>            : /* static */ inline unsigned
+<span class="lineNum">     495 </span><span class="lineCov">          1 : TypeScript::NumTypeSets(JSScript* script)</span>
+<span class="lineNum">     496 </span>            : {
+<span class="lineNum">     497 </span><span class="lineCov">          1 :     size_t num = script-&gt;nTypeSets() + 1 /* this */;</span>
+<span class="lineNum">     498 </span><span class="lineCov">          1 :     if (JSFunction* fun = script-&gt;functionNonDelazifying())</span>
+<span class="lineNum">     499 </span><span class="lineCov">          1 :         num += fun-&gt;nargs();</span>
+<span class="lineNum">     500 </span><span class="lineCov">          1 :     return num;</span>
+<span class="lineNum">     501 </span>            : }
+<span class="lineNum">     502 </span>            : 
+<span class="lineNum">     503 </span>            : /* static */ inline StackTypeSet*
+<span class="lineNum">     504 </span>            : TypeScript::ThisTypes(JSScript* script)
+<span class="lineNum">     505 </span>            : {
+<span class="lineNum">     506 </span><span class="lineCov">          1 :     TypeScript* types = script-&gt;types();</span>
+<span class="lineNum">     507 </span><span class="lineCov">          1 :     return types ? types-&gt;typeArray() + script-&gt;nTypeSets() : nullptr;</span>
+<span class="lineNum">     508 </span>            : }
+<span class="lineNum">     509 </span>            : 
+<span class="lineNum">     510 </span>            : /*
+<span class="lineNum">     511 </span>            :  * Note: for non-escaping arguments, argTypes reflect only the initial type of
+<span class="lineNum">     512 </span>            :  * the variable (e.g. passed values for argTypes, or undefined for localTypes)
+<span class="lineNum">     513 </span>            :  * and not types from subsequent assignments.
+<span class="lineNum">     514 </span>            :  */
+<a name="515"><span class="lineNum">     515 </span>            : </a>
+<span class="lineNum">     516 </span>            : /* static */ inline StackTypeSet*
+<span class="lineNum">     517 </span><span class="lineCov">          1 : TypeScript::ArgTypes(JSScript* script, unsigned i)</span>
+<span class="lineNum">     518 </span>            : {
+<span class="lineNum">     519 </span>            :     MOZ_ASSERT(i &lt; script-&gt;functionNonDelazifying()-&gt;nargs());
+<span class="lineNum">     520 </span><span class="lineCov">          1 :     TypeScript* types = script-&gt;types();</span>
+<span class="lineNum">     521 </span><span class="lineCov">          1 :     return types ? types-&gt;typeArray() + script-&gt;nTypeSets() + 1 + i : nullptr;</span>
+<span class="lineNum">     522 </span>            : }
+<span class="lineNum">     523 </span>            : 
+<a name="524"><span class="lineNum">     524 </span>            : template &lt;typename TYPESET&gt;</a>
+<span class="lineNum">     525 </span>            : /* static */ inline TYPESET*
+<span class="lineNum">     526 </span><span class="lineCov">          1 : TypeScript::BytecodeTypes(JSScript* script, jsbytecode* pc, uint32_t* bytecodeMap,</span>
+<span class="lineNum">     527 </span>            :                           uint32_t* hint, TYPESET* typeArray)
+<span class="lineNum">     528 </span>            : {
+<span class="lineNum">     529 </span>            :     MOZ_ASSERT(CodeSpec[*pc].format &amp; JOF_TYPESET);
+<span class="lineNum">     530 </span><span class="lineCov">          1 :     uint32_t offset = script-&gt;pcToOffset(pc);</span>
+<span class="lineNum">     531 </span>            : 
+<span class="lineNum">     532 </span>            :     // See if this pc is the next typeset opcode after the last one looked up.
+<span class="lineNum">     533 </span><span class="lineCov">          1 :     if ((*hint + 1) &lt; script-&gt;nTypeSets() &amp;&amp; bytecodeMap[*hint + 1] == offset) {</span>
+<span class="lineNum">     534 </span><span class="lineCov">          1 :         (*hint)++;</span>
+<span class="lineNum">     535 </span><span class="lineCov">          1 :         return typeArray + *hint;</span>
+<span class="lineNum">     536 </span>            :     }
+<span class="lineNum">     537 </span>            : 
+<span class="lineNum">     538 </span>            :     // See if this pc is the same as the last one looked up.
+<span class="lineNum">     539 </span><span class="lineCov">          1 :     if (bytecodeMap[*hint] == offset)</span>
+<span class="lineNum">     540 </span><span class="lineCov">          1 :         return typeArray + *hint;</span>
+<span class="lineNum">     541 </span>            : 
+<span class="lineNum">     542 </span>            :     // Fall back to a binary search.  We'll either find the exact offset, or
+<span class="lineNum">     543 </span>            :     // there are more JOF_TYPESET opcodes than nTypeSets in the script (as can
+<span class="lineNum">     544 </span>            :     // happen if the script is very long) and we'll use the last location.
+<span class="lineNum">     545 </span>            :     size_t loc;
+<span class="lineNum">     546 </span>            : #ifdef DEBUG
+<span class="lineNum">     547 </span>            :     bool found =
+<span class="lineNum">     548 </span>            : #endif
+<span class="lineNum">     549 </span><span class="lineCov">          1 :         mozilla::BinarySearch(bytecodeMap, 0, script-&gt;nTypeSets() - 1, offset, &amp;loc);</span>
+<span class="lineNum">     550 </span>            : 
+<span class="lineNum">     551 </span>            :     MOZ_ASSERT_IF(found, bytecodeMap[loc] == offset);
+<span class="lineNum">     552 </span><span class="lineCov">          1 :     *hint = mozilla::AssertedCast&lt;uint32_t&gt;(loc);</span>
+<span class="lineNum">     553 </span><span class="lineCov">          1 :     return typeArray + *hint;</span>
+<span class="lineNum">     554 </span>            : }
+<a name="555"><span class="lineNum">     555 </span>            : </a>
+<span class="lineNum">     556 </span>            : /* static */ inline StackTypeSet*
+<span class="lineNum">     557 </span><span class="lineCov">          1 : TypeScript::BytecodeTypes(JSScript* script, jsbytecode* pc)</span>
+<span class="lineNum">     558 </span>            : {
+<span class="lineNum">     559 </span>            :     MOZ_ASSERT(CurrentThreadCanAccessZone(script-&gt;zone()));
+<span class="lineNum">     560 </span><span class="lineCov">          1 :     TypeScript* types = script-&gt;types();</span>
+<span class="lineNum">     561 </span><span class="lineCov">          1 :     if (!types)</span>
+<span class="lineNum">     562 </span>            :         return nullptr;
+<span class="lineNum">     563 </span><span class="lineCov">          1 :     uint32_t* hint = script-&gt;baselineScript()-&gt;bytecodeTypeMap() + script-&gt;nTypeSets();</span>
+<span class="lineNum">     564 </span>            :     return BytecodeTypes(script, pc, script-&gt;baselineScript()-&gt;bytecodeTypeMap(),
+<span class="lineNum">     565 </span><span class="lineCov">          1 :                          hint, types-&gt;typeArray());</span>
+<span class="lineNum">     566 </span>            : }
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span>            : /* static */ inline void
+<span class="lineNum">     569 </span>            : TypeScript::Monitor(JSContext* cx, JSScript* script, jsbytecode* pc, const js::Value&amp; rval)
+<span class="lineNum">     570 </span>            : {
+<span class="lineNum">     571 </span><span class="lineCov">          1 :     TypeMonitorResult(cx, script, pc, rval);</span>
+<span class="lineNum">     572 </span>            : }
+<span class="lineNum">     573 </span>            : 
+<span class="lineNum">     574 </span>            : /* static */ inline void
+<span class="lineNum">     575 </span>            : TypeScript::Monitor(JSContext* cx, JSScript* script, jsbytecode* pc, TypeSet::Type type)
+<span class="lineNum">     576 </span>            : {
+<span class="lineNum">     577 </span><span class="lineNoCov">          0 :     TypeMonitorResult(cx, script, pc, type);</span>
+<span class="lineNum">     578 </span>            : }
+<a name="579"><span class="lineNum">     579 </span>            : </a>
+<span class="lineNum">     580 </span>            : /* static */ inline void
+<span class="lineNum">     581 </span><span class="lineNoCov">          0 : TypeScript::Monitor(JSContext* cx, const js::Value&amp; rval)</span>
+<span class="lineNum">     582 </span>            : {
+<span class="lineNum">     583 </span>            :     jsbytecode* pc;
+<span class="lineNum">     584 </span><span class="lineNoCov">          0 :     RootedScript script(cx, cx-&gt;currentScript(&amp;pc));</span>
+<span class="lineNum">     585 </span><span class="lineNoCov">          0 :     Monitor(cx, script, pc, rval);</span>
+<span class="lineNum">     586 </span><span class="lineNoCov">          0 : }</span>
+<a name="587"><span class="lineNum">     587 </span>            : </a>
+<span class="lineNum">     588 </span>            : /* static */ inline void
+<span class="lineNum">     589 </span><span class="lineCov">          1 : TypeScript::MonitorAssign(JSContext* cx, HandleObject obj, jsid id)</span>
+<span class="lineNum">     590 </span>            : {
+<span class="lineNum">     591 </span><span class="lineCov">          1 :     if (!obj-&gt;isSingleton()) {</span>
+<span class="lineNum">     592 </span>            :         /*
+<span class="lineNum">     593 </span>            :          * Mark as unknown any object which has had dynamic assignments to
+<span class="lineNum">     594 </span>            :          * non-integer properties at SETELEM opcodes. This avoids making large
+<span class="lineNum">     595 </span>            :          * numbers of type properties for hashmap-style objects. We don't need
+<span class="lineNum">     596 </span>            :          * to do this for objects with singleton type, because type properties
+<span class="lineNum">     597 </span>            :          * are only constructed for them when analyzed scripts depend on those
+<span class="lineNum">     598 </span>            :          * specific properties.
+<span class="lineNum">     599 </span>            :          */
+<span class="lineNum">     600 </span>            :         uint32_t i;
+<span class="lineNum">     601 </span><span class="lineCov">          1 :         if (IdIsIndex(id, &amp;i))</span>
+<span class="lineNum">     602 </span><span class="lineCov">          1 :             return;</span>
+<span class="lineNum">     603 </span>            : 
+<span class="lineNum">     604 </span>            :         // But if we don't have too many properties yet, don't do anything.  The
+<span class="lineNum">     605 </span>            :         // idea here is that normal object initialization should not trigger
+<span class="lineNum">     606 </span>            :         // deoptimization in most cases, while actual usage as a hashmap should.
+<span class="lineNum">     607 </span><span class="lineCov">          1 :         ObjectGroup* group = obj-&gt;group();</span>
+<span class="lineNum">     608 </span><span class="lineCov">          1 :         if (group-&gt;basePropertyCount() &lt; 128)</span>
+<span class="lineNum">     609 </span>            :             return;
+<span class="lineNum">     610 </span><span class="lineCov">          1 :         MarkObjectGroupUnknownProperties(cx, group);</span>
+<span class="lineNum">     611 </span>            :     }
+<span class="lineNum">     612 </span>            : }
+<a name="613"><span class="lineNum">     613 </span>            : </a>
+<span class="lineNum">     614 </span>            : /* static */ inline void
+<span class="lineNum">     615 </span><span class="lineCov">          1 : TypeScript::SetThis(JSContext* cx, JSScript* script, TypeSet::Type type)</span>
+<span class="lineNum">     616 </span>            : {
+<span class="lineNum">     617 </span><span class="lineCov">          1 :     assertSameCompartment(cx, script, type);</span>
+<span class="lineNum">     618 </span>            : 
+<span class="lineNum">     619 </span><span class="lineCov">          1 :     StackTypeSet* types = ThisTypes(script);</span>
+<span class="lineNum">     620 </span><span class="lineCov">          1 :     if (!types)</span>
+<span class="lineNum">     621 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     622 </span>            : 
+<span class="lineNum">     623 </span><span class="lineCov">          1 :     if (!types-&gt;hasType(type)) {</span>
+<span class="lineNum">     624 </span><span class="lineCov">          1 :         AutoEnterAnalysis enter(cx);</span>
+<span class="lineNum">     625 </span>            : 
+<span class="lineNum">     626 </span>            :         InferSpew(ISpewOps, &quot;externalType: setThis %p: %s&quot;,
+<span class="lineNum">     627 </span>            :                   script, TypeSet::TypeString(type));
+<span class="lineNum">     628 </span><span class="lineCov">          1 :         types-&gt;addType(cx, type);</span>
+<span class="lineNum">     629 </span>            :     }
+<span class="lineNum">     630 </span>            : }
+<span class="lineNum">     631 </span>            : 
+<span class="lineNum">     632 </span>            : /* static */ inline void
+<span class="lineNum">     633 </span>            : TypeScript::SetThis(JSContext* cx, JSScript* script, const js::Value&amp; value)
+<span class="lineNum">     634 </span>            : {
+<span class="lineNum">     635 </span><span class="lineCov">          1 :     SetThis(cx, script, TypeSet::GetValueType(value));</span>
+<span class="lineNum">     636 </span>            : }
+<a name="637"><span class="lineNum">     637 </span>            : </a>
+<span class="lineNum">     638 </span>            : /* static */ inline void
+<span class="lineNum">     639 </span><span class="lineCov">          1 : TypeScript::SetArgument(JSContext* cx, JSScript* script, unsigned arg, TypeSet::Type type)</span>
+<span class="lineNum">     640 </span>            : {
+<span class="lineNum">     641 </span><span class="lineCov">          1 :     assertSameCompartment(cx, script, type);</span>
+<span class="lineNum">     642 </span>            : 
+<span class="lineNum">     643 </span><span class="lineCov">          1 :     StackTypeSet* types = ArgTypes(script, arg);</span>
+<span class="lineNum">     644 </span><span class="lineCov">          1 :     if (!types)</span>
+<span class="lineNum">     645 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     646 </span>            : 
+<span class="lineNum">     647 </span><span class="lineCov">          1 :     if (!types-&gt;hasType(type)) {</span>
+<span class="lineNum">     648 </span><span class="lineCov">          1 :         AutoEnterAnalysis enter(cx);</span>
+<span class="lineNum">     649 </span>            : 
+<span class="lineNum">     650 </span>            :         InferSpew(ISpewOps, &quot;externalType: setArg %p %u: %s&quot;,
+<span class="lineNum">     651 </span>            :                   script, arg, TypeSet::TypeString(type));
+<span class="lineNum">     652 </span><span class="lineCov">          1 :         types-&gt;addType(cx, type);</span>
+<span class="lineNum">     653 </span>            :     }
+<span class="lineNum">     654 </span>            : }
+<span class="lineNum">     655 </span>            : 
+<span class="lineNum">     656 </span>            : /* static */ inline void
+<span class="lineNum">     657 </span>            : TypeScript::SetArgument(JSContext* cx, JSScript* script, unsigned arg, const js::Value&amp; value)
+<span class="lineNum">     658 </span>            : {
+<span class="lineNum">     659 </span><span class="lineCov">          1 :     SetArgument(cx, script, arg, TypeSet::GetValueType(value));</span>
+<span class="lineNum">     660 </span>            : }
+<span class="lineNum">     661 </span>            : 
+<span class="lineNum">     662 </span>            : /////////////////////////////////////////////////////////////////////
+<span class="lineNum">     663 </span>            : // TypeHashSet
+<span class="lineNum">     664 </span>            : /////////////////////////////////////////////////////////////////////
+<span class="lineNum">     665 </span>            : 
+<span class="lineNum">     666 </span>            : // Hashing code shared by objects in TypeSets and properties in ObjectGroups.
+<span class="lineNum">     667 </span>            : struct TypeHashSet
+<span class="lineNum">     668 </span>            : {
+<span class="lineNum">     669 </span>            :     // The sets of objects in a type set grow monotonically, are usually empty,
+<span class="lineNum">     670 </span>            :     // almost always small, and sometimes big. For empty or singleton sets, the
+<span class="lineNum">     671 </span>            :     // the pointer refers directly to the value.  For sets fitting into
+<span class="lineNum">     672 </span>            :     // SET_ARRAY_SIZE, an array of this length is used to store the elements.
+<span class="lineNum">     673 </span>            :     // For larger sets, a hash table filled to 25%-50% of capacity is used,
+<span class="lineNum">     674 </span>            :     // with collisions resolved by linear probing.
+<span class="lineNum">     675 </span>            :     static const unsigned SET_ARRAY_SIZE = 8;
+<span class="lineNum">     676 </span>            :     static const unsigned SET_CAPACITY_OVERFLOW = 1u &lt;&lt; 30;
+<span class="lineNum">     677 </span>            : 
+<span class="lineNum">     678 </span>            :     // Get the capacity of a set with the given element count.
+<span class="lineNum">     679 </span>            :     static inline unsigned
+<span class="lineNum">     680 </span>            :     Capacity(unsigned count)
+<span class="lineNum">     681 </span>            :     {
+<span class="lineNum">     682 </span>            :         MOZ_ASSERT(count &gt;= 2);
+<span class="lineNum">     683 </span>            :         MOZ_ASSERT(count &lt; SET_CAPACITY_OVERFLOW);
+<span class="lineNum">     684 </span>            : 
+<span class="lineNum">     685 </span><span class="lineCov">          1 :         if (count &lt;= SET_ARRAY_SIZE)</span>
+<span class="lineNum">     686 </span>            :             return SET_ARRAY_SIZE;
+<span class="lineNum">     687 </span>            : 
+<span class="lineNum">     688 </span><span class="lineCov">          1 :         return 1u &lt;&lt; (mozilla::FloorLog2(count) + 2);</span>
+<span class="lineNum">     689 </span>            :     }
+<span class="lineNum">     690 </span>            : 
+<span class="lineNum">     691 </span>            :     // Compute the FNV hash for the low 32 bits of v.
+<span class="lineNum">     692 </span>            :     template &lt;class T, class KEY&gt;
+<span class="lineNum">     693 </span>            :     static inline uint32_t
+<span class="lineNum">     694 </span>            :     HashKey(T v)
+<span class="lineNum">     695 </span>            :     {
+<span class="lineNum">     696 </span><span class="lineCov">          1 :         uint32_t nv = KEY::keyBits(v);</span>
+<span class="lineNum">     697 </span>            : 
+<span class="lineNum">     698 </span><span class="lineCov">          1 :         uint32_t hash = 84696351 ^ (nv &amp; 0xff);</span>
+<span class="lineNum">     699 </span><span class="lineCov">          1 :         hash = (hash * 16777619) ^ ((nv &gt;&gt; 8) &amp; 0xff);</span>
+<span class="lineNum">     700 </span><span class="lineCov">          1 :         hash = (hash * 16777619) ^ ((nv &gt;&gt; 16) &amp; 0xff);</span>
+<span class="lineNum">     701 </span><span class="lineCov">          1 :         return (hash * 16777619) ^ ((nv &gt;&gt; 24) &amp; 0xff);</span>
+<span class="lineNum">     702 </span>            :     }
+<span class="lineNum">     703 </span>            : 
+<span class="lineNum">     704 </span>            :     // Insert space for an element into the specified set and grow its capacity
+<span class="lineNum">     705 </span>            :     // if needed. returned value is an existing or new entry (nullptr if new).
+<a name="706"><span class="lineNum">     706 </span>            :     template &lt;class T, class U, class KEY&gt;</a>
+<span class="lineNum">     707 </span>            :     static U**
+<span class="lineNum">     708 </span><span class="lineCov">          1 :     InsertTry(LifoAlloc&amp; alloc, U**&amp; values, unsigned&amp; count, T key)</span>
+<span class="lineNum">     709 </span>            :     {
+<span class="lineNum">     710 </span><span class="lineCov">          1 :         unsigned capacity = Capacity(count);</span>
+<span class="lineNum">     711 </span><span class="lineCov">          1 :         unsigned insertpos = HashKey&lt;T,KEY&gt;(key) &amp; (capacity - 1);</span>
+<span class="lineNum">     712 </span>            : 
+<span class="lineNum">     713 </span><span class="lineCov">          1 :         MOZ_RELEASE_ASSERT(uintptr_t(values[-1]) == capacity);</span>
+<span class="lineNum">     714 </span>            : 
+<span class="lineNum">     715 </span>            :         // Whether we are converting from a fixed array to hashtable.
+<span class="lineNum">     716 </span><span class="lineCov">          1 :         bool converting = (count == SET_ARRAY_SIZE);</span>
+<span class="lineNum">     717 </span>            : 
+<span class="lineNum">     718 </span><span class="lineCov">          1 :         if (!converting) {</span>
+<span class="lineNum">     719 </span><span class="lineCov">          1 :             while (values[insertpos] != nullptr) {</span>
+<span class="lineNum">     720 </span><span class="lineCov">          1 :                 if (KEY::getKey(values[insertpos]) == key)</span>
+<span class="lineNum">     721 </span><span class="lineCov">          1 :                     return &amp;values[insertpos];</span>
+<span class="lineNum">     722 </span><span class="lineCov">          1 :                 insertpos = (insertpos + 1) &amp; (capacity - 1);</span>
+<span class="lineNum">     723 </span>            :             }
+<span class="lineNum">     724 </span>            :         }
+<span class="lineNum">     725 </span>            : 
+<span class="lineNum">     726 </span><span class="lineCov">          1 :         if (count &gt;= SET_CAPACITY_OVERFLOW)</span>
+<span class="lineNum">     727 </span>            :             return nullptr;
+<span class="lineNum">     728 </span>            : 
+<span class="lineNum">     729 </span><span class="lineCov">          1 :         count++;</span>
+<span class="lineNum">     730 </span><span class="lineCov">          1 :         unsigned newCapacity = Capacity(count);</span>
+<span class="lineNum">     731 </span>            : 
+<span class="lineNum">     732 </span><span class="lineCov">          1 :         if (newCapacity == capacity) {</span>
+<span class="lineNum">     733 </span>            :             MOZ_ASSERT(!converting);
+<span class="lineNum">     734 </span><span class="lineCov">          1 :             return &amp;values[insertpos];</span>
+<span class="lineNum">     735 </span>            :         }
+<span class="lineNum">     736 </span>            : 
+<span class="lineNum">     737 </span>            :         // Allocate an extra word right before the array storing the capacity,
+<span class="lineNum">     738 </span>            :         // for sanity checks.
+<span class="lineNum">     739 </span><span class="lineCov">          1 :         U** newValues = alloc.newArray&lt;U*&gt;(newCapacity + 1);</span>
+<span class="lineNum">     740 </span><span class="lineCov">          1 :         if (!newValues)</span>
+<span class="lineNum">     741 </span>            :             return nullptr;
+<span class="lineNum">     742 </span><span class="lineCov">          1 :         mozilla::PodZero(newValues, newCapacity + 1);</span>
+<span class="lineNum">     743 </span>            : 
+<span class="lineNum">     744 </span><span class="lineCov">          1 :         newValues[0] = (U*)uintptr_t(newCapacity);</span>
+<span class="lineNum">     745 </span><span class="lineCov">          1 :         newValues++;</span>
+<span class="lineNum">     746 </span>            : 
+<span class="lineNum">     747 </span><span class="lineCov">          1 :         for (unsigned i = 0; i &lt; capacity; i++) {</span>
+<span class="lineNum">     748 </span><span class="lineCov">          1 :             if (values[i]) {</span>
+<span class="lineNum">     749 </span><span class="lineCov">          1 :                 unsigned pos = HashKey&lt;T,KEY&gt;(KEY::getKey(values[i])) &amp; (newCapacity - 1);</span>
+<span class="lineNum">     750 </span><span class="lineCov">          1 :                 while (newValues[pos] != nullptr)</span>
+<span class="lineNum">     751 </span><span class="lineCov">          1 :                     pos = (pos + 1) &amp; (newCapacity - 1);</span>
+<span class="lineNum">     752 </span><span class="lineCov">          1 :                 newValues[pos] = values[i];</span>
+<span class="lineNum">     753 </span>            :             }
+<span class="lineNum">     754 </span>            :         }
+<span class="lineNum">     755 </span>            : 
+<span class="lineNum">     756 </span><span class="lineCov">          1 :         values = newValues;</span>
+<span class="lineNum">     757 </span>            : 
+<span class="lineNum">     758 </span><span class="lineCov">          1 :         insertpos = HashKey&lt;T,KEY&gt;(key) &amp; (newCapacity - 1);</span>
+<span class="lineNum">     759 </span><span class="lineCov">          1 :         while (values[insertpos] != nullptr)</span>
+<span class="lineNum">     760 </span><span class="lineCov">          1 :             insertpos = (insertpos + 1) &amp; (newCapacity - 1);</span>
+<span class="lineNum">     761 </span><span class="lineCov">          1 :         return &amp;values[insertpos];</span>
+<span class="lineNum">     762 </span>            :     }
+<span class="lineNum">     763 </span>            : 
+<span class="lineNum">     764 </span>            :     // Insert an element into the specified set if it is not already there,
+<span class="lineNum">     765 </span>            :     // returning an entry which is nullptr if the element was not there.
+<a name="766"><span class="lineNum">     766 </span>            :     template &lt;class T, class U, class KEY&gt;</a>
+<span class="lineNum">     767 </span>            :     static inline U**
+<span class="lineNum">     768 </span><span class="lineCov">          1 :     Insert(LifoAlloc&amp; alloc, U**&amp; values, unsigned&amp; count, T key)</span>
+<span class="lineNum">     769 </span>            :     {
+<span class="lineNum">     770 </span><span class="lineCov">          1 :         if (count == 0) {</span>
+<span class="lineNum">     771 </span>            :             MOZ_ASSERT(values == nullptr);
+<span class="lineNum">     772 </span><span class="lineCov">          1 :             count++;</span>
+<span class="lineNum">     773 </span><span class="lineCov">          1 :             return (U**) &amp;values;</span>
+<span class="lineNum">     774 </span>            :         }
+<span class="lineNum">     775 </span>            : 
+<span class="lineNum">     776 </span><span class="lineCov">          1 :         if (count == 1) {</span>
+<span class="lineNum">     777 </span><span class="lineCov">          1 :             U* oldData = (U*) values;</span>
+<span class="lineNum">     778 </span><span class="lineCov">          1 :             if (KEY::getKey(oldData) == key)</span>
+<span class="lineNum">     779 </span>            :                 return (U**) &amp;values;
+<span class="lineNum">     780 </span>            : 
+<span class="lineNum">     781 </span>            :             // Allocate an extra word right before the array storing the
+<span class="lineNum">     782 </span>            :             // capacity, for sanity checks.
+<span class="lineNum">     783 </span><span class="lineCov">          1 :             values = alloc.newArray&lt;U*&gt;(SET_ARRAY_SIZE + 1);</span>
+<span class="lineNum">     784 </span><span class="lineCov">          1 :             if (!values) {</span>
+<span class="lineNum">     785 </span><span class="lineNoCov">          0 :                 values = (U**) oldData;</span>
+<span class="lineNum">     786 </span><span class="lineNoCov">          0 :                 return nullptr;</span>
+<span class="lineNum">     787 </span>            :             }
+<span class="lineNum">     788 </span><span class="lineCov">          1 :             mozilla::PodZero(values, SET_ARRAY_SIZE + 1);</span>
+<span class="lineNum">     789 </span>            : 
+<span class="lineNum">     790 </span><span class="lineCov">          1 :             values[0] = (U*)uintptr_t(SET_ARRAY_SIZE);</span>
+<span class="lineNum">     791 </span><span class="lineCov">          1 :             values++;</span>
+<span class="lineNum">     792 </span>            : 
+<span class="lineNum">     793 </span><span class="lineCov">          1 :             count++;</span>
+<span class="lineNum">     794 </span>            : 
+<span class="lineNum">     795 </span><span class="lineCov">          1 :             values[0] = oldData;</span>
+<span class="lineNum">     796 </span><span class="lineCov">          1 :             return &amp;values[1];</span>
+<span class="lineNum">     797 </span>            :         }
+<span class="lineNum">     798 </span>            : 
+<span class="lineNum">     799 </span><span class="lineCov">          1 :         if (count &lt;= SET_ARRAY_SIZE) {</span>
+<span class="lineNum">     800 </span><span class="lineCov">          1 :             MOZ_RELEASE_ASSERT(uintptr_t(values[-1]) == SET_ARRAY_SIZE);</span>
+<span class="lineNum">     801 </span>            : 
+<span class="lineNum">     802 </span><span class="lineCov">          1 :             for (unsigned i = 0; i &lt; count; i++) {</span>
+<span class="lineNum">     803 </span><span class="lineCov">          1 :                 if (KEY::getKey(values[i]) == key)</span>
+<span class="lineNum">     804 </span><span class="lineCov">          1 :                     return &amp;values[i];</span>
+<span class="lineNum">     805 </span>            :             }
+<span class="lineNum">     806 </span>            : 
+<span class="lineNum">     807 </span><span class="lineCov">          1 :             if (count &lt; SET_ARRAY_SIZE) {</span>
+<span class="lineNum">     808 </span><span class="lineCov">          1 :                 count++;</span>
+<span class="lineNum">     809 </span><span class="lineCov">          1 :                 return &amp;values[count - 1];</span>
+<span class="lineNum">     810 </span>            :             }
+<span class="lineNum">     811 </span>            :         }
+<span class="lineNum">     812 </span>            : 
+<span class="lineNum">     813 </span><span class="lineCov">          1 :         return InsertTry&lt;T,U,KEY&gt;(alloc, values, count, key);</span>
+<span class="lineNum">     814 </span>            :     }
+<span class="lineNum">     815 </span>            : 
+<span class="lineNum">     816 </span>            :     // Lookup an entry in a hash set, return nullptr if it does not exist.
+<a name="817"><span class="lineNum">     817 </span>            :     template &lt;class T, class U, class KEY&gt;</a>
+<span class="lineNum">     818 </span>            :     static inline U*
+<span class="lineNum">     819 </span><span class="lineCov">          1 :     Lookup(U** values, unsigned count, T key)</span>
+<span class="lineNum">     820 </span>            :     {
+<span class="lineNum">     821 </span><span class="lineCov">          1 :         if (count == 0)</span>
+<span class="lineNum">     822 </span>            :             return nullptr;
+<span class="lineNum">     823 </span>            : 
+<span class="lineNum">     824 </span><span class="lineCov">          1 :         if (count == 1)</span>
+<span class="lineNum">     825 </span><span class="lineCov">          1 :             return (KEY::getKey((U*) values) == key) ? (U*) values : nullptr;</span>
+<span class="lineNum">     826 </span>            : 
+<span class="lineNum">     827 </span><span class="lineCov">          1 :         if (count &lt;= SET_ARRAY_SIZE) {</span>
+<span class="lineNum">     828 </span><span class="lineCov">          1 :             MOZ_RELEASE_ASSERT(uintptr_t(values[-1]) == SET_ARRAY_SIZE);</span>
+<span class="lineNum">     829 </span><span class="lineCov">          1 :             for (unsigned i = 0; i &lt; count; i++) {</span>
+<span class="lineNum">     830 </span><span class="lineCov">          1 :                 if (KEY::getKey(values[i]) == key)</span>
+<span class="lineNum">     831 </span><span class="lineCov">          1 :                     return values[i];</span>
+<span class="lineNum">     832 </span>            :             }
+<span class="lineNum">     833 </span>            :             return nullptr;
+<span class="lineNum">     834 </span>            :         }
+<span class="lineNum">     835 </span>            : 
+<span class="lineNum">     836 </span><span class="lineCov">          1 :         unsigned capacity = Capacity(count);</span>
+<span class="lineNum">     837 </span><span class="lineCov">          1 :         unsigned pos = HashKey&lt;T,KEY&gt;(key) &amp; (capacity - 1);</span>
+<span class="lineNum">     838 </span>            : 
+<span class="lineNum">     839 </span><span class="lineCov">          1 :         MOZ_RELEASE_ASSERT(uintptr_t(values[-1]) == capacity);</span>
+<span class="lineNum">     840 </span>            : 
+<span class="lineNum">     841 </span><span class="lineCov">          1 :         while (values[pos] != nullptr) {</span>
+<span class="lineNum">     842 </span><span class="lineCov">          1 :             if (KEY::getKey(values[pos]) == key)</span>
+<span class="lineNum">     843 </span><span class="lineCov">          1 :                 return values[pos];</span>
+<span class="lineNum">     844 </span><span class="lineCov">          1 :             pos = (pos + 1) &amp; (capacity - 1);</span>
+<span class="lineNum">     845 </span>            :         }
+<span class="lineNum">     846 </span>            : 
+<span class="lineNum">     847 </span>            :         return nullptr;
+<span class="lineNum">     848 </span>            :     }
+<span class="lineNum">     849 </span>            : };
+<span class="lineNum">     850 </span>            : 
+<span class="lineNum">     851 </span>            : /////////////////////////////////////////////////////////////////////
+<span class="lineNum">     852 </span>            : // TypeSet
+<span class="lineNum">     853 </span>            : /////////////////////////////////////////////////////////////////////
+<span class="lineNum">     854 </span>            : 
+<span class="lineNum">     855 </span>            : inline TypeSet::ObjectKey*
+<span class="lineNum">     856 </span>            : TypeSet::Type::objectKey() const
+<span class="lineNum">     857 </span>            : {
+<span class="lineNum">     858 </span>            :     MOZ_ASSERT(isObject());
+<span class="lineNum">     859 </span><span class="lineCov">          1 :     return (ObjectKey*) data;</span>
+<span class="lineNum">     860 </span>            : }
+<span class="lineNum">     861 </span>            : 
+<span class="lineNum">     862 </span>            : inline JSObject*
+<span class="lineNum">     863 </span>            : TypeSet::Type::singleton() const
+<span class="lineNum">     864 </span>            : {
+<span class="lineNum">     865 </span><span class="lineCov">          1 :     return objectKey()-&gt;singleton();</span>
+<span class="lineNum">     866 </span>            : }
+<span class="lineNum">     867 </span>            : 
+<span class="lineNum">     868 </span>            : inline ObjectGroup*
+<span class="lineNum">     869 </span>            : TypeSet::Type::group() const
+<span class="lineNum">     870 </span>            : {
+<span class="lineNum">     871 </span><span class="lineCov">          1 :     return objectKey()-&gt;group();</span>
+<span class="lineNum">     872 </span>            : }
+<span class="lineNum">     873 </span>            : 
+<span class="lineNum">     874 </span>            : inline JSObject*
+<span class="lineNum">     875 </span>            : TypeSet::Type::singletonNoBarrier() const
+<span class="lineNum">     876 </span>            : {
+<span class="lineNum">     877 </span><span class="lineCov">          1 :     return objectKey()-&gt;singletonNoBarrier();</span>
+<span class="lineNum">     878 </span>            : }
+<span class="lineNum">     879 </span>            : 
+<span class="lineNum">     880 </span>            : inline ObjectGroup*
+<span class="lineNum">     881 </span>            : TypeSet::Type::groupNoBarrier() const
+<span class="lineNum">     882 </span>            : {
+<span class="lineNum">     883 </span><span class="lineCov">          1 :     return objectKey()-&gt;groupNoBarrier();</span>
+<span class="lineNum">     884 </span>            : }
+<a name="885"><span class="lineNum">     885 </span>            : </a>
+<span class="lineNum">     886 </span>            : inline void
+<span class="lineNum">     887 </span><span class="lineCov">          1 : TypeSet::Type::trace(JSTracer* trc)</span>
+<span class="lineNum">     888 </span>            : {
+<span class="lineNum">     889 </span><span class="lineCov">          1 :     if (isSingletonUnchecked()) {</span>
+<span class="lineNum">     890 </span><span class="lineNoCov">          0 :         JSObject* obj = singletonNoBarrier();</span>
+<span class="lineNum">     891 </span><span class="lineNoCov">          0 :         TraceManuallyBarrieredEdge(trc, &amp;obj, &quot;TypeSet::Object&quot;);</span>
+<span class="lineNum">     892 </span><span class="lineNoCov">          0 :         *this = TypeSet::ObjectType(obj);</span>
+<span class="lineNum">     893 </span><span class="lineCov">          1 :     } else if (isGroupUnchecked()) {</span>
+<span class="lineNum">     894 </span><span class="lineNoCov">          0 :         ObjectGroup* group = groupNoBarrier();</span>
+<span class="lineNum">     895 </span><span class="lineNoCov">          0 :         TraceManuallyBarrieredEdge(trc, &amp;group, &quot;TypeSet::Group&quot;);</span>
+<span class="lineNum">     896 </span><span class="lineNoCov">          0 :         *this = TypeSet::ObjectType(group);</span>
+<span class="lineNum">     897 </span>            :     }
+<span class="lineNum">     898 </span><span class="lineCov">          1 : }</span>
+<a name="899"><span class="lineNum">     899 </span>            : </a>
+<span class="lineNum">     900 </span>            : inline JSCompartment*
+<span class="lineNum">     901 </span><span class="lineCov">          1 : TypeSet::Type::maybeCompartment()</span>
+<span class="lineNum">     902 </span>            : {
+<span class="lineNum">     903 </span><span class="lineCov">          1 :     if (isSingletonUnchecked())</span>
+<span class="lineNum">     904 </span><span class="lineCov">          1 :         return singletonNoBarrier()-&gt;compartment();</span>
+<span class="lineNum">     905 </span>            : 
+<span class="lineNum">     906 </span><span class="lineCov">          1 :     if (isGroupUnchecked())</span>
+<span class="lineNum">     907 </span><span class="lineCov">          1 :         return groupNoBarrier()-&gt;compartment();</span>
+<span class="lineNum">     908 </span>            : 
+<span class="lineNum">     909 </span>            :     return nullptr;
+<span class="lineNum">     910 </span>            : }
+<a name="911"><span class="lineNum">     911 </span>            : </a>
+<span class="lineNum">     912 </span>            : inline bool
+<span class="lineNum">     913 </span><span class="lineCov">          1 : TypeSet::hasType(Type type) const</span>
+<span class="lineNum">     914 </span>            : {
+<span class="lineNum">     915 </span><span class="lineCov">          1 :     if (unknown())</span>
+<span class="lineNum">     916 </span>            :         return true;
+<span class="lineNum">     917 </span>            : 
+<span class="lineNum">     918 </span><span class="lineCov">          1 :     if (type.isUnknown()) {</span>
+<span class="lineNum">     919 </span>            :         return false;
+<span class="lineNum">     920 </span><span class="lineCov">          1 :     } else if (type.isPrimitive()) {</span>
+<span class="lineNum">     921 </span><span class="lineCov">          1 :         return !!(flags &amp; PrimitiveTypeFlag(type.primitive()));</span>
+<span class="lineNum">     922 </span><span class="lineCov">          1 :     } else if (type.isAnyObject()) {</span>
+<span class="lineNum">     923 </span><span class="lineCov">          1 :         return !!(flags &amp; TYPE_FLAG_ANYOBJECT);</span>
+<span class="lineNum">     924 </span>            :     } else {
+<span class="lineNum">     925 </span><span class="lineCov">          1 :         return !!(flags &amp; TYPE_FLAG_ANYOBJECT) ||</span>
+<span class="lineNum">     926 </span>            :                TypeHashSet::Lookup&lt;ObjectKey*, ObjectKey, ObjectKey&gt;
+<span class="lineNum">     927 </span><span class="lineCov">          1 :                    (objectSet, baseObjectCount(), type.objectKey()) != nullptr;</span>
+<span class="lineNum">     928 </span>            :     }
+<span class="lineNum">     929 </span>            : }
+<span class="lineNum">     930 </span>            : 
+<span class="lineNum">     931 </span>            : inline void
+<span class="lineNum">     932 </span>            : TypeSet::setBaseObjectCount(uint32_t count)
+<span class="lineNum">     933 </span>            : {
+<span class="lineNum">     934 </span>            :     MOZ_ASSERT(count &lt;= TYPE_FLAG_DOMOBJECT_COUNT_LIMIT);
+<span class="lineNum">     935 </span><span class="lineCov">          1 :     flags = (flags &amp; ~TYPE_FLAG_OBJECT_COUNT_MASK)</span>
+<span class="lineNum">     936 </span><span class="lineCov">          1 :           | (count &lt;&lt; TYPE_FLAG_OBJECT_COUNT_SHIFT);</span>
+<span class="lineNum">     937 </span>            : }
+<a name="938"><span class="lineNum">     938 </span>            : </a>
+<span class="lineNum">     939 </span>            : inline void
+<span class="lineNum">     940 </span><span class="lineCov">          1 : HeapTypeSet::newPropertyState(JSContext* cx)</span>
+<span class="lineNum">     941 </span>            : {
+<span class="lineNum">     942 </span><span class="lineCov">          1 :     checkMagic();</span>
+<span class="lineNum">     943 </span>            : 
+<span class="lineNum">     944 </span>            :     /* Propagate the change to all constraints. */
+<span class="lineNum">     945 </span><span class="lineCov">          1 :     if (!cx-&gt;helperThread()) {</span>
+<span class="lineNum">     946 </span><span class="lineCov">          1 :         TypeConstraint* constraint = constraintList();</span>
+<span class="lineNum">     947 </span><span class="lineCov">          1 :         while (constraint) {</span>
+<span class="lineNum">     948 </span><span class="lineCov">          1 :             constraint-&gt;newPropertyState(cx, this);</span>
+<span class="lineNum">     949 </span><span class="lineCov">          1 :             constraint = constraint-&gt;next();</span>
+<span class="lineNum">     950 </span>            :         }
+<span class="lineNum">     951 </span>            :     } else {
+<span class="lineNum">     952 </span>            :         MOZ_ASSERT(!constraintList());
+<span class="lineNum">     953 </span>            :     }
+<span class="lineNum">     954 </span><span class="lineCov">          1 : }</span>
+<a name="955"><span class="lineNum">     955 </span>            : </a>
+<span class="lineNum">     956 </span>            : inline void
+<span class="lineNum">     957 </span><span class="lineCov">          1 : HeapTypeSet::setNonDataProperty(JSContext* cx)</span>
+<span class="lineNum">     958 </span>            : {
+<span class="lineNum">     959 </span><span class="lineCov">          1 :     checkMagic();</span>
+<span class="lineNum">     960 </span>            : 
+<span class="lineNum">     961 </span><span class="lineCov">          1 :     if (flags &amp; TYPE_FLAG_NON_DATA_PROPERTY)</span>
+<span class="lineNum">     962 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     963 </span>            : 
+<span class="lineNum">     964 </span><span class="lineCov">          1 :     flags |= TYPE_FLAG_NON_DATA_PROPERTY;</span>
+<span class="lineNum">     965 </span><span class="lineCov">          1 :     newPropertyState(cx);</span>
+<span class="lineNum">     966 </span>            : }
+<a name="967"><span class="lineNum">     967 </span>            : </a>
+<span class="lineNum">     968 </span>            : inline void
+<span class="lineNum">     969 </span><span class="lineCov">          1 : HeapTypeSet::setNonWritableProperty(JSContext* cx)</span>
+<span class="lineNum">     970 </span>            : {
+<span class="lineNum">     971 </span><span class="lineCov">          1 :     checkMagic();</span>
+<span class="lineNum">     972 </span>            : 
+<span class="lineNum">     973 </span><span class="lineCov">          1 :     if (flags &amp; TYPE_FLAG_NON_WRITABLE_PROPERTY)</span>
+<span class="lineNum">     974 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     975 </span>            : 
+<span class="lineNum">     976 </span><span class="lineCov">          1 :     flags |= TYPE_FLAG_NON_WRITABLE_PROPERTY;</span>
+<span class="lineNum">     977 </span><span class="lineCov">          1 :     newPropertyState(cx);</span>
+<span class="lineNum">     978 </span>            : }
+<a name="979"><span class="lineNum">     979 </span>            : </a>
+<span class="lineNum">     980 </span>            : inline void
+<span class="lineNum">     981 </span><span class="lineCov">          1 : HeapTypeSet::setNonConstantProperty(JSContext* cx)</span>
+<span class="lineNum">     982 </span>            : {
+<span class="lineNum">     983 </span><span class="lineCov">          1 :     checkMagic();</span>
+<span class="lineNum">     984 </span>            : 
+<span class="lineNum">     985 </span><span class="lineCov">          1 :     if (flags &amp; TYPE_FLAG_NON_CONSTANT_PROPERTY)</span>
+<span class="lineNum">     986 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     987 </span>            : 
+<span class="lineNum">     988 </span><span class="lineCov">          1 :     flags |= TYPE_FLAG_NON_CONSTANT_PROPERTY;</span>
+<span class="lineNum">     989 </span><span class="lineCov">          1 :     newPropertyState(cx);</span>
+<span class="lineNum">     990 </span>            : }
+<span class="lineNum">     991 </span>            : 
+<span class="lineNum">     992 </span>            : inline unsigned
+<span class="lineNum">     993 </span>            : TypeSet::getObjectCount() const
+<span class="lineNum">     994 </span>            : {
+<span class="lineNum">     995 </span>            :     MOZ_ASSERT(!unknownObject());
+<span class="lineNum">     996 </span><span class="lineCov">          1 :     uint32_t count = baseObjectCount();</span>
+<span class="lineNum">     997 </span><span class="lineCov">          1 :     if (count &gt; TypeHashSet::SET_ARRAY_SIZE)</span>
+<span class="lineNum">     998 </span>            :         return TypeHashSet::Capacity(count);
+<span class="lineNum">     999 </span>            :     return count;
+<span class="lineNum">    1000 </span>            : }
+<span class="lineNum">    1001 </span>            : 
+<span class="lineNum">    1002 </span>            : inline TypeSet::ObjectKey*
+<span class="lineNum">    1003 </span>            : TypeSet::getObject(unsigned i) const
+<span class="lineNum">    1004 </span>            : {
+<span class="lineNum">    1005 </span>            :     MOZ_ASSERT(i &lt; getObjectCount());
+<span class="lineNum">    1006 </span><span class="lineCov">          1 :     if (baseObjectCount() == 1) {</span>
+<span class="lineNum">    1007 </span>            :         MOZ_ASSERT(i == 0);
+<span class="lineNum">    1008 </span><span class="lineCov">          1 :         return (ObjectKey*) objectSet;</span>
+<span class="lineNum">    1009 </span>            :     }
+<span class="lineNum">    1010 </span><span class="lineCov">          1 :     return objectSet[i];</span>
+<span class="lineNum">    1011 </span>            : }
+<a name="1012"><span class="lineNum">    1012 </span>            : </a>
+<span class="lineNum">    1013 </span>            : inline JSObject*
+<span class="lineNum">    1014 </span><span class="lineCov">          1 : TypeSet::getSingleton(unsigned i) const</span>
+<span class="lineNum">    1015 </span>            : {
+<span class="lineNum">    1016 </span><span class="lineCov">          1 :     ObjectKey* key = getObject(i);</span>
+<span class="lineNum">    1017 </span><span class="lineCov">          1 :     return (key &amp;&amp; key-&gt;isSingleton()) ? key-&gt;singleton() : nullptr;</span>
+<span class="lineNum">    1018 </span>            : }
+<a name="1019"><span class="lineNum">    1019 </span>            : </a>
+<span class="lineNum">    1020 </span>            : inline ObjectGroup*
+<span class="lineNum">    1021 </span><span class="lineCov">          1 : TypeSet::getGroup(unsigned i) const</span>
+<span class="lineNum">    1022 </span>            : {
+<span class="lineNum">    1023 </span><span class="lineCov">          1 :     ObjectKey* key = getObject(i);</span>
+<span class="lineNum">    1024 </span><span class="lineCov">          1 :     return (key &amp;&amp; key-&gt;isGroup()) ? key-&gt;group() : nullptr;</span>
+<span class="lineNum">    1025 </span>            : }
+<span class="lineNum">    1026 </span>            : 
+<span class="lineNum">    1027 </span>            : inline JSObject*
+<span class="lineNum">    1028 </span>            : TypeSet::getSingletonNoBarrier(unsigned i) const
+<span class="lineNum">    1029 </span>            : {
+<span class="lineNum">    1030 </span><span class="lineCov">          1 :     ObjectKey* key = getObject(i);</span>
+<span class="lineNum">    1031 </span><span class="lineCov">          1 :     return (key &amp;&amp; key-&gt;isSingleton()) ? key-&gt;singletonNoBarrier() : nullptr;</span>
+<span class="lineNum">    1032 </span>            : }
+<span class="lineNum">    1033 </span>            : 
+<span class="lineNum">    1034 </span>            : inline ObjectGroup*
+<span class="lineNum">    1035 </span>            : TypeSet::getGroupNoBarrier(unsigned i) const
+<span class="lineNum">    1036 </span>            : {
+<span class="lineNum">    1037 </span><span class="lineCov">          1 :     ObjectKey* key = getObject(i);</span>
+<span class="lineNum">    1038 </span><span class="lineCov">          1 :     return (key &amp;&amp; key-&gt;isGroup()) ? key-&gt;groupNoBarrier() : nullptr;</span>
+<span class="lineNum">    1039 </span>            : }
+<a name="1040"><span class="lineNum">    1040 </span>            : </a>
+<span class="lineNum">    1041 </span>            : inline const Class*
+<span class="lineNum">    1042 </span><span class="lineCov">          1 : TypeSet::getObjectClass(unsigned i) const</span>
+<span class="lineNum">    1043 </span>            : {
+<span class="lineNum">    1044 </span><span class="lineCov">          1 :     if (JSObject* object = getSingleton(i))</span>
+<span class="lineNum">    1045 </span><span class="lineCov">          1 :         return object-&gt;getClass();</span>
+<span class="lineNum">    1046 </span><span class="lineCov">          1 :     if (ObjectGroup* group = getGroup(i))</span>
+<span class="lineNum">    1047 </span><span class="lineCov">          1 :         return group-&gt;clasp();</span>
+<span class="lineNum">    1048 </span>            :     return nullptr;
+<span class="lineNum">    1049 </span>            : }
+<span class="lineNum">    1050 </span>            : 
+<span class="lineNum">    1051 </span>            : /////////////////////////////////////////////////////////////////////
+<span class="lineNum">    1052 </span>            : // ObjectGroup
+<span class="lineNum">    1053 </span>            : /////////////////////////////////////////////////////////////////////
+<a name="1054"><span class="lineNum">    1054 </span>            : </a>
+<span class="lineNum">    1055 </span>            : inline uint32_t
+<span class="lineNum">    1056 </span><span class="lineCov">          1 : ObjectGroup::basePropertyCount()</span>
+<span class="lineNum">    1057 </span>            : {
+<span class="lineNum">    1058 </span><span class="lineCov">          1 :     return (flags() &amp; OBJECT_FLAG_PROPERTY_COUNT_MASK) &gt;&gt; OBJECT_FLAG_PROPERTY_COUNT_SHIFT;</span>
+<span class="lineNum">    1059 </span>            : }
+<a name="1060"><span class="lineNum">    1060 </span>            : </a>
+<span class="lineNum">    1061 </span>            : inline void
+<span class="lineNum">    1062 </span><span class="lineCov">          1 : ObjectGroup::setBasePropertyCount(uint32_t count)</span>
+<span class="lineNum">    1063 </span>            : {
+<span class="lineNum">    1064 </span>            :     // Note: Callers must ensure they are performing threadsafe operations.
+<span class="lineNum">    1065 </span>            :     MOZ_ASSERT(count &lt;= OBJECT_FLAG_PROPERTY_COUNT_LIMIT);
+<span class="lineNum">    1066 </span><span class="lineCov">          1 :     flags_ = (flags() &amp; ~OBJECT_FLAG_PROPERTY_COUNT_MASK)</span>
+<span class="lineNum">    1067 </span><span class="lineCov">          1 :            | (count &lt;&lt; OBJECT_FLAG_PROPERTY_COUNT_SHIFT);</span>
+<span class="lineNum">    1068 </span><span class="lineCov">          1 : }</span>
+<a name="1069"><span class="lineNum">    1069 </span>            : </a>
+<span class="lineNum">    1070 </span>            : inline HeapTypeSet*
+<span class="lineNum">    1071 </span><span class="lineCov">          1 : ObjectGroup::getProperty(JSContext* cx, JSObject* obj, jsid id)</span>
+<span class="lineNum">    1072 </span>            : {
+<span class="lineNum">    1073 </span>            :     MOZ_ASSERT(JSID_IS_VOID(id) || JSID_IS_EMPTY(id) || JSID_IS_STRING(id) || JSID_IS_SYMBOL(id));
+<span class="lineNum">    1074 </span>            :     MOZ_ASSERT_IF(!JSID_IS_EMPTY(id), id == IdToTypeId(id));
+<span class="lineNum">    1075 </span>            :     MOZ_ASSERT(!unknownProperties());
+<span class="lineNum">    1076 </span>            :     MOZ_ASSERT_IF(obj, obj-&gt;group() == this);
+<span class="lineNum">    1077 </span>            :     MOZ_ASSERT_IF(singleton(), obj);
+<span class="lineNum">    1078 </span>            : 
+<span class="lineNum">    1079 </span><span class="lineCov">          1 :     if (HeapTypeSet* types = maybeGetProperty(id))</span>
+<span class="lineNum">    1080 </span>            :         return types;
+<span class="lineNum">    1081 </span>            : 
+<span class="lineNum">    1082 </span><span class="lineCov">          1 :     Property* base = cx-&gt;typeLifoAlloc().new_&lt;Property&gt;(id);</span>
+<span class="lineNum">    1083 </span><span class="lineCov">          1 :     if (!base) {</span>
+<span class="lineNum">    1084 </span><span class="lineNoCov">          0 :         markUnknown(cx);</span>
+<span class="lineNum">    1085 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1086 </span>            :     }
+<span class="lineNum">    1087 </span>            : 
+<span class="lineNum">    1088 </span><span class="lineCov">          1 :     uint32_t propertyCount = basePropertyCount();</span>
+<span class="lineNum">    1089 </span>            :     Property** pprop = TypeHashSet::Insert&lt;jsid, Property, Property&gt;
+<span class="lineNum">    1090 </span><span class="lineCov">          1 :                            (cx-&gt;typeLifoAlloc(), propertySet, propertyCount, id);</span>
+<span class="lineNum">    1091 </span><span class="lineCov">          1 :     if (!pprop) {</span>
+<span class="lineNum">    1092 </span><span class="lineNoCov">          0 :         markUnknown(cx);</span>
+<span class="lineNum">    1093 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1094 </span>            :     }
+<span class="lineNum">    1095 </span>            : 
+<span class="lineNum">    1096 </span>            :     MOZ_ASSERT(!*pprop);
+<span class="lineNum">    1097 </span>            : 
+<span class="lineNum">    1098 </span><span class="lineCov">          1 :     setBasePropertyCount(propertyCount);</span>
+<span class="lineNum">    1099 </span><span class="lineCov">          1 :     *pprop = base;</span>
+<span class="lineNum">    1100 </span>            : 
+<span class="lineNum">    1101 </span><span class="lineCov">          1 :     updateNewPropertyTypes(cx, obj, id, &amp;base-&gt;types);</span>
+<span class="lineNum">    1102 </span>            : 
+<span class="lineNum">    1103 </span><span class="lineCov">          1 :     if (propertyCount == OBJECT_FLAG_PROPERTY_COUNT_LIMIT) {</span>
+<span class="lineNum">    1104 </span>            :         // We hit the maximum number of properties the object can have, mark
+<span class="lineNum">    1105 </span>            :         // the object unknown so that new properties will not be added in the
+<span class="lineNum">    1106 </span>            :         // future.
+<span class="lineNum">    1107 </span><span class="lineNoCov">          0 :         markUnknown(cx);</span>
+<span class="lineNum">    1108 </span>            :     }
+<span class="lineNum">    1109 </span>            : 
+<span class="lineNum">    1110 </span><span class="lineCov">          1 :     base-&gt;types.checkMagic();</span>
+<span class="lineNum">    1111 </span>            :     return &amp;base-&gt;types;
+<span class="lineNum">    1112 </span>            : }
+<a name="1113"><span class="lineNum">    1113 </span>            : </a>
+<span class="lineNum">    1114 </span>            : inline HeapTypeSet*
+<span class="lineNum">    1115 </span><span class="lineCov">          1 : ObjectGroup::maybeGetProperty(jsid id)</span>
+<span class="lineNum">    1116 </span>            : {
+<span class="lineNum">    1117 </span>            :     MOZ_ASSERT(JSID_IS_VOID(id) || JSID_IS_EMPTY(id) || JSID_IS_STRING(id) || JSID_IS_SYMBOL(id));
+<span class="lineNum">    1118 </span>            :     MOZ_ASSERT_IF(!JSID_IS_EMPTY(id), id == IdToTypeId(id));
+<span class="lineNum">    1119 </span>            :     MOZ_ASSERT(!unknownProperties());
+<span class="lineNum">    1120 </span>            : 
+<span class="lineNum">    1121 </span>            :     Property* prop = TypeHashSet::Lookup&lt;jsid, Property, Property&gt;
+<span class="lineNum">    1122 </span><span class="lineCov">          1 :                          (propertySet, basePropertyCount(), id);</span>
+<span class="lineNum">    1123 </span>            : 
+<span class="lineNum">    1124 </span><span class="lineCov">          1 :     if (!prop)</span>
+<span class="lineNum">    1125 </span>            :         return nullptr;
+<span class="lineNum">    1126 </span>            : 
+<span class="lineNum">    1127 </span><span class="lineCov">          1 :     prop-&gt;types.checkMagic();</span>
+<span class="lineNum">    1128 </span><span class="lineCov">          1 :     return &amp;prop-&gt;types;</span>
+<span class="lineNum">    1129 </span>            : }
+<a name="1130"><span class="lineNum">    1130 </span>            : </a>
+<span class="lineNum">    1131 </span>            : inline unsigned
+<span class="lineNum">    1132 </span><span class="lineCov">          1 : ObjectGroup::getPropertyCount()</span>
+<span class="lineNum">    1133 </span>            : {
+<span class="lineNum">    1134 </span><span class="lineCov">          1 :     uint32_t count = basePropertyCount();</span>
+<span class="lineNum">    1135 </span><span class="lineCov">          1 :     if (count &gt; TypeHashSet::SET_ARRAY_SIZE)</span>
+<span class="lineNum">    1136 </span><span class="lineCov">          1 :         return TypeHashSet::Capacity(count);</span>
+<span class="lineNum">    1137 </span>            :     return count;
+<span class="lineNum">    1138 </span>            : }
+<a name="1139"><span class="lineNum">    1139 </span>            : </a>
+<span class="lineNum">    1140 </span>            : inline ObjectGroup::Property*
+<span class="lineNum">    1141 </span><span class="lineCov">          1 : ObjectGroup::getProperty(unsigned i)</span>
+<span class="lineNum">    1142 </span>            : {
+<span class="lineNum">    1143 </span>            :     MOZ_ASSERT(i &lt; getPropertyCount());
+<span class="lineNum">    1144 </span>            :     Property* result;
+<span class="lineNum">    1145 </span><span class="lineCov">          1 :     if (basePropertyCount() == 1) {</span>
+<span class="lineNum">    1146 </span>            :         MOZ_ASSERT(i == 0);
+<span class="lineNum">    1147 </span><span class="lineCov">          1 :         result = (Property*) propertySet;</span>
+<span class="lineNum">    1148 </span>            :     } else {
+<span class="lineNum">    1149 </span><span class="lineCov">          1 :         result = propertySet[i];</span>
+<span class="lineNum">    1150 </span>            :     }
+<span class="lineNum">    1151 </span><span class="lineCov">          1 :     if (result)</span>
+<span class="lineNum">    1152 </span><span class="lineCov">          1 :         result-&gt;types.checkMagic();</span>
+<span class="lineNum">    1153 </span><span class="lineCov">          1 :     return result;</span>
+<span class="lineNum">    1154 </span>            : }
+<span class="lineNum">    1155 </span>            : 
+<span class="lineNum">    1156 </span>            : } // namespace js
+<span class="lineNum">    1157 </span>            : 
+<span class="lineNum">    1158 </span>            : inline js::TypeScript*
+<span class="lineNum">    1159 </span>            : JSScript::types()
+<span class="lineNum">    1160 </span>            : {
+<span class="lineNum">    1161 </span><span class="lineCov">          1 :     maybeSweepTypes(nullptr);</span>
+<span class="lineNum">    1162 </span><span class="lineCov">          1 :     return types_;</span>
+<span class="lineNum">    1163 </span>            : }
+<a name="1164"><span class="lineNum">    1164 </span>            : </a>
+<span class="lineNum">    1165 </span>            : inline bool
+<span class="lineNum">    1166 </span><span class="lineCov">          1 : JSScript::ensureHasTypes(JSContext* cx)</span>
+<span class="lineNum">    1167 </span>            : {
+<span class="lineNum">    1168 </span><span class="lineCov">          1 :     return types() || makeTypes(cx);</span>
+<span class="lineNum">    1169 </span>            : }
+<span class="lineNum">    1170 </span>            : 
+<span class="lineNum">    1171 </span>            : #endif /* vm_TypeInference_inl_h */
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

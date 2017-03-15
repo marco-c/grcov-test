@@ -1,0 +1,448 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/media/webrtc/trunk/webrtc/video/overuse_frame_detector.cc</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../../index.html">top level</a> - <a href="index.html">gecko-dev/media/webrtc/trunk/webrtc/video</a> - overuse_frame_detector.cc<span style="font-size: 80%;"> (source / <a href="overuse_frame_detector.cc.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">157</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">26</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  *  Copyright (c) 2013 The WebRTC project authors. All Rights Reserved.
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  *  Use of this source code is governed by a BSD-style license
+<span class="lineNum">       5 </span>            :  *  that can be found in the LICENSE file in the root of the source
+<span class="lineNum">       6 </span>            :  *  tree. An additional intellectual property rights grant can be found
+<span class="lineNum">       7 </span>            :  *  in the file PATENTS.  All contributing project authors may
+<span class="lineNum">       8 </span>            :  *  be found in the AUTHORS file in the root of the source tree.
+<span class="lineNum">       9 </span>            :  */
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;webrtc/video/overuse_frame_detector.h&quot;
+<span class="lineNum">      12 </span>            : 
+<span class="lineNum">      13 </span>            : #include &lt;assert.h&gt;
+<span class="lineNum">      14 </span>            : #include &lt;math.h&gt;
+<span class="lineNum">      15 </span>            : 
+<span class="lineNum">      16 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      17 </span>            : #include &lt;list&gt;
+<span class="lineNum">      18 </span>            : #include &lt;map&gt;
+<span class="lineNum">      19 </span>            : 
+<span class="lineNum">      20 </span>            : #include &quot;webrtc/base/checks.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;webrtc/base/exp_filter.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;webrtc/base/logging.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;webrtc/system_wrappers/include/clock.h&quot;
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : namespace webrtc {
+<span class="lineNum">      26 </span>            : 
+<span class="lineNum">      27 </span>            : namespace {
+<span class="lineNum">      28 </span>            : const int64_t kProcessIntervalMs = 5000;
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : // Delay between consecutive rampups. (Used for quick recovery.)
+<span class="lineNum">      31 </span>            : const int kQuickRampUpDelayMs = 10 * 1000;
+<span class="lineNum">      32 </span>            : // Delay between rampup attempts. Initially uses standard, scales up to max.
+<span class="lineNum">      33 </span>            : const int kStandardRampUpDelayMs = 40 * 1000;
+<span class="lineNum">      34 </span>            : const int kMaxRampUpDelayMs = 240 * 1000;
+<span class="lineNum">      35 </span>            : // Expontential back-off factor, to prevent annoying up-down behaviour.
+<span class="lineNum">      36 </span>            : const double kRampUpBackoffFactor = 2.0;
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : // Max number of overuses detected before always applying the rampup delay.
+<span class="lineNum">      39 </span>            : const int kMaxOverusesBeforeApplyRampupDelay = 4;
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span>            : // The maximum exponent to use in VCMExpFilter.
+<span class="lineNum">      42 </span>            : const float kSampleDiffMs = 33.0f;
+<span class="lineNum">      43 </span>            : const float kMaxExp = 7.0f;
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span>            : }  // namespace
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span>            : // Class for calculating the processing usage on the send-side (the average
+<span class="lineNum">      48 </span>            : // processing time of a frame divided by the average time difference between
+<span class="lineNum">      49 </span>            : // captured frames).
+<a name="50"><span class="lineNum">      50 </span>            : class OveruseFrameDetector::SendProcessingUsage {</a>
+<span class="lineNum">      51 </span>            :  public:
+<span class="lineNum">      52 </span><span class="lineNoCov">          0 :   explicit SendProcessingUsage(const CpuOveruseOptions&amp; options)</span>
+<span class="lineNum">      53 </span>            :       : kWeightFactorFrameDiff(0.998f),
+<span class="lineNum">      54 </span>            :         kWeightFactorProcessing(0.995f),
+<span class="lineNum">      55 </span>            :         kInitialSampleDiffMs(40.0f),
+<span class="lineNum">      56 </span>            :         kMaxSampleDiffMs(45.0f),
+<span class="lineNum">      57 </span>            :         count_(0),
+<span class="lineNum">      58 </span>            :         options_(options),
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 :         filtered_processing_ms_(new rtc::ExpFilter(kWeightFactorProcessing)),</span>
+<span class="lineNum">      60 </span><span class="lineNoCov">          0 :         filtered_frame_diff_ms_(new rtc::ExpFilter(kWeightFactorFrameDiff)) {</span>
+<a name="61"><span class="lineNum">      61 </span><span class="lineNoCov">          0 :     Reset();</span></a>
+<span class="lineNum">      62 </span><span class="lineNoCov">          0 :   }</span>
+<a name="63"><span class="lineNum">      63 </span><span class="lineNoCov">          0 :   ~SendProcessingUsage() {}</span></a>
+<span class="lineNum">      64 </span>            : 
+<span class="lineNum">      65 </span><span class="lineNoCov">          0 :   void Reset() {</span>
+<span class="lineNum">      66 </span><span class="lineNoCov">          0 :     count_ = 0;</span>
+<span class="lineNum">      67 </span><span class="lineNoCov">          0 :     filtered_frame_diff_ms_-&gt;Reset(kWeightFactorFrameDiff);</span>
+<span class="lineNum">      68 </span><span class="lineNoCov">          0 :     filtered_frame_diff_ms_-&gt;Apply(1.0f, kInitialSampleDiffMs);</span>
+<span class="lineNum">      69 </span><span class="lineNoCov">          0 :     filtered_processing_ms_-&gt;Reset(kWeightFactorProcessing);</span>
+<span class="lineNum">      70 </span><span class="lineNoCov">          0 :     filtered_processing_ms_-&gt;Apply(1.0f, InitialProcessingMs());</span>
+<a name="71"><span class="lineNum">      71 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">      72 </span>            : 
+<span class="lineNum">      73 </span><span class="lineNoCov">          0 :   void AddCaptureSample(float sample_ms) {</span>
+<span class="lineNum">      74 </span><span class="lineNoCov">          0 :     float exp = sample_ms / kSampleDiffMs;</span>
+<span class="lineNum">      75 </span><span class="lineNoCov">          0 :     exp = std::min(exp, kMaxExp);</span>
+<span class="lineNum">      76 </span><span class="lineNoCov">          0 :     filtered_frame_diff_ms_-&gt;Apply(exp, sample_ms);</span>
+<a name="77"><span class="lineNum">      77 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span><span class="lineNoCov">          0 :   void AddSample(float processing_ms, int64_t diff_last_sample_ms) {</span>
+<span class="lineNum">      80 </span><span class="lineNoCov">          0 :     ++count_;</span>
+<span class="lineNum">      81 </span><span class="lineNoCov">          0 :     float exp = diff_last_sample_ms / kSampleDiffMs;</span>
+<span class="lineNum">      82 </span><span class="lineNoCov">          0 :     exp = std::min(exp, kMaxExp);</span>
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :     filtered_processing_ms_-&gt;Apply(exp, processing_ms);</span>
+<a name="84"><span class="lineNum">      84 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span><span class="lineNoCov">          0 :   int Value() const {</span>
+<span class="lineNum">      87 </span><span class="lineNoCov">          0 :     if (count_ &lt; static_cast&lt;uint32_t&gt;(options_.min_frame_samples)) {</span>
+<span class="lineNum">      88 </span><span class="lineNoCov">          0 :       return static_cast&lt;int&gt;(InitialUsageInPercent() + 0.5f);</span>
+<span class="lineNum">      89 </span>            :     }
+<span class="lineNum">      90 </span><span class="lineNoCov">          0 :     float frame_diff_ms = std::max(filtered_frame_diff_ms_-&gt;filtered(), 1.0f);</span>
+<span class="lineNum">      91 </span><span class="lineNoCov">          0 :     frame_diff_ms = std::min(frame_diff_ms, kMaxSampleDiffMs);</span>
+<span class="lineNum">      92 </span>            :     float encode_usage_percent =
+<span class="lineNum">      93 </span><span class="lineNoCov">          0 :         100.0f * filtered_processing_ms_-&gt;filtered() / frame_diff_ms;</span>
+<span class="lineNum">      94 </span><span class="lineNoCov">          0 :     return static_cast&lt;int&gt;(encode_usage_percent + 0.5);</span>
+<span class="lineNum">      95 </span>            :   }
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span>            :  private:
+<span class="lineNum">      98 </span>            :   float InitialUsageInPercent() const {
+<span class="lineNum">      99 </span>            :     // Start in between the underuse and overuse threshold.
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :     return (options_.low_encode_usage_threshold_percent +</span>
+<span class="lineNum">     101 </span><span class="lineNoCov">          0 :             options_.high_encode_usage_threshold_percent) / 2.0f;</span>
+<a name="102"><span class="lineNum">     102 </span>            :   }</a>
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span><span class="lineNoCov">          0 :   float InitialProcessingMs() const {</span>
+<span class="lineNum">     105 </span><span class="lineNoCov">          0 :     return InitialUsageInPercent() * kInitialSampleDiffMs / 100;</span>
+<span class="lineNum">     106 </span>            :   }
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span>            :   const float kWeightFactorFrameDiff;
+<span class="lineNum">     109 </span>            :   const float kWeightFactorProcessing;
+<span class="lineNum">     110 </span>            :   const float kInitialSampleDiffMs;
+<span class="lineNum">     111 </span>            :   const float kMaxSampleDiffMs;
+<span class="lineNum">     112 </span>            :   uint64_t count_;
+<span class="lineNum">     113 </span>            :   const CpuOveruseOptions options_;
+<span class="lineNum">     114 </span>            :   rtc::scoped_ptr&lt;rtc::ExpFilter&gt; filtered_processing_ms_;
+<span class="lineNum">     115 </span>            :   rtc::scoped_ptr&lt;rtc::ExpFilter&gt; filtered_frame_diff_ms_;
+<span class="lineNum">     116 </span>            : };
+<span class="lineNum">     117 </span>            : 
+<span class="lineNum">     118 </span>            : // Class for calculating the processing time of frames.
+<a name="119"><span class="lineNum">     119 </span>            : class OveruseFrameDetector::FrameQueue {</a>
+<span class="lineNum">     120 </span>            :  public:
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :   FrameQueue() : last_processing_time_ms_(-1) {}</span>
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :   ~FrameQueue() {}</span>
+<span class="lineNum">     123 </span>            : 
+<a name="124"><span class="lineNum">     124 </span>            :   // Called when a frame is captured.</a>
+<span class="lineNum">     125 </span>            :   // Starts the measuring of the processing time of the frame.
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :   void Start(int64_t capture_time, int64_t now) {</span>
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 :     const size_t kMaxSize = 90;  // Allows for processing time of 1.5s at 60fps.</span>
+<span class="lineNum">     128 </span><span class="lineNoCov">          0 :     if (frame_times_.size() &gt; kMaxSize) {</span>
+<span class="lineNum">     129 </span><span class="lineNoCov">          0 :       LOG(LS_WARNING) &lt;&lt; &quot;Max size reached, removed oldest frame.&quot;;</span>
+<span class="lineNum">     130 </span><span class="lineNoCov">          0 :       frame_times_.erase(frame_times_.begin());</span>
+<span class="lineNum">     131 </span>            :     }
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :     if (frame_times_.find(capture_time) != frame_times_.end()) {</span>
+<span class="lineNum">     133 </span>            :       // Frame should not exist.
+<span class="lineNum">     134 </span>            :       assert(false);
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 :       return;</span>
+<span class="lineNum">     136 </span>            :     }
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :     frame_times_[capture_time] = now;</span>
+<span class="lineNum">     138 </span>            :   }
+<span class="lineNum">     139 </span>            : 
+<a name="140"><span class="lineNum">     140 </span>            :   // Called when the processing of a frame has finished.</a>
+<span class="lineNum">     141 </span>            :   // Returns the processing time of the frame.
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :   int End(int64_t capture_time, int64_t now) {</span>
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :     std::map&lt;int64_t, int64_t&gt;::iterator it = frame_times_.find(capture_time);</span>
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :     if (it == frame_times_.end()) {</span>
+<span class="lineNum">     145 </span>            :       return -1;
+<span class="lineNum">     146 </span>            :     }
+<span class="lineNum">     147 </span>            :     // Remove any old frames up to current.
+<span class="lineNum">     148 </span>            :     // Old frames have been skipped by the capture process thread.
+<span class="lineNum">     149 </span>            :     // TODO(asapersson): Consider measuring time from first frame in list.
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :     last_processing_time_ms_ = now - (*it).second;</span>
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :     frame_times_.erase(frame_times_.begin(), ++it);</span>
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :     return last_processing_time_ms_;</span>
+<span class="lineNum">     153 </span>            :   }
+<span class="lineNum">     154 </span>            : 
+<span class="lineNum">     155 </span><span class="lineNoCov">          0 :   void Reset() { frame_times_.clear(); }</span>
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :   int NumFrames() const { return static_cast&lt;int&gt;(frame_times_.size()); }</span>
+<span class="lineNum">     157 </span>            :   int last_processing_time_ms() const { return last_processing_time_ms_; }
+<span class="lineNum">     158 </span>            : 
+<span class="lineNum">     159 </span>            :  private:
+<span class="lineNum">     160 </span>            :   // Captured frames mapped by the capture time.
+<span class="lineNum">     161 </span>            :   std::map&lt;int64_t, int64_t&gt; frame_times_;
+<span class="lineNum">     162 </span>            :   int last_processing_time_ms_;
+<span class="lineNum">     163 </span>            : };
+<a name="164"><span class="lineNum">     164 </span>            : </a>
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 : OveruseFrameDetector::OveruseFrameDetector(</span>
+<span class="lineNum">     167 </span>            :     Clock* clock,
+<span class="lineNum">     168 </span>            :     const CpuOveruseOptions&amp; options,
+<span class="lineNum">     169 </span>            :     CpuOveruseObserver* observer,
+<span class="lineNum">     170 </span>            :     CpuOveruseMetricsObserver* metrics_observer)
+<span class="lineNum">     171 </span>            :     : options_(options),
+<span class="lineNum">     172 </span>            :       observer_(observer),
+<span class="lineNum">     173 </span>            :       metrics_observer_(metrics_observer),
+<span class="lineNum">     174 </span>            :       clock_(clock),
+<span class="lineNum">     175 </span>            :       num_process_times_(0),
+<span class="lineNum">     176 </span>            :       last_capture_time_(0),
+<span class="lineNum">     177 </span>            :       num_pixels_(0),
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :       next_process_time_(clock_-&gt;TimeInMilliseconds()),</span>
+<span class="lineNum">     179 </span>            :       last_overuse_time_(0),
+<span class="lineNum">     180 </span>            :       checks_above_threshold_(0),
+<span class="lineNum">     181 </span>            :       num_overuse_detections_(0),
+<span class="lineNum">     182 </span>            :       last_rampup_time_(0),
+<span class="lineNum">     183 </span>            :       in_quick_rampup_(false),
+<span class="lineNum">     184 </span>            :       current_rampup_delay_ms_(kStandardRampUpDelayMs),
+<span class="lineNum">     185 </span>            :       last_sample_time_ms_(0),
+<span class="lineNum">     186 </span><span class="lineNoCov">          0 :       usage_(new SendProcessingUsage(options)),</span>
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 :       frame_queue_(new FrameQueue()) {</span>
+<span class="lineNum">     188 </span>            :   RTC_DCHECK(metrics_observer != nullptr);
+<span class="lineNum">     189 </span>            :   // Make sure stats are initially up-to-date. This simplifies unit testing
+<span class="lineNum">     190 </span>            :   // since we don't have to trigger an update using one of the methods which
+<span class="lineNum">     191 </span>            :   // would also alter the overuse state.
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :   UpdateCpuOveruseMetrics();</span>
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 :   processing_thread_.DetachFromThread();</span>
+<a name="194"><span class="lineNum">     194 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     195 </span>            : 
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 : OveruseFrameDetector::~OveruseFrameDetector() {</span>
+<a name="197"><span class="lineNum">     197 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span><span class="lineNoCov">          0 : int OveruseFrameDetector::LastProcessingTimeMs() const {</span>
+<span class="lineNum">     200 </span><span class="lineNoCov">          0 :   rtc::CritScope cs(&amp;crit_);</span>
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :   return frame_queue_-&gt;last_processing_time_ms();</span>
+<a name="202"><span class="lineNum">     202 </span>            : }</a>
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 : int OveruseFrameDetector::FramesInQueue() const {</span>
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :   rtc::CritScope cs(&amp;crit_);</span>
+<span class="lineNum">     206 </span><span class="lineNoCov">          0 :   return frame_queue_-&gt;NumFrames();</span>
+<a name="207"><span class="lineNum">     207 </span>            : }</a>
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 : void OveruseFrameDetector::UpdateCpuOveruseMetrics() {</span>
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :   metrics_.encode_usage_percent = usage_-&gt;Value();</span>
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span><span class="lineNoCov">          0 :   metrics_observer_-&gt;CpuOveruseMetricsUpdated(metrics_);</span>
+<a name="213"><span class="lineNum">     213 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     214 </span>            : 
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 : int64_t OveruseFrameDetector::TimeUntilNextProcess() {</span>
+<span class="lineNum">     216 </span>            :   RTC_DCHECK(processing_thread_.CalledOnValidThread());
+<span class="lineNum">     217 </span><span class="lineNoCov">          0 :   return next_process_time_ - clock_-&gt;TimeInMilliseconds();</span>
+<a name="218"><span class="lineNum">     218 </span>            : }</a>
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 : bool OveruseFrameDetector::FrameSizeChanged(int num_pixels) const {</span>
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :   if (num_pixels != num_pixels_) {</span>
+<span class="lineNum">     222 </span>            :     return true;
+<span class="lineNum">     223 </span>            :   }
+<span class="lineNum">     224 </span><span class="lineNoCov">          0 :   return false;</span>
+<a name="225"><span class="lineNum">     225 </span>            : }</a>
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span><span class="lineNoCov">          0 : bool OveruseFrameDetector::FrameTimeoutDetected(int64_t now) const {</span>
+<span class="lineNum">     228 </span><span class="lineNoCov">          0 :   if (last_capture_time_ == 0) {</span>
+<span class="lineNum">     229 </span>            :     return false;
+<span class="lineNum">     230 </span>            :   }
+<span class="lineNum">     231 </span><span class="lineNoCov">          0 :   return (now - last_capture_time_) &gt; options_.frame_timeout_interval_ms;</span>
+<a name="232"><span class="lineNum">     232 </span>            : }</a>
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span><span class="lineNoCov">          0 : void OveruseFrameDetector::ResetAll(int num_pixels) {</span>
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :   num_pixels_ = num_pixels;</span>
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :   usage_-&gt;Reset();</span>
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :   frame_queue_-&gt;Reset();</span>
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :   last_capture_time_ = 0;</span>
+<span class="lineNum">     239 </span><span class="lineNoCov">          0 :   num_process_times_ = 0;</span>
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 :   UpdateCpuOveruseMetrics();</span>
+<a name="241"><span class="lineNum">     241 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span><span class="lineNoCov">          0 : void OveruseFrameDetector::FrameCaptured(int width,</span>
+<span class="lineNum">     244 </span>            :                                          int height,
+<span class="lineNum">     245 </span>            :                                          int64_t capture_time_ms) {
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :   rtc::CritScope cs(&amp;crit_);</span>
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span><span class="lineNoCov">          0 :   int64_t now = clock_-&gt;TimeInMilliseconds();</span>
+<span class="lineNum">     249 </span><span class="lineNoCov">          0 :   if (FrameSizeChanged(width * height) || FrameTimeoutDetected(now)) {</span>
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 :     ResetAll(width * height);</span>
+<span class="lineNum">     251 </span>            :   }
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span><span class="lineNoCov">          0 :   if (last_capture_time_ != 0)</span>
+<span class="lineNum">     254 </span><span class="lineNoCov">          0 :     usage_-&gt;AddCaptureSample(now - last_capture_time_);</span>
+<span class="lineNum">     255 </span>            : 
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 :   last_capture_time_ = now;</span>
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 :   frame_queue_-&gt;Start(capture_time_ms, now);</span>
+<a name="259"><span class="lineNum">     259 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     260 </span>            : 
+<span class="lineNum">     261 </span><span class="lineNoCov">          0 : void OveruseFrameDetector::FrameSent(int64_t capture_time_ms) {</span>
+<span class="lineNum">     262 </span><span class="lineNoCov">          0 :   rtc::CritScope cs(&amp;crit_);</span>
+<span class="lineNum">     263 </span>            :   int delay_ms = frame_queue_-&gt;End(capture_time_ms,
+<span class="lineNum">     264 </span><span class="lineNoCov">          0 :                                    clock_-&gt;TimeInMilliseconds());</span>
+<span class="lineNum">     265 </span><span class="lineNoCov">          0 :   if (delay_ms &gt; 0) {</span>
+<span class="lineNum">     266 </span><span class="lineNoCov">          0 :     AddProcessingTime(delay_ms);</span>
+<span class="lineNum">     267 </span><span class="lineNoCov">          0 :   }</span>
+<a name="268"><span class="lineNum">     268 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     269 </span>            : 
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 : void OveruseFrameDetector::AddProcessingTime(int elapsed_ms) {</span>
+<span class="lineNum">     271 </span><span class="lineNoCov">          0 :   int64_t now = clock_-&gt;TimeInMilliseconds();</span>
+<span class="lineNum">     272 </span><span class="lineNoCov">          0 :   if (last_sample_time_ms_ != 0) {</span>
+<span class="lineNum">     273 </span><span class="lineNoCov">          0 :     int64_t diff_ms = now - last_sample_time_ms_;</span>
+<span class="lineNum">     274 </span><span class="lineNoCov">          0 :     usage_-&gt;AddSample(elapsed_ms, diff_ms);</span>
+<span class="lineNum">     275 </span>            :   }
+<span class="lineNum">     276 </span><span class="lineNoCov">          0 :   last_sample_time_ms_ = now;</span>
+<span class="lineNum">     277 </span><span class="lineNoCov">          0 :   UpdateCpuOveruseMetrics();</span>
+<a name="278"><span class="lineNum">     278 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     279 </span>            : 
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 : int32_t OveruseFrameDetector::Process() {</span>
+<span class="lineNum">     281 </span>            :   RTC_DCHECK(processing_thread_.CalledOnValidThread());
+<span class="lineNum">     282 </span>            : 
+<span class="lineNum">     283 </span><span class="lineNoCov">          0 :   int64_t now = clock_-&gt;TimeInMilliseconds();</span>
+<span class="lineNum">     284 </span>            : 
+<span class="lineNum">     285 </span>            :   // Used to protect against Process() being called too often.
+<span class="lineNum">     286 </span><span class="lineNoCov">          0 :   if (now &lt; next_process_time_)</span>
+<span class="lineNum">     287 </span>            :     return 0;
+<span class="lineNum">     288 </span>            : 
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :   next_process_time_ = now + kProcessIntervalMs;</span>
+<span class="lineNum">     290 </span>            : 
+<span class="lineNum">     291 </span>            :   CpuOveruseMetrics current_metrics;
+<span class="lineNum">     292 </span>            :   {
+<span class="lineNum">     293 </span><span class="lineNoCov">          0 :     rtc::CritScope cs(&amp;crit_);</span>
+<span class="lineNum">     294 </span><span class="lineNoCov">          0 :     ++num_process_times_;</span>
+<span class="lineNum">     295 </span>            : 
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :     current_metrics = metrics_;</span>
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :     if (num_process_times_ &lt;= options_.min_process_count)</span>
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 :       return 0;</span>
+<span class="lineNum">     299 </span>            :   }
+<span class="lineNum">     300 </span>            : 
+<span class="lineNum">     301 </span><span class="lineNoCov">          0 :   if (IsOverusing(current_metrics)) {</span>
+<span class="lineNum">     302 </span>            :     // If the last thing we did was going up, and now have to back down, we need
+<span class="lineNum">     303 </span>            :     // to check if this peak was short. If so we should back off to avoid going
+<span class="lineNum">     304 </span>            :     // back and forth between this load, the system doesn't seem to handle it.
+<span class="lineNum">     305 </span><span class="lineNoCov">          0 :     bool check_for_backoff = last_rampup_time_ &gt; last_overuse_time_;</span>
+<span class="lineNum">     306 </span><span class="lineNoCov">          0 :     if (check_for_backoff) {</span>
+<span class="lineNum">     307 </span><span class="lineNoCov">          0 :       if (now - last_rampup_time_ &lt; kStandardRampUpDelayMs ||</span>
+<span class="lineNum">     308 </span><span class="lineNoCov">          0 :           num_overuse_detections_ &gt; kMaxOverusesBeforeApplyRampupDelay) {</span>
+<span class="lineNum">     309 </span>            :         // Going up was not ok for very long, back off.
+<span class="lineNum">     310 </span><span class="lineNoCov">          0 :         current_rampup_delay_ms_ *= kRampUpBackoffFactor;</span>
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :         if (current_rampup_delay_ms_ &gt; kMaxRampUpDelayMs)</span>
+<span class="lineNum">     312 </span><span class="lineNoCov">          0 :           current_rampup_delay_ms_ = kMaxRampUpDelayMs;</span>
+<span class="lineNum">     313 </span>            :       } else {
+<span class="lineNum">     314 </span>            :         // Not currently backing off, reset rampup delay.
+<span class="lineNum">     315 </span><span class="lineNoCov">          0 :         current_rampup_delay_ms_ = kStandardRampUpDelayMs;</span>
+<span class="lineNum">     316 </span>            :       }
+<span class="lineNum">     317 </span>            :     }
+<span class="lineNum">     318 </span>            : 
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :     last_overuse_time_ = now;</span>
+<span class="lineNum">     320 </span><span class="lineNoCov">          0 :     in_quick_rampup_ = false;</span>
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :     checks_above_threshold_ = 0;</span>
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 :     ++num_overuse_detections_;</span>
+<span class="lineNum">     323 </span>            : 
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 :     if (observer_ != NULL)</span>
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :       observer_-&gt;OveruseDetected();</span>
+<span class="lineNum">     326 </span><span class="lineNoCov">          0 :   } else if (IsUnderusing(current_metrics, now)) {</span>
+<span class="lineNum">     327 </span><span class="lineNoCov">          0 :     last_rampup_time_ = now;</span>
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 :     in_quick_rampup_ = true;</span>
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 :     if (observer_ != NULL)</span>
+<span class="lineNum">     331 </span><span class="lineNoCov">          0 :       observer_-&gt;NormalUsage();</span>
+<span class="lineNum">     332 </span>            :   }
+<span class="lineNum">     333 </span>            : 
+<span class="lineNum">     334 </span>            :   int rampup_delay =
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :       in_quick_rampup_ ? kQuickRampUpDelayMs : current_rampup_delay_ms_;</span>
+<span class="lineNum">     336 </span>            : 
+<span class="lineNum">     337 </span><span class="lineNoCov">          0 :   LOG(LS_VERBOSE) &lt;&lt; &quot; Frame stats: &quot;</span>
+<span class="lineNum">     338 </span><span class="lineNoCov">          0 :                   &lt;&lt; &quot; encode usage &quot; &lt;&lt; current_metrics.encode_usage_percent</span>
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 :                   &lt;&lt; &quot; overuse detections &quot; &lt;&lt; num_overuse_detections_</span>
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :                   &lt;&lt; &quot; rampup delay &quot; &lt;&lt; rampup_delay;</span>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span>            :   return 0;
+<a name="343"><span class="lineNum">     343 </span>            : }</a>
+<span class="lineNum">     344 </span>            : 
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 : bool OveruseFrameDetector::IsOverusing(const CpuOveruseMetrics&amp; metrics) {</span>
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :   if (metrics.encode_usage_percent &gt;=</span>
+<span class="lineNum">     347 </span>            :       options_.high_encode_usage_threshold_percent) {
+<span class="lineNum">     348 </span><span class="lineNoCov">          0 :     ++checks_above_threshold_;</span>
+<span class="lineNum">     349 </span>            :   } else {
+<span class="lineNum">     350 </span><span class="lineNoCov">          0 :     checks_above_threshold_ = 0;</span>
+<span class="lineNum">     351 </span>            :   }
+<span class="lineNum">     352 </span><span class="lineNoCov">          0 :   return checks_above_threshold_ &gt;= options_.high_threshold_consecutive_count;</span>
+<a name="353"><span class="lineNum">     353 </span>            : }</a>
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span><span class="lineNoCov">          0 : bool OveruseFrameDetector::IsUnderusing(const CpuOveruseMetrics&amp; metrics,</span>
+<span class="lineNum">     356 </span>            :                                         int64_t time_now) {
+<span class="lineNum">     357 </span><span class="lineNoCov">          0 :   int delay = in_quick_rampup_ ? kQuickRampUpDelayMs : current_rampup_delay_ms_;</span>
+<span class="lineNum">     358 </span><span class="lineNoCov">          0 :   if (time_now &lt; last_rampup_time_ + delay)</span>
+<span class="lineNum">     359 </span>            :     return false;
+<span class="lineNum">     360 </span>            : 
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 :   return metrics.encode_usage_percent &lt;</span>
+<span class="lineNum">     362 </span><span class="lineNoCov">          0 :          options_.low_encode_usage_threshold_percent;</span>
+<span class="lineNum">     363 </span>            : }
+<span class="lineNum">     364 </span>            : }  // namespace webrtc
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

@@ -1,0 +1,570 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/gfx/skia/skia/src/core/SkConvolver.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../../index.html">top level</a> - <a href="index.html">gecko-dev/gfx/skia/skia/src/core</a> - SkConvolver.cpp<span style="font-size: 80%;"> (source / <a href="SkConvolver.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">157</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">17</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : // Copyright (c) 2011 The Chromium Authors. All rights reserved.</a>
+<span class="lineNum">       2 </span>            : // Use of this source code is governed by a BSD-style license that can be
+<span class="lineNum">       3 </span>            : // found in the LICENSE file.
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : #include &quot;SkConvolver.h&quot;
+<span class="lineNum">       6 </span>            : #include &quot;SkTArray.h&quot;
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : namespace {
+<span class="lineNum">       9 </span>            : 
+<a name="10"><span class="lineNum">      10 </span>            :     // Converts the argument to an 8-bit unsigned value by clamping to the range</a>
+<span class="lineNum">      11 </span>            :     // 0-255.
+<span class="lineNum">      12 </span><span class="lineNoCov">          0 :     inline unsigned char ClampTo8(int a) {</span>
+<span class="lineNum">      13 </span><span class="lineNoCov">          0 :         if (static_cast&lt;unsigned&gt;(a) &lt; 256) {</span>
+<span class="lineNum">      14 </span><span class="lineNoCov">          0 :             return a;  // Avoid the extra check in the common case.</span>
+<span class="lineNum">      15 </span>            :         }
+<span class="lineNum">      16 </span><span class="lineNoCov">          0 :         if (a &lt; 0) {</span>
+<span class="lineNum">      17 </span>            :             return 0;
+<span class="lineNum">      18 </span>            :         }
+<span class="lineNum">      19 </span><span class="lineNoCov">          0 :         return 255;</span>
+<span class="lineNum">      20 </span>            :     }
+<span class="lineNum">      21 </span>            : 
+<span class="lineNum">      22 </span>            :     // Stores a list of rows in a circular buffer. The usage is you write into it
+<a name="23"><span class="lineNum">      23 </span>            :     // by calling AdvanceRow. It will keep track of which row in the buffer it</a>
+<span class="lineNum">      24 </span>            :     // should use next, and the total number of rows added.
+<span class="lineNum">      25 </span><span class="lineNoCov">          0 :     class CircularRowBuffer {</span>
+<span class="lineNum">      26 </span>            :     public:
+<span class="lineNum">      27 </span>            :         // The number of pixels in each row is given in |sourceRowPixelWidth|.
+<span class="lineNum">      28 </span>            :         // The maximum number of rows needed in the buffer is |maxYFilterSize|
+<span class="lineNum">      29 </span>            :         // (we only need to store enough rows for the biggest filter).
+<span class="lineNum">      30 </span>            :         //
+<a name="31"><span class="lineNum">      31 </span>            :         // We use the |firstInputRow| to compute the coordinates of all of the</a>
+<span class="lineNum">      32 </span>            :         // following rows returned by Advance().
+<span class="lineNum">      33 </span><span class="lineNoCov">          0 :         CircularRowBuffer(int destRowPixelWidth, int maxYFilterSize,</span>
+<span class="lineNum">      34 </span>            :                           int firstInputRow)
+<span class="lineNum">      35 </span><span class="lineNoCov">          0 :             : fRowByteWidth(destRowPixelWidth * 4),</span>
+<span class="lineNum">      36 </span>            :               fNumRows(maxYFilterSize),
+<span class="lineNum">      37 </span>            :               fNextRow(0),
+<span class="lineNum">      38 </span><span class="lineNoCov">          0 :               fNextRowCoordinate(firstInputRow) {</span>
+<span class="lineNum">      39 </span><span class="lineNoCov">          0 :             fBuffer.reset(fRowByteWidth * maxYFilterSize);</span>
+<span class="lineNum">      40 </span><span class="lineNoCov">          0 :             fRowAddresses.reset(fNumRows);</span>
+<span class="lineNum">      41 </span><span class="lineNoCov">          0 :         }</span>
+<span class="lineNum">      42 </span>            : 
+<a name="43"><span class="lineNum">      43 </span>            :         // Moves to the next row in the buffer, returning a pointer to the beginning</a>
+<span class="lineNum">      44 </span>            :         // of it.
+<span class="lineNum">      45 </span><span class="lineNoCov">          0 :         unsigned char* advanceRow() {</span>
+<span class="lineNum">      46 </span><span class="lineNoCov">          0 :             unsigned char* row = &amp;fBuffer[fNextRow * fRowByteWidth];</span>
+<span class="lineNum">      47 </span><span class="lineNoCov">          0 :             fNextRowCoordinate++;</span>
+<span class="lineNum">      48 </span>            : 
+<span class="lineNum">      49 </span>            :             // Set the pointer to the next row to use, wrapping around if necessary.
+<span class="lineNum">      50 </span><span class="lineNoCov">          0 :             fNextRow++;</span>
+<span class="lineNum">      51 </span><span class="lineNoCov">          0 :             if (fNextRow == fNumRows) {</span>
+<span class="lineNum">      52 </span><span class="lineNoCov">          0 :                 fNextRow = 0;</span>
+<span class="lineNum">      53 </span>            :             }
+<span class="lineNum">      54 </span><span class="lineNoCov">          0 :             return row;</span>
+<span class="lineNum">      55 </span>            :         }
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            :         // Returns a pointer to an &quot;unrolled&quot; array of rows. These rows will start
+<span class="lineNum">      58 </span>            :         // at the y coordinate placed into |*firstRowIndex| and will continue in
+<span class="lineNum">      59 </span>            :         // order for the maximum number of rows in this circular buffer.
+<span class="lineNum">      60 </span>            :         //
+<a name="61"><span class="lineNum">      61 </span>            :         // The |firstRowIndex_| may be negative. This means the circular buffer</a>
+<span class="lineNum">      62 </span>            :         // starts before the top of the image (it hasn't been filled yet).
+<span class="lineNum">      63 </span><span class="lineNoCov">          0 :         unsigned char* const* GetRowAddresses(int* firstRowIndex) {</span>
+<span class="lineNum">      64 </span>            :             // Example for a 4-element circular buffer holding coords 6-9.
+<span class="lineNum">      65 </span>            :             //   Row 0   Coord 8
+<span class="lineNum">      66 </span>            :             //   Row 1   Coord 9
+<span class="lineNum">      67 </span>            :             //   Row 2   Coord 6  &lt;- fNextRow = 2, fNextRowCoordinate = 10.
+<span class="lineNum">      68 </span>            :             //   Row 3   Coord 7
+<span class="lineNum">      69 </span>            :             //
+<span class="lineNum">      70 </span>            :             // The &quot;next&quot; row is also the first (lowest) coordinate. This computation
+<span class="lineNum">      71 </span>            :             // may yield a negative value, but that's OK, the math will work out
+<span class="lineNum">      72 </span>            :             // since the user of this buffer will compute the offset relative
+<span class="lineNum">      73 </span>            :             // to the firstRowIndex and the negative rows will never be used.
+<span class="lineNum">      74 </span><span class="lineNoCov">          0 :             *firstRowIndex = fNextRowCoordinate - fNumRows;</span>
+<span class="lineNum">      75 </span>            : 
+<span class="lineNum">      76 </span><span class="lineNoCov">          0 :             int curRow = fNextRow;</span>
+<span class="lineNum">      77 </span><span class="lineNoCov">          0 :             for (int i = 0; i &lt; fNumRows; i++) {</span>
+<span class="lineNum">      78 </span><span class="lineNoCov">          0 :                 fRowAddresses[i] = &amp;fBuffer[curRow * fRowByteWidth];</span>
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span>            :                 // Advance to the next row, wrapping if necessary.
+<span class="lineNum">      81 </span><span class="lineNoCov">          0 :                 curRow++;</span>
+<span class="lineNum">      82 </span><span class="lineNoCov">          0 :                 if (curRow == fNumRows) {</span>
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :                     curRow = 0;</span>
+<span class="lineNum">      84 </span>            :                 }
+<span class="lineNum">      85 </span>            :             }
+<span class="lineNum">      86 </span><span class="lineNoCov">          0 :             return &amp;fRowAddresses[0];</span>
+<span class="lineNum">      87 </span>            :         }
+<span class="lineNum">      88 </span>            : 
+<span class="lineNum">      89 </span>            :     private:
+<span class="lineNum">      90 </span>            :         // The buffer storing the rows. They are packed, each one fRowByteWidth.
+<span class="lineNum">      91 </span>            :         SkTArray&lt;unsigned char&gt; fBuffer;
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span>            :         // Number of bytes per row in the |buffer|.
+<span class="lineNum">      94 </span>            :         int fRowByteWidth;
+<span class="lineNum">      95 </span>            : 
+<span class="lineNum">      96 </span>            :         // The number of rows available in the buffer.
+<span class="lineNum">      97 </span>            :         int fNumRows;
+<span class="lineNum">      98 </span>            : 
+<span class="lineNum">      99 </span>            :         // The next row index we should write into. This wraps around as the
+<span class="lineNum">     100 </span>            :         // circular buffer is used.
+<span class="lineNum">     101 </span>            :         int fNextRow;
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span>            :         // The y coordinate of the |fNextRow|. This is incremented each time a
+<span class="lineNum">     104 </span>            :         // new row is appended and does not wrap.
+<span class="lineNum">     105 </span>            :         int fNextRowCoordinate;
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span>            :         // Buffer used by GetRowAddresses().
+<span class="lineNum">     108 </span>            :         SkTArray&lt;unsigned char*&gt; fRowAddresses;
+<span class="lineNum">     109 </span>            :     };
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span>            : // Convolves horizontally along a single row. The row data is given in
+<a name="112"><span class="lineNum">     112 </span>            : // |srcData| and continues for the numValues() of the filter.</a>
+<span class="lineNum">     113 </span>            : template&lt;bool hasAlpha&gt;
+<span class="lineNum">     114 </span><span class="lineNoCov">          0 :     void ConvolveHorizontally(const unsigned char* srcData,</span>
+<span class="lineNum">     115 </span>            :                               const SkConvolutionFilter1D&amp; filter,
+<span class="lineNum">     116 </span>            :                               unsigned char* outRow) {
+<span class="lineNum">     117 </span>            :         // Loop over each pixel on this row in the output image.
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :         int numValues = filter.numValues();</span>
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 :         for (int outX = 0; outX &lt; numValues; outX++) {</span>
+<span class="lineNum">     120 </span>            :             // Get the filter that determines the current output pixel.
+<span class="lineNum">     121 </span>            :             int filterOffset, filterLength;
+<span class="lineNum">     122 </span>            :             const SkConvolutionFilter1D::ConvolutionFixed* filterValues =
+<span class="lineNum">     123 </span><span class="lineNoCov">          0 :                 filter.FilterForValue(outX, &amp;filterOffset, &amp;filterLength);</span>
+<span class="lineNum">     124 </span>            : 
+<span class="lineNum">     125 </span>            :             // Compute the first pixel in this row that the filter affects. It will
+<span class="lineNum">     126 </span>            :             // touch |filterLength| pixels (4 bytes each) after this.
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 :             const unsigned char* rowToFilter = &amp;srcData[filterOffset * 4];</span>
+<span class="lineNum">     128 </span>            : 
+<span class="lineNum">     129 </span>            :             // Apply the filter to the row to get the destination pixel in |accum|.
+<span class="lineNum">     130 </span><span class="lineNoCov">          0 :             int accum[4] = {0};</span>
+<span class="lineNum">     131 </span><span class="lineNoCov">          0 :             for (int filterX = 0; filterX &lt; filterLength; filterX++) {</span>
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :                 SkConvolutionFilter1D::ConvolutionFixed curFilter = filterValues[filterX];</span>
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :                 accum[0] += curFilter * rowToFilter[filterX * 4 + 0];</span>
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :                 accum[1] += curFilter * rowToFilter[filterX * 4 + 1];</span>
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 :                 accum[2] += curFilter * rowToFilter[filterX * 4 + 2];</span>
+<span class="lineNum">     136 </span>            :                 if (hasAlpha) {
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :                     accum[3] += curFilter * rowToFilter[filterX * 4 + 3];</span>
+<span class="lineNum">     138 </span>            :                 }
+<span class="lineNum">     139 </span>            :             }
+<span class="lineNum">     140 </span>            : 
+<span class="lineNum">     141 </span>            :             // Bring this value back in range. All of the filter scaling factors
+<span class="lineNum">     142 </span>            :             // are in fixed point with kShiftBits bits of fractional part.
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :             accum[0] &gt;&gt;= SkConvolutionFilter1D::kShiftBits;</span>
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :             accum[1] &gt;&gt;= SkConvolutionFilter1D::kShiftBits;</span>
+<span class="lineNum">     145 </span><span class="lineNoCov">          0 :             accum[2] &gt;&gt;= SkConvolutionFilter1D::kShiftBits;</span>
+<span class="lineNum">     146 </span>            :             if (hasAlpha) {
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 :                 accum[3] &gt;&gt;= SkConvolutionFilter1D::kShiftBits;</span>
+<span class="lineNum">     148 </span>            :             }
+<span class="lineNum">     149 </span>            : 
+<span class="lineNum">     150 </span>            :             // Store the new pixel.
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :             outRow[outX * 4 + 0] = ClampTo8(accum[0]);</span>
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :             outRow[outX * 4 + 1] = ClampTo8(accum[1]);</span>
+<span class="lineNum">     153 </span><span class="lineNoCov">          0 :             outRow[outX * 4 + 2] = ClampTo8(accum[2]);</span>
+<span class="lineNum">     154 </span>            :             if (hasAlpha) {
+<span class="lineNum">     155 </span><span class="lineNoCov">          0 :                 outRow[outX * 4 + 3] = ClampTo8(accum[3]);</span>
+<span class="lineNum">     156 </span>            :             }
+<span class="lineNum">     157 </span>            :         }
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     159 </span>            : 
+<span class="lineNum">     160 </span>            :     // There's a bug somewhere here with GCC autovectorization (-ftree-vectorize).  We originally
+<span class="lineNum">     161 </span>            :     // thought this was 32 bit only, but subsequent tests show that some 64 bit gcc compiles
+<span class="lineNum">     162 </span>            :     // suffer here too.
+<span class="lineNum">     163 </span>            :     //
+<span class="lineNum">     164 </span>            :     // Dropping to -O2 disables -ftree-vectorize.  GCC 4.6 needs noinline.  https://bug.skia.org/2575
+<span class="lineNum">     165 </span>            :     #if SK_HAS_ATTRIBUTE(optimize) &amp;&amp; defined(SK_RELEASE)
+<span class="lineNum">     166 </span>            :         #define SK_MAYBE_DISABLE_VECTORIZATION __attribute__((optimize(&quot;O2&quot;), noinline))
+<span class="lineNum">     167 </span>            :     #else
+<span class="lineNum">     168 </span>            :         #define SK_MAYBE_DISABLE_VECTORIZATION
+<span class="lineNum">     169 </span>            :     #endif
+<a name="170"><span class="lineNum">     170 </span>            : </a>
+<span class="lineNum">     171 </span>            :     SK_MAYBE_DISABLE_VECTORIZATION
+<span class="lineNum">     172 </span><span class="lineNoCov">          0 :     static void ConvolveHorizontallyAlpha(const unsigned char* srcData,</span>
+<span class="lineNum">     173 </span>            :                                           const SkConvolutionFilter1D&amp; filter,
+<span class="lineNum">     174 </span>            :                                           unsigned char* outRow) {
+<span class="lineNum">     175 </span><span class="lineNoCov">          0 :         return ConvolveHorizontally&lt;true&gt;(srcData, filter, outRow);</span>
+<span class="lineNum">     176 </span>            :     }
+<a name="177"><span class="lineNum">     177 </span>            : </a>
+<span class="lineNum">     178 </span>            :     SK_MAYBE_DISABLE_VECTORIZATION
+<span class="lineNum">     179 </span><span class="lineNoCov">          0 :     static void ConvolveHorizontallyNoAlpha(const unsigned char* srcData,</span>
+<span class="lineNum">     180 </span>            :                                             const SkConvolutionFilter1D&amp; filter,
+<span class="lineNum">     181 </span>            :                                             unsigned char* outRow) {
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :         return ConvolveHorizontally&lt;false&gt;(srcData, filter, outRow);</span>
+<span class="lineNum">     183 </span>            :     }
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span>            :     #undef SK_MAYBE_DISABLE_VECTORIZATION
+<span class="lineNum">     186 </span>            : 
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span>            : // Does vertical convolution to produce one output row. The filter values and
+<span class="lineNum">     189 </span>            : // length are given in the first two parameters. These are applied to each
+<span class="lineNum">     190 </span>            : // of the rows pointed to in the |sourceDataRows| array, with each row
+<span class="lineNum">     191 </span>            : // being |pixelWidth| wide.
+<span class="lineNum">     192 </span>            : //
+<a name="193"><span class="lineNum">     193 </span>            : // The output must have room for |pixelWidth * 4| bytes.</a>
+<span class="lineNum">     194 </span>            : template&lt;bool hasAlpha&gt;
+<span class="lineNum">     195 </span><span class="lineNoCov">          0 :     void ConvolveVertically(const SkConvolutionFilter1D::ConvolutionFixed* filterValues,</span>
+<span class="lineNum">     196 </span>            :                             int filterLength,
+<span class="lineNum">     197 </span>            :                             unsigned char* const* sourceDataRows,
+<span class="lineNum">     198 </span>            :                             int pixelWidth,
+<span class="lineNum">     199 </span>            :                             unsigned char* outRow) {
+<span class="lineNum">     200 </span>            :         // We go through each column in the output and do a vertical convolution,
+<span class="lineNum">     201 </span>            :         // generating one output pixel each time.
+<span class="lineNum">     202 </span><span class="lineNoCov">          0 :         for (int outX = 0; outX &lt; pixelWidth; outX++) {</span>
+<span class="lineNum">     203 </span>            :             // Compute the number of bytes over in each row that the current column
+<span class="lineNum">     204 </span>            :             // we're convolving starts at. The pixel will cover the next 4 bytes.
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :             int byteOffset = outX * 4;</span>
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span>            :             // Apply the filter to one column of pixels.
+<span class="lineNum">     208 </span><span class="lineNoCov">          0 :             int accum[4] = {0};</span>
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 :             for (int filterY = 0; filterY &lt; filterLength; filterY++) {</span>
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :                 SkConvolutionFilter1D::ConvolutionFixed curFilter = filterValues[filterY];</span>
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 :                 accum[0] += curFilter * sourceDataRows[filterY][byteOffset + 0];</span>
+<span class="lineNum">     212 </span><span class="lineNoCov">          0 :                 accum[1] += curFilter * sourceDataRows[filterY][byteOffset + 1];</span>
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :                 accum[2] += curFilter * sourceDataRows[filterY][byteOffset + 2];</span>
+<span class="lineNum">     214 </span>            :                 if (hasAlpha) {
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 :                     accum[3] += curFilter * sourceDataRows[filterY][byteOffset + 3];</span>
+<span class="lineNum">     216 </span>            :                 }
+<span class="lineNum">     217 </span>            :             }
+<span class="lineNum">     218 </span>            : 
+<span class="lineNum">     219 </span>            :             // Bring this value back in range. All of the filter scaling factors
+<span class="lineNum">     220 </span>            :             // are in fixed point with kShiftBits bits of precision.
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :             accum[0] &gt;&gt;= SkConvolutionFilter1D::kShiftBits;</span>
+<span class="lineNum">     222 </span><span class="lineNoCov">          0 :             accum[1] &gt;&gt;= SkConvolutionFilter1D::kShiftBits;</span>
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :             accum[2] &gt;&gt;= SkConvolutionFilter1D::kShiftBits;</span>
+<span class="lineNum">     224 </span>            :             if (hasAlpha) {
+<span class="lineNum">     225 </span><span class="lineNoCov">          0 :                 accum[3] &gt;&gt;= SkConvolutionFilter1D::kShiftBits;</span>
+<span class="lineNum">     226 </span>            :             }
+<span class="lineNum">     227 </span>            : 
+<span class="lineNum">     228 </span>            :             // Store the new pixel.
+<span class="lineNum">     229 </span><span class="lineNoCov">          0 :             outRow[byteOffset + 0] = ClampTo8(accum[0]);</span>
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :             outRow[byteOffset + 1] = ClampTo8(accum[1]);</span>
+<span class="lineNum">     231 </span><span class="lineNoCov">          0 :             outRow[byteOffset + 2] = ClampTo8(accum[2]);</span>
+<span class="lineNum">     232 </span>            :             if (hasAlpha) {
+<span class="lineNum">     233 </span><span class="lineNoCov">          0 :                 unsigned char alpha = ClampTo8(accum[3]);</span>
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span>            :                 // Make sure the alpha channel doesn't come out smaller than any of the
+<span class="lineNum">     236 </span>            :                 // color channels. We use premultipled alpha channels, so this should
+<span class="lineNum">     237 </span>            :                 // never happen, but rounding errors will cause this from time to time.
+<span class="lineNum">     238 </span>            :                 // These &quot;impossible&quot; colors will cause overflows (and hence random pixel
+<span class="lineNum">     239 </span>            :                 // values) when the resulting bitmap is drawn to the screen.
+<span class="lineNum">     240 </span>            :                 //
+<span class="lineNum">     241 </span>            :                 // We only need to do this when generating the final output row (here).
+<span class="lineNum">     242 </span>            :                 int maxColorChannel = SkTMax(outRow[byteOffset + 0],
+<span class="lineNum">     243 </span>            :                                                SkTMax(outRow[byteOffset + 1],
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :                                                       outRow[byteOffset + 2]));</span>
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :                 if (alpha &lt; maxColorChannel) {</span>
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :                     outRow[byteOffset + 3] = maxColorChannel;</span>
+<span class="lineNum">     247 </span>            :                 } else {
+<span class="lineNum">     248 </span><span class="lineNoCov">          0 :                     outRow[byteOffset + 3] = alpha;</span>
+<span class="lineNum">     249 </span>            :                 }
+<span class="lineNum">     250 </span>            :             } else {
+<span class="lineNum">     251 </span>            :                 // No alpha channel, the image is opaque.
+<span class="lineNum">     252 </span><span class="lineNoCov">          0 :                 outRow[byteOffset + 3] = 0xff;</span>
+<span class="lineNum">     253 </span>            :             }
+<span class="lineNum">     254 </span>            :         }
+<a name="255"><span class="lineNum">     255 </span><span class="lineNoCov">          0 :     }</span></a>
+<span class="lineNum">     256 </span>            : 
+<span class="lineNum">     257 </span><span class="lineNoCov">          0 :     void ConvolveVertically(const SkConvolutionFilter1D::ConvolutionFixed* filterValues,</span>
+<span class="lineNum">     258 </span>            :                             int filterLength,
+<span class="lineNum">     259 </span>            :                             unsigned char* const* sourceDataRows,
+<span class="lineNum">     260 </span>            :                             int pixelWidth,
+<span class="lineNum">     261 </span>            :                             unsigned char* outRow,
+<span class="lineNum">     262 </span>            :                             bool sourceHasAlpha) {
+<span class="lineNum">     263 </span><span class="lineNoCov">          0 :         if (sourceHasAlpha) {</span>
+<span class="lineNum">     264 </span>            :             ConvolveVertically&lt;true&gt;(filterValues, filterLength,
+<span class="lineNum">     265 </span>            :                                      sourceDataRows, pixelWidth,
+<span class="lineNum">     266 </span><span class="lineNoCov">          0 :                                      outRow);</span>
+<span class="lineNum">     267 </span>            :         } else {
+<span class="lineNum">     268 </span>            :             ConvolveVertically&lt;false&gt;(filterValues, filterLength,
+<span class="lineNum">     269 </span>            :                                       sourceDataRows, pixelWidth,
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 :                                       outRow);</span>
+<span class="lineNum">     271 </span>            :         }
+<span class="lineNum">     272 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span>            : }  // namespace
+<span class="lineNum">     275 </span>            : 
+<a name="276"><span class="lineNum">     276 </span>            : // SkConvolutionFilter1D ---------------------------------------------------------</a>
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span><span class="lineNoCov">          0 : SkConvolutionFilter1D::SkConvolutionFilter1D()</span>
+<span class="lineNum">     279 </span><span class="lineNoCov">          0 : : fMaxFilter(0) {</span>
+<a name="280"><span class="lineNum">     280 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 : SkConvolutionFilter1D::~SkConvolutionFilter1D() {</span>
+<a name="283"><span class="lineNum">     283 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     284 </span>            : 
+<span class="lineNum">     285 </span><span class="lineNoCov">          0 : void SkConvolutionFilter1D::AddFilter(int filterOffset,</span>
+<span class="lineNum">     286 </span>            :                                       const ConvolutionFixed* filterValues,
+<span class="lineNum">     287 </span>            :                                       int filterLength) {
+<span class="lineNum">     288 </span>            :     // It is common for leading/trailing filter values to be zeros. In such
+<span class="lineNum">     289 </span>            :     // cases it is beneficial to only store the central factors.
+<span class="lineNum">     290 </span>            :     // For a scaling to 1/4th in each dimension using a Lanczos-2 filter on
+<span class="lineNum">     291 </span>            :     // a 1080p image this optimization gives a ~10% speed improvement.
+<span class="lineNum">     292 </span><span class="lineNoCov">          0 :     int filterSize = filterLength;</span>
+<span class="lineNum">     293 </span><span class="lineNoCov">          0 :     int firstNonZero = 0;</span>
+<span class="lineNum">     294 </span><span class="lineNoCov">          0 :     while (firstNonZero &lt; filterLength &amp;&amp; filterValues[firstNonZero] == 0) {</span>
+<span class="lineNum">     295 </span><span class="lineNoCov">          0 :         firstNonZero++;</span>
+<span class="lineNum">     296 </span>            :     }
+<span class="lineNum">     297 </span>            : 
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 :     if (firstNonZero &lt; filterLength) {</span>
+<span class="lineNum">     299 </span>            :         // Here we have at least one non-zero factor.
+<span class="lineNum">     300 </span><span class="lineNoCov">          0 :         int lastNonZero = filterLength - 1;</span>
+<span class="lineNum">     301 </span><span class="lineNoCov">          0 :         while (lastNonZero &gt;= 0 &amp;&amp; filterValues[lastNonZero] == 0) {</span>
+<span class="lineNum">     302 </span><span class="lineNoCov">          0 :             lastNonZero--;</span>
+<span class="lineNum">     303 </span>            :         }
+<span class="lineNum">     304 </span>            : 
+<span class="lineNum">     305 </span><span class="lineNoCov">          0 :         filterOffset += firstNonZero;</span>
+<span class="lineNum">     306 </span><span class="lineNoCov">          0 :         filterLength = lastNonZero + 1 - firstNonZero;</span>
+<span class="lineNum">     307 </span>            :         SkASSERT(filterLength &gt; 0);
+<span class="lineNum">     308 </span>            : 
+<span class="lineNum">     309 </span><span class="lineNoCov">          0 :         fFilterValues.append(filterLength, &amp;filterValues[firstNonZero]);</span>
+<span class="lineNum">     310 </span>            :     } else {
+<span class="lineNum">     311 </span>            :         // Here all the factors were zeroes.
+<span class="lineNum">     312 </span><span class="lineNoCov">          0 :         filterLength = 0;</span>
+<span class="lineNum">     313 </span>            :     }
+<span class="lineNum">     314 </span>            : 
+<span class="lineNum">     315 </span>            :     FilterInstance instance;
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span>            :     // We pushed filterLength elements onto fFilterValues
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :     instance.fDataLocation = (static_cast&lt;int&gt;(fFilterValues.count()) -</span>
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :                                                filterLength);</span>
+<span class="lineNum">     320 </span><span class="lineNoCov">          0 :     instance.fOffset = filterOffset;</span>
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :     instance.fTrimmedLength = filterLength;</span>
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 :     instance.fLength = filterSize;</span>
+<span class="lineNum">     323 </span><span class="lineNoCov">          0 :     fFilters.push(instance);</span>
+<span class="lineNum">     324 </span>            : 
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :     fMaxFilter = SkTMax(fMaxFilter, filterLength);</span>
+<a name="326"><span class="lineNum">     326 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     327 </span>            : 
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 : const SkConvolutionFilter1D::ConvolutionFixed* SkConvolutionFilter1D::GetSingleFilter(</span>
+<span class="lineNum">     329 </span>            :                                         int* specifiedFilterlength,
+<span class="lineNum">     330 </span>            :                                         int* filterOffset,
+<span class="lineNum">     331 </span>            :                                         int* filterLength) const {
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :     const FilterInstance&amp; filter = fFilters[0];</span>
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :     *filterOffset = filter.fOffset;</span>
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :     *filterLength = filter.fTrimmedLength;</span>
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :     *specifiedFilterlength = filter.fLength;</span>
+<span class="lineNum">     336 </span><span class="lineNoCov">          0 :     if (filter.fTrimmedLength == 0) {</span>
+<span class="lineNum">     337 </span>            :         return nullptr;
+<span class="lineNum">     338 </span>            :     }
+<span class="lineNum">     339 </span>            : 
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :     return &amp;fFilterValues[filter.fDataLocation];</span>
+<a name="341"><span class="lineNum">     341 </span>            : }</a>
+<span class="lineNum">     342 </span>            : 
+<span class="lineNum">     343 </span><span class="lineNoCov">          0 : bool BGRAConvolve2D(const unsigned char* sourceData,</span>
+<span class="lineNum">     344 </span>            :                     int sourceByteRowStride,
+<span class="lineNum">     345 </span>            :                     bool sourceHasAlpha,
+<span class="lineNum">     346 </span>            :                     const SkConvolutionFilter1D&amp; filterX,
+<span class="lineNum">     347 </span>            :                     const SkConvolutionFilter1D&amp; filterY,
+<span class="lineNum">     348 </span>            :                     int outputByteRowStride,
+<span class="lineNum">     349 </span>            :                     unsigned char* output,
+<span class="lineNum">     350 </span>            :                     const SkConvolutionProcs&amp; convolveProcs,
+<span class="lineNum">     351 </span>            :                     bool useSimdIfPossible) {
+<span class="lineNum">     352 </span>            : 
+<span class="lineNum">     353 </span><span class="lineNoCov">          0 :     int maxYFilterSize = filterY.maxFilter();</span>
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span>            :     // The next row in the input that we will generate a horizontally
+<span class="lineNum">     356 </span>            :     // convolved row for. If the filter doesn't start at the beginning of the
+<span class="lineNum">     357 </span>            :     // image (this is the case when we are only resizing a subset), then we
+<span class="lineNum">     358 </span>            :     // don't want to generate any output rows before that. Compute the starting
+<span class="lineNum">     359 </span>            :     // row for convolution as the first pixel for the first vertical filter.
+<span class="lineNum">     360 </span>            :     int filterOffset, filterLength;
+<span class="lineNum">     361 </span>            :     const SkConvolutionFilter1D::ConvolutionFixed* filterValues =
+<span class="lineNum">     362 </span><span class="lineNoCov">          0 :         filterY.FilterForValue(0, &amp;filterOffset, &amp;filterLength);</span>
+<span class="lineNum">     363 </span><span class="lineNoCov">          0 :     int nextXRow = filterOffset;</span>
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span>            :     // We loop over each row in the input doing a horizontal convolution. This
+<span class="lineNum">     366 </span>            :     // will result in a horizontally convolved image. We write the results into
+<span class="lineNum">     367 </span>            :     // a circular buffer of convolved rows and do vertical convolution as rows
+<span class="lineNum">     368 </span>            :     // are available. This prevents us from having to store the entire
+<span class="lineNum">     369 </span>            :     // intermediate image and helps cache coherency.
+<span class="lineNum">     370 </span>            :     // We will need four extra rows to allow horizontal convolution could be done
+<span class="lineNum">     371 </span>            :     // simultaneously. We also pad each row in row buffer to be aligned-up to
+<span class="lineNum">     372 </span>            :     // 16 bytes.
+<span class="lineNum">     373 </span>            :     // TODO(jiesun): We do not use aligned load from row buffer in vertical
+<span class="lineNum">     374 </span>            :     // convolution pass yet. Somehow Windows does not like it.
+<span class="lineNum">     375 </span><span class="lineNoCov">          0 :     int rowBufferWidth = (filterX.numValues() + 15) &amp; ~0xF;</span>
+<span class="lineNum">     376 </span><span class="lineNoCov">          0 :     int rowBufferHeight = maxYFilterSize +</span>
+<span class="lineNum">     377 </span><span class="lineNoCov">          0 :                           (convolveProcs.fConvolve4RowsHorizontally ? 4 : 0);</span>
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span>            :     // check for too-big allocation requests : crbug.com/528628
+<span class="lineNum">     380 </span>            :     {
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 :         int64_t size = sk_64_mul(rowBufferWidth, rowBufferHeight);</span>
+<span class="lineNum">     382 </span>            :         // need some limit, to avoid over-committing success from malloc, but then
+<span class="lineNum">     383 </span>            :         // crashing when we try to actually use the memory.
+<span class="lineNum">     384 </span>            :         // 100meg seems big enough to allow &quot;normal&quot; zoom factors and image sizes through
+<span class="lineNum">     385 </span>            :         // while avoiding the crash seen by the bug (crbug.com/528628)
+<span class="lineNum">     386 </span><span class="lineNoCov">          0 :         if (size &gt; 100 * 1024 * 1024) {</span>
+<span class="lineNum">     387 </span>            : //            SkDebugf(&quot;BGRAConvolve2D: tmp allocation [%lld] too big\n&quot;, size);
+<span class="lineNum">     388 </span>            :             return false;
+<span class="lineNum">     389 </span>            :         }
+<span class="lineNum">     390 </span>            :     }
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span>            :     CircularRowBuffer rowBuffer(rowBufferWidth,
+<span class="lineNum">     393 </span>            :                                 rowBufferHeight,
+<span class="lineNum">     394 </span><span class="lineNoCov">          0 :                                 filterOffset);</span>
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span>            :     // Loop over every possible output row, processing just enough horizontal
+<span class="lineNum">     397 </span>            :     // convolutions to run each subsequent vertical convolution.
+<span class="lineNum">     398 </span>            :     SkASSERT(outputByteRowStride &gt;= filterX.numValues() * 4);
+<span class="lineNum">     399 </span><span class="lineNoCov">          0 :     int numOutputRows = filterY.numValues();</span>
+<span class="lineNum">     400 </span>            : 
+<span class="lineNum">     401 </span>            :     // We need to check which is the last line to convolve before we advance 4
+<span class="lineNum">     402 </span>            :     // lines in one iteration.
+<span class="lineNum">     403 </span>            :     int lastFilterOffset, lastFilterLength;
+<span class="lineNum">     404 </span>            : 
+<span class="lineNum">     405 </span>            :     // SSE2 can access up to 3 extra pixels past the end of the
+<span class="lineNum">     406 </span>            :     // buffer. At the bottom of the image, we have to be careful
+<span class="lineNum">     407 </span>            :     // not to access data past the end of the buffer. Normally
+<span class="lineNum">     408 </span>            :     // we fall back to the C++ implementation for the last row.
+<span class="lineNum">     409 </span>            :     // If the last row is less than 3 pixels wide, we may have to fall
+<span class="lineNum">     410 </span>            :     // back to the C++ version for more rows. Compute how many
+<span class="lineNum">     411 </span>            :     // rows we need to avoid the SSE implementation for here.
+<span class="lineNum">     412 </span>            :     filterX.FilterForValue(filterX.numValues() - 1, &amp;lastFilterOffset,
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 :                            &amp;lastFilterLength);</span>
+<span class="lineNum">     414 </span><span class="lineNoCov">          0 :     int avoidSimdRows = 1 + convolveProcs.fExtraHorizontalReads /</span>
+<span class="lineNum">     415 </span><span class="lineNoCov">          0 :         (lastFilterOffset + lastFilterLength);</span>
+<span class="lineNum">     416 </span>            : 
+<span class="lineNum">     417 </span>            :     filterY.FilterForValue(numOutputRows - 1, &amp;lastFilterOffset,
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 :                            &amp;lastFilterLength);</span>
+<span class="lineNum">     419 </span>            : 
+<span class="lineNum">     420 </span><span class="lineNoCov">          0 :     for (int outY = 0; outY &lt; numOutputRows; outY++) {</span>
+<span class="lineNum">     421 </span>            :         filterValues = filterY.FilterForValue(outY,
+<span class="lineNum">     422 </span><span class="lineNoCov">          0 :                                               &amp;filterOffset, &amp;filterLength);</span>
+<span class="lineNum">     423 </span>            : 
+<span class="lineNum">     424 </span>            :         // Generate output rows until we have enough to run the current filter.
+<span class="lineNum">     425 </span><span class="lineNoCov">          0 :         while (nextXRow &lt; filterOffset + filterLength) {</span>
+<span class="lineNum">     426 </span><span class="lineNoCov">          0 :             if (convolveProcs.fConvolve4RowsHorizontally &amp;&amp;</span>
+<span class="lineNum">     427 </span><span class="lineNoCov">          0 :                 nextXRow + 3 &lt; lastFilterOffset + lastFilterLength -</span>
+<span class="lineNum">     428 </span>            :                 avoidSimdRows) {
+<span class="lineNum">     429 </span>            :                 const unsigned char* src[4];
+<span class="lineNum">     430 </span>            :                 unsigned char* outRow[4];
+<span class="lineNum">     431 </span><span class="lineNoCov">          0 :                 for (int i = 0; i &lt; 4; ++i) {</span>
+<span class="lineNum">     432 </span><span class="lineNoCov">          0 :                     src[i] = &amp;sourceData[(uint64_t)(nextXRow + i) * sourceByteRowStride];</span>
+<span class="lineNum">     433 </span><span class="lineNoCov">          0 :                     outRow[i] = rowBuffer.advanceRow();</span>
+<span class="lineNum">     434 </span>            :                 }
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :                 convolveProcs.fConvolve4RowsHorizontally(src, filterX, outRow, 4*rowBufferWidth);</span>
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :                 nextXRow += 4;</span>
+<span class="lineNum">     437 </span>            :             } else {
+<span class="lineNum">     438 </span>            :                 // Check if we need to avoid SSE2 for this row.
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :                 if (convolveProcs.fConvolveHorizontally &amp;&amp;</span>
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :                     nextXRow &lt; lastFilterOffset + lastFilterLength -</span>
+<span class="lineNum">     441 </span>            :                     avoidSimdRows) {
+<span class="lineNum">     442 </span>            :                     convolveProcs.fConvolveHorizontally(
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :                         &amp;sourceData[(uint64_t)nextXRow * sourceByteRowStride],</span>
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 :                         filterX, rowBuffer.advanceRow(), sourceHasAlpha);</span>
+<span class="lineNum">     445 </span>            :                 } else {
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :                     if (sourceHasAlpha) {</span>
+<span class="lineNum">     447 </span>            :                         ConvolveHorizontallyAlpha(
+<span class="lineNum">     448 </span><span class="lineNoCov">          0 :                             &amp;sourceData[(uint64_t)nextXRow * sourceByteRowStride],</span>
+<span class="lineNum">     449 </span><span class="lineNoCov">          0 :                             filterX, rowBuffer.advanceRow());</span>
+<span class="lineNum">     450 </span>            :                     } else {
+<span class="lineNum">     451 </span>            :                         ConvolveHorizontallyNoAlpha(
+<span class="lineNum">     452 </span><span class="lineNoCov">          0 :                             &amp;sourceData[(uint64_t)nextXRow * sourceByteRowStride],</span>
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :                             filterX, rowBuffer.advanceRow());</span>
+<span class="lineNum">     454 </span>            :                     }
+<span class="lineNum">     455 </span>            :                 }
+<span class="lineNum">     456 </span><span class="lineNoCov">          0 :                 nextXRow++;</span>
+<span class="lineNum">     457 </span>            :             }
+<span class="lineNum">     458 </span>            :         }
+<span class="lineNum">     459 </span>            : 
+<span class="lineNum">     460 </span>            :         // Compute where in the output image this row of final data will go.
+<span class="lineNum">     461 </span><span class="lineNoCov">          0 :         unsigned char* curOutputRow = &amp;output[(uint64_t)outY * outputByteRowStride];</span>
+<span class="lineNum">     462 </span>            : 
+<span class="lineNum">     463 </span>            :         // Get the list of rows that the circular buffer has, in order.
+<span class="lineNum">     464 </span>            :         int firstRowInCircularBuffer;
+<span class="lineNum">     465 </span>            :         unsigned char* const* rowsToConvolve =
+<span class="lineNum">     466 </span><span class="lineNoCov">          0 :             rowBuffer.GetRowAddresses(&amp;firstRowInCircularBuffer);</span>
+<span class="lineNum">     467 </span>            : 
+<span class="lineNum">     468 </span>            :         // Now compute the start of the subset of those rows that the filter
+<span class="lineNum">     469 </span>            :         // needs.
+<span class="lineNum">     470 </span>            :         unsigned char* const* firstRowForFilter =
+<span class="lineNum">     471 </span><span class="lineNoCov">          0 :             &amp;rowsToConvolve[filterOffset - firstRowInCircularBuffer];</span>
+<span class="lineNum">     472 </span>            : 
+<span class="lineNum">     473 </span><span class="lineNoCov">          0 :         if (convolveProcs.fConvolveVertically) {</span>
+<span class="lineNum">     474 </span>            :             convolveProcs.fConvolveVertically(filterValues, filterLength,
+<span class="lineNum">     475 </span>            :                                                firstRowForFilter,
+<span class="lineNum">     476 </span>            :                                                filterX.numValues(), curOutputRow,
+<span class="lineNum">     477 </span><span class="lineNoCov">          0 :                                                sourceHasAlpha);</span>
+<span class="lineNum">     478 </span>            :         } else {
+<span class="lineNum">     479 </span>            :             ConvolveVertically(filterValues, filterLength,
+<span class="lineNum">     480 </span>            :                                firstRowForFilter,
+<span class="lineNum">     481 </span>            :                                filterX.numValues(), curOutputRow,
+<span class="lineNum">     482 </span><span class="lineNoCov">          0 :                                sourceHasAlpha);</span>
+<span class="lineNum">     483 </span>            :         }
+<span class="lineNum">     484 </span>            :     }
+<span class="lineNum">     485 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">     486 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

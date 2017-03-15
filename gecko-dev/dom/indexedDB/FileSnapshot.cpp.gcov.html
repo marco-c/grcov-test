@@ -1,0 +1,398 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/dom/indexedDB/FileSnapshot.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">gecko-dev/dom/indexedDB</a> - FileSnapshot.cpp<span style="font-size: 80%;"> (source / <a href="FileSnapshot.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">94</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">34</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* vim: set ts=8 sts=2 et sw=2 tw=80: */
+<span class="lineNum">       3 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+<span class="lineNum">       5 </span>            :  * You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #include &quot;FileSnapshot.h&quot;
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &quot;IDBFileHandle.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;mozilla/Assertions.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;nsIIPCSerializableInputStream.h&quot;
+<span class="lineNum">      12 </span>            : 
+<span class="lineNum">      13 </span>            : namespace mozilla {
+<span class="lineNum">      14 </span>            : namespace dom {
+<span class="lineNum">      15 </span>            : namespace indexedDB {
+<span class="lineNum">      16 </span>            : 
+<span class="lineNum">      17 </span>            : using namespace mozilla::ipc;
+<span class="lineNum">      18 </span>            : 
+<span class="lineNum">      19 </span>            : namespace {
+<span class="lineNum">      20 </span>            : 
+<span class="lineNum">      21 </span>            : class StreamWrapper final
+<span class="lineNum">      22 </span>            :   : public nsIInputStream
+<span class="lineNum">      23 </span>            :   , public nsIIPCSerializableInputStream
+<span class="lineNum">      24 </span>            : {
+<span class="lineNum">      25 </span>            :   class CloseRunnable;
+<span class="lineNum">      26 </span>            : 
+<span class="lineNum">      27 </span>            :   nsCOMPtr&lt;nsIEventTarget&gt; mOwningThread;
+<span class="lineNum">      28 </span>            :   nsCOMPtr&lt;nsIInputStream&gt; mInputStream;
+<span class="lineNum">      29 </span>            :   RefPtr&lt;IDBFileHandle&gt; mFileHandle;
+<span class="lineNum">      30 </span>            :   bool mFinished;
+<a name="31"><span class="lineNum">      31 </span>            : </a>
+<span class="lineNum">      32 </span>            : public:
+<span class="lineNum">      33 </span><span class="lineNoCov">          0 :   StreamWrapper(nsIInputStream* aInputStream,</span>
+<span class="lineNum">      34 </span>            :                 IDBFileHandle* aFileHandle)
+<span class="lineNum">      35 </span>            :     : mOwningThread(aFileHandle-&gt;GetMutableFile()-&gt;Database()-&gt;EventTarget())
+<span class="lineNum">      36 </span>            :     , mInputStream(aInputStream)
+<span class="lineNum">      37 </span>            :     , mFileHandle(aFileHandle)
+<span class="lineNum">      38 </span><span class="lineNoCov">          0 :     , mFinished(false)</span>
+<span class="lineNum">      39 </span>            :   {
+<span class="lineNum">      40 </span><span class="lineNoCov">          0 :     AssertIsOnOwningThread();</span>
+<span class="lineNum">      41 </span>            :     MOZ_ASSERT(aInputStream);
+<span class="lineNum">      42 </span>            :     MOZ_ASSERT(aFileHandle);
+<span class="lineNum">      43 </span><span class="lineNoCov">          0 :     aFileHandle-&gt;AssertIsOnOwningThread();</span>
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span><span class="lineNoCov">          0 :     mFileHandle-&gt;OnNewRequest();</span>
+<span class="lineNum">      46 </span><span class="lineNoCov">          0 :   }</span>
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span>            : private:
+<span class="lineNum">      49 </span>            :   virtual ~StreamWrapper();
+<a name="50"><span class="lineNum">      50 </span>            : </a>
+<span class="lineNum">      51 </span>            :   bool
+<span class="lineNum">      52 </span><span class="lineNoCov">          0 :   IsOnOwningThread() const</span>
+<span class="lineNum">      53 </span>            :   {
+<span class="lineNum">      54 </span>            :     MOZ_ASSERT(mOwningThread);
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span>            :     bool current;
+<span class="lineNum">      57 </span><span class="lineNoCov">          0 :     return NS_SUCCEEDED(mOwningThread-&gt;</span>
+<span class="lineNum">      58 </span><span class="lineNoCov">          0 :                         IsOnCurrentThread(&amp;current)) &amp;&amp; current;</span>
+<span class="lineNum">      59 </span>            :   }
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span>            :   void
+<span class="lineNum">      62 </span>            :   AssertIsOnOwningThread() const
+<span class="lineNum">      63 </span>            :   {
+<span class="lineNum">      64 </span>            :     MOZ_ASSERT(IsOnOwningThread());
+<span class="lineNum">      65 </span>            :   }
+<a name="66"><span class="lineNum">      66 </span>            : </a>
+<span class="lineNum">      67 </span>            :   void
+<span class="lineNum">      68 </span><span class="lineNoCov">          0 :   Finish()</span>
+<span class="lineNum">      69 </span>            :   {
+<span class="lineNum">      70 </span><span class="lineNoCov">          0 :     AssertIsOnOwningThread();</span>
+<span class="lineNum">      71 </span>            : 
+<span class="lineNum">      72 </span><span class="lineNoCov">          0 :     if (mFinished) {</span>
+<span class="lineNum">      73 </span><span class="lineNoCov">          0 :       return;</span>
+<span class="lineNum">      74 </span>            :     }
+<span class="lineNum">      75 </span>            : 
+<span class="lineNum">      76 </span><span class="lineNoCov">          0 :     mFinished = true;</span>
+<span class="lineNum">      77 </span>            : 
+<span class="lineNum">      78 </span><span class="lineNoCov">          0 :     mFileHandle-&gt;OnRequestFinished(/* aActorDestroyedNormally */ true);</span>
+<span class="lineNum">      79 </span>            :   }
+<a name="80"><span class="lineNum">      80 </span>            : </a>
+<span class="lineNum">      81 </span>            :   void
+<span class="lineNum">      82 </span><span class="lineNoCov">          0 :   Destroy()</span>
+<span class="lineNum">      83 </span>            :   {
+<span class="lineNum">      84 </span><span class="lineNoCov">          0 :     if (IsOnOwningThread()) {</span>
+<span class="lineNum">      85 </span><span class="lineNoCov">          0 :       delete this;</span>
+<span class="lineNum">      86 </span><span class="lineNoCov">          0 :       return;</span>
+<span class="lineNum">      87 </span>            :     }
+<span class="lineNum">      88 </span>            : 
+<span class="lineNum">      89 </span>            :     RefPtr&lt;Runnable&gt; destroyRunnable =
+<span class="lineNum">      90 </span>            :       NewNonOwningRunnableMethod(&quot;StreamWrapper::Destroy&quot;,
+<span class="lineNum">      91 </span>            :                                  this,
+<span class="lineNum">      92 </span><span class="lineNoCov">          0 :                                  &amp;StreamWrapper::Destroy);</span>
+<span class="lineNum">      93 </span>            : 
+<span class="lineNum">      94 </span><span class="lineNoCov">          0 :     MOZ_ALWAYS_SUCCEEDS(mOwningThread-&gt;Dispatch(destroyRunnable,</span>
+<span class="lineNum">      95 </span><span class="lineNoCov">          0 :                                                 NS_DISPATCH_NORMAL));</span>
+<span class="lineNum">      96 </span>            :   }
+<span class="lineNum">      97 </span>            : 
+<span class="lineNum">      98 </span>            :   NS_DECL_THREADSAFE_ISUPPORTS
+<span class="lineNum">      99 </span>            :   NS_DECL_NSIINPUTSTREAM
+<span class="lineNum">     100 </span>            :   NS_DECL_NSIIPCSERIALIZABLEINPUTSTREAM
+<span class="lineNum">     101 </span>            : };
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span>            : class StreamWrapper::CloseRunnable final
+<span class="lineNum">     104 </span>            :   : public Runnable
+<span class="lineNum">     105 </span>            : {
+<span class="lineNum">     106 </span>            :   friend class StreamWrapper;
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span>            :   RefPtr&lt;StreamWrapper&gt; mStreamWrapper;
+<span class="lineNum">     109 </span>            : 
+<span class="lineNum">     110 </span>            : public:
+<span class="lineNum">     111 </span>            :   NS_DECL_ISUPPORTS_INHERITED
+<span class="lineNum">     112 </span>            : 
+<a name="113"><span class="lineNum">     113 </span>            : private:</a>
+<span class="lineNum">     114 </span>            :   explicit
+<span class="lineNum">     115 </span><span class="lineNoCov">          0 :   CloseRunnable(StreamWrapper* aStreamWrapper)</span>
+<span class="lineNum">     116 </span>            :     : Runnable(&quot;StreamWrapper::CloseRunnable&quot;)
+<span class="lineNum">     117 </span><span class="lineNoCov">          0 :     , mStreamWrapper(aStreamWrapper)</span>
+<a name="118"><span class="lineNum">     118 </span><span class="lineNoCov">          0 :   { }</span></a>
+<span class="lineNum">     119 </span>            : 
+<span class="lineNum">     120 </span><span class="lineNoCov">          0 :   ~CloseRunnable()</span>
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :   { }</span>
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span>            :   NS_IMETHOD
+<span class="lineNum">     124 </span>            :   Run() override;
+<span class="lineNum">     125 </span>            : };
+<span class="lineNum">     126 </span>            : 
+<a name="127"><span class="lineNum">     127 </span>            : } // anonymous namespace</a>
+<span class="lineNum">     128 </span>            : 
+<span class="lineNum">     129 </span><span class="lineNoCov">          0 : BlobImplSnapshot::BlobImplSnapshot(BlobImpl* aFileImpl,</span>
+<span class="lineNum">     130 </span>            :                                    IDBFileHandle* aFileHandle)
+<span class="lineNum">     131 </span><span class="lineNoCov">          0 :   : mBlobImpl(aFileImpl)</span>
+<span class="lineNum">     132 </span>            : {
+<span class="lineNum">     133 </span>            :   MOZ_ASSERT(aFileImpl);
+<span class="lineNum">     134 </span>            :   MOZ_ASSERT(aFileHandle);
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 :   mFileHandle =</span>
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :     do_GetWeakReference(NS_ISUPPORTS_CAST(EventTarget*, aFileHandle));</span>
+<a name="138"><span class="lineNum">     138 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     139 </span>            : 
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 : BlobImplSnapshot::BlobImplSnapshot(BlobImpl* aFileImpl,</span>
+<span class="lineNum">     141 </span>            :                                    nsIWeakReference* aFileHandle)
+<span class="lineNum">     142 </span>            :   : mBlobImpl(aFileImpl)
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :   , mFileHandle(aFileHandle)</span>
+<span class="lineNum">     144 </span>            : {
+<span class="lineNum">     145 </span>            :   MOZ_ASSERT(aFileImpl);
+<span class="lineNum">     146 </span>            :   MOZ_ASSERT(aFileHandle);
+<a name="147"><span class="lineNum">     147 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     148 </span>            : 
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 : BlobImplSnapshot::~BlobImplSnapshot()</span>
+<span class="lineNum">     150 </span>            : {
+<a name="151"><span class="lineNum">     151 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     152 </span>            : 
+<span class="lineNum">     153 </span><span class="lineNoCov">          0 : NS_IMPL_ISUPPORTS_INHERITED(BlobImplSnapshot, BlobImpl, PIBlobImplSnapshot)</span>
+<a name="154"><span class="lineNum">     154 </span>            : </a>
+<span class="lineNum">     155 </span>            : already_AddRefed&lt;BlobImpl&gt;
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 : BlobImplSnapshot::CreateSlice(uint64_t aStart,</span>
+<span class="lineNum">     157 </span>            :                               uint64_t aLength,
+<span class="lineNum">     158 </span>            :                               const nsAString&amp; aContentType,
+<span class="lineNum">     159 </span>            :                               ErrorResult&amp; aRv)
+<span class="lineNum">     160 </span>            : {
+<span class="lineNum">     161 </span>            :   RefPtr&lt;BlobImpl&gt; blobImpl =
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :     mBlobImpl-&gt;CreateSlice(aStart, aLength, aContentType, aRv);</span>
+<span class="lineNum">     163 </span>            : 
+<span class="lineNum">     164 </span><span class="lineNoCov">          0 :   if (NS_WARN_IF(aRv.Failed())) {</span>
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 :     return nullptr;</span>
+<span class="lineNum">     166 </span>            :   }
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span><span class="lineNoCov">          0 :   blobImpl = new BlobImplSnapshot(blobImpl, mFileHandle);</span>
+<span class="lineNum">     169 </span><span class="lineNoCov">          0 :   return blobImpl.forget();</span>
+<span class="lineNum">     170 </span>            : }
+<a name="171"><span class="lineNum">     171 </span>            : </a>
+<span class="lineNum">     172 </span>            : void
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 : BlobImplSnapshot::GetInternalStream(nsIInputStream** aStream, ErrorResult&amp; aRv)</span>
+<span class="lineNum">     174 </span>            : {
+<span class="lineNum">     175 </span><span class="lineNoCov">          0 :   nsCOMPtr&lt;EventTarget&gt; et = do_QueryReferent(mFileHandle);</span>
+<span class="lineNum">     176 </span><span class="lineNoCov">          0 :   RefPtr&lt;IDBFileHandle&gt; fileHandle = static_cast&lt;IDBFileHandle*&gt;(et.get());</span>
+<span class="lineNum">     177 </span><span class="lineNoCov">          0 :   if (!fileHandle || !fileHandle-&gt;IsOpen()) {</span>
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :     aRv.Throw(NS_ERROR_DOM_FILEHANDLE_INACTIVE_ERR);</span>
+<span class="lineNum">     179 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     180 </span>            :   }
+<span class="lineNum">     181 </span>            : 
+<span class="lineNum">     182 </span>            :   nsCOMPtr&lt;nsIInputStream&gt; stream;
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 :   mBlobImpl-&gt;GetInternalStream(getter_AddRefs(stream), aRv);</span>
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :   if (NS_WARN_IF(aRv.Failed())) {</span>
+<span class="lineNum">     185 </span>            :     return;
+<span class="lineNum">     186 </span>            :   }
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :   RefPtr&lt;StreamWrapper&gt; wrapper = new StreamWrapper(stream, fileHandle);</span>
+<span class="lineNum">     189 </span>            : 
+<span class="lineNum">     190 </span>            :   wrapper.forget(aStream);
+<span class="lineNum">     191 </span>            : }
+<a name="192"><span class="lineNum">     192 </span>            : </a>
+<span class="lineNum">     193 </span>            : BlobImpl*
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 : BlobImplSnapshot::GetBlobImpl() const</span>
+<span class="lineNum">     195 </span>            : {
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :   nsCOMPtr&lt;EventTarget&gt; et = do_QueryReferent(mFileHandle);</span>
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :   RefPtr&lt;IDBFileHandle&gt; fileHandle = static_cast&lt;IDBFileHandle*&gt;(et.get());</span>
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 :   if (!fileHandle || !fileHandle-&gt;IsOpen()) {</span>
+<span class="lineNum">     199 </span>            :     return nullptr;
+<span class="lineNum">     200 </span>            :   }
+<span class="lineNum">     201 </span>            : 
+<span class="lineNum">     202 </span><span class="lineNoCov">          0 :   return mBlobImpl;</span>
+<a name="203"><span class="lineNum">     203 </span>            : }</a>
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 : StreamWrapper::~StreamWrapper()</span>
+<span class="lineNum">     206 </span>            : {
+<span class="lineNum">     207 </span><span class="lineNoCov">          0 :   AssertIsOnOwningThread();</span>
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 :   Finish();</span>
+<a name="210"><span class="lineNum">     210 </span><span class="lineNoCov">          0 : }</span></a>
+<a name="211"><span class="lineNum">     211 </span>            : </a>
+<a name="212"><span class="lineNum">     212 </span><span class="lineNoCov">          0 : NS_IMPL_ADDREF(StreamWrapper)</span></a>
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 : NS_IMPL_RELEASE_WITH_DESTROY(StreamWrapper, Destroy())</span>
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 : NS_IMPL_QUERY_INTERFACE(StreamWrapper,</span>
+<span class="lineNum">     215 </span>            :                         nsIInputStream,
+<span class="lineNum">     216 </span>            :                         nsIIPCSerializableInputStream)
+<a name="217"><span class="lineNum">     217 </span>            : </a>
+<span class="lineNum">     218 </span>            : NS_IMETHODIMP
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 : StreamWrapper::Close()</span>
+<span class="lineNum">     220 </span>            : {
+<span class="lineNum">     221 </span>            :   MOZ_ASSERT(!IsOnOwningThread());
+<span class="lineNum">     222 </span>            : 
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :   RefPtr&lt;CloseRunnable&gt; closeRunnable = new CloseRunnable(this);</span>
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span><span class="lineNoCov">          0 :   MOZ_ALWAYS_SUCCEEDS(mOwningThread-&gt;Dispatch(closeRunnable,</span>
+<span class="lineNum">     226 </span>            :                                               NS_DISPATCH_NORMAL));
+<span class="lineNum">     227 </span>            : 
+<span class="lineNum">     228 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     229 </span>            : }
+<a name="230"><span class="lineNum">     230 </span>            : </a>
+<span class="lineNum">     231 </span>            : NS_IMETHODIMP
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 : StreamWrapper::Available(uint64_t* _retval)</span>
+<span class="lineNum">     233 </span>            : {
+<span class="lineNum">     234 </span>            :   // Can't assert here, this method is sometimes called on the owning thread
+<span class="lineNum">     235 </span>            :   // (nsInputStreamChannel::OpenContentStream calls Available before setting
+<span class="lineNum">     236 </span>            :   // the content length property).
+<span class="lineNum">     237 </span>            : 
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :   return mInputStream-&gt;Available(_retval);</span>
+<span class="lineNum">     239 </span>            : }
+<a name="240"><span class="lineNum">     240 </span>            : </a>
+<span class="lineNum">     241 </span>            : NS_IMETHODIMP
+<span class="lineNum">     242 </span><span class="lineNoCov">          0 : StreamWrapper::Read(char* aBuf, uint32_t aCount, uint32_t* _retval)</span>
+<span class="lineNum">     243 </span>            : {
+<span class="lineNum">     244 </span>            :   MOZ_ASSERT(!IsOnOwningThread());
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :   return mInputStream-&gt;Read(aBuf, aCount, _retval);</span>
+<span class="lineNum">     246 </span>            : }
+<a name="247"><span class="lineNum">     247 </span>            : </a>
+<span class="lineNum">     248 </span>            : NS_IMETHODIMP
+<span class="lineNum">     249 </span><span class="lineNoCov">          0 : StreamWrapper::ReadSegments(nsWriteSegmentFun aWriter, void* aClosure,</span>
+<span class="lineNum">     250 </span>            :                             uint32_t aCount, uint32_t* _retval)
+<span class="lineNum">     251 </span>            : {
+<span class="lineNum">     252 </span>            :   MOZ_ASSERT(!IsOnOwningThread());
+<span class="lineNum">     253 </span><span class="lineNoCov">          0 :   return mInputStream-&gt;ReadSegments(aWriter, aClosure, aCount, _retval);</span>
+<span class="lineNum">     254 </span>            : }
+<a name="255"><span class="lineNum">     255 </span>            : </a>
+<span class="lineNum">     256 </span>            : NS_IMETHODIMP
+<span class="lineNum">     257 </span><span class="lineNoCov">          0 : StreamWrapper::IsNonBlocking(bool* _retval)</span>
+<span class="lineNum">     258 </span>            : {
+<span class="lineNum">     259 </span><span class="lineNoCov">          0 :   return mInputStream-&gt;IsNonBlocking(_retval);</span>
+<span class="lineNum">     260 </span>            : }
+<a name="261"><span class="lineNum">     261 </span>            : </a>
+<span class="lineNum">     262 </span>            : void
+<span class="lineNum">     263 </span><span class="lineNoCov">          0 : StreamWrapper::Serialize(InputStreamParams&amp; aParams,</span>
+<span class="lineNum">     264 </span>            :                          FileDescriptorArray&amp; aFileDescriptors)
+<span class="lineNum">     265 </span>            : {
+<span class="lineNum">     266 </span>            :   nsCOMPtr&lt;nsIIPCSerializableInputStream&gt; stream =
+<span class="lineNum">     267 </span><span class="lineNoCov">          0 :     do_QueryInterface(mInputStream);</span>
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span><span class="lineNoCov">          0 :   if (stream) {</span>
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 :     stream-&gt;Serialize(aParams, aFileDescriptors);</span>
+<span class="lineNum">     271 </span>            :   }
+<span class="lineNum">     272 </span><span class="lineNoCov">          0 : }</span>
+<a name="273"><span class="lineNum">     273 </span>            : </a>
+<span class="lineNum">     274 </span>            : bool
+<span class="lineNum">     275 </span><span class="lineNoCov">          0 : StreamWrapper::Deserialize(const InputStreamParams&amp; aParams,</span>
+<span class="lineNum">     276 </span>            :                            const FileDescriptorArray&amp; aFileDescriptors)
+<span class="lineNum">     277 </span>            : {
+<span class="lineNum">     278 </span>            :   nsCOMPtr&lt;nsIIPCSerializableInputStream&gt; stream =
+<span class="lineNum">     279 </span><span class="lineNoCov">          0 :     do_QueryInterface(mInputStream);</span>
+<span class="lineNum">     280 </span>            : 
+<span class="lineNum">     281 </span><span class="lineNoCov">          0 :   if (stream) {</span>
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 :     return stream-&gt;Deserialize(aParams, aFileDescriptors);</span>
+<span class="lineNum">     283 </span>            :   }
+<span class="lineNum">     284 </span>            : 
+<span class="lineNum">     285 </span>            :   return false;
+<span class="lineNum">     286 </span>            : }
+<a name="287"><span class="lineNum">     287 </span>            : </a>
+<span class="lineNum">     288 </span>            : Maybe&lt;uint64_t&gt;
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 : StreamWrapper::ExpectedSerializedLength()</span>
+<span class="lineNum">     290 </span>            : {
+<span class="lineNum">     291 </span>            :   nsCOMPtr&lt;nsIIPCSerializableInputStream&gt; stream =
+<span class="lineNum">     292 </span><span class="lineNoCov">          0 :     do_QueryInterface(mInputStream);</span>
+<span class="lineNum">     293 </span>            : 
+<span class="lineNum">     294 </span><span class="lineNoCov">          0 :   if (stream) {</span>
+<span class="lineNum">     295 </span><span class="lineNoCov">          0 :     return stream-&gt;ExpectedSerializedLength();</span>
+<span class="lineNum">     296 </span>            :   }
+<span class="lineNum">     297 </span>            :   return Nothing();
+<a name="298"><span class="lineNum">     298 </span>            : }</a>
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span><span class="lineNoCov">          0 : NS_IMPL_ISUPPORTS_INHERITED0(StreamWrapper::CloseRunnable,</span>
+<span class="lineNum">     301 </span>            :                              Runnable)
+<a name="302"><span class="lineNum">     302 </span>            : </a>
+<span class="lineNum">     303 </span>            : NS_IMETHODIMP
+<span class="lineNum">     304 </span><span class="lineNoCov">          0 : StreamWrapper::</span>
+<span class="lineNum">     305 </span>            : CloseRunnable::Run()
+<span class="lineNum">     306 </span>            : {
+<span class="lineNum">     307 </span><span class="lineNoCov">          0 :   mStreamWrapper-&gt;Finish();</span>
+<span class="lineNum">     308 </span>            : 
+<span class="lineNum">     309 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     310 </span>            : }
+<span class="lineNum">     311 </span>            : 
+<span class="lineNum">     312 </span>            : } // namespace indexedDB
+<span class="lineNum">     313 </span>            : } // namespace dom
+<span class="lineNum">     314 </span>            : } // namespace mozilla
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

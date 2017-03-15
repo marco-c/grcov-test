@@ -1,0 +1,1089 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/security/nss/lib/ssl/ssl3ecc.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">gecko-dev/security/nss/lib/ssl</a> - ssl3ecc.c<span style="font-size: 80%;"> (source / <a href="ssl3ecc.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">279</td>
+            <td class="headerCovTableEntry">361</td>
+            <td class="headerCovTableEntryMed">77.3 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">16</td>
+            <td class="headerCovTableEntry">18</td>
+            <td class="headerCovTableEntryMed">88.9 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */</a>
+<span class="lineNum">       2 </span>            : /*
+<span class="lineNum">       3 </span>            :  * SSL3 Protocol
+<span class="lineNum">       4 </span>            :  *
+<span class="lineNum">       5 </span>            :  * This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       6 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       7 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : /* ECC code moved here from ssl3con.c */
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;cert.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;ssl.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;cryptohi.h&quot; /* for DSAU_ stuff */
+<span class="lineNum">      14 </span>            : #include &quot;keyhi.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;secder.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;secitem.h&quot;
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : #include &quot;sslimpl.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;sslproto.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;sslerr.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;ssl3ext.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;prtime.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;prinrval.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;prerror.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;pratom.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;prthread.h&quot;
+<span class="lineNum">      27 </span>            : #include &quot;prinit.h&quot;
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;pk11func.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;secmod.h&quot;
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : #include &lt;stdio.h&gt;
+<span class="lineNum">      33 </span>            : 
+<span class="lineNum">      34 </span>            : #ifndef PK11_SETATTRS
+<span class="lineNum">      35 </span>            : #define PK11_SETATTRS(x, id, v, l) \
+<span class="lineNum">      36 </span>            :     (x)-&gt;type = (id);              \
+<span class="lineNum">      37 </span>            :     (x)-&gt;pValue = (v);             \
+<span class="lineNum">      38 </span>            :     (x)-&gt;ulValueLen = (l);
+<span class="lineNum">      39 </span>            : #endif
+<a name="40"><span class="lineNum">      40 </span>            : </a>
+<span class="lineNum">      41 </span>            : SECStatus
+<span class="lineNum">      42 </span><span class="lineCov">          1 : ssl_NamedGroup2ECParams(PLArenaPool *arena, const sslNamedGroupDef *ecGroup,</span>
+<span class="lineNum">      43 </span>            :                         SECKEYECParams *params)
+<span class="lineNum">      44 </span>            : {
+<span class="lineNum">      45 </span><span class="lineCov">          1 :     SECOidData *oidData = NULL;</span>
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span><span class="lineCov">          1 :     if (!params) {</span>
+<span class="lineNum">      48 </span>            :         PORT_Assert(0);
+<span class="lineNum">      49 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">      50 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">      51 </span>            :     }
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span><span class="lineCov">          1 :     if (!ecGroup || ecGroup-&gt;keaType != ssl_kea_ecdh ||</span>
+<span class="lineNum">      54 </span><span class="lineCov">          1 :         (oidData = SECOID_FindOIDByTag(ecGroup-&gt;oidTag)) == NULL) {</span>
+<span class="lineNum">      55 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_UNSUPPORTED_ELLIPTIC_CURVE);</span>
+<span class="lineNum">      56 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">      57 </span>            :     }
+<span class="lineNum">      58 </span>            : 
+<span class="lineNum">      59 </span><span class="lineCov">          1 :     if (SECITEM_AllocItem(arena, params, (2 + oidData-&gt;oid.len)) == NULL) {</span>
+<span class="lineNum">      60 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_MEMORY);</span>
+<span class="lineNum">      61 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">      62 </span>            :     }
+<span class="lineNum">      63 </span>            : 
+<span class="lineNum">      64 </span>            :     /*
+<span class="lineNum">      65 </span>            :      * params-&gt;data needs to contain the ASN encoding of an object ID (OID)
+<span class="lineNum">      66 </span>            :      * representing the named curve. The actual OID is in
+<span class="lineNum">      67 </span>            :      * oidData-&gt;oid.data so we simply prepend 0x06 and OID length
+<span class="lineNum">      68 </span>            :      */
+<span class="lineNum">      69 </span><span class="lineCov">          1 :     params-&gt;data[0] = SEC_ASN1_OBJECT_ID;</span>
+<span class="lineNum">      70 </span><span class="lineCov">          1 :     params-&gt;data[1] = oidData-&gt;oid.len;</span>
+<span class="lineNum">      71 </span><span class="lineCov">          1 :     memcpy(params-&gt;data + 2, oidData-&gt;oid.data, oidData-&gt;oid.len);</span>
+<span class="lineNum">      72 </span>            : 
+<span class="lineNum">      73 </span><span class="lineCov">          1 :     return SECSuccess;</span>
+<span class="lineNum">      74 </span>            : }
+<a name="75"><span class="lineNum">      75 </span>            : </a>
+<span class="lineNum">      76 </span>            : const sslNamedGroupDef *
+<span class="lineNum">      77 </span><span class="lineCov">          1 : ssl_ECPubKey2NamedGroup(const SECKEYPublicKey *pubKey)</span>
+<span class="lineNum">      78 </span>            : {
+<span class="lineNum">      79 </span><span class="lineCov">          1 :     SECItem oid = { siBuffer, NULL, 0 };</span>
+<span class="lineNum">      80 </span><span class="lineCov">          1 :     SECOidData *oidData = NULL;</span>
+<span class="lineNum">      81 </span><span class="lineCov">          1 :     PRUint32 policyFlags = 0;</span>
+<span class="lineNum">      82 </span>            :     unsigned int i;
+<span class="lineNum">      83 </span>            :     const SECKEYECParams *params;
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span><span class="lineCov">          1 :     if (pubKey-&gt;keyType != ecKey) {</span>
+<span class="lineNum">      86 </span>            :         PORT_Assert(0);
+<span class="lineNum">      87 </span>            :         return NULL;
+<span class="lineNum">      88 </span>            :     }
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span><span class="lineCov">          1 :     params = &amp;pubKey-&gt;u.ec.DEREncodedParams;</span>
+<span class="lineNum">      91 </span>            : 
+<span class="lineNum">      92 </span>            :     /*
+<span class="lineNum">      93 </span>            :      * params-&gt;data needs to contain the ASN encoding of an object ID (OID)
+<span class="lineNum">      94 </span>            :      * representing a named curve. Here, we strip away everything
+<span class="lineNum">      95 </span>            :      * before the actual OID and use the OID to look up a named curve.
+<span class="lineNum">      96 </span>            :      */
+<span class="lineNum">      97 </span><span class="lineCov">          1 :     if (params-&gt;data[0] != SEC_ASN1_OBJECT_ID)</span>
+<span class="lineNum">      98 </span>            :         return NULL;
+<span class="lineNum">      99 </span><span class="lineCov">          1 :     oid.len = params-&gt;len - 2;</span>
+<span class="lineNum">     100 </span><span class="lineCov">          1 :     oid.data = params-&gt;data + 2;</span>
+<span class="lineNum">     101 </span><span class="lineCov">          1 :     if ((oidData = SECOID_FindOID(&amp;oid)) == NULL)</span>
+<span class="lineNum">     102 </span>            :         return NULL;
+<span class="lineNum">     103 </span><span class="lineCov">          1 :     if ((NSS_GetAlgorithmPolicy(oidData-&gt;offset, &amp;policyFlags) ==</span>
+<span class="lineNum">     104 </span><span class="lineCov">          1 :          SECSuccess) &amp;&amp;</span>
+<span class="lineNum">     105 </span><span class="lineCov">          1 :         !(policyFlags &amp; NSS_USE_ALG_IN_SSL_KX)) {</span>
+<span class="lineNum">     106 </span>            :         return NULL;
+<span class="lineNum">     107 </span>            :     }
+<span class="lineNum">     108 </span><span class="lineCov">          1 :     for (i = 0; i &lt; SSL_NAMED_GROUP_COUNT; ++i) {</span>
+<span class="lineNum">     109 </span><span class="lineCov">          1 :         if (ssl_named_groups[i].oidTag == oidData-&gt;offset) {</span>
+<span class="lineNum">     110 </span><span class="lineCov">          1 :             return &amp;ssl_named_groups[i];</span>
+<span class="lineNum">     111 </span>            :         }
+<span class="lineNum">     112 </span>            :     }
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span>            :     return NULL;
+<span class="lineNum">     115 </span>            : }
+<span class="lineNum">     116 </span>            : 
+<a name="117"><span class="lineNum">     117 </span>            : /* Caller must set hiLevel error code. */</a>
+<span class="lineNum">     118 </span>            : static SECStatus
+<span class="lineNum">     119 </span><span class="lineCov">          1 : ssl3_ComputeECDHKeyHash(SSLHashType hashAlg,</span>
+<span class="lineNum">     120 </span>            :                         SECItem ec_params, SECItem server_ecpoint,
+<span class="lineNum">     121 </span>            :                         SSL3Random *client_rand, SSL3Random *server_rand,
+<span class="lineNum">     122 </span>            :                         SSL3Hashes *hashes)
+<span class="lineNum">     123 </span>            : {
+<span class="lineNum">     124 </span>            :     PRUint8 *hashBuf;
+<span class="lineNum">     125 </span>            :     PRUint8 *pBuf;
+<span class="lineNum">     126 </span><span class="lineCov">          1 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     127 </span>            :     unsigned int bufLen;
+<span class="lineNum">     128 </span>            :     /*
+<span class="lineNum">     129 </span>            :      * We only support named curves (the appropriate checks are made before this
+<span class="lineNum">     130 </span>            :      * method is called) so ec_params takes up only two bytes. ECPoint needs to
+<span class="lineNum">     131 </span>            :      * fit in 256 bytes because the spec says the length must fit in one byte.
+<span class="lineNum">     132 </span>            :      */
+<span class="lineNum">     133 </span>            :     PRUint8 buf[2 * SSL3_RANDOM_LENGTH + 2 + 1 + 256];
+<span class="lineNum">     134 </span>            : 
+<span class="lineNum">     135 </span><span class="lineCov">          1 :     bufLen = 2 * SSL3_RANDOM_LENGTH + ec_params.len + 1 + server_ecpoint.len;</span>
+<span class="lineNum">     136 </span><span class="lineCov">          1 :     if (bufLen &lt;= sizeof buf) {</span>
+<span class="lineNum">     137 </span>            :         hashBuf = buf;
+<span class="lineNum">     138 </span>            :     } else {
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :         hashBuf = PORT_Alloc(bufLen);</span>
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :         if (!hashBuf) {</span>
+<span class="lineNum">     141 </span>            :             return SECFailure;
+<span class="lineNum">     142 </span>            :         }
+<span class="lineNum">     143 </span>            :     }
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span><span class="lineCov">          1 :     memcpy(hashBuf, client_rand, SSL3_RANDOM_LENGTH);</span>
+<span class="lineNum">     146 </span><span class="lineCov">          1 :     pBuf = hashBuf + SSL3_RANDOM_LENGTH;</span>
+<span class="lineNum">     147 </span><span class="lineCov">          1 :     memcpy(pBuf, server_rand, SSL3_RANDOM_LENGTH);</span>
+<span class="lineNum">     148 </span><span class="lineCov">          1 :     pBuf += SSL3_RANDOM_LENGTH;</span>
+<span class="lineNum">     149 </span><span class="lineCov">          1 :     memcpy(pBuf, ec_params.data, ec_params.len);</span>
+<span class="lineNum">     150 </span><span class="lineCov">          1 :     pBuf += ec_params.len;</span>
+<span class="lineNum">     151 </span><span class="lineCov">          1 :     pBuf[0] = (PRUint8)(server_ecpoint.len);</span>
+<span class="lineNum">     152 </span><span class="lineCov">          1 :     pBuf += 1;</span>
+<span class="lineNum">     153 </span><span class="lineCov">          1 :     memcpy(pBuf, server_ecpoint.data, server_ecpoint.len);</span>
+<span class="lineNum">     154 </span><span class="lineCov">          1 :     pBuf += server_ecpoint.len;</span>
+<span class="lineNum">     155 </span>            :     PORT_Assert((unsigned int)(pBuf - hashBuf) == bufLen);
+<span class="lineNum">     156 </span>            : 
+<span class="lineNum">     157 </span><span class="lineCov">          1 :     rv = ssl3_ComputeCommonKeyHash(hashAlg, hashBuf, bufLen, hashes);</span>
+<span class="lineNum">     158 </span>            : 
+<span class="lineNum">     159 </span>            :     PRINT_BUF(95, (NULL, &quot;ECDHkey hash: &quot;, hashBuf, bufLen));
+<span class="lineNum">     160 </span>            :     PRINT_BUF(95, (NULL, &quot;ECDHkey hash: MD5 result&quot;,
+<span class="lineNum">     161 </span>            :                    hashes-&gt;u.s.md5, MD5_LENGTH));
+<span class="lineNum">     162 </span>            :     PRINT_BUF(95, (NULL, &quot;ECDHkey hash: SHA1 result&quot;,
+<span class="lineNum">     163 </span>            :                    hashes-&gt;u.s.sha, SHA1_LENGTH));
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span><span class="lineCov">          1 :     if (hashBuf != buf)</span>
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :         PORT_Free(hashBuf);</span>
+<span class="lineNum">     167 </span>            :     return rv;
+<span class="lineNum">     168 </span>            : }
+<span class="lineNum">     169 </span>            : 
+<a name="170"><span class="lineNum">     170 </span>            : /* Called from ssl3_SendClientKeyExchange(). */</a>
+<span class="lineNum">     171 </span>            : SECStatus
+<span class="lineNum">     172 </span><span class="lineCov">          1 : ssl3_SendECDHClientKeyExchange(sslSocket *ss, SECKEYPublicKey *svrPubKey)</span>
+<span class="lineNum">     173 </span>            : {
+<span class="lineNum">     174 </span><span class="lineCov">          1 :     PK11SymKey *pms = NULL;</span>
+<span class="lineNum">     175 </span><span class="lineCov">          1 :     SECStatus rv = SECFailure;</span>
+<span class="lineNum">     176 </span>            :     PRBool isTLS, isTLS12;
+<span class="lineNum">     177 </span>            :     CK_MECHANISM_TYPE target;
+<span class="lineNum">     178 </span>            :     const sslNamedGroupDef *groupDef;
+<span class="lineNum">     179 </span><span class="lineCov">          1 :     sslEphemeralKeyPair *keyPair = NULL;</span>
+<span class="lineNum">     180 </span>            :     SECKEYPublicKey *pubKey;
+<span class="lineNum">     181 </span>            : 
+<span class="lineNum">     182 </span>            :     PORT_Assert(ss-&gt;opt.noLocks || ssl_HaveSSL3HandshakeLock(ss));
+<span class="lineNum">     183 </span>            :     PORT_Assert(ss-&gt;opt.noLocks || ssl_HaveXmitBufLock(ss));
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span><span class="lineCov">          1 :     isTLS = (PRBool)(ss-&gt;ssl3.pwSpec-&gt;version &gt; SSL_LIBRARY_VERSION_3_0);</span>
+<span class="lineNum">     186 </span><span class="lineCov">          1 :     isTLS12 = (PRBool)(ss-&gt;ssl3.pwSpec-&gt;version &gt;= SSL_LIBRARY_VERSION_TLS_1_2);</span>
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span>            :     /* Generate ephemeral EC keypair */
+<span class="lineNum">     189 </span><span class="lineCov">          1 :     if (svrPubKey-&gt;keyType != ecKey) {</span>
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_BAD_KEY);</span>
+<span class="lineNum">     191 </span><span class="lineNoCov">          0 :         goto loser;</span>
+<span class="lineNum">     192 </span>            :     }
+<span class="lineNum">     193 </span><span class="lineCov">          1 :     groupDef = ssl_ECPubKey2NamedGroup(svrPubKey);</span>
+<span class="lineNum">     194 </span><span class="lineCov">          1 :     if (!groupDef) {</span>
+<span class="lineNum">     195 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_BAD_KEY);</span>
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :         goto loser;</span>
+<span class="lineNum">     197 </span>            :     }
+<span class="lineNum">     198 </span><span class="lineCov">          1 :     ss-&gt;sec.keaGroup = groupDef;</span>
+<span class="lineNum">     199 </span><span class="lineCov">          1 :     rv = ssl_CreateECDHEphemeralKeyPair(ss, groupDef, &amp;keyPair);</span>
+<span class="lineNum">     200 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :         ssl_MapLowLevelError(SEC_ERROR_KEYGEN_FAIL);</span>
+<span class="lineNum">     202 </span><span class="lineNoCov">          0 :         goto loser;</span>
+<span class="lineNum">     203 </span>            :     }
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span><span class="lineCov">          1 :     pubKey = keyPair-&gt;keys-&gt;pubKey;</span>
+<span class="lineNum">     206 </span>            :     PRINT_BUF(50, (ss, &quot;ECDH public value:&quot;,
+<span class="lineNum">     207 </span>            :                    pubKey-&gt;u.ec.publicValue.data,
+<span class="lineNum">     208 </span>            :                    pubKey-&gt;u.ec.publicValue.len));
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span><span class="lineCov">          1 :     if (isTLS12) {</span>
+<span class="lineNum">     211 </span>            :         target = CKM_TLS12_MASTER_KEY_DERIVE_DH;
+<span class="lineNum">     212 </span><span class="lineNoCov">          0 :     } else if (isTLS) {</span>
+<span class="lineNum">     213 </span>            :         target = CKM_TLS_MASTER_KEY_DERIVE_DH;
+<span class="lineNum">     214 </span>            :     } else {
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 :         target = CKM_SSL3_MASTER_KEY_DERIVE_DH;</span>
+<span class="lineNum">     216 </span>            :     }
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span>            :     /* Determine the PMS */
+<span class="lineNum">     219 </span><span class="lineCov">          1 :     pms = PK11_PubDeriveWithKDF(keyPair-&gt;keys-&gt;privKey, svrPubKey,</span>
+<span class="lineNum">     220 </span>            :                                 PR_FALSE, NULL, NULL, CKM_ECDH1_DERIVE, target,
+<span class="lineNum">     221 </span>            :                                 CKA_DERIVE, 0, CKD_NULL, NULL, NULL);
+<span class="lineNum">     222 </span>            : 
+<span class="lineNum">     223 </span><span class="lineCov">          1 :     if (pms == NULL) {</span>
+<span class="lineNum">     224 </span><span class="lineNoCov">          0 :         (void)SSL3_SendAlert(ss, alert_fatal, illegal_parameter);</span>
+<span class="lineNum">     225 </span><span class="lineNoCov">          0 :         ssl_MapLowLevelError(SSL_ERROR_CLIENT_KEY_EXCHANGE_FAILURE);</span>
+<span class="lineNum">     226 </span><span class="lineNoCov">          0 :         goto loser;</span>
+<span class="lineNum">     227 </span>            :     }
+<span class="lineNum">     228 </span>            : 
+<span class="lineNum">     229 </span><span class="lineCov">          1 :     rv = ssl3_AppendHandshakeHeader(ss, client_key_exchange,</span>
+<span class="lineNum">     230 </span><span class="lineCov">          1 :                                     pubKey-&gt;u.ec.publicValue.len + 1);</span>
+<span class="lineNum">     231 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     232 </span>            :         goto loser; /* err set by ssl3_AppendHandshake* */
+<span class="lineNum">     233 </span>            :     }
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span><span class="lineCov">          1 :     rv = ssl3_AppendHandshakeVariable(ss, pubKey-&gt;u.ec.publicValue.data,</span>
+<span class="lineNum">     236 </span><span class="lineCov">          1 :                                       pubKey-&gt;u.ec.publicValue.len, 1);</span>
+<span class="lineNum">     237 </span>            : 
+<span class="lineNum">     238 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     239 </span>            :         goto loser; /* err set by ssl3_AppendHandshake* */
+<span class="lineNum">     240 </span>            :     }
+<span class="lineNum">     241 </span>            : 
+<span class="lineNum">     242 </span><span class="lineCov">          1 :     rv = ssl3_InitPendingCipherSpec(ss, pms);</span>
+<span class="lineNum">     243 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :         ssl_MapLowLevelError(SSL_ERROR_CLIENT_KEY_EXCHANGE_FAILURE);</span>
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :         goto loser;</span>
+<span class="lineNum">     246 </span>            :     }
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span><span class="lineCov">          1 :     PK11_FreeSymKey(pms);</span>
+<span class="lineNum">     249 </span><span class="lineCov">          1 :     ssl_FreeEphemeralKeyPair(keyPair);</span>
+<span class="lineNum">     250 </span><span class="lineCov">          1 :     return SECSuccess;</span>
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span>            : loser:
+<span class="lineNum">     253 </span><span class="lineNoCov">          0 :     if (pms)</span>
+<span class="lineNum">     254 </span><span class="lineNoCov">          0 :         PK11_FreeSymKey(pms);</span>
+<span class="lineNum">     255 </span><span class="lineNoCov">          0 :     if (keyPair)</span>
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 :         ssl_FreeEphemeralKeyPair(keyPair);</span>
+<span class="lineNum">     257 </span>            :     return SECFailure;
+<span class="lineNum">     258 </span>            : }
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span>            : /* This function returns the size of the key_exchange field in
+<span class="lineNum">     261 </span>            :  * the KeyShareEntry structure, i.e.:
+<a name="262"><span class="lineNum">     262 </span>            :  *     opaque point &lt;1..2^8-1&gt;; */</a>
+<span class="lineNum">     263 </span>            : unsigned int
+<span class="lineNum">     264 </span><span class="lineNoCov">          0 : tls13_SizeOfECDHEKeyShareKEX(const SECKEYPublicKey *pubKey)</span>
+<span class="lineNum">     265 </span>            : {
+<span class="lineNum">     266 </span>            :     PORT_Assert(pubKey-&gt;keyType == ecKey);
+<span class="lineNum">     267 </span><span class="lineNoCov">          0 :     return pubKey-&gt;u.ec.publicValue.len;</span>
+<span class="lineNum">     268 </span>            : }
+<span class="lineNum">     269 </span>            : 
+<span class="lineNum">     270 </span>            : /* This function encodes the key_exchange field in
+<a name="271"><span class="lineNum">     271 </span>            :  * the KeyShareEntry structure. */</a>
+<span class="lineNum">     272 </span>            : SECStatus
+<span class="lineNum">     273 </span><span class="lineCov">          1 : tls13_EncodeECDHEKeyShareKEX(const sslSocket *ss, const SECKEYPublicKey *pubKey)</span>
+<span class="lineNum">     274 </span>            : {
+<span class="lineNum">     275 </span>            :     PORT_Assert(ss-&gt;opt.noLocks || ssl_HaveSSL3HandshakeLock(ss));
+<span class="lineNum">     276 </span>            :     PORT_Assert(ss-&gt;opt.noLocks || ssl_HaveXmitBufLock(ss));
+<span class="lineNum">     277 </span>            :     PORT_Assert(pubKey-&gt;keyType == ecKey);
+<span class="lineNum">     278 </span>            : 
+<span class="lineNum">     279 </span><span class="lineCov">          1 :     return ssl3_ExtAppendHandshake(ss, pubKey-&gt;u.ec.publicValue.data,</span>
+<span class="lineNum">     280 </span><span class="lineCov">          1 :                                    pubKey-&gt;u.ec.publicValue.len);</span>
+<span class="lineNum">     281 </span>            : }
+<span class="lineNum">     282 </span>            : 
+<span class="lineNum">     283 </span>            : /*
+<span class="lineNum">     284 </span>            : ** Called from ssl3_HandleClientKeyExchange()
+<a name="285"><span class="lineNum">     285 </span>            : */</a>
+<span class="lineNum">     286 </span>            : SECStatus
+<span class="lineNum">     287 </span><span class="lineCov">          1 : ssl3_HandleECDHClientKeyExchange(sslSocket *ss, SSL3Opaque *b,</span>
+<span class="lineNum">     288 </span>            :                                  PRUint32 length,
+<span class="lineNum">     289 </span>            :                                  sslKeyPair *serverKeyPair)
+<span class="lineNum">     290 </span>            : {
+<span class="lineNum">     291 </span>            :     PK11SymKey *pms;
+<span class="lineNum">     292 </span>            :     SECStatus rv;
+<span class="lineNum">     293 </span>            :     SECKEYPublicKey clntPubKey;
+<span class="lineNum">     294 </span>            :     CK_MECHANISM_TYPE target;
+<span class="lineNum">     295 </span>            :     PRBool isTLS, isTLS12;
+<span class="lineNum">     296 </span><span class="lineCov">          1 :     int errCode = SSL_ERROR_RX_MALFORMED_CLIENT_KEY_EXCH;</span>
+<span class="lineNum">     297 </span>            : 
+<span class="lineNum">     298 </span>            :     PORT_Assert(ss-&gt;opt.noLocks || ssl_HaveRecvBufLock(ss));
+<span class="lineNum">     299 </span>            :     PORT_Assert(ss-&gt;opt.noLocks || ssl_HaveSSL3HandshakeLock(ss));
+<span class="lineNum">     300 </span>            : 
+<span class="lineNum">     301 </span><span class="lineCov">          1 :     clntPubKey.keyType = ecKey;</span>
+<span class="lineNum">     302 </span><span class="lineCov">          1 :     clntPubKey.u.ec.DEREncodedParams.len =</span>
+<span class="lineNum">     303 </span><span class="lineCov">          1 :         serverKeyPair-&gt;pubKey-&gt;u.ec.DEREncodedParams.len;</span>
+<span class="lineNum">     304 </span><span class="lineCov">          1 :     clntPubKey.u.ec.DEREncodedParams.data =</span>
+<span class="lineNum">     305 </span><span class="lineCov">          1 :         serverKeyPair-&gt;pubKey-&gt;u.ec.DEREncodedParams.data;</span>
+<span class="lineNum">     306 </span><span class="lineCov">          1 :     clntPubKey.u.ec.encoding = ECPoint_Undefined;</span>
+<span class="lineNum">     307 </span>            : 
+<span class="lineNum">     308 </span><span class="lineCov">          1 :     rv = ssl3_ConsumeHandshakeVariable(ss, &amp;clntPubKey.u.ec.publicValue,</span>
+<span class="lineNum">     309 </span>            :                                        1, &amp;b, &amp;length);
+<span class="lineNum">     310 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :         PORT_SetError(errCode);</span>
+<span class="lineNum">     312 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     313 </span>            :     }
+<span class="lineNum">     314 </span>            : 
+<span class="lineNum">     315 </span>            :     /* we have to catch the case when the client's public key has length 0. */
+<span class="lineNum">     316 </span><span class="lineCov">          1 :     if (!clntPubKey.u.ec.publicValue.len) {</span>
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :         (void)SSL3_SendAlert(ss, alert_fatal, illegal_parameter);</span>
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :         PORT_SetError(errCode);</span>
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     320 </span>            :     }
+<span class="lineNum">     321 </span>            : 
+<span class="lineNum">     322 </span><span class="lineCov">          1 :     isTLS = (PRBool)(ss-&gt;ssl3.prSpec-&gt;version &gt; SSL_LIBRARY_VERSION_3_0);</span>
+<span class="lineNum">     323 </span><span class="lineCov">          1 :     isTLS12 = (PRBool)(ss-&gt;ssl3.prSpec-&gt;version &gt;= SSL_LIBRARY_VERSION_TLS_1_2);</span>
+<span class="lineNum">     324 </span>            : 
+<span class="lineNum">     325 </span><span class="lineCov">          1 :     if (isTLS12) {</span>
+<span class="lineNum">     326 </span>            :         target = CKM_TLS12_MASTER_KEY_DERIVE_DH;
+<span class="lineNum">     327 </span><span class="lineNoCov">          0 :     } else if (isTLS) {</span>
+<span class="lineNum">     328 </span>            :         target = CKM_TLS_MASTER_KEY_DERIVE_DH;
+<span class="lineNum">     329 </span>            :     } else {
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 :         target = CKM_SSL3_MASTER_KEY_DERIVE_DH;</span>
+<span class="lineNum">     331 </span>            :     }
+<span class="lineNum">     332 </span>            : 
+<span class="lineNum">     333 </span>            :     /*  Determine the PMS */
+<span class="lineNum">     334 </span><span class="lineCov">          1 :     pms = PK11_PubDeriveWithKDF(serverKeyPair-&gt;privKey, &amp;clntPubKey,</span>
+<span class="lineNum">     335 </span>            :                                 PR_FALSE, NULL, NULL,
+<span class="lineNum">     336 </span>            :                                 CKM_ECDH1_DERIVE, target, CKA_DERIVE, 0,
+<span class="lineNum">     337 </span>            :                                 CKD_NULL, NULL, NULL);
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span><span class="lineCov">          1 :     if (pms == NULL) {</span>
+<span class="lineNum">     340 </span>            :         /* last gasp.  */
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :         errCode = ssl_MapLowLevelError(SSL_ERROR_CLIENT_KEY_EXCHANGE_FAILURE);</span>
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 :         PORT_SetError(errCode);</span>
+<span class="lineNum">     343 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     344 </span>            :     }
+<span class="lineNum">     345 </span>            : 
+<span class="lineNum">     346 </span><span class="lineCov">          1 :     rv = ssl3_InitPendingCipherSpec(ss, pms);</span>
+<span class="lineNum">     347 </span><span class="lineCov">          1 :     PK11_FreeSymKey(pms);</span>
+<span class="lineNum">     348 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     349 </span>            :         /* error code set by ssl3_InitPendingCipherSpec */
+<span class="lineNum">     350 </span>            :         return SECFailure;
+<span class="lineNum">     351 </span>            :     }
+<span class="lineNum">     352 </span><span class="lineCov">          1 :     ss-&gt;sec.keaGroup = ssl_ECPubKey2NamedGroup(&amp;clntPubKey);</span>
+<span class="lineNum">     353 </span><span class="lineCov">          1 :     return SECSuccess;</span>
+<span class="lineNum">     354 </span>            : }
+<span class="lineNum">     355 </span>            : 
+<span class="lineNum">     356 </span>            : /*
+<span class="lineNum">     357 </span>            : ** Take an encoded key share and make a public key out of it.
+<a name="358"><span class="lineNum">     358 </span>            : */</a>
+<span class="lineNum">     359 </span>            : SECStatus
+<span class="lineNum">     360 </span><span class="lineCov">          1 : ssl_ImportECDHKeyShare(sslSocket *ss, SECKEYPublicKey *peerKey,</span>
+<span class="lineNum">     361 </span>            :                        SSL3Opaque *b, PRUint32 length,
+<span class="lineNum">     362 </span>            :                        const sslNamedGroupDef *ecGroup)
+<span class="lineNum">     363 </span>            : {
+<span class="lineNum">     364 </span>            :     SECStatus rv;
+<span class="lineNum">     365 </span><span class="lineCov">          1 :     SECItem ecPoint = { siBuffer, NULL, 0 };</span>
+<span class="lineNum">     366 </span>            : 
+<span class="lineNum">     367 </span>            :     PORT_Assert(ss-&gt;opt.noLocks || ssl_HaveRecvBufLock(ss));
+<span class="lineNum">     368 </span>            :     PORT_Assert(ss-&gt;opt.noLocks || ssl_HaveSSL3HandshakeLock(ss));
+<span class="lineNum">     369 </span>            : 
+<span class="lineNum">     370 </span><span class="lineCov">          1 :     if (!length) {</span>
+<span class="lineNum">     371 </span><span class="lineNoCov">          0 :         PORT_SetError(SSL_ERROR_RX_MALFORMED_ECDHE_KEY_SHARE);</span>
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     373 </span>            :     }
+<span class="lineNum">     374 </span>            : 
+<span class="lineNum">     375 </span>            :     /* Fail if the ec point uses compressed representation */
+<span class="lineNum">     376 </span><span class="lineCov">          1 :     if (b[0] != EC_POINT_FORM_UNCOMPRESSED &amp;&amp;</span>
+<span class="lineNum">     377 </span><span class="lineCov">          1 :         ecGroup-&gt;name != ssl_grp_ec_curve25519) {</span>
+<span class="lineNum">     378 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_UNSUPPORTED_EC_POINT_FORM);</span>
+<span class="lineNum">     379 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     380 </span>            :     }
+<span class="lineNum">     381 </span>            : 
+<span class="lineNum">     382 </span><span class="lineCov">          1 :     peerKey-&gt;keyType = ecKey;</span>
+<span class="lineNum">     383 </span>            :     /* Set up the encoded params */
+<span class="lineNum">     384 </span><span class="lineCov">          1 :     rv = ssl_NamedGroup2ECParams(peerKey-&gt;arena, ecGroup,</span>
+<span class="lineNum">     385 </span>            :                                  &amp;peerKey-&gt;u.ec.DEREncodedParams);
+<span class="lineNum">     386 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     387 </span><span class="lineNoCov">          0 :         ssl_MapLowLevelError(SSL_ERROR_RX_MALFORMED_ECDHE_KEY_SHARE);</span>
+<span class="lineNum">     388 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     389 </span>            :     }
+<span class="lineNum">     390 </span><span class="lineCov">          1 :     peerKey-&gt;u.ec.encoding = ECPoint_Undefined;</span>
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span>            :     /* copy publicValue in peerKey */
+<span class="lineNum">     393 </span><span class="lineCov">          1 :     ecPoint.data = b;</span>
+<span class="lineNum">     394 </span><span class="lineCov">          1 :     ecPoint.len = length;</span>
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span><span class="lineCov">          1 :     rv = SECITEM_CopyItem(peerKey-&gt;arena, &amp;peerKey-&gt;u.ec.publicValue, &amp;ecPoint);</span>
+<span class="lineNum">     397 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     398 </span>            :         return SECFailure;
+<span class="lineNum">     399 </span>            :     }
+<span class="lineNum">     400 </span>            : 
+<span class="lineNum">     401 </span><span class="lineCov">          1 :     return SECSuccess;</span>
+<span class="lineNum">     402 </span>            : }
+<a name="403"><span class="lineNum">     403 </span>            : </a>
+<span class="lineNum">     404 </span>            : const sslNamedGroupDef *
+<span class="lineNum">     405 </span><span class="lineCov">          1 : ssl_GetECGroupWithStrength(sslSocket *ss, unsigned int requiredECCbits)</span>
+<span class="lineNum">     406 </span>            : {
+<span class="lineNum">     407 </span>            :     int i;
+<span class="lineNum">     408 </span>            : 
+<span class="lineNum">     409 </span>            :     PORT_Assert(ss);
+<span class="lineNum">     410 </span>            : 
+<span class="lineNum">     411 </span><span class="lineCov">          1 :     for (i = 0; i &lt; SSL_NAMED_GROUP_COUNT; ++i) {</span>
+<span class="lineNum">     412 </span><span class="lineCov">          1 :         const sslNamedGroupDef *group = ss-&gt;namedGroupPreferences[i];</span>
+<span class="lineNum">     413 </span><span class="lineCov">          1 :         if (group &amp;&amp; group-&gt;keaType == ssl_kea_ecdh &amp;&amp;</span>
+<span class="lineNum">     414 </span><span class="lineCov">          1 :             group-&gt;bits &gt;= requiredECCbits) {</span>
+<span class="lineNum">     415 </span><span class="lineCov">          1 :             return group;</span>
+<span class="lineNum">     416 </span>            :         }
+<span class="lineNum">     417 </span>            :     }
+<span class="lineNum">     418 </span>            : 
+<span class="lineNum">     419 </span><span class="lineNoCov">          0 :     PORT_SetError(SSL_ERROR_NO_CYPHER_OVERLAP);</span>
+<span class="lineNum">     420 </span><span class="lineNoCov">          0 :     return NULL;</span>
+<span class="lineNum">     421 </span>            : }
+<span class="lineNum">     422 </span>            : 
+<span class="lineNum">     423 </span>            : /* Find the &quot;weakest link&quot;.  Get the strength of the signature and symmetric
+<a name="424"><span class="lineNum">     424 </span>            :  * keys and choose a curve based on the weakest of those two. */</a>
+<span class="lineNum">     425 </span>            : const sslNamedGroupDef *
+<span class="lineNum">     426 </span><span class="lineCov">          1 : ssl_GetECGroupForServerSocket(sslSocket *ss)</span>
+<span class="lineNum">     427 </span>            : {
+<span class="lineNum">     428 </span><span class="lineCov">          1 :     const sslServerCert *cert = ss-&gt;sec.serverCert;</span>
+<span class="lineNum">     429 </span>            :     unsigned int certKeySize;
+<span class="lineNum">     430 </span>            :     const ssl3BulkCipherDef *bulkCipher;
+<span class="lineNum">     431 </span>            :     unsigned int requiredECCbits;
+<span class="lineNum">     432 </span>            : 
+<span class="lineNum">     433 </span>            :     PORT_Assert(cert);
+<span class="lineNum">     434 </span><span class="lineCov">          1 :     if (!cert || !cert-&gt;serverKeyPair || !cert-&gt;serverKeyPair-&gt;pubKey) {</span>
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :         PORT_SetError(SSL_ERROR_NO_CYPHER_OVERLAP);</span>
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     437 </span>            :     }
+<span class="lineNum">     438 </span>            : 
+<span class="lineNum">     439 </span><span class="lineCov">          1 :     if (SSL_CERT_IS(cert, ssl_auth_rsa_sign) ||</span>
+<span class="lineNum">     440 </span>            :         SSL_CERT_IS(cert, ssl_auth_rsa_pss)) {
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :         certKeySize = SECKEY_PublicKeyStrengthInBits(cert-&gt;serverKeyPair-&gt;pubKey);</span>
+<span class="lineNum">     442 </span><span class="lineNoCov">          0 :         certKeySize = SSL_RSASTRENGTH_TO_ECSTRENGTH(certKeySize);</span>
+<span class="lineNum">     443 </span><span class="lineCov">          1 :     } else if (SSL_CERT_IS_EC(cert)) {</span>
+<span class="lineNum">     444 </span>            :         /* We won't select a certificate unless the named curve has been
+<span class="lineNum">     445 </span>            :          * negotiated (or supported_curves was absent), double check that. */
+<span class="lineNum">     446 </span>            :         PORT_Assert(cert-&gt;namedCurve-&gt;keaType == ssl_kea_ecdh);
+<span class="lineNum">     447 </span>            :         PORT_Assert(ssl_NamedGroupEnabled(ss, cert-&gt;namedCurve));
+<span class="lineNum">     448 </span><span class="lineCov">          1 :         if (!ssl_NamedGroupEnabled(ss, cert-&gt;namedCurve)) {</span>
+<span class="lineNum">     449 </span>            :             return NULL;
+<span class="lineNum">     450 </span>            :         }
+<span class="lineNum">     451 </span><span class="lineCov">          1 :         certKeySize = cert-&gt;namedCurve-&gt;bits;</span>
+<span class="lineNum">     452 </span>            :     } else {
+<span class="lineNum">     453 </span>            :         PORT_Assert(0);
+<span class="lineNum">     454 </span>            :         return NULL;
+<span class="lineNum">     455 </span>            :     }
+<span class="lineNum">     456 </span><span class="lineCov">          1 :     bulkCipher = ssl_GetBulkCipherDef(ss-&gt;ssl3.hs.suite_def);</span>
+<span class="lineNum">     457 </span><span class="lineCov">          1 :     requiredECCbits = bulkCipher-&gt;key_size * BPB * 2;</span>
+<span class="lineNum">     458 </span>            :     PORT_Assert(requiredECCbits ||
+<span class="lineNum">     459 </span>            :                 ss-&gt;ssl3.hs.suite_def-&gt;bulk_cipher_alg == cipher_null);
+<span class="lineNum">     460 </span><span class="lineCov">          1 :     if (requiredECCbits &gt; certKeySize) {</span>
+<span class="lineNum">     461 </span><span class="lineNoCov">          0 :         requiredECCbits = certKeySize;</span>
+<span class="lineNum">     462 </span>            :     }
+<span class="lineNum">     463 </span>            : 
+<span class="lineNum">     464 </span><span class="lineCov">          1 :     return ssl_GetECGroupWithStrength(ss, requiredECCbits);</span>
+<span class="lineNum">     465 </span>            : }
+<span class="lineNum">     466 </span>            : 
+<a name="467"><span class="lineNum">     467 </span>            : /* Create an ECDHE key pair for a given curve */</a>
+<span class="lineNum">     468 </span>            : SECStatus
+<span class="lineNum">     469 </span><span class="lineCov">          1 : ssl_CreateECDHEphemeralKeyPair(const sslSocket *ss,</span>
+<span class="lineNum">     470 </span>            :                                const sslNamedGroupDef *ecGroup,
+<span class="lineNum">     471 </span>            :                                sslEphemeralKeyPair **keyPair)
+<span class="lineNum">     472 </span>            : {
+<span class="lineNum">     473 </span><span class="lineCov">          1 :     SECKEYPrivateKey *privKey = NULL;</span>
+<span class="lineNum">     474 </span><span class="lineCov">          1 :     SECKEYPublicKey *pubKey = NULL;</span>
+<span class="lineNum">     475 </span><span class="lineCov">          1 :     SECKEYECParams ecParams = { siBuffer, NULL, 0 };</span>
+<span class="lineNum">     476 </span>            :     sslEphemeralKeyPair *pair;
+<span class="lineNum">     477 </span>            : 
+<span class="lineNum">     478 </span><span class="lineCov">          1 :     if (ssl_NamedGroup2ECParams(NULL, ecGroup, &amp;ecParams) != SECSuccess) {</span>
+<span class="lineNum">     479 </span>            :         return SECFailure;
+<span class="lineNum">     480 </span>            :     }
+<span class="lineNum">     481 </span><span class="lineCov">          1 :     privKey = SECKEY_CreateECPrivateKey(&amp;ecParams, &amp;pubKey, ss-&gt;pkcs11PinArg);</span>
+<span class="lineNum">     482 </span><span class="lineCov">          1 :     SECITEM_FreeItem(&amp;ecParams, PR_FALSE);</span>
+<span class="lineNum">     483 </span>            : 
+<span class="lineNum">     484 </span><span class="lineCov">          1 :     if (!privKey || !pubKey ||</span>
+<span class="lineNum">     485 </span>            :         !(pair = ssl_NewEphemeralKeyPair(ecGroup, privKey, pubKey))) {
+<span class="lineNum">     486 </span><span class="lineCov">          1 :         if (privKey) {</span>
+<span class="lineNum">     487 </span><span class="lineNoCov">          0 :             SECKEY_DestroyPrivateKey(privKey);</span>
+<span class="lineNum">     488 </span>            :         }
+<span class="lineNum">     489 </span><span class="lineCov">          1 :         if (pubKey) {</span>
+<span class="lineNum">     490 </span><span class="lineNoCov">          0 :             SECKEY_DestroyPublicKey(pubKey);</span>
+<span class="lineNum">     491 </span>            :         }
+<span class="lineNum">     492 </span><span class="lineCov">          1 :         ssl_MapLowLevelError(SEC_ERROR_KEYGEN_FAIL);</span>
+<span class="lineNum">     493 </span><span class="lineCov">          1 :         return SECFailure;</span>
+<span class="lineNum">     494 </span>            :     }
+<span class="lineNum">     495 </span>            : 
+<span class="lineNum">     496 </span><span class="lineCov">          1 :     *keyPair = pair;</span>
+<span class="lineNum">     497 </span>            :     SSL_TRC(50, (&quot;%d: SSL[%d]: Create ECDH ephemeral key %d&quot;,
+<span class="lineNum">     498 </span>            :                  SSL_GETPID(), ss ? ss-&gt;fd : NULL, ecGroup-&gt;name));
+<span class="lineNum">     499 </span>            :     PRINT_BUF(50, (ss, &quot;Public Key&quot;, pubKey-&gt;u.ec.publicValue.data,
+<span class="lineNum">     500 </span>            :                    pubKey-&gt;u.ec.publicValue.len));
+<span class="lineNum">     501 </span>            : #ifdef TRACE
+<span class="lineNum">     502 </span>            :     if (ssl_trace &gt;= 50) {
+<span class="lineNum">     503 </span>            :         SECItem d = { siBuffer, NULL, 0 };
+<span class="lineNum">     504 </span>            :         SECStatus rv = PK11_ReadRawAttribute(PK11_TypePrivKey, privKey,
+<span class="lineNum">     505 </span>            :                                              CKA_VALUE, &amp;d);
+<span class="lineNum">     506 </span>            :         if (rv == SECSuccess) {
+<span class="lineNum">     507 </span>            :             PRINT_BUF(50, (ss, &quot;Private Key&quot;, d.data, d.len));
+<span class="lineNum">     508 </span>            :             SECITEM_FreeItem(&amp;d, PR_FALSE);
+<span class="lineNum">     509 </span>            :         } else {
+<span class="lineNum">     510 </span>            :             SSL_TRC(50, (&quot;Error extracting private key&quot;));
+<span class="lineNum">     511 </span>            :         }
+<span class="lineNum">     512 </span>            :     }
+<span class="lineNum">     513 </span>            : #endif
+<span class="lineNum">     514 </span><span class="lineCov">          1 :     return SECSuccess;</span>
+<span class="lineNum">     515 </span>            : }
+<a name="516"><span class="lineNum">     516 </span>            : </a>
+<span class="lineNum">     517 </span>            : SECStatus
+<span class="lineNum">     518 </span><span class="lineCov">          1 : ssl3_HandleECDHServerKeyExchange(sslSocket *ss, SSL3Opaque *b, PRUint32 length)</span>
+<span class="lineNum">     519 </span>            : {
+<span class="lineNum">     520 </span><span class="lineCov">          1 :     PLArenaPool *arena = NULL;</span>
+<span class="lineNum">     521 </span><span class="lineCov">          1 :     SECKEYPublicKey *peerKey = NULL;</span>
+<span class="lineNum">     522 </span>            :     PRBool isTLS;
+<span class="lineNum">     523 </span>            :     SECStatus rv;
+<span class="lineNum">     524 </span><span class="lineCov">          1 :     int errCode = SSL_ERROR_RX_MALFORMED_SERVER_KEY_EXCH;</span>
+<span class="lineNum">     525 </span><span class="lineCov">          1 :     SSL3AlertDescription desc = illegal_parameter;</span>
+<span class="lineNum">     526 </span>            :     SSL3Hashes hashes;
+<span class="lineNum">     527 </span><span class="lineCov">          1 :     SECItem signature = { siBuffer, NULL, 0 };</span>
+<span class="lineNum">     528 </span>            :     SSLHashType hashAlg;
+<span class="lineNum">     529 </span>            :     SSLSignatureScheme sigScheme;
+<span class="lineNum">     530 </span>            : 
+<span class="lineNum">     531 </span><span class="lineCov">          1 :     SECItem ec_params = { siBuffer, NULL, 0 };</span>
+<span class="lineNum">     532 </span><span class="lineCov">          1 :     SECItem ec_point = { siBuffer, NULL, 0 };</span>
+<span class="lineNum">     533 </span>            :     unsigned char paramBuf[3];
+<span class="lineNum">     534 </span>            :     const sslNamedGroupDef *ecGroup;
+<span class="lineNum">     535 </span>            : 
+<span class="lineNum">     536 </span><span class="lineCov">          1 :     isTLS = (PRBool)(ss-&gt;ssl3.prSpec-&gt;version &gt; SSL_LIBRARY_VERSION_3_0);</span>
+<span class="lineNum">     537 </span>            : 
+<span class="lineNum">     538 </span><span class="lineCov">          1 :     ec_params.len = sizeof paramBuf;</span>
+<span class="lineNum">     539 </span><span class="lineCov">          1 :     ec_params.data = paramBuf;</span>
+<span class="lineNum">     540 </span><span class="lineCov">          1 :     rv = ssl3_ConsumeHandshake(ss, ec_params.data, ec_params.len, &amp;b, &amp;length);</span>
+<span class="lineNum">     541 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     542 </span>            :         goto loser; /* malformed. */
+<span class="lineNum">     543 </span>            :     }
+<span class="lineNum">     544 </span>            : 
+<span class="lineNum">     545 </span>            :     /* Fail if the curve is not a named curve */
+<span class="lineNum">     546 </span><span class="lineCov">          1 :     if (ec_params.data[0] != ec_type_named) {</span>
+<span class="lineNum">     547 </span>            :         errCode = SEC_ERROR_UNSUPPORTED_ELLIPTIC_CURVE;
+<span class="lineNum">     548 </span>            :         desc = handshake_failure;
+<span class="lineNum">     549 </span>            :         goto alert_loser;
+<span class="lineNum">     550 </span>            :     }
+<span class="lineNum">     551 </span><span class="lineCov">          1 :     ecGroup = ssl_LookupNamedGroup(ec_params.data[1] &lt;&lt; 8 | ec_params.data[2]);</span>
+<span class="lineNum">     552 </span><span class="lineCov">          1 :     if (!ecGroup || ecGroup-&gt;keaType != ssl_kea_ecdh) {</span>
+<span class="lineNum">     553 </span>            :         errCode = SEC_ERROR_UNSUPPORTED_ELLIPTIC_CURVE;
+<span class="lineNum">     554 </span>            :         desc = handshake_failure;
+<span class="lineNum">     555 </span>            :         goto alert_loser;
+<span class="lineNum">     556 </span>            :     }
+<span class="lineNum">     557 </span>            : 
+<span class="lineNum">     558 </span><span class="lineCov">          1 :     rv = ssl3_ConsumeHandshakeVariable(ss, &amp;ec_point, 1, &amp;b, &amp;length);</span>
+<span class="lineNum">     559 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     560 </span>            :         goto loser; /* malformed. */
+<span class="lineNum">     561 </span>            :     }
+<span class="lineNum">     562 </span>            : 
+<span class="lineNum">     563 </span>            :     /* Fail if the provided point has length 0. */
+<span class="lineNum">     564 </span><span class="lineCov">          1 :     if (!ec_point.len) {</span>
+<span class="lineNum">     565 </span>            :         /* desc and errCode are initialized already */
+<span class="lineNum">     566 </span>            :         goto alert_loser;
+<span class="lineNum">     567 </span>            :     }
+<span class="lineNum">     568 </span>            : 
+<span class="lineNum">     569 </span>            :     /* Fail if the ec point is not uncompressed for any curve that's not 25519. */
+<span class="lineNum">     570 </span><span class="lineCov">          1 :     if (ecGroup-&gt;name != ssl_grp_ec_curve25519 &amp;&amp;</span>
+<span class="lineNum">     571 </span><span class="lineCov">          1 :         ec_point.data[0] != EC_POINT_FORM_UNCOMPRESSED) {</span>
+<span class="lineNum">     572 </span>            :         errCode = SEC_ERROR_UNSUPPORTED_EC_POINT_FORM;
+<span class="lineNum">     573 </span>            :         desc = handshake_failure;
+<span class="lineNum">     574 </span>            :         goto alert_loser;
+<span class="lineNum">     575 </span>            :     }
+<span class="lineNum">     576 </span>            : 
+<span class="lineNum">     577 </span>            :     PORT_Assert(ss-&gt;ssl3.prSpec-&gt;version &lt;= SSL_LIBRARY_VERSION_TLS_1_2);
+<span class="lineNum">     578 </span><span class="lineCov">          1 :     if (ss-&gt;ssl3.prSpec-&gt;version == SSL_LIBRARY_VERSION_TLS_1_2) {</span>
+<span class="lineNum">     579 </span><span class="lineCov">          1 :         rv = ssl_ConsumeSignatureScheme(ss, &amp;b, &amp;length, &amp;sigScheme);</span>
+<span class="lineNum">     580 </span><span class="lineCov">          1 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     581 </span>            :             goto loser; /* malformed or unsupported. */
+<span class="lineNum">     582 </span>            :         }
+<span class="lineNum">     583 </span><span class="lineCov">          1 :         rv = ssl_CheckSignatureSchemeConsistency(ss, sigScheme,</span>
+<span class="lineNum">     584 </span>            :                                                  ss-&gt;sec.peerCert);
+<span class="lineNum">     585 </span><span class="lineCov">          1 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     586 </span>            :             goto loser;
+<span class="lineNum">     587 </span>            :         }
+<span class="lineNum">     588 </span><span class="lineCov">          1 :         hashAlg = ssl_SignatureSchemeToHashType(sigScheme);</span>
+<span class="lineNum">     589 </span>            :     } else {
+<span class="lineNum">     590 </span>            :         /* Use ssl_hash_none to represent the MD5+SHA1 combo. */
+<span class="lineNum">     591 </span><span class="lineNoCov">          0 :         hashAlg = ssl_hash_none;</span>
+<span class="lineNum">     592 </span><span class="lineNoCov">          0 :         sigScheme = ssl_sig_none;</span>
+<span class="lineNum">     593 </span>            :     }
+<span class="lineNum">     594 </span>            : 
+<span class="lineNum">     595 </span><span class="lineCov">          1 :     rv = ssl3_ConsumeHandshakeVariable(ss, &amp;signature, 2, &amp;b, &amp;length);</span>
+<span class="lineNum">     596 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     597 </span>            :         goto loser; /* malformed. */
+<span class="lineNum">     598 </span>            :     }
+<span class="lineNum">     599 </span>            : 
+<span class="lineNum">     600 </span><span class="lineCov">          1 :     if (length != 0) {</span>
+<span class="lineNum">     601 </span><span class="lineNoCov">          0 :         if (isTLS)</span>
+<span class="lineNum">     602 </span><span class="lineNoCov">          0 :             desc = decode_error;</span>
+<span class="lineNum">     603 </span>            :         goto alert_loser; /* malformed. */
+<span class="lineNum">     604 </span>            :     }
+<span class="lineNum">     605 </span>            : 
+<span class="lineNum">     606 </span>            :     PRINT_BUF(60, (NULL, &quot;Server EC params&quot;, ec_params.data, ec_params.len));
+<span class="lineNum">     607 </span>            :     PRINT_BUF(60, (NULL, &quot;Server EC point&quot;, ec_point.data, ec_point.len));
+<span class="lineNum">     608 </span>            : 
+<span class="lineNum">     609 </span>            :     /* failures after this point are not malformed handshakes. */
+<span class="lineNum">     610 </span>            :     /* TLS: send decrypt_error if signature failed. */
+<span class="lineNum">     611 </span><span class="lineCov">          1 :     desc = isTLS ? decrypt_error : handshake_failure;</span>
+<span class="lineNum">     612 </span>            : 
+<span class="lineNum">     613 </span>            :     /*
+<span class="lineNum">     614 </span>            :      *  check to make sure the hash is signed by right guy
+<span class="lineNum">     615 </span>            :      */
+<span class="lineNum">     616 </span><span class="lineCov">          1 :     rv = ssl3_ComputeECDHKeyHash(hashAlg, ec_params, ec_point,</span>
+<span class="lineNum">     617 </span>            :                                  &amp;ss-&gt;ssl3.hs.client_random,
+<span class="lineNum">     618 </span>            :                                  &amp;ss-&gt;ssl3.hs.server_random,
+<span class="lineNum">     619 </span>            :                                  &amp;hashes);
+<span class="lineNum">     620 </span>            : 
+<span class="lineNum">     621 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     622 </span><span class="lineNoCov">          0 :         errCode =</span>
+<span class="lineNum">     623 </span>            :             ssl_MapLowLevelError(SSL_ERROR_SERVER_KEY_EXCHANGE_FAILURE);
+<span class="lineNum">     624 </span><span class="lineNoCov">          0 :         goto alert_loser;</span>
+<span class="lineNum">     625 </span>            :     }
+<span class="lineNum">     626 </span><span class="lineCov">          1 :     rv = ssl3_VerifySignedHashes(ss, sigScheme, &amp;hashes, &amp;signature);</span>
+<span class="lineNum">     627 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     628 </span><span class="lineNoCov">          0 :         errCode =</span>
+<span class="lineNum">     629 </span>            :             ssl_MapLowLevelError(SSL_ERROR_SERVER_KEY_EXCHANGE_FAILURE);
+<span class="lineNum">     630 </span><span class="lineNoCov">          0 :         goto alert_loser;</span>
+<span class="lineNum">     631 </span>            :     }
+<span class="lineNum">     632 </span>            : 
+<span class="lineNum">     633 </span><span class="lineCov">          1 :     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);</span>
+<span class="lineNum">     634 </span><span class="lineCov">          1 :     if (arena == NULL) {</span>
+<span class="lineNum">     635 </span>            :         errCode = SEC_ERROR_NO_MEMORY;
+<span class="lineNum">     636 </span>            :         goto loser;
+<span class="lineNum">     637 </span>            :     }
+<span class="lineNum">     638 </span>            : 
+<span class="lineNum">     639 </span><span class="lineCov">          1 :     peerKey = PORT_ArenaZNew(arena, SECKEYPublicKey);</span>
+<span class="lineNum">     640 </span><span class="lineCov">          1 :     if (peerKey == NULL) {</span>
+<span class="lineNum">     641 </span>            :         errCode = SEC_ERROR_NO_MEMORY;
+<span class="lineNum">     642 </span>            :         goto loser;
+<span class="lineNum">     643 </span>            :     }
+<span class="lineNum">     644 </span><span class="lineCov">          1 :     peerKey-&gt;arena = arena;</span>
+<span class="lineNum">     645 </span>            : 
+<span class="lineNum">     646 </span>            :     /* create public key from point data */
+<span class="lineNum">     647 </span><span class="lineCov">          1 :     rv = ssl_ImportECDHKeyShare(ss, peerKey, ec_point.data, ec_point.len,</span>
+<span class="lineNum">     648 </span>            :                                 ecGroup);
+<span class="lineNum">     649 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     650 </span>            :         /* error code is set */
+<span class="lineNum">     651 </span><span class="lineNoCov">          0 :         desc = handshake_failure;</span>
+<span class="lineNum">     652 </span><span class="lineNoCov">          0 :         errCode = PORT_GetError();</span>
+<span class="lineNum">     653 </span><span class="lineNoCov">          0 :         goto alert_loser;</span>
+<span class="lineNum">     654 </span>            :     }
+<span class="lineNum">     655 </span><span class="lineCov">          1 :     peerKey-&gt;pkcs11Slot = NULL;</span>
+<span class="lineNum">     656 </span><span class="lineCov">          1 :     peerKey-&gt;pkcs11ID = CK_INVALID_HANDLE;</span>
+<span class="lineNum">     657 </span>            : 
+<span class="lineNum">     658 </span><span class="lineCov">          1 :     ss-&gt;sec.peerKey = peerKey;</span>
+<span class="lineNum">     659 </span><span class="lineCov">          1 :     return SECSuccess;</span>
+<span class="lineNum">     660 </span>            : 
+<span class="lineNum">     661 </span>            : alert_loser:
+<span class="lineNum">     662 </span><span class="lineNoCov">          0 :     (void)SSL3_SendAlert(ss, alert_fatal, desc);</span>
+<span class="lineNum">     663 </span>            : loser:
+<span class="lineNum">     664 </span><span class="lineNoCov">          0 :     if (arena) {</span>
+<span class="lineNum">     665 </span><span class="lineNoCov">          0 :         PORT_FreeArena(arena, PR_FALSE);</span>
+<span class="lineNum">     666 </span>            :     }
+<span class="lineNum">     667 </span><span class="lineNoCov">          0 :     PORT_SetError(errCode);</span>
+<span class="lineNum">     668 </span><span class="lineNoCov">          0 :     return SECFailure;</span>
+<span class="lineNum">     669 </span>            : }
+<a name="670"><span class="lineNum">     670 </span>            : </a>
+<span class="lineNum">     671 </span>            : SECStatus
+<span class="lineNum">     672 </span><span class="lineCov">          1 : ssl3_SendECDHServerKeyExchange(sslSocket *ss)</span>
+<span class="lineNum">     673 </span>            : {
+<span class="lineNum">     674 </span><span class="lineCov">          1 :     SECStatus rv = SECFailure;</span>
+<span class="lineNum">     675 </span>            :     int length;
+<span class="lineNum">     676 </span>            :     PRBool isTLS12;
+<span class="lineNum">     677 </span><span class="lineCov">          1 :     SECItem signed_hash = { siBuffer, NULL, 0 };</span>
+<span class="lineNum">     678 </span>            :     SSLHashType hashAlg;
+<span class="lineNum">     679 </span>            :     SSL3Hashes hashes;
+<span class="lineNum">     680 </span>            : 
+<span class="lineNum">     681 </span><span class="lineCov">          1 :     SECItem ec_params = { siBuffer, NULL, 0 };</span>
+<span class="lineNum">     682 </span>            :     unsigned char paramBuf[3];
+<span class="lineNum">     683 </span>            :     const sslNamedGroupDef *ecGroup;
+<span class="lineNum">     684 </span>            :     sslEphemeralKeyPair *keyPair;
+<span class="lineNum">     685 </span>            :     SECKEYPublicKey *pubKey;
+<span class="lineNum">     686 </span>            : 
+<span class="lineNum">     687 </span>            :     /* Generate ephemeral ECDH key pair and send the public key */
+<span class="lineNum">     688 </span><span class="lineCov">          1 :     ecGroup = ssl_GetECGroupForServerSocket(ss);</span>
+<span class="lineNum">     689 </span><span class="lineCov">          1 :     if (!ecGroup) {</span>
+<span class="lineNum">     690 </span>            :         goto loser;
+<span class="lineNum">     691 </span>            :     }
+<span class="lineNum">     692 </span>            : 
+<span class="lineNum">     693 </span>            :     PORT_Assert(PR_CLIST_IS_EMPTY(&amp;ss-&gt;ephemeralKeyPairs));
+<span class="lineNum">     694 </span><span class="lineCov">          1 :     if (ss-&gt;opt.reuseServerECDHEKey) {</span>
+<span class="lineNum">     695 </span><span class="lineCov">          1 :         rv = ssl_CreateStaticECDHEKey(ss, ecGroup);</span>
+<span class="lineNum">     696 </span><span class="lineCov">          1 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     697 </span>            :             goto loser;
+<span class="lineNum">     698 </span>            :         }
+<span class="lineNum">     699 </span><span class="lineCov">          1 :         keyPair = (sslEphemeralKeyPair *)PR_NEXT_LINK(&amp;ss-&gt;ephemeralKeyPairs);</span>
+<span class="lineNum">     700 </span>            :     } else {
+<span class="lineNum">     701 </span><span class="lineNoCov">          0 :         rv = ssl_CreateECDHEphemeralKeyPair(ss, ecGroup, &amp;keyPair);</span>
+<span class="lineNum">     702 </span><span class="lineNoCov">          0 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     703 </span>            :             goto loser;
+<span class="lineNum">     704 </span>            :         }
+<span class="lineNum">     705 </span><span class="lineNoCov">          0 :         PR_APPEND_LINK(&amp;keyPair-&gt;link, &amp;ss-&gt;ephemeralKeyPairs);</span>
+<span class="lineNum">     706 </span>            :     }
+<span class="lineNum">     707 </span>            : 
+<span class="lineNum">     708 </span>            :     PORT_Assert(keyPair);
+<span class="lineNum">     709 </span><span class="lineCov">          1 :     if (!keyPair) {</span>
+<span class="lineNum">     710 </span><span class="lineNoCov">          0 :         PORT_SetError(SSL_ERROR_SERVER_KEY_EXCHANGE_FAILURE);</span>
+<span class="lineNum">     711 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     712 </span>            :     }
+<span class="lineNum">     713 </span>            : 
+<span class="lineNum">     714 </span><span class="lineCov">          1 :     ec_params.len = sizeof(paramBuf);</span>
+<span class="lineNum">     715 </span><span class="lineCov">          1 :     ec_params.data = paramBuf;</span>
+<span class="lineNum">     716 </span>            :     PORT_Assert(keyPair-&gt;group);
+<span class="lineNum">     717 </span>            :     PORT_Assert(keyPair-&gt;group-&gt;keaType == ssl_kea_ecdh);
+<span class="lineNum">     718 </span><span class="lineCov">          1 :     ec_params.data[0] = ec_type_named;</span>
+<span class="lineNum">     719 </span><span class="lineCov">          1 :     ec_params.data[1] = keyPair-&gt;group-&gt;name &gt;&gt; 8;</span>
+<span class="lineNum">     720 </span><span class="lineCov">          1 :     ec_params.data[2] = keyPair-&gt;group-&gt;name &amp; 0xff;</span>
+<span class="lineNum">     721 </span>            : 
+<span class="lineNum">     722 </span><span class="lineCov">          1 :     pubKey = keyPair-&gt;keys-&gt;pubKey;</span>
+<span class="lineNum">     723 </span><span class="lineCov">          1 :     if (ss-&gt;ssl3.pwSpec-&gt;version == SSL_LIBRARY_VERSION_TLS_1_2) {</span>
+<span class="lineNum">     724 </span><span class="lineCov">          1 :         hashAlg = ssl_SignatureSchemeToHashType(ss-&gt;ssl3.hs.signatureScheme);</span>
+<span class="lineNum">     725 </span>            :     } else {
+<span class="lineNum">     726 </span>            :         /* Use ssl_hash_none to represent the MD5+SHA1 combo. */
+<span class="lineNum">     727 </span>            :         hashAlg = ssl_hash_none;
+<span class="lineNum">     728 </span>            :     }
+<span class="lineNum">     729 </span><span class="lineCov">          1 :     rv = ssl3_ComputeECDHKeyHash(hashAlg, ec_params,</span>
+<span class="lineNum">     730 </span>            :                                  pubKey-&gt;u.ec.publicValue,
+<span class="lineNum">     731 </span>            :                                  &amp;ss-&gt;ssl3.hs.client_random,
+<span class="lineNum">     732 </span>            :                                  &amp;ss-&gt;ssl3.hs.server_random,
+<span class="lineNum">     733 </span>            :                                  &amp;hashes);
+<span class="lineNum">     734 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     735 </span><span class="lineNoCov">          0 :         ssl_MapLowLevelError(SSL_ERROR_SERVER_KEY_EXCHANGE_FAILURE);</span>
+<span class="lineNum">     736 </span><span class="lineNoCov">          0 :         goto loser;</span>
+<span class="lineNum">     737 </span>            :     }
+<span class="lineNum">     738 </span>            : 
+<span class="lineNum">     739 </span><span class="lineCov">          1 :     isTLS12 = (PRBool)(ss-&gt;ssl3.pwSpec-&gt;version &gt;= SSL_LIBRARY_VERSION_TLS_1_2);</span>
+<span class="lineNum">     740 </span>            : 
+<span class="lineNum">     741 </span><span class="lineCov">          1 :     rv = ssl3_SignHashes(ss, &amp;hashes,</span>
+<span class="lineNum">     742 </span><span class="lineCov">          1 :                          ss-&gt;sec.serverCert-&gt;serverKeyPair-&gt;privKey, &amp;signed_hash);</span>
+<span class="lineNum">     743 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     744 </span>            :         goto loser; /* ssl3_SignHashes has set err. */
+<span class="lineNum">     745 </span>            :     }
+<span class="lineNum">     746 </span>            : 
+<span class="lineNum">     747 </span><span class="lineCov">          1 :     length = ec_params.len +</span>
+<span class="lineNum">     748 </span><span class="lineCov">          1 :              1 + pubKey-&gt;u.ec.publicValue.len +</span>
+<span class="lineNum">     749 </span><span class="lineCov">          1 :              (isTLS12 ? 2 : 0) + 2 + signed_hash.len;</span>
+<span class="lineNum">     750 </span>            : 
+<span class="lineNum">     751 </span><span class="lineCov">          1 :     rv = ssl3_AppendHandshakeHeader(ss, server_key_exchange, length);</span>
+<span class="lineNum">     752 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     753 </span>            :         goto loser; /* err set by AppendHandshake. */
+<span class="lineNum">     754 </span>            :     }
+<span class="lineNum">     755 </span>            : 
+<span class="lineNum">     756 </span><span class="lineCov">          1 :     rv = ssl3_AppendHandshake(ss, ec_params.data, ec_params.len);</span>
+<span class="lineNum">     757 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     758 </span>            :         goto loser; /* err set by AppendHandshake. */
+<span class="lineNum">     759 </span>            :     }
+<span class="lineNum">     760 </span>            : 
+<span class="lineNum">     761 </span><span class="lineCov">          1 :     rv = ssl3_AppendHandshakeVariable(ss, pubKey-&gt;u.ec.publicValue.data,</span>
+<span class="lineNum">     762 </span><span class="lineCov">          1 :                                       pubKey-&gt;u.ec.publicValue.len, 1);</span>
+<span class="lineNum">     763 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     764 </span>            :         goto loser; /* err set by AppendHandshake. */
+<span class="lineNum">     765 </span>            :     }
+<span class="lineNum">     766 </span>            : 
+<span class="lineNum">     767 </span><span class="lineCov">          1 :     if (isTLS12) {</span>
+<span class="lineNum">     768 </span><span class="lineCov">          1 :         rv = ssl3_AppendHandshakeNumber(ss, ss-&gt;ssl3.hs.signatureScheme, 2);</span>
+<span class="lineNum">     769 </span><span class="lineCov">          1 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     770 </span>            :             goto loser; /* err set by AppendHandshake. */
+<span class="lineNum">     771 </span>            :         }
+<span class="lineNum">     772 </span>            :     }
+<span class="lineNum">     773 </span>            : 
+<span class="lineNum">     774 </span><span class="lineCov">          1 :     rv = ssl3_AppendHandshakeVariable(ss, signed_hash.data,</span>
+<span class="lineNum">     775 </span><span class="lineCov">          1 :                                       signed_hash.len, 2);</span>
+<span class="lineNum">     776 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     777 </span>            :         goto loser; /* err set by AppendHandshake. */
+<span class="lineNum">     778 </span>            :     }
+<span class="lineNum">     779 </span>            : 
+<span class="lineNum">     780 </span><span class="lineCov">          1 :     PORT_Free(signed_hash.data);</span>
+<span class="lineNum">     781 </span><span class="lineCov">          1 :     return SECSuccess;</span>
+<span class="lineNum">     782 </span>            : 
+<span class="lineNum">     783 </span>            : loser:
+<span class="lineNum">     784 </span><span class="lineNoCov">          0 :     if (signed_hash.data != NULL)</span>
+<span class="lineNum">     785 </span><span class="lineNoCov">          0 :         PORT_Free(signed_hash.data);</span>
+<span class="lineNum">     786 </span>            :     return SECFailure;
+<span class="lineNum">     787 </span>            : }
+<span class="lineNum">     788 </span>            : 
+<span class="lineNum">     789 </span>            : /* List of all ECC cipher suites */
+<span class="lineNum">     790 </span>            : static const ssl3CipherSuite ssl_all_ec_suites[] = {
+<span class="lineNum">     791 </span>            :     TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA,
+<span class="lineNum">     792 </span>            :     TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA,
+<span class="lineNum">     793 </span>            :     TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256,
+<span class="lineNum">     794 </span>            :     TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256,
+<span class="lineNum">     795 </span>            :     TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA,
+<span class="lineNum">     796 </span>            :     TLS_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256,
+<span class="lineNum">     797 </span>            :     TLS_ECDHE_ECDSA_WITH_NULL_SHA,
+<span class="lineNum">     798 </span>            :     TLS_ECDHE_ECDSA_WITH_RC4_128_SHA,
+<span class="lineNum">     799 </span>            :     TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384,
+<span class="lineNum">     800 </span>            :     TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384,
+<span class="lineNum">     801 </span>            :     TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA,
+<span class="lineNum">     802 </span>            :     TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA,
+<span class="lineNum">     803 </span>            :     TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256,
+<span class="lineNum">     804 </span>            :     TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256,
+<span class="lineNum">     805 </span>            :     TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+<span class="lineNum">     806 </span>            :     TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA,
+<span class="lineNum">     807 </span>            :     TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384,
+<span class="lineNum">     808 </span>            :     TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+<span class="lineNum">     809 </span>            :     TLS_ECDHE_RSA_WITH_NULL_SHA,
+<span class="lineNum">     810 </span>            :     TLS_ECDHE_RSA_WITH_RC4_128_SHA,
+<span class="lineNum">     811 </span>            :     TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA,
+<span class="lineNum">     812 </span>            :     TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA,
+<span class="lineNum">     813 </span>            :     TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA,
+<span class="lineNum">     814 </span>            :     TLS_ECDH_ECDSA_WITH_NULL_SHA,
+<span class="lineNum">     815 </span>            :     TLS_ECDH_ECDSA_WITH_RC4_128_SHA,
+<span class="lineNum">     816 </span>            :     TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA,
+<span class="lineNum">     817 </span>            :     TLS_ECDH_RSA_WITH_AES_128_CBC_SHA,
+<span class="lineNum">     818 </span>            :     TLS_ECDH_RSA_WITH_AES_256_CBC_SHA,
+<span class="lineNum">     819 </span>            :     TLS_ECDH_RSA_WITH_NULL_SHA,
+<span class="lineNum">     820 </span>            :     TLS_ECDH_RSA_WITH_RC4_128_SHA,
+<span class="lineNum">     821 </span>            :     0 /* end of list marker */
+<span class="lineNum">     822 </span>            : };
+<span class="lineNum">     823 </span>            : 
+<span class="lineNum">     824 </span>            : static const ssl3CipherSuite ssl_dhe_suites[] = {
+<span class="lineNum">     825 </span>            :     TLS_DHE_RSA_WITH_AES_128_GCM_SHA256,
+<span class="lineNum">     826 </span>            :     TLS_DHE_RSA_WITH_AES_256_GCM_SHA384,
+<span class="lineNum">     827 </span>            :     TLS_DHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
+<span class="lineNum">     828 </span>            :     TLS_DHE_DSS_WITH_AES_128_GCM_SHA256,
+<span class="lineNum">     829 </span>            :     TLS_DHE_RSA_WITH_AES_128_CBC_SHA,
+<span class="lineNum">     830 </span>            :     TLS_DHE_DSS_WITH_AES_128_CBC_SHA,
+<span class="lineNum">     831 </span>            :     TLS_DHE_RSA_WITH_AES_128_CBC_SHA256,
+<span class="lineNum">     832 </span>            :     TLS_DHE_DSS_WITH_AES_128_CBC_SHA256,
+<span class="lineNum">     833 </span>            :     TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA,
+<span class="lineNum">     834 </span>            :     TLS_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA,
+<span class="lineNum">     835 </span>            :     TLS_DHE_RSA_WITH_AES_256_CBC_SHA,
+<span class="lineNum">     836 </span>            :     TLS_DHE_DSS_WITH_AES_256_CBC_SHA,
+<span class="lineNum">     837 </span>            :     TLS_DHE_RSA_WITH_AES_256_CBC_SHA256,
+<span class="lineNum">     838 </span>            :     TLS_DHE_DSS_WITH_AES_256_CBC_SHA256,
+<span class="lineNum">     839 </span>            :     TLS_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA,
+<span class="lineNum">     840 </span>            :     TLS_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA,
+<span class="lineNum">     841 </span>            :     TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA,
+<span class="lineNum">     842 </span>            :     TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA,
+<span class="lineNum">     843 </span>            :     TLS_DHE_DSS_WITH_RC4_128_SHA,
+<span class="lineNum">     844 </span>            :     TLS_DHE_RSA_WITH_DES_CBC_SHA,
+<span class="lineNum">     845 </span>            :     TLS_DHE_DSS_WITH_DES_CBC_SHA,
+<span class="lineNum">     846 </span>            :     0
+<span class="lineNum">     847 </span>            : };
+<span class="lineNum">     848 </span>            : 
+<a name="849"><span class="lineNum">     849 </span>            : /* Order(N^2).  Yuk. */</a>
+<span class="lineNum">     850 </span>            : static PRBool
+<span class="lineNum">     851 </span><span class="lineCov">          1 : ssl_IsSuiteEnabled(const sslSocket *ss, const ssl3CipherSuite *list)</span>
+<span class="lineNum">     852 </span>            : {
+<span class="lineNum">     853 </span>            :     const ssl3CipherSuite *suite;
+<span class="lineNum">     854 </span>            : 
+<span class="lineNum">     855 </span><span class="lineCov">          1 :     for (suite = list; *suite; ++suite) {</span>
+<span class="lineNum">     856 </span><span class="lineCov">          1 :         PRBool enabled = PR_FALSE;</span>
+<span class="lineNum">     857 </span><span class="lineCov">          1 :         SECStatus rv = ssl3_CipherPrefGet(ss, *suite, &amp;enabled);</span>
+<span class="lineNum">     858 </span>            : 
+<span class="lineNum">     859 </span>            :         PORT_Assert(rv == SECSuccess); /* else is coding error */
+<span class="lineNum">     860 </span><span class="lineCov">          1 :         if (rv == SECSuccess &amp;&amp; enabled)</span>
+<span class="lineNum">     861 </span><span class="lineCov">          1 :             return PR_TRUE;</span>
+<span class="lineNum">     862 </span>            :     }
+<span class="lineNum">     863 </span>            :     return PR_FALSE;
+<span class="lineNum">     864 </span>            : }
+<span class="lineNum">     865 </span>            : 
+<a name="866"><span class="lineNum">     866 </span>            : /* Ask: is ANY ECC cipher suite enabled on this socket? */</a>
+<span class="lineNum">     867 </span>            : PRBool
+<span class="lineNum">     868 </span><span class="lineCov">          1 : ssl_IsECCEnabled(const sslSocket *ss)</span>
+<span class="lineNum">     869 </span>            : {
+<span class="lineNum">     870 </span>            :     PK11SlotInfo *slot;
+<span class="lineNum">     871 </span>            : 
+<span class="lineNum">     872 </span>            :     /* make sure we can do ECC */
+<span class="lineNum">     873 </span><span class="lineCov">          1 :     slot = PK11_GetBestSlot(CKM_ECDH1_DERIVE, ss-&gt;pkcs11PinArg);</span>
+<span class="lineNum">     874 </span><span class="lineCov">          1 :     if (!slot) {</span>
+<span class="lineNum">     875 </span>            :         return PR_FALSE;
+<span class="lineNum">     876 </span>            :     }
+<span class="lineNum">     877 </span><span class="lineCov">          1 :     PK11_FreeSlot(slot);</span>
+<span class="lineNum">     878 </span>            : 
+<span class="lineNum">     879 </span>            :     /* make sure an ECC cipher is enabled */
+<span class="lineNum">     880 </span><span class="lineCov">          1 :     return ssl_IsSuiteEnabled(ss, ssl_all_ec_suites);</span>
+<span class="lineNum">     881 </span>            : }
+<a name="882"><span class="lineNum">     882 </span>            : </a>
+<span class="lineNum">     883 </span>            : PRBool
+<span class="lineNum">     884 </span><span class="lineNoCov">          0 : ssl_IsDHEEnabled(const sslSocket *ss)</span>
+<span class="lineNum">     885 </span>            : {
+<span class="lineNum">     886 </span><span class="lineNoCov">          0 :     return ssl_IsSuiteEnabled(ss, ssl_dhe_suites);</span>
+<span class="lineNum">     887 </span>            : }
+<span class="lineNum">     888 </span>            : 
+<a name="889"><span class="lineNum">     889 </span>            : /* Send our Supported Groups extension. */</a>
+<span class="lineNum">     890 </span>            : PRInt32
+<span class="lineNum">     891 </span><span class="lineCov">          1 : ssl_SendSupportedGroupsXtn(const sslSocket *ss,</span>
+<span class="lineNum">     892 </span>            :                            TLSExtensionData *xtnData,
+<span class="lineNum">     893 </span>            :                            PRBool append, PRUint32 maxBytes)
+<span class="lineNum">     894 </span>            : {
+<span class="lineNum">     895 </span>            :     PRInt32 extension_length;
+<span class="lineNum">     896 </span>            :     unsigned char enabledGroups[64];
+<span class="lineNum">     897 </span><span class="lineCov">          1 :     unsigned int enabledGroupsLen = 0;</span>
+<span class="lineNum">     898 </span>            :     unsigned int i;
+<span class="lineNum">     899 </span>            :     PRBool ec;
+<span class="lineNum">     900 </span><span class="lineCov">          1 :     PRBool ff = PR_FALSE;</span>
+<span class="lineNum">     901 </span>            : 
+<span class="lineNum">     902 </span><span class="lineCov">          1 :     if (!ss)</span>
+<span class="lineNum">     903 </span>            :         return 0;
+<span class="lineNum">     904 </span>            : 
+<span class="lineNum">     905 </span>            :     /* We only send FF supported groups if we require DH named groups
+<span class="lineNum">     906 </span>            :      * or if TLS 1.3 is a possibility. */
+<span class="lineNum">     907 </span><span class="lineCov">          1 :     if (ss-&gt;vrange.max &lt; SSL_LIBRARY_VERSION_TLS_1_3) {</span>
+<span class="lineNum">     908 </span><span class="lineCov">          1 :         ec = ssl_IsECCEnabled(ss);</span>
+<span class="lineNum">     909 </span><span class="lineCov">          1 :         if (ss-&gt;opt.requireDHENamedGroups) {</span>
+<span class="lineNum">     910 </span><span class="lineNoCov">          0 :             ff = ssl_IsDHEEnabled(ss);</span>
+<span class="lineNum">     911 </span>            :         }
+<span class="lineNum">     912 </span><span class="lineCov">          1 :         if (!ec &amp;&amp; !ff)</span>
+<span class="lineNum">     913 </span>            :             return 0;
+<span class="lineNum">     914 </span>            :     } else {
+<span class="lineNum">     915 </span>            :         ec = ff = PR_TRUE;
+<span class="lineNum">     916 </span>            :     }
+<span class="lineNum">     917 </span>            : 
+<span class="lineNum">     918 </span>            :     PORT_Assert(sizeof(enabledGroups) &gt; SSL_NAMED_GROUP_COUNT * 2);
+<span class="lineNum">     919 </span><span class="lineCov">          1 :     for (i = 0; i &lt; SSL_NAMED_GROUP_COUNT; ++i) {</span>
+<span class="lineNum">     920 </span><span class="lineCov">          1 :         const sslNamedGroupDef *group = ss-&gt;namedGroupPreferences[i];</span>
+<span class="lineNum">     921 </span><span class="lineCov">          1 :         if (!group) {</span>
+<span class="lineNum">     922 </span><span class="lineCov">          1 :             continue;</span>
+<span class="lineNum">     923 </span>            :         }
+<span class="lineNum">     924 </span><span class="lineCov">          1 :         if (group-&gt;keaType == ssl_kea_ecdh &amp;&amp; !ec) {</span>
+<span class="lineNum">     925 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     926 </span>            :         }
+<span class="lineNum">     927 </span><span class="lineCov">          1 :         if (group-&gt;keaType == ssl_kea_dh &amp;&amp; !ff) {</span>
+<span class="lineNum">     928 </span><span class="lineCov">          1 :             continue;</span>
+<span class="lineNum">     929 </span>            :         }
+<span class="lineNum">     930 </span>            : 
+<span class="lineNum">     931 </span><span class="lineCov">          1 :         if (append) {</span>
+<span class="lineNum">     932 </span><span class="lineCov">          1 :             (void)ssl_EncodeUintX(group-&gt;name, 2, &amp;enabledGroups[enabledGroupsLen]);</span>
+<span class="lineNum">     933 </span>            :         }
+<span class="lineNum">     934 </span><span class="lineCov">          1 :         enabledGroupsLen += 2;</span>
+<span class="lineNum">     935 </span>            :     }
+<span class="lineNum">     936 </span>            : 
+<span class="lineNum">     937 </span><span class="lineCov">          1 :     if (enabledGroupsLen == 0) {</span>
+<span class="lineNum">     938 </span>            :         return 0;
+<span class="lineNum">     939 </span>            :     }
+<span class="lineNum">     940 </span>            : 
+<span class="lineNum">     941 </span><span class="lineCov">          1 :     extension_length =</span>
+<span class="lineNum">     942 </span>            :         2 /* extension type */ +
+<span class="lineNum">     943 </span>            :         2 /* extension length */ +
+<span class="lineNum">     944 </span><span class="lineCov">          1 :         2 /* enabled groups length */ +</span>
+<span class="lineNum">     945 </span>            :         enabledGroupsLen;
+<span class="lineNum">     946 </span>            : 
+<span class="lineNum">     947 </span><span class="lineCov">          1 :     if (maxBytes &lt; (PRUint32)extension_length) {</span>
+<span class="lineNum">     948 </span>            :         return 0;
+<span class="lineNum">     949 </span>            :     }
+<span class="lineNum">     950 </span>            : 
+<span class="lineNum">     951 </span><span class="lineCov">          1 :     if (append) {</span>
+<span class="lineNum">     952 </span>            :         SECStatus rv;
+<span class="lineNum">     953 </span><span class="lineCov">          1 :         rv = ssl3_ExtAppendHandshakeNumber(ss, ssl_supported_groups_xtn, 2);</span>
+<span class="lineNum">     954 </span><span class="lineCov">          1 :         if (rv != SECSuccess)</span>
+<span class="lineNum">     955 </span>            :             return -1;
+<span class="lineNum">     956 </span><span class="lineCov">          1 :         rv = ssl3_ExtAppendHandshakeNumber(ss, extension_length - 4, 2);</span>
+<span class="lineNum">     957 </span><span class="lineCov">          1 :         if (rv != SECSuccess)</span>
+<span class="lineNum">     958 </span>            :             return -1;
+<span class="lineNum">     959 </span><span class="lineCov">          1 :         rv = ssl3_ExtAppendHandshakeVariable(ss, enabledGroups,</span>
+<span class="lineNum">     960 </span>            :                                              enabledGroupsLen, 2);
+<span class="lineNum">     961 </span><span class="lineCov">          1 :         if (rv != SECSuccess)</span>
+<span class="lineNum">     962 </span>            :             return -1;
+<span class="lineNum">     963 </span><span class="lineCov">          1 :         if (!ss-&gt;sec.isServer) {</span>
+<span class="lineNum">     964 </span><span class="lineCov">          1 :             xtnData-&gt;advertised[xtnData-&gt;numAdvertised++] =</span>
+<span class="lineNum">     965 </span>            :                 ssl_supported_groups_xtn;
+<span class="lineNum">     966 </span>            :         }
+<span class="lineNum">     967 </span>            :     }
+<span class="lineNum">     968 </span><span class="lineCov">          1 :     return extension_length;</span>
+<span class="lineNum">     969 </span>            : }
+<span class="lineNum">     970 </span>            : 
+<span class="lineNum">     971 </span>            : /* Send our &quot;canned&quot; (precompiled) Supported Point Formats extension,
+<span class="lineNum">     972 </span>            :  * which says that we only support uncompressed points.
+<a name="973"><span class="lineNum">     973 </span>            :  */</a>
+<span class="lineNum">     974 </span>            : PRInt32
+<span class="lineNum">     975 </span><span class="lineCov">          1 : ssl3_SendSupportedPointFormatsXtn(</span>
+<span class="lineNum">     976 </span>            :     const sslSocket *ss,
+<span class="lineNum">     977 </span>            :     TLSExtensionData *xtnData,
+<span class="lineNum">     978 </span>            :     PRBool append,
+<span class="lineNum">     979 </span>            :     PRUint32 maxBytes)
+<span class="lineNum">     980 </span>            : {
+<span class="lineNum">     981 </span>            :     static const PRUint8 ecPtFmt[6] = {
+<span class="lineNum">     982 </span>            :         0, 11, /* Extension type */
+<span class="lineNum">     983 </span>            :         0, 2,  /* octets that follow */
+<span class="lineNum">     984 </span>            :         1,     /* octets that follow */
+<span class="lineNum">     985 </span>            :         0      /* uncompressed type only */
+<span class="lineNum">     986 </span>            :     };
+<span class="lineNum">     987 </span>            : 
+<span class="lineNum">     988 </span>            :     /* No point in doing this unless we have a socket that supports ECC.
+<span class="lineNum">     989 </span>            :      * Similarly, no point if we are going to do TLS 1.3 only or we have already
+<span class="lineNum">     990 </span>            :      * picked TLS 1.3 (server) given that it doesn't use point formats. */
+<span class="lineNum">     991 </span><span class="lineCov">          1 :     if (!ss || !ssl_IsECCEnabled(ss) ||</span>
+<span class="lineNum">     992 </span><span class="lineCov">          1 :         ss-&gt;vrange.min &gt;= SSL_LIBRARY_VERSION_TLS_1_3 ||</span>
+<span class="lineNum">     993 </span><span class="lineCov">          1 :         (ss-&gt;sec.isServer &amp;&amp; ss-&gt;version &gt;= SSL_LIBRARY_VERSION_TLS_1_3))</span>
+<span class="lineNum">     994 </span>            :         return 0;
+<span class="lineNum">     995 </span><span class="lineCov">          1 :     if (append &amp;&amp; maxBytes &gt;= (sizeof ecPtFmt)) {</span>
+<span class="lineNum">     996 </span><span class="lineCov">          1 :         SECStatus rv = ssl3_ExtAppendHandshake(ss, ecPtFmt, (sizeof ecPtFmt));</span>
+<span class="lineNum">     997 </span><span class="lineCov">          1 :         if (rv != SECSuccess)</span>
+<span class="lineNum">     998 </span>            :             return -1;
+<span class="lineNum">     999 </span><span class="lineCov">          1 :         if (!ss-&gt;sec.isServer) {</span>
+<span class="lineNum">    1000 </span><span class="lineCov">          1 :             xtnData-&gt;advertised[xtnData-&gt;numAdvertised++] =</span>
+<span class="lineNum">    1001 </span>            :                 ssl_ec_point_formats_xtn;
+<span class="lineNum">    1002 </span>            :         }
+<span class="lineNum">    1003 </span>            :     }
+<span class="lineNum">    1004 </span>            :     return sizeof(ecPtFmt);
+<span class="lineNum">    1005 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

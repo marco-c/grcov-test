@@ -1,0 +1,471 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/security/sandbox/chromium/sandbox/linux/seccomp-bpf/trap.cc</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../../../index.html">top level</a> - <a href="index.html">gecko-dev/security/sandbox/chromium/sandbox/linux/seccomp-bpf</a> - trap.cc<span style="font-size: 80%;"> (source / <a href="trap.cc.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">104</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">11</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : // Copyright (c) 2012 The Chromium Authors. All rights reserved.</a>
+<span class="lineNum">       2 </span>            : // Use of this source code is governed by a BSD-style license that can be
+<span class="lineNum">       3 </span>            : // found in the LICENSE file.
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : #include &quot;sandbox/linux/seccomp-bpf/trap.h&quot;
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #include &lt;errno.h&gt;
+<span class="lineNum">       8 </span>            : #include &lt;signal.h&gt;
+<span class="lineNum">       9 </span>            : #include &lt;stddef.h&gt;
+<span class="lineNum">      10 </span>            : #include &lt;stdint.h&gt;
+<span class="lineNum">      11 </span>            : #include &lt;string.h&gt;
+<span class="lineNum">      12 </span>            : #include &lt;sys/syscall.h&gt;
+<span class="lineNum">      13 </span>            : 
+<span class="lineNum">      14 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      15 </span>            : #include &lt;limits&gt;
+<span class="lineNum">      16 </span>            : #include &lt;tuple&gt;
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : #include &quot;base/compiler_specific.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;base/logging.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;build/build_config.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;sandbox/linux/bpf_dsl/seccomp_macros.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;sandbox/linux/seccomp-bpf/die.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;sandbox/linux/seccomp-bpf/syscall.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;sandbox/linux/services/syscall_wrappers.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;sandbox/linux/system_headers/linux_seccomp.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;sandbox/linux/system_headers/linux_signal.h&quot;
+<span class="lineNum">      27 </span>            : 
+<span class="lineNum">      28 </span>            : namespace {
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : struct arch_sigsys {
+<span class="lineNum">      31 </span>            :   void* ip;
+<span class="lineNum">      32 </span>            :   int nr;
+<span class="lineNum">      33 </span>            :   unsigned int arch;
+<span class="lineNum">      34 </span>            : };
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : const int kCapacityIncrement = 20;
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : // Unsafe traps can only be turned on, if the user explicitly allowed them
+<span class="lineNum">      39 </span>            : // by setting the CHROME_SANDBOX_DEBUGGING environment variable.
+<span class="lineNum">      40 </span>            : const char kSandboxDebuggingEnv[] = &quot;CHROME_SANDBOX_DEBUGGING&quot;;
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : // We need to tell whether we are performing a &quot;normal&quot; callback, or
+<span class="lineNum">      43 </span>            : // whether we were called recursively from within a UnsafeTrap() callback.
+<span class="lineNum">      44 </span>            : // This is a little tricky to do, because we need to somehow get access to
+<span class="lineNum">      45 </span>            : // per-thread data from within a signal context. Normal TLS storage is not
+<span class="lineNum">      46 </span>            : // safely accessible at this time. We could roll our own, but that involves
+<span class="lineNum">      47 </span>            : // a lot of complexity. Instead, we co-opt one bit in the signal mask.
+<span class="lineNum">      48 </span>            : // If BUS is blocked, we assume that we have been called recursively.
+<span class="lineNum">      49 </span>            : // There is a possibility for collision with other code that needs to do
+<span class="lineNum">      50 </span>            : // this, but in practice the risks are low.
+<span class="lineNum">      51 </span>            : // If SIGBUS turns out to be a problem, we could instead co-opt one of the
+<span class="lineNum">      52 </span>            : // realtime signals. There are plenty of them. Unfortunately, there is no
+<a name="53"><span class="lineNum">      53 </span>            : // way to mark a signal as allocated. So, the potential for collision is</a>
+<span class="lineNum">      54 </span>            : // possibly even worse.
+<span class="lineNum">      55 </span><span class="lineNoCov">          0 : bool GetIsInSigHandler(const ucontext_t* ctx) {</span>
+<span class="lineNum">      56 </span>            :   // Note: on Android, sigismember does not take a pointer to const.
+<span class="lineNum">      57 </span><span class="lineNoCov">          0 :   return sigismember(const_cast&lt;sigset_t*&gt;(&amp;ctx-&gt;uc_sigmask), LINUX_SIGBUS);</span>
+<a name="58"><span class="lineNum">      58 </span>            : }</a>
+<span class="lineNum">      59 </span>            : 
+<span class="lineNum">      60 </span><span class="lineNoCov">          0 : void SetIsInSigHandler() {</span>
+<span class="lineNum">      61 </span>            :   sigset_t mask;
+<span class="lineNum">      62 </span><span class="lineNoCov">          0 :   if (sigemptyset(&amp;mask) || sigaddset(&amp;mask, LINUX_SIGBUS) ||</span>
+<span class="lineNum">      63 </span><span class="lineNoCov">          0 :       sandbox::sys_sigprocmask(LINUX_SIG_BLOCK, &amp;mask, NULL)) {</span>
+<span class="lineNum">      64 </span><span class="lineNoCov">          0 :     SANDBOX_DIE(&quot;Failed to block SIGBUS&quot;);</span>
+<span class="lineNum">      65 </span>            :   }
+<a name="66"><span class="lineNum">      66 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span><span class="lineNoCov">          0 : bool IsDefaultSignalAction(const struct sigaction&amp; sa) {</span>
+<span class="lineNum">      69 </span><span class="lineNoCov">          0 :   if (sa.sa_flags &amp; SA_SIGINFO || sa.sa_handler != SIG_DFL) {</span>
+<span class="lineNum">      70 </span>            :     return false;
+<span class="lineNum">      71 </span>            :   }
+<span class="lineNum">      72 </span><span class="lineNoCov">          0 :   return true;</span>
+<span class="lineNum">      73 </span>            : }
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span>            : }  // namespace
+<span class="lineNum">      76 </span>            : 
+<a name="77"><span class="lineNum">      77 </span>            : namespace sandbox {</a>
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span><span class="lineNoCov">          0 : Trap::Trap()</span>
+<span class="lineNum">      80 </span>            :     : trap_array_(NULL),
+<span class="lineNum">      81 </span>            :       trap_array_size_(0),
+<span class="lineNum">      82 </span>            :       trap_array_capacity_(0),
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :       has_unsafe_traps_(false) {</span>
+<span class="lineNum">      84 </span>            :   // Set new SIGSYS handler
+<span class="lineNum">      85 </span><span class="lineNoCov">          0 :   struct sigaction sa = {};</span>
+<span class="lineNum">      86 </span>            :   // In some toolchain, sa_sigaction is not declared in struct sigaction.
+<span class="lineNum">      87 </span>            :   // So, here cast the pointer to the sa_handler's type. This works because
+<span class="lineNum">      88 </span>            :   // |sa_handler| and |sa_sigaction| shares the same memory.
+<span class="lineNum">      89 </span><span class="lineNoCov">          0 :   sa.sa_handler = reinterpret_cast&lt;void (*)(int)&gt;(SigSysAction);</span>
+<span class="lineNum">      90 </span><span class="lineNoCov">          0 :   sa.sa_flags = LINUX_SA_SIGINFO | LINUX_SA_NODEFER;</span>
+<span class="lineNum">      91 </span><span class="lineNoCov">          0 :   struct sigaction old_sa = {};</span>
+<span class="lineNum">      92 </span><span class="lineNoCov">          0 :   if (sys_sigaction(LINUX_SIGSYS, &amp;sa, &amp;old_sa) &lt; 0) {</span>
+<span class="lineNum">      93 </span><span class="lineNoCov">          0 :     SANDBOX_DIE(&quot;Failed to configure SIGSYS handler&quot;);</span>
+<span class="lineNum">      94 </span>            :   }
+<span class="lineNum">      95 </span>            : 
+<span class="lineNum">      96 </span><span class="lineNoCov">          0 :   if (!IsDefaultSignalAction(old_sa)) {</span>
+<span class="lineNum">      97 </span>            :     static const char kExistingSIGSYSMsg[] =
+<span class="lineNum">      98 </span>            :         &quot;Existing signal handler when trying to install SIGSYS. SIGSYS needs &quot;
+<span class="lineNum">      99 </span>            :         &quot;to be reserved for seccomp-bpf.&quot;;
+<span class="lineNum">     100 </span>            :     DLOG(FATAL) &lt;&lt; kExistingSIGSYSMsg;
+<span class="lineNum">     101 </span><span class="lineNoCov">          0 :     LOG(ERROR) &lt;&lt; kExistingSIGSYSMsg;</span>
+<span class="lineNum">     102 </span>            :   }
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span>            :   // Unmask SIGSYS
+<span class="lineNum">     105 </span>            :   sigset_t mask;
+<span class="lineNum">     106 </span><span class="lineNoCov">          0 :   if (sigemptyset(&amp;mask) || sigaddset(&amp;mask, LINUX_SIGSYS) ||</span>
+<span class="lineNum">     107 </span><span class="lineNoCov">          0 :       sys_sigprocmask(LINUX_SIG_UNBLOCK, &amp;mask, NULL)) {</span>
+<span class="lineNum">     108 </span><span class="lineNoCov">          0 :     SANDBOX_DIE(&quot;Failed to configure SIGSYS handler&quot;);</span>
+<span class="lineNum">     109 </span>            :   }
+<a name="110"><span class="lineNum">     110 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span><span class="lineNoCov">          0 : bpf_dsl::TrapRegistry* Trap::Registry() {</span>
+<span class="lineNum">     113 </span>            :   // Note: This class is not thread safe. It is the caller's responsibility
+<span class="lineNum">     114 </span>            :   // to avoid race conditions. Normally, this is a non-issue as the sandbox
+<span class="lineNum">     115 </span>            :   // can only be initialized if there are no other threads present.
+<span class="lineNum">     116 </span>            :   // Also, this is not a normal singleton. Once created, the global trap
+<span class="lineNum">     117 </span>            :   // object must never be destroyed again.
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :   if (!global_trap_) {</span>
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 :     global_trap_ = new Trap();</span>
+<span class="lineNum">     120 </span><span class="lineNoCov">          0 :     if (!global_trap_) {</span>
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :       SANDBOX_DIE(&quot;Failed to allocate global trap handler&quot;);</span>
+<span class="lineNum">     122 </span>            :     }
+<span class="lineNum">     123 </span>            :   }
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :   return global_trap_;</span>
+<a name="125"><span class="lineNum">     125 </span>            : }</a>
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 : void Trap::SigSysAction(int nr, LinuxSigInfo* info, void* void_context) {</span>
+<span class="lineNum">     128 </span>            :   if (info) {
+<span class="lineNum">     129 </span>            :     MSAN_UNPOISON(info, sizeof(*info));
+<span class="lineNum">     130 </span>            :   }
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span>            :   // Obtain the signal context. This, most notably, gives us access to
+<span class="lineNum">     133 </span>            :   // all CPU registers at the time of the signal.
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :   ucontext_t* ctx = reinterpret_cast&lt;ucontext_t*&gt;(void_context);</span>
+<span class="lineNum">     135 </span>            :   if (ctx) {
+<span class="lineNum">     136 </span>            :     MSAN_UNPOISON(ctx, sizeof(*ctx));
+<span class="lineNum">     137 </span>            :   }
+<span class="lineNum">     138 </span>            : 
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :   if (!global_trap_) {</span>
+<span class="lineNum">     140 </span>            :     RAW_SANDBOX_DIE(
+<span class="lineNum">     141 </span>            :         &quot;This can't happen. Found no global singleton instance &quot;
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :         &quot;for Trap() handling.&quot;);</span>
+<span class="lineNum">     143 </span>            :   }
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :   global_trap_-&gt;SigSys(nr, info, ctx);</span>
+<a name="145"><span class="lineNum">     145 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     146 </span>            : 
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 : void Trap::SigSys(int nr, LinuxSigInfo* info, ucontext_t* ctx) {</span>
+<span class="lineNum">     148 </span>            :   // Signal handlers should always preserve &quot;errno&quot;. Otherwise, we could
+<span class="lineNum">     149 </span>            :   // trigger really subtle bugs.
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :   const int old_errno = errno;</span>
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span>            :   // Various sanity checks to make sure we actually received a signal
+<span class="lineNum">     153 </span>            :   // triggered by a BPF filter. If something else triggered SIGSYS
+<span class="lineNum">     154 </span>            :   // (e.g. kill()), there is really nothing we can do with this signal.
+<span class="lineNum">     155 </span><span class="lineNoCov">          0 :   if (nr != LINUX_SIGSYS || info-&gt;si_code != SYS_SECCOMP || !ctx ||</span>
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :       info-&gt;si_errno &lt;= 0 ||</span>
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :       static_cast&lt;size_t&gt;(info-&gt;si_errno) &gt; trap_array_size_) {</span>
+<span class="lineNum">     158 </span>            :     // ATI drivers seem to send SIGSYS, so this cannot be FATAL.
+<span class="lineNum">     159 </span>            :     // See crbug.com/178166.
+<span class="lineNum">     160 </span>            :     // TODO(jln): add a DCHECK or move back to FATAL.
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :     RAW_LOG(ERROR, &quot;Unexpected SIGSYS received.&quot;);</span>
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :     errno = old_errno;</span>
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     164 </span>            :   }
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span>            : 
+<span class="lineNum">     167 </span>            :   // Obtain the siginfo information that is specific to SIGSYS. Unfortunately,
+<span class="lineNum">     168 </span>            :   // most versions of glibc don't include this information in siginfo_t. So,
+<span class="lineNum">     169 </span>            :   // we need to explicitly copy it into a arch_sigsys structure.
+<span class="lineNum">     170 </span>            :   struct arch_sigsys sigsys;
+<span class="lineNum">     171 </span><span class="lineNoCov">          0 :   memcpy(&amp;sigsys, &amp;info-&gt;_sifields, sizeof(sigsys));</span>
+<span class="lineNum">     172 </span>            : 
+<span class="lineNum">     173 </span>            : #if defined(__mips__)
+<span class="lineNum">     174 </span>            :   // When indirect syscall (syscall(__NR_foo, ...)) is made on Mips, the
+<span class="lineNum">     175 </span>            :   // number in register SECCOMP_SYSCALL(ctx) is always __NR_syscall and the
+<span class="lineNum">     176 </span>            :   // real number of a syscall (__NR_foo) is in SECCOMP_PARM1(ctx)
+<span class="lineNum">     177 </span>            :   bool sigsys_nr_is_bad = sigsys.nr != static_cast&lt;int&gt;(SECCOMP_SYSCALL(ctx)) &amp;&amp;
+<span class="lineNum">     178 </span>            :                           sigsys.nr != static_cast&lt;int&gt;(SECCOMP_PARM1(ctx));
+<span class="lineNum">     179 </span>            : #else
+<span class="lineNum">     180 </span><span class="lineNoCov">          0 :   bool sigsys_nr_is_bad = sigsys.nr != static_cast&lt;int&gt;(SECCOMP_SYSCALL(ctx));</span>
+<span class="lineNum">     181 </span>            : #endif
+<span class="lineNum">     182 </span>            : 
+<span class="lineNum">     183 </span>            :   // Some more sanity checks.
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :   if (sigsys.ip != reinterpret_cast&lt;void*&gt;(SECCOMP_IP(ctx)) ||</span>
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :       sigsys_nr_is_bad || sigsys.arch != SECCOMP_ARCH) {</span>
+<span class="lineNum">     186 </span>            :     // TODO(markus):
+<span class="lineNum">     187 </span>            :     // SANDBOX_DIE() can call LOG(FATAL). This is not normally async-signal
+<span class="lineNum">     188 </span>            :     // safe and can lead to bugs. We should eventually implement a different
+<span class="lineNum">     189 </span>            :     // logging and reporting mechanism that is safe to be called from
+<span class="lineNum">     190 </span>            :     // the sigSys() handler.
+<span class="lineNum">     191 </span><span class="lineNoCov">          0 :     RAW_SANDBOX_DIE(&quot;Sanity checks are failing after receiving SIGSYS.&quot;);</span>
+<span class="lineNum">     192 </span>            :   }
+<span class="lineNum">     193 </span>            : 
+<span class="lineNum">     194 </span>            :   intptr_t rc;
+<span class="lineNum">     195 </span><span class="lineNoCov">          0 :   if (has_unsafe_traps_ &amp;&amp; GetIsInSigHandler(ctx)) {</span>
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :     errno = old_errno;</span>
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :     if (sigsys.nr == __NR_clone) {</span>
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 :       RAW_SANDBOX_DIE(&quot;Cannot call clone() from an UnsafeTrap() handler.&quot;);</span>
+<span class="lineNum">     199 </span>            :     }
+<span class="lineNum">     200 </span>            : #if defined(__mips__)
+<span class="lineNum">     201 </span>            :     // Mips supports up to eight arguments for syscall.
+<span class="lineNum">     202 </span>            :     // However, seccomp bpf can filter only up to six arguments, so using eight
+<span class="lineNum">     203 </span>            :     // arguments has sense only when using UnsafeTrap() handler.
+<span class="lineNum">     204 </span>            :     rc = Syscall::Call(SECCOMP_SYSCALL(ctx),
+<span class="lineNum">     205 </span>            :                        SECCOMP_PARM1(ctx),
+<span class="lineNum">     206 </span>            :                        SECCOMP_PARM2(ctx),
+<span class="lineNum">     207 </span>            :                        SECCOMP_PARM3(ctx),
+<span class="lineNum">     208 </span>            :                        SECCOMP_PARM4(ctx),
+<span class="lineNum">     209 </span>            :                        SECCOMP_PARM5(ctx),
+<span class="lineNum">     210 </span>            :                        SECCOMP_PARM6(ctx),
+<span class="lineNum">     211 </span>            :                        SECCOMP_PARM7(ctx),
+<span class="lineNum">     212 </span>            :                        SECCOMP_PARM8(ctx));
+<span class="lineNum">     213 </span>            : #else
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 :     rc = Syscall::Call(SECCOMP_SYSCALL(ctx),</span>
+<span class="lineNum">     215 </span>            :                        SECCOMP_PARM1(ctx),
+<span class="lineNum">     216 </span>            :                        SECCOMP_PARM2(ctx),
+<span class="lineNum">     217 </span>            :                        SECCOMP_PARM3(ctx),
+<span class="lineNum">     218 </span>            :                        SECCOMP_PARM4(ctx),
+<span class="lineNum">     219 </span>            :                        SECCOMP_PARM5(ctx),
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 :                        SECCOMP_PARM6(ctx));</span>
+<span class="lineNum">     221 </span>            : #endif  // defined(__mips__)
+<span class="lineNum">     222 </span>            :   } else {
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :     const TrapKey&amp; trap = trap_array_[info-&gt;si_errno - 1];</span>
+<span class="lineNum">     224 </span><span class="lineNoCov">          0 :     if (!trap.safe) {</span>
+<span class="lineNum">     225 </span><span class="lineNoCov">          0 :       SetIsInSigHandler();</span>
+<span class="lineNum">     226 </span>            :     }
+<span class="lineNum">     227 </span>            : 
+<span class="lineNum">     228 </span>            :     // Copy the seccomp-specific data into a arch_seccomp_data structure. This
+<span class="lineNum">     229 </span>            :     // is what we are showing to TrapFnc callbacks that the system call
+<span class="lineNum">     230 </span>            :     // evaluator registered with the sandbox.
+<span class="lineNum">     231 </span>            :     struct arch_seccomp_data data = {
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :         static_cast&lt;int&gt;(SECCOMP_SYSCALL(ctx)),</span>
+<span class="lineNum">     233 </span>            :         SECCOMP_ARCH,
+<span class="lineNum">     234 </span>            :         reinterpret_cast&lt;uint64_t&gt;(sigsys.ip),
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :         {static_cast&lt;uint64_t&gt;(SECCOMP_PARM1(ctx)),</span>
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :          static_cast&lt;uint64_t&gt;(SECCOMP_PARM2(ctx)),</span>
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :          static_cast&lt;uint64_t&gt;(SECCOMP_PARM3(ctx)),</span>
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :          static_cast&lt;uint64_t&gt;(SECCOMP_PARM4(ctx)),</span>
+<span class="lineNum">     239 </span><span class="lineNoCov">          0 :          static_cast&lt;uint64_t&gt;(SECCOMP_PARM5(ctx)),</span>
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 :          static_cast&lt;uint64_t&gt;(SECCOMP_PARM6(ctx))}};</span>
+<span class="lineNum">     241 </span>            : 
+<span class="lineNum">     242 </span>            :     // Now call the TrapFnc callback associated with this particular instance
+<span class="lineNum">     243 </span>            :     // of SECCOMP_RET_TRAP.
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :     rc = trap.fnc(data, const_cast&lt;void*&gt;(trap.aux));</span>
+<span class="lineNum">     245 </span>            :   }
+<span class="lineNum">     246 </span>            : 
+<span class="lineNum">     247 </span>            :   // Update the CPU register that stores the return code of the system call
+<span class="lineNum">     248 </span>            :   // that we just handled, and restore &quot;errno&quot; to the value that it had
+<span class="lineNum">     249 </span>            :   // before entering the signal handler.
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 :   Syscall::PutValueInUcontext(rc, ctx);</span>
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 :   errno = old_errno;</span>
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span><span class="lineNoCov">          0 :   return;</span>
+<a name="254"><span class="lineNum">     254 </span>            : }</a>
+<span class="lineNum">     255 </span>            : 
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 : bool Trap::TrapKey::operator&lt;(const TrapKey&amp; o) const {</span>
+<span class="lineNum">     257 </span><span class="lineNoCov">          0 :   return std::tie(fnc, aux, safe) &lt; std::tie(o.fnc, o.aux, o.safe);</span>
+<a name="258"><span class="lineNum">     258 </span>            : }</a>
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span><span class="lineNoCov">          0 : uint16_t Trap::Add(TrapFnc fnc, const void* aux, bool safe) {</span>
+<span class="lineNum">     261 </span><span class="lineNoCov">          0 :   if (!safe &amp;&amp; !SandboxDebuggingAllowedByUser()) {</span>
+<span class="lineNum">     262 </span>            :     // Unless the user set the CHROME_SANDBOX_DEBUGGING environment variable,
+<span class="lineNum">     263 </span>            :     // we never return an ErrorCode that is marked as &quot;unsafe&quot;. This also
+<span class="lineNum">     264 </span>            :     // means, the BPF compiler will never emit code that allow unsafe system
+<span class="lineNum">     265 </span>            :     // calls to by-pass the filter (because they use the magic return address
+<span class="lineNum">     266 </span>            :     // from Syscall::Call(-1)).
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span>            :     // This SANDBOX_DIE() can optionally be removed. It won't break security,
+<span class="lineNum">     269 </span>            :     // but it might make error messages from the BPF compiler a little harder
+<span class="lineNum">     270 </span>            :     // to understand. Removing the SANDBOX_DIE() allows callers to easily check
+<span class="lineNum">     271 </span>            :     // whether unsafe traps are supported (by checking whether the returned
+<span class="lineNum">     272 </span>            :     // ErrorCode is ET_INVALID).
+<span class="lineNum">     273 </span>            :     SANDBOX_DIE(
+<span class="lineNum">     274 </span>            :         &quot;Cannot use unsafe traps unless CHROME_SANDBOX_DEBUGGING &quot;
+<span class="lineNum">     275 </span><span class="lineNoCov">          0 :         &quot;is enabled&quot;);</span>
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span>            :     return 0;
+<span class="lineNum">     278 </span>            :   }
+<span class="lineNum">     279 </span>            : 
+<span class="lineNum">     280 </span>            :   // Each unique pair of TrapFnc and auxiliary data make up a distinct instance
+<span class="lineNum">     281 </span>            :   // of a SECCOMP_RET_TRAP.
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 :   TrapKey key(fnc, aux, safe);</span>
+<span class="lineNum">     283 </span>            : 
+<span class="lineNum">     284 </span>            :   // We return unique identifiers together with SECCOMP_RET_TRAP. This allows
+<span class="lineNum">     285 </span>            :   // us to associate trap with the appropriate handler. The kernel allows us
+<span class="lineNum">     286 </span>            :   // identifiers in the range from 0 to SECCOMP_RET_DATA (0xFFFF). We want to
+<span class="lineNum">     287 </span>            :   // avoid 0, as it could be confused for a trap without any specific id.
+<span class="lineNum">     288 </span>            :   // The nice thing about sequentially numbered identifiers is that we can also
+<span class="lineNum">     289 </span>            :   // trivially look them up from our signal handler without making any system
+<span class="lineNum">     290 </span>            :   // calls that might be async-signal-unsafe.
+<span class="lineNum">     291 </span>            :   // In order to do so, we store all of our traps in a C-style trap_array_.
+<span class="lineNum">     292 </span>            : 
+<span class="lineNum">     293 </span><span class="lineNoCov">          0 :   TrapIds::const_iterator iter = trap_ids_.find(key);</span>
+<span class="lineNum">     294 </span><span class="lineNoCov">          0 :   if (iter != trap_ids_.end()) {</span>
+<span class="lineNum">     295 </span>            :     // We have seen this pair before. Return the same id that we assigned
+<span class="lineNum">     296 </span>            :     // earlier.
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :     return iter-&gt;second;</span>
+<span class="lineNum">     298 </span>            :   }
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span>            :   // This is a new pair. Remember it and assign a new id.
+<span class="lineNum">     301 </span><span class="lineNoCov">          0 :   if (trap_array_size_ &gt;= SECCOMP_RET_DATA /* 0xFFFF */ ||</span>
+<span class="lineNum">     302 </span>            :       trap_array_size_ &gt;= std::numeric_limits&lt;uint16_t&gt;::max()) {
+<span class="lineNum">     303 </span>            :     // In practice, this is pretty much impossible to trigger, as there
+<span class="lineNum">     304 </span>            :     // are other kernel limitations that restrict overall BPF program sizes.
+<span class="lineNum">     305 </span><span class="lineNoCov">          0 :     SANDBOX_DIE(&quot;Too many SECCOMP_RET_TRAP callback instances&quot;);</span>
+<span class="lineNum">     306 </span>            :   }
+<span class="lineNum">     307 </span>            : 
+<span class="lineNum">     308 </span>            :   // Our callers ensure that there are no other threads accessing trap_array_
+<span class="lineNum">     309 </span>            :   // concurrently (typically this is done by ensuring that we are single-
+<span class="lineNum">     310 </span>            :   // threaded while the sandbox is being set up). But we nonetheless are
+<span class="lineNum">     311 </span>            :   // modifying a live data structure that could be accessed any time a
+<span class="lineNum">     312 </span>            :   // system call is made; as system calls could be triggering SIGSYS.
+<span class="lineNum">     313 </span>            :   // So, we have to be extra careful that we update trap_array_ atomically.
+<span class="lineNum">     314 </span>            :   // In particular, this means we shouldn't be using realloc() to resize it.
+<span class="lineNum">     315 </span>            :   // Instead, we allocate a new array, copy the values, and then switch the
+<span class="lineNum">     316 </span>            :   // pointer. We only really care about the pointer being updated atomically
+<span class="lineNum">     317 </span>            :   // and the data that is pointed to being valid, as these are the only
+<span class="lineNum">     318 </span>            :   // values accessed from the signal handler. It is OK if trap_array_size_
+<span class="lineNum">     319 </span>            :   // is inconsistent with the pointer, as it is monotonously increasing.
+<span class="lineNum">     320 </span>            :   // Also, we only care about compiler barriers, as the signal handler is
+<span class="lineNum">     321 </span>            :   // triggered synchronously from a system call. We don't have to protect
+<span class="lineNum">     322 </span>            :   // against issues with the memory model or with completely asynchronous
+<span class="lineNum">     323 </span>            :   // events.
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 :   if (trap_array_size_ &gt;= trap_array_capacity_) {</span>
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :     trap_array_capacity_ += kCapacityIncrement;</span>
+<span class="lineNum">     326 </span><span class="lineNoCov">          0 :     TrapKey* old_trap_array = trap_array_;</span>
+<span class="lineNum">     327 </span><span class="lineNoCov">          0 :     TrapKey* new_trap_array = new TrapKey[trap_array_capacity_];</span>
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 :     std::copy_n(old_trap_array, trap_array_size_, new_trap_array);</span>
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span>            :     // Language specs are unclear on whether the compiler is allowed to move
+<span class="lineNum">     331 </span>            :     // the &quot;delete[]&quot; above our preceding assignments and/or memory moves,
+<span class="lineNum">     332 </span>            :     // iff the compiler believes that &quot;delete[]&quot; doesn't have any other
+<span class="lineNum">     333 </span>            :     // global side-effects.
+<span class="lineNum">     334 </span>            :     // We insert optimization barriers to prevent this from happening.
+<span class="lineNum">     335 </span>            :     // The first barrier is probably not needed, but better be explicit in
+<span class="lineNum">     336 </span>            :     // what we want to tell the compiler.
+<span class="lineNum">     337 </span>            :     // The clang developer mailing list couldn't answer whether this is a
+<span class="lineNum">     338 </span>            :     // legitimate worry; but they at least thought that the barrier is
+<span class="lineNum">     339 </span>            :     // sufficient to prevent the (so far hypothetical) problem of re-ordering
+<span class="lineNum">     340 </span>            :     // of instructions by the compiler.
+<span class="lineNum">     341 </span>            :     //
+<span class="lineNum">     342 </span>            :     // TODO(mdempsky): Try to clean this up using base/atomicops or C++11
+<span class="lineNum">     343 </span>            :     // atomics; see crbug.com/414363.
+<span class="lineNum">     344 </span><span class="lineNoCov">          0 :     asm volatile(&quot;&quot; : &quot;=r&quot;(new_trap_array) : &quot;0&quot;(new_trap_array) : &quot;memory&quot;);</span>
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 :     trap_array_ = new_trap_array;</span>
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :     asm volatile(&quot;&quot; : &quot;=r&quot;(trap_array_) : &quot;0&quot;(trap_array_) : &quot;memory&quot;);</span>
+<span class="lineNum">     347 </span>            : 
+<span class="lineNum">     348 </span><span class="lineNoCov">          0 :     delete[] old_trap_array;</span>
+<span class="lineNum">     349 </span>            :   }
+<span class="lineNum">     350 </span>            : 
+<span class="lineNum">     351 </span><span class="lineNoCov">          0 :   uint16_t id = trap_array_size_ + 1;</span>
+<span class="lineNum">     352 </span><span class="lineNoCov">          0 :   trap_ids_[key] = id;</span>
+<span class="lineNum">     353 </span><span class="lineNoCov">          0 :   trap_array_[trap_array_size_] = key;</span>
+<span class="lineNum">     354 </span><span class="lineNoCov">          0 :   trap_array_size_++;</span>
+<span class="lineNum">     355 </span><span class="lineNoCov">          0 :   return id;</span>
+<a name="356"><span class="lineNum">     356 </span>            : }</a>
+<span class="lineNum">     357 </span>            : 
+<span class="lineNum">     358 </span><span class="lineNoCov">          0 : bool Trap::SandboxDebuggingAllowedByUser() {</span>
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 :   const char* debug_flag = getenv(kSandboxDebuggingEnv);</span>
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 :   return debug_flag &amp;&amp; *debug_flag;</span>
+<a name="361"><span class="lineNum">     361 </span>            : }</a>
+<span class="lineNum">     362 </span>            : 
+<span class="lineNum">     363 </span><span class="lineNoCov">          0 : bool Trap::EnableUnsafeTraps() {</span>
+<span class="lineNum">     364 </span><span class="lineNoCov">          0 :   if (!has_unsafe_traps_) {</span>
+<span class="lineNum">     365 </span>            :     // Unsafe traps are a one-way fuse. Once enabled, they can never be turned
+<span class="lineNum">     366 </span>            :     // off again.
+<span class="lineNum">     367 </span>            :     // We only allow enabling unsafe traps, if the user explicitly set an
+<span class="lineNum">     368 </span>            :     // appropriate environment variable. This prevents bugs that accidentally
+<span class="lineNum">     369 </span>            :     // disable all sandboxing for all users.
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :     if (SandboxDebuggingAllowedByUser()) {</span>
+<span class="lineNum">     371 </span>            :       // We only ever print this message once, when we enable unsafe traps the
+<span class="lineNum">     372 </span>            :       // first time.
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :       SANDBOX_INFO(&quot;WARNING! Disabling sandbox for debugging purposes&quot;);</span>
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :       has_unsafe_traps_ = true;</span>
+<span class="lineNum">     375 </span>            :     } else {
+<span class="lineNum">     376 </span>            :       SANDBOX_INFO(
+<span class="lineNum">     377 </span>            :           &quot;Cannot disable sandbox and use unsafe traps unless &quot;
+<span class="lineNum">     378 </span><span class="lineNoCov">          0 :           &quot;CHROME_SANDBOX_DEBUGGING is turned on first&quot;);</span>
+<span class="lineNum">     379 </span>            :     }
+<span class="lineNum">     380 </span>            :   }
+<span class="lineNum">     381 </span>            :   // Returns the, possibly updated, value of has_unsafe_traps_.
+<span class="lineNum">     382 </span><span class="lineNoCov">          0 :   return has_unsafe_traps_;</span>
+<span class="lineNum">     383 </span>            : }
+<span class="lineNum">     384 </span>            : 
+<span class="lineNum">     385 </span>            : Trap* Trap::global_trap_;
+<span class="lineNum">     386 </span>            : 
+<span class="lineNum">     387 </span>            : }  // namespace sandbox
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

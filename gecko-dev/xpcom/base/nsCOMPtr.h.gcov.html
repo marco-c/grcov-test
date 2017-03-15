@@ -1,0 +1,1549 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/xpcom/base/nsCOMPtr.h</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">gecko-dev/xpcom/base</a> - nsCOMPtr.h<span style="font-size: 80%;"> (source / <a href="nsCOMPtr.h.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">124</td>
+            <td class="headerCovTableEntry">169</td>
+            <td class="headerCovTableEntryLo">73.4 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">101</td>
+            <td class="headerCovTableEntry">374</td>
+            <td class="headerCovTableEntryLo">27.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* vim: set ts=8 sts=2 et sw=2 tw=80: */
+<span class="lineNum">       3 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #ifndef nsCOMPtr_h___
+<span class="lineNum">       8 </span>            : #define nsCOMPtr_h___
+<span class="lineNum">       9 </span>            : 
+<span class="lineNum">      10 </span>            : /*
+<span class="lineNum">      11 </span>            :  * Having problems?
+<span class="lineNum">      12 </span>            :  *
+<span class="lineNum">      13 </span>            :  * See the User Manual at:
+<span class="lineNum">      14 </span>            :  *   http://www.mozilla.org/projects/xpcom/nsCOMPtr.html
+<span class="lineNum">      15 </span>            :  *
+<span class="lineNum">      16 </span>            :  *
+<span class="lineNum">      17 </span>            :  * nsCOMPtr
+<span class="lineNum">      18 </span>            :  *   better than a raw pointer
+<span class="lineNum">      19 </span>            :  * for owning objects
+<span class="lineNum">      20 </span>            :  *                      -- scc
+<span class="lineNum">      21 </span>            :  */
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : #include &quot;mozilla/AlreadyAddRefed.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;mozilla/Assertions.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;mozilla/Attributes.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;mozilla/Move.h&quot;
+<span class="lineNum">      27 </span>            : #include &quot;mozilla/TypeTraits.h&quot;
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #include &quot;nsDebug.h&quot; // for |NS_ASSERTION|
+<span class="lineNum">      30 </span>            : #include &quot;nsISupportsUtils.h&quot; // for |nsresult|, |NS_ADDREF|, |NS_GET_TEMPLATE_IID| et al
+<span class="lineNum">      31 </span>            : #include &quot;mozilla/RefPtr.h&quot;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #include &quot;nsCycleCollectionNoteChild.h&quot;
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : /*
+<span class="lineNum">      37 </span>            :  * WARNING: This file defines several macros for internal use only. These
+<span class="lineNum">      38 </span>            :  * macros begin with the prefix |NSCAP_|. Do not use these macros in your own
+<span class="lineNum">      39 </span>            :  * code. They are for internal use only for cross-platform compatibility, and
+<span class="lineNum">      40 </span>            :  * are subject to change without notice.
+<span class="lineNum">      41 </span>            :  */
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span>            : #ifdef _MSC_VER
+<span class="lineNum">      45 </span>            :   // Under VC++, we win by inlining StartAssignment.
+<span class="lineNum">      46 </span>            :   #define NSCAP_FEATURE_INLINE_STARTASSIGNMENT
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span>            :   // Also under VC++, at the highest warning level, we are overwhelmed with
+<span class="lineNum">      49 </span>            :   // warnings about (unused) inline functions being removed. This is to be
+<span class="lineNum">      50 </span>            :   // expected with templates, so we disable the warning.
+<span class="lineNum">      51 </span>            :   #pragma warning( disable: 4514 )
+<span class="lineNum">      52 </span>            : #endif
+<span class="lineNum">      53 </span>            : 
+<span class="lineNum">      54 </span>            : #define NSCAP_FEATURE_USE_BASE
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span>            : #ifdef DEBUG
+<span class="lineNum">      57 </span>            :   #define NSCAP_FEATURE_TEST_DONTQUERY_CASES
+<span class="lineNum">      58 </span>            :   #undef NSCAP_FEATURE_USE_BASE
+<span class="lineNum">      59 </span>            : #endif
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span>            : #ifdef __GNUC__
+<span class="lineNum">      62 </span>            :   // Our use of nsCOMPtr_base::mRawPtr violates the C++ standard's aliasing
+<span class="lineNum">      63 </span>            :   // rules. Mark it with the may_alias attribute so that gcc 3.3 and higher
+<span class="lineNum">      64 </span>            :   // don't reorder instructions based on aliasing assumptions for
+<span class="lineNum">      65 </span>            :   // this variable.  Fortunately, gcc versions &lt; 3.3 do not do any
+<span class="lineNum">      66 </span>            :   // optimizations that break nsCOMPtr.
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            :   #define NS_MAY_ALIAS_PTR(t)    t*  __attribute__((__may_alias__))
+<span class="lineNum">      69 </span>            : #else
+<span class="lineNum">      70 </span>            :   #define NS_MAY_ALIAS_PTR(t)    t*
+<span class="lineNum">      71 </span>            : #endif
+<span class="lineNum">      72 </span>            : 
+<span class="lineNum">      73 </span>            : #if defined(NSCAP_DISABLE_DEBUG_PTR_TYPES)
+<span class="lineNum">      74 </span>            :   #define NSCAP_FEATURE_USE_BASE
+<span class="lineNum">      75 </span>            : #endif
+<span class="lineNum">      76 </span>            : 
+<span class="lineNum">      77 </span>            : /*
+<span class="lineNum">      78 </span>            :  * The following three macros (NSCAP_ADDREF, NSCAP_RELEASE, and
+<span class="lineNum">      79 </span>            :  * NSCAP_LOG_ASSIGNMENT) allow external clients the ability to add logging or
+<span class="lineNum">      80 </span>            :  * other interesting debug facilities. In fact, if you want |nsCOMPtr| to
+<span class="lineNum">      81 </span>            :  * participate in the standard logging facility, you provide
+<span class="lineNum">      82 </span>            :  * (e.g., in &quot;nsISupportsImpl.h&quot;) suitable definitions
+<span class="lineNum">      83 </span>            :  *
+<span class="lineNum">      84 </span>            :  *   #define NSCAP_ADDREF(this, ptr)         NS_ADDREF(ptr)
+<span class="lineNum">      85 </span>            :  *   #define NSCAP_RELEASE(this, ptr)        NS_RELEASE(ptr)
+<span class="lineNum">      86 </span>            :  */
+<span class="lineNum">      87 </span>            : 
+<span class="lineNum">      88 </span>            : #ifndef NSCAP_ADDREF
+<span class="lineNum">      89 </span>            :   #define NSCAP_ADDREF(this, ptr)     (ptr)-&gt;AddRef()
+<span class="lineNum">      90 </span>            : #endif
+<span class="lineNum">      91 </span>            : 
+<span class="lineNum">      92 </span>            : #ifndef NSCAP_RELEASE
+<span class="lineNum">      93 </span>            :   #define NSCAP_RELEASE(this, ptr)    (ptr)-&gt;Release()
+<span class="lineNum">      94 </span>            : #endif
+<span class="lineNum">      95 </span>            : 
+<span class="lineNum">      96 </span>            : // Clients can define |NSCAP_LOG_ASSIGNMENT| to perform logging.
+<span class="lineNum">      97 </span>            : #ifdef NSCAP_LOG_ASSIGNMENT
+<span class="lineNum">      98 </span>            :   // Remember that |NSCAP_LOG_ASSIGNMENT| was defined by some client so that we
+<span class="lineNum">      99 </span>            :   // know to instantiate |~nsGetterAddRefs| in turn to note the external
+<span class="lineNum">     100 </span>            :   // assignment into the |nsCOMPtr|.
+<span class="lineNum">     101 </span>            :   #define NSCAP_LOG_EXTERNAL_ASSIGNMENT
+<span class="lineNum">     102 </span>            : #else
+<span class="lineNum">     103 </span>            :     // ...otherwise, just strip it out of the code
+<span class="lineNum">     104 </span>            :   #define NSCAP_LOG_ASSIGNMENT(this, ptr)
+<span class="lineNum">     105 </span>            : #endif
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span>            : #ifndef NSCAP_LOG_RELEASE
+<span class="lineNum">     108 </span>            :   #define NSCAP_LOG_RELEASE(this, ptr)
+<span class="lineNum">     109 </span>            : #endif
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span>            : namespace mozilla {
+<span class="lineNum">     112 </span>            : template&lt;class T&gt; class OwningNonNull;
+<span class="lineNum">     113 </span>            : } // namespace mozilla
+<span class="lineNum">     114 </span>            : 
+<span class="lineNum">     115 </span>            : template&lt;class T&gt;
+<span class="lineNum">     116 </span>            : inline already_AddRefed&lt;T&gt;
+<span class="lineNum">     117 </span>            : dont_AddRef(T* aRawPtr)
+<span class="lineNum">     118 </span>            : {
+<span class="lineNum">     119 </span>            :   return already_AddRefed&lt;T&gt;(aRawPtr);
+<span class="lineNum">     120 </span>            : }
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span>            : template&lt;class T&gt;
+<span class="lineNum">     123 </span>            : inline already_AddRefed&lt;T&gt;&amp;&amp;
+<span class="lineNum">     124 </span>            : dont_AddRef(already_AddRefed&lt;T&gt;&amp;&amp; aAlreadyAddRefedPtr)
+<span class="lineNum">     125 </span>            : {
+<span class="lineNum">     126 </span>            :   return mozilla::Move(aAlreadyAddRefedPtr);
+<span class="lineNum">     127 </span>            : }
+<span class="lineNum">     128 </span>            : 
+<span class="lineNum">     129 </span>            : 
+<span class="lineNum">     130 </span>            : /*
+<span class="lineNum">     131 </span>            :  * An nsCOMPtr_helper transforms commonly called getters into typesafe forms
+<span class="lineNum">     132 </span>            :  * that are more convenient to call, and more efficient to use with |nsCOMPtr|s.
+<span class="lineNum">     133 </span>            :  * Good candidates for helpers are |QueryInterface()|, |CreateInstance()|, etc.
+<span class="lineNum">     134 </span>            :  *
+<span class="lineNum">     135 </span>            :  * Here are the rules for a helper:
+<span class="lineNum">     136 </span>            :  *   - it implements |operator()| to produce an interface pointer
+<span class="lineNum">     137 </span>            :  *   - (except for its name) |operator()| is a valid [XP]COM `getter'
+<span class="lineNum">     138 </span>            :  *   - the interface pointer that it returns is already |AddRef()|ed (as from
+<span class="lineNum">     139 </span>            :  *     any good getter)
+<span class="lineNum">     140 </span>            :  *   - it matches the type requested with the supplied |nsIID| argument
+<span class="lineNum">     141 </span>            :  *   - its constructor provides an optional |nsresult*| that |operator()| can
+<span class="lineNum">     142 </span>            :  *     fill in with an error when it is executed
+<span class="lineNum">     143 </span>            :  *
+<span class="lineNum">     144 </span>            :  * See |class nsGetInterface| for an example.
+<span class="lineNum">     145 </span>            :  */
+<span class="lineNum">     146 </span><span class="lineCov">          1 : class MOZ_STACK_CLASS nsCOMPtr_helper</span>
+<span class="lineNum">     147 </span>            : {
+<span class="lineNum">     148 </span>            : public:
+<span class="lineNum">     149 </span>            :   virtual nsresult NS_FASTCALL operator()(const nsIID&amp;, void**) const = 0;
+<span class="lineNum">     150 </span>            : };
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span>            : /*
+<span class="lineNum">     153 </span>            :  * nsQueryInterface could have been implemented as an nsCOMPtr_helper to avoid
+<span class="lineNum">     154 </span>            :  * adding specialized machinery in nsCOMPtr, but do_QueryInterface is called
+<span class="lineNum">     155 </span>            :  * often enough that the codesize savings are big enough to warrant the
+<span class="lineNum">     156 </span>            :  * specialcasing.
+<span class="lineNum">     157 </span>            :  */
+<span class="lineNum">     158 </span>            : class MOZ_STACK_CLASS nsQueryInterface final
+<span class="lineNum">     159 </span>            : {
+<span class="lineNum">     160 </span>            : public:
+<span class="lineNum">     161 </span>            :   explicit
+<span class="lineNum">     162 </span>            :   nsQueryInterface(nsISupports* aRawPtr) : mRawPtr(aRawPtr) {}
+<span class="lineNum">     163 </span>            : 
+<span class="lineNum">     164 </span>            :   nsresult NS_FASTCALL operator()(const nsIID&amp; aIID, void**) const;
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span>            : private:
+<span class="lineNum">     167 </span>            :   nsISupports* MOZ_OWNING_REF mRawPtr;
+<span class="lineNum">     168 </span>            : };
+<span class="lineNum">     169 </span>            : 
+<span class="lineNum">     170 </span>            : class nsQueryInterfaceWithError final
+<span class="lineNum">     171 </span>            : {
+<span class="lineNum">     172 </span>            : public:
+<span class="lineNum">     173 </span>            :   nsQueryInterfaceWithError(nsISupports* aRawPtr, nsresult* aError)
+<span class="lineNum">     174 </span>            :     : mRawPtr(aRawPtr)
+<span class="lineNum">     175 </span>            :     , mErrorPtr(aError)
+<span class="lineNum">     176 </span>            :   {
+<span class="lineNum">     177 </span>            :   }
+<span class="lineNum">     178 </span>            : 
+<span class="lineNum">     179 </span>            :   nsresult NS_FASTCALL operator()(const nsIID&amp; aIID, void**) const;
+<span class="lineNum">     180 </span>            : 
+<span class="lineNum">     181 </span>            : private:
+<span class="lineNum">     182 </span>            :   nsISupports* MOZ_OWNING_REF mRawPtr;
+<span class="lineNum">     183 </span>            :   nsresult* mErrorPtr;
+<span class="lineNum">     184 </span>            : };
+<span class="lineNum">     185 </span>            : 
+<span class="lineNum">     186 </span>            : inline nsQueryInterface
+<span class="lineNum">     187 </span>            : do_QueryInterface(nsISupports* aRawPtr)
+<span class="lineNum">     188 </span>            : {
+<span class="lineNum">     189 </span>            :   return nsQueryInterface(aRawPtr);
+<span class="lineNum">     190 </span>            : }
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span>            : inline nsQueryInterfaceWithError
+<span class="lineNum">     193 </span>            : do_QueryInterface(nsISupports* aRawPtr, nsresult* aError)
+<span class="lineNum">     194 </span>            : {
+<span class="lineNum">     195 </span>            :   return nsQueryInterfaceWithError(aRawPtr, aError);
+<span class="lineNum">     196 </span>            : }
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span>            : template&lt;class T&gt;
+<span class="lineNum">     199 </span>            : inline void
+<span class="lineNum">     200 </span>            : do_QueryInterface(already_AddRefed&lt;T&gt;&amp;)
+<span class="lineNum">     201 </span>            : {
+<span class="lineNum">     202 </span>            :   // This signature exists solely to _stop_ you from doing the bad thing.
+<span class="lineNum">     203 </span>            :   // Saying |do_QueryInterface()| on a pointer that is not otherwise owned by
+<span class="lineNum">     204 </span>            :   // someone else is an automatic leak. See bug 8221.
+<span class="lineNum">     205 </span>            : }
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span>            : template&lt;class T&gt;
+<span class="lineNum">     208 </span>            : inline void
+<span class="lineNum">     209 </span>            : do_QueryInterface(already_AddRefed&lt;T&gt;&amp;, nsresult*)
+<span class="lineNum">     210 </span>            : {
+<span class="lineNum">     211 </span>            :   // This signature exists solely to _stop_ you from doing the bad thing.
+<span class="lineNum">     212 </span>            :   // Saying |do_QueryInterface()| on a pointer that is not otherwise owned by
+<span class="lineNum">     213 </span>            :   // someone else is an automatic leak. See bug 8221.
+<span class="lineNum">     214 </span>            : }
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span>            : ////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">     218 </span>            : // Using servicemanager with COMPtrs
+<span class="lineNum">     219 </span>            : class nsGetServiceByCID final
+<span class="lineNum">     220 </span>            : {
+<span class="lineNum">     221 </span>            : public:
+<span class="lineNum">     222 </span>            :   explicit nsGetServiceByCID(const nsCID&amp; aCID) : mCID(aCID) {}
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span>            :   nsresult NS_FASTCALL operator()(const nsIID&amp;, void**) const;
+<span class="lineNum">     225 </span>            : 
+<span class="lineNum">     226 </span>            : private:
+<span class="lineNum">     227 </span>            :   const nsCID&amp; mCID;
+<span class="lineNum">     228 </span>            : };
+<span class="lineNum">     229 </span>            : 
+<span class="lineNum">     230 </span>            : class nsGetServiceByCIDWithError final
+<span class="lineNum">     231 </span>            : {
+<span class="lineNum">     232 </span>            : public:
+<span class="lineNum">     233 </span>            :   nsGetServiceByCIDWithError(const nsCID&amp; aCID, nsresult* aErrorPtr)
+<span class="lineNum">     234 </span>            :     : mCID(aCID)
+<span class="lineNum">     235 </span>            :     , mErrorPtr(aErrorPtr)
+<span class="lineNum">     236 </span>            :   {
+<span class="lineNum">     237 </span>            :   }
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span>            :   nsresult NS_FASTCALL operator()(const nsIID&amp;, void**) const;
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span>            : private:
+<span class="lineNum">     242 </span>            :   const nsCID&amp; mCID;
+<span class="lineNum">     243 </span>            :   nsresult* mErrorPtr;
+<span class="lineNum">     244 </span>            : };
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span>            : class nsGetServiceByContractID final
+<span class="lineNum">     247 </span>            : {
+<span class="lineNum">     248 </span>            : public:
+<span class="lineNum">     249 </span>            :   explicit nsGetServiceByContractID(const char* aContractID)
+<span class="lineNum">     250 </span>            :     : mContractID(aContractID)
+<span class="lineNum">     251 </span>            :   {
+<span class="lineNum">     252 </span>            :   }
+<span class="lineNum">     253 </span>            : 
+<span class="lineNum">     254 </span>            :   nsresult NS_FASTCALL operator()(const nsIID&amp;, void**) const;
+<span class="lineNum">     255 </span>            : 
+<span class="lineNum">     256 </span>            : private:
+<span class="lineNum">     257 </span>            :   const char* mContractID;
+<span class="lineNum">     258 </span>            : };
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span>            : class nsGetServiceByContractIDWithError final
+<span class="lineNum">     261 </span>            : {
+<span class="lineNum">     262 </span>            : public:
+<span class="lineNum">     263 </span>            :   nsGetServiceByContractIDWithError(const char* aContractID, nsresult* aErrorPtr)
+<span class="lineNum">     264 </span>            :     : mContractID(aContractID)
+<span class="lineNum">     265 </span>            :     , mErrorPtr(aErrorPtr)
+<span class="lineNum">     266 </span>            :   {
+<span class="lineNum">     267 </span>            :   }
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span>            :   nsresult NS_FASTCALL operator()(const nsIID&amp;, void**) const;
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span>            : private:
+<span class="lineNum">     272 </span>            :   const char* mContractID;
+<span class="lineNum">     273 </span>            :   nsresult* mErrorPtr;
+<span class="lineNum">     274 </span>            : };
+<span class="lineNum">     275 </span>            : 
+<span class="lineNum">     276 </span>            : /**
+<span class="lineNum">     277 </span>            :  * Factors implementation for all template versions of nsCOMPtr.
+<span class="lineNum">     278 </span>            :  *
+<span class="lineNum">     279 </span>            :  * Here's the way people normally do things like this:
+<span class="lineNum">     280 </span>            :  *
+<span class="lineNum">     281 </span>            :  *   template&lt;class T&gt; class Foo { ... };
+<span class="lineNum">     282 </span>            :  *   template&lt;&gt; class Foo&lt;void*&gt; { ... };
+<span class="lineNum">     283 </span>            :  *   template&lt;class T&gt; class Foo&lt;T*&gt; : private Foo&lt;void*&gt; { ... };
+<span class="lineNum">     284 </span>            :  */
+<span class="lineNum">     285 </span>            : class nsCOMPtr_base
+<span class="lineNum">     286 </span>            : {
+<span class="lineNum">     287 </span>            : public:
+<a name="288"><span class="lineNum">     288 </span><span class="lineCov">          1 :   explicit nsCOMPtr_base(nsISupports* aRawPtr = nullptr) : mRawPtr(aRawPtr) {}</span></a>
+<span class="lineNum">     289 </span>            : 
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :   NS_CONSTRUCTOR_FASTCALL ~nsCOMPtr_base()</span>
+<span class="lineNum">     291 </span>            :   {
+<span class="lineNum">     292 </span>            :     NSCAP_LOG_RELEASE(this, mRawPtr);
+<span class="lineNum">     293 </span><span class="lineNoCov">          0 :     if (mRawPtr) {</span>
+<span class="lineNum">     294 </span><span class="lineNoCov">          0 :       NSCAP_RELEASE(this, mRawPtr);</span>
+<span class="lineNum">     295 </span>            :     }
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :   }</span>
+<span class="lineNum">     297 </span>            : 
+<span class="lineNum">     298 </span>            :   void NS_FASTCALL
+<span class="lineNum">     299 </span>            :   assign_with_AddRef(nsISupports*);
+<span class="lineNum">     300 </span>            :   void NS_FASTCALL
+<span class="lineNum">     301 </span>            :   assign_from_qi(const nsQueryInterface, const nsIID&amp;);
+<span class="lineNum">     302 </span>            :   void NS_FASTCALL
+<span class="lineNum">     303 </span>            :   assign_from_qi_with_error(const nsQueryInterfaceWithError&amp;, const nsIID&amp;);
+<span class="lineNum">     304 </span>            :   void NS_FASTCALL
+<span class="lineNum">     305 </span>            :   assign_from_gs_cid(const nsGetServiceByCID, const nsIID&amp;);
+<span class="lineNum">     306 </span>            :   void NS_FASTCALL
+<span class="lineNum">     307 </span>            :   assign_from_gs_cid_with_error(const nsGetServiceByCIDWithError&amp;, const nsIID&amp;);
+<span class="lineNum">     308 </span>            :   void NS_FASTCALL
+<span class="lineNum">     309 </span>            :   assign_from_gs_contractid(const nsGetServiceByContractID, const nsIID&amp;);
+<span class="lineNum">     310 </span>            :   void NS_FASTCALL
+<span class="lineNum">     311 </span>            :   assign_from_gs_contractid_with_error(const nsGetServiceByContractIDWithError&amp;,
+<span class="lineNum">     312 </span>            :                                        const nsIID&amp;);
+<span class="lineNum">     313 </span>            :   void NS_FASTCALL
+<span class="lineNum">     314 </span>            :   assign_from_helper(const nsCOMPtr_helper&amp;, const nsIID&amp;);
+<span class="lineNum">     315 </span>            :   void** NS_FASTCALL
+<span class="lineNum">     316 </span>            :   begin_assignment();
+<span class="lineNum">     317 </span>            : 
+<span class="lineNum">     318 </span>            : protected:
+<a name="319"><span class="lineNum">     319 </span>            :   NS_MAY_ALIAS_PTR(nsISupports) MOZ_OWNING_REF mRawPtr;</a>
+<span class="lineNum">     320 </span>            : 
+<span class="lineNum">     321 </span><span class="lineCov">          1 :   void assign_assuming_AddRef(nsISupports* aNewPtr)</span>
+<span class="lineNum">     322 </span>            :   {
+<span class="lineNum">     323 </span>            :     // |AddRef()|ing the new value (before entering this function) before
+<span class="lineNum">     324 </span>            :     // |Release()|ing the old lets us safely ignore the self-assignment case.
+<span class="lineNum">     325 </span>            :     // We must, however, be careful only to |Release()| _after_ doing the
+<span class="lineNum">     326 </span>            :     // assignment, in case the |Release()| leads to our _own_ destruction,
+<span class="lineNum">     327 </span>            :     // which would, in turn, cause an incorrect second |Release()| of our old
+<span class="lineNum">     328 </span>            :     // pointer. Thank &lt;waterson@netscape.com&gt; for discovering this.
+<span class="lineNum">     329 </span><span class="lineCov">          1 :     nsISupports* oldPtr = mRawPtr;</span>
+<span class="lineNum">     330 </span><span class="lineCov">          1 :     mRawPtr = aNewPtr;</span>
+<span class="lineNum">     331 </span>            :     NSCAP_LOG_ASSIGNMENT(this, aNewPtr);
+<span class="lineNum">     332 </span>            :     NSCAP_LOG_RELEASE(this, oldPtr);
+<span class="lineNum">     333 </span><span class="lineCov">          1 :     if (oldPtr) {</span>
+<span class="lineNum">     334 </span><span class="lineCov">          1 :       NSCAP_RELEASE(this, oldPtr);</span>
+<span class="lineNum">     335 </span>            :     }
+<span class="lineNum">     336 </span><span class="lineCov">          1 :   }</span>
+<span class="lineNum">     337 </span>            : };
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span>            : // template&lt;class T&gt; class nsGetterAddRefs;
+<span class="lineNum">     340 </span>            : 
+<span class="lineNum">     341 </span>            : // Helper for assert_validity method
+<span class="lineNum">     342 </span>            : template&lt;class T&gt;
+<span class="lineNum">     343 </span>            : char (&amp;TestForIID(decltype(&amp;NS_GET_TEMPLATE_IID(T))))[2];
+<span class="lineNum">     344 </span>            : template&lt;class T&gt;
+<span class="lineNum">     345 </span>            : char TestForIID(...);
+<span class="lineNum">     346 </span>            : 
+<span class="lineNum">     347 </span>            : template&lt;class T&gt;
+<span class="lineNum">     348 </span><span class="lineCov">          1 : class nsCOMPtr final</span>
+<span class="lineNum">     349 </span>            : #ifdef NSCAP_FEATURE_USE_BASE
+<span class="lineNum">     350 </span>            :   : private nsCOMPtr_base
+<span class="lineNum">     351 </span>            : #endif
+<span class="lineNum">     352 </span>            : {
+<span class="lineNum">     353 </span>            : 
+<span class="lineNum">     354 </span>            : #ifdef NSCAP_FEATURE_USE_BASE
+<span class="lineNum">     355 </span>            :   #define NSCAP_CTOR_BASE(x) nsCOMPtr_base(x)
+<span class="lineNum">     356 </span>            : #else
+<span class="lineNum">     357 </span>            :   #define NSCAP_CTOR_BASE(x) mRawPtr(x)
+<span class="lineNum">     358 </span>            : 
+<span class="lineNum">     359 </span>            : private:
+<span class="lineNum">     360 </span>            :   void assign_with_AddRef(nsISupports*);
+<span class="lineNum">     361 </span>            :   void assign_from_qi(const nsQueryInterface, const nsIID&amp;);
+<span class="lineNum">     362 </span>            :   void assign_from_qi_with_error(const nsQueryInterfaceWithError&amp;, const nsIID&amp;);
+<span class="lineNum">     363 </span>            :   void assign_from_gs_cid(const nsGetServiceByCID, const nsIID&amp;);
+<span class="lineNum">     364 </span>            :   void assign_from_gs_cid_with_error(const nsGetServiceByCIDWithError&amp;,
+<span class="lineNum">     365 </span>            :                                      const nsIID&amp;);
+<span class="lineNum">     366 </span>            :   void assign_from_gs_contractid(const nsGetServiceByContractID, const nsIID&amp;);
+<span class="lineNum">     367 </span>            :   void assign_from_gs_contractid_with_error(
+<span class="lineNum">     368 </span>            :     const nsGetServiceByContractIDWithError&amp;, const nsIID&amp;);
+<span class="lineNum">     369 </span>            :   void assign_from_helper(const nsCOMPtr_helper&amp;, const nsIID&amp;);
+<span class="lineNum">     370 </span>            :   void** begin_assignment();
+<span class="lineNum">     371 </span>            : 
+<span class="lineNum">     372 </span>            :   void assign_assuming_AddRef(T* aNewPtr)
+<span class="lineNum">     373 </span>            :   {
+<span class="lineNum">     374 </span>            :     T* oldPtr = mRawPtr;
+<span class="lineNum">     375 </span>            :     mRawPtr = aNewPtr;
+<span class="lineNum">     376 </span>            :     NSCAP_LOG_ASSIGNMENT(this, aNewPtr);
+<span class="lineNum">     377 </span>            :     NSCAP_LOG_RELEASE(this, oldPtr);
+<span class="lineNum">     378 </span>            :     if (oldPtr) {
+<span class="lineNum">     379 </span>            :       NSCAP_RELEASE(this, oldPtr);
+<span class="lineNum">     380 </span>            :     }
+<span class="lineNum">     381 </span>            :   }
+<span class="lineNum">     382 </span>            : 
+<span class="lineNum">     383 </span>            : private:
+<span class="lineNum">     384 </span>            :   T* MOZ_OWNING_REF mRawPtr;
+<span class="lineNum">     385 </span>            : #endif
+<span class="lineNum">     386 </span>            : 
+<span class="lineNum">     387 </span>            :   void assert_validity()
+<span class="lineNum">     388 </span>            :   {
+<span class="lineNum">     389 </span>            :     static_assert(1 &lt; sizeof(TestForIID&lt;T&gt;(nullptr)), &quot;nsCOMPtr only works &quot;
+<span class="lineNum">     390 </span>            :                   &quot;for types with IIDs.  Either use RefPtr; add an IID to &quot;
+<span class="lineNum">     391 </span>            :                   &quot;your type with NS_DECLARE_STATIC_IID_ACCESSOR/&quot;
+<span class="lineNum">     392 </span>            :                   &quot;NS_DEFINE_STATIC_IID_ACCESSOR; or make the nsCOMPtr point &quot;
+<span class="lineNum">     393 </span>            :                   &quot;to a base class with an IID.&quot;);
+<span class="lineNum">     394 </span>            :   }
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span>            : public:
+<span class="lineNum">     397 </span>            :   typedef T element_type;
+<span class="lineNum">     398 </span>            : 
+<span class="lineNum">     399 </span>            : #ifndef NSCAP_FEATURE_USE_BASE
+<span class="lineNum">     400 </span>            :   ~nsCOMPtr()
+<span class="lineNum">     401 </span>            :   {
+<span class="lineNum">     402 </span>            :     NSCAP_LOG_RELEASE(this, mRawPtr);
+<span class="lineNum">     403 </span>            :     if (mRawPtr) {
+<span class="lineNum">     404 </span>            :       NSCAP_RELEASE(this, mRawPtr);
+<span class="lineNum">     405 </span>            :     }
+<span class="lineNum">     406 </span>            :   }
+<span class="lineNum">     407 </span>            : #endif
+<span class="lineNum">     408 </span>            : 
+<span class="lineNum">     409 </span>            : #ifdef NSCAP_FEATURE_TEST_DONTQUERY_CASES
+<span class="lineNum">     410 </span>            :   void Assert_NoQueryNeeded()
+<span class="lineNum">     411 </span>            :   {
+<span class="lineNum">     412 </span>            :     if (mRawPtr) {
+<span class="lineNum">     413 </span>            :       nsCOMPtr&lt;T&gt; query_result(do_QueryInterface(mRawPtr));
+<span class="lineNum">     414 </span>            :       NS_ASSERTION(query_result.get() == mRawPtr, &quot;QueryInterface needed&quot;);
+<span class="lineNum">     415 </span>            :     }
+<span class="lineNum">     416 </span>            :   }
+<span class="lineNum">     417 </span>            : 
+<span class="lineNum">     418 </span>            :   #define NSCAP_ASSERT_NO_QUERY_NEEDED() Assert_NoQueryNeeded();
+<span class="lineNum">     419 </span>            : #else
+<span class="lineNum">     420 </span>            :   #define NSCAP_ASSERT_NO_QUERY_NEEDED()
+<span class="lineNum">     421 </span>            : #endif
+<span class="lineNum">     422 </span>            : 
+<span class="lineNum">     423 </span>            : 
+<span class="lineNum">     424 </span>            :   // Constructors
+<span class="lineNum">     425 </span>            : 
+<span class="lineNum">     426 </span>            :   nsCOMPtr()
+<span class="lineNum">     427 </span><span class="lineCov">          1 :     : NSCAP_CTOR_BASE(nullptr)</span>
+<span class="lineNum">     428 </span>            :   {
+<span class="lineNum">     429 </span><span class="lineCov">          1 :     assert_validity();</span>
+<span class="lineNum">     430 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<span class="lineNum">     431 </span>            :   }
+<span class="lineNum">     432 </span>            : 
+<span class="lineNum">     433 </span>            :   MOZ_IMPLICIT nsCOMPtr(decltype(nullptr))
+<span class="lineNum">     434 </span><span class="lineCov">          1 :     : NSCAP_CTOR_BASE(nullptr)</span>
+<span class="lineNum">     435 </span>            :   {
+<span class="lineNum">     436 </span><span class="lineCov">          1 :     assert_validity();</span>
+<span class="lineNum">     437 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<a name="438"><span class="lineNum">     438 </span>            :   }</a>
+<span class="lineNum">     439 </span>            : 
+<span class="lineNum">     440 </span><span class="lineCov">          1 :   nsCOMPtr(const nsCOMPtr&lt;T&gt;&amp; aSmartPtr)</span>
+<span class="lineNum">     441 </span><span class="lineCov">          1 :     : NSCAP_CTOR_BASE(aSmartPtr.mRawPtr)</span>
+<span class="lineNum">     442 </span>            :   {
+<span class="lineNum">     443 </span><span class="lineCov">          1 :     assert_validity();</span>
+<span class="lineNum">     444 </span><span class="lineCov">          1 :     if (mRawPtr) {</span>
+<span class="lineNum">     445 </span><span class="lineCov">          1 :       NSCAP_ADDREF(this, mRawPtr);</span>
+<span class="lineNum">     446 </span>            :     }
+<span class="lineNum">     447 </span>            :     NSCAP_LOG_ASSIGNMENT(this, aSmartPtr.mRawPtr);
+<span class="lineNum">     448 </span><span class="lineCov">          1 :   }</span>
+<span class="lineNum">     449 </span>            : 
+<span class="lineNum">     450 </span>            :   nsCOMPtr(nsCOMPtr&lt;T&gt;&amp;&amp; aSmartPtr)
+<span class="lineNum">     451 </span><span class="lineNoCov">          0 :     : NSCAP_CTOR_BASE(aSmartPtr.mRawPtr)</span>
+<span class="lineNum">     452 </span>            :   {
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :     assert_validity();</span>
+<span class="lineNum">     454 </span><span class="lineNoCov">          0 :     aSmartPtr.mRawPtr = nullptr;</span>
+<span class="lineNum">     455 </span>            :     NSCAP_LOG_ASSIGNMENT(this, mRawPtr);
+<span class="lineNum">     456 </span>            :     NSCAP_ASSERT_NO_QUERY_NEEDED();
+<a name="457"><span class="lineNum">     457 </span>            :   }</a>
+<span class="lineNum">     458 </span>            : 
+<span class="lineNum">     459 </span><span class="lineCov">          1 :   MOZ_IMPLICIT nsCOMPtr(T* aRawPtr)</span>
+<span class="lineNum">     460 </span><span class="lineCov">          1 :     : NSCAP_CTOR_BASE(aRawPtr)</span>
+<span class="lineNum">     461 </span>            :   {
+<span class="lineNum">     462 </span><span class="lineCov">          1 :     assert_validity();</span>
+<span class="lineNum">     463 </span><span class="lineCov">          1 :     if (mRawPtr) {</span>
+<span class="lineNum">     464 </span><span class="lineCov">          1 :       NSCAP_ADDREF(this, mRawPtr);</span>
+<span class="lineNum">     465 </span>            :     }
+<span class="lineNum">     466 </span>            :     NSCAP_LOG_ASSIGNMENT(this, aRawPtr);
+<span class="lineNum">     467 </span>            :     NSCAP_ASSERT_NO_QUERY_NEEDED();
+<span class="lineNum">     468 </span><span class="lineCov">          1 :   }</span>
+<span class="lineNum">     469 </span>            : 
+<span class="lineNum">     470 </span>            :   MOZ_IMPLICIT nsCOMPtr(already_AddRefed&lt;T&gt;&amp; aSmartPtr)
+<span class="lineNum">     471 </span><span class="lineCov">          1 :     : NSCAP_CTOR_BASE(aSmartPtr.take())</span>
+<span class="lineNum">     472 </span>            :   {
+<span class="lineNum">     473 </span><span class="lineCov">          1 :     assert_validity();</span>
+<span class="lineNum">     474 </span>            :     NSCAP_LOG_ASSIGNMENT(this, mRawPtr);
+<span class="lineNum">     475 </span>            :     NSCAP_ASSERT_NO_QUERY_NEEDED();
+<span class="lineNum">     476 </span>            :   }
+<span class="lineNum">     477 </span>            : 
+<span class="lineNum">     478 </span>            :   // Construct from |otherComPtr.forget()|.
+<span class="lineNum">     479 </span>            :   MOZ_IMPLICIT nsCOMPtr(already_AddRefed&lt;T&gt;&amp;&amp; aSmartPtr)
+<span class="lineNum">     480 </span><span class="lineCov">          1 :     : NSCAP_CTOR_BASE(aSmartPtr.take())</span>
+<span class="lineNum">     481 </span>            :   {
+<span class="lineNum">     482 </span><span class="lineCov">          1 :     assert_validity();</span>
+<span class="lineNum">     483 </span>            :     NSCAP_LOG_ASSIGNMENT(this, mRawPtr);
+<span class="lineNum">     484 </span>            :     NSCAP_ASSERT_NO_QUERY_NEEDED();
+<span class="lineNum">     485 </span>            :   }
+<span class="lineNum">     486 </span>            : 
+<span class="lineNum">     487 </span>            :   // Construct from |already_AddRefed|.
+<span class="lineNum">     488 </span>            :   template&lt;typename U&gt;
+<span class="lineNum">     489 </span>            :   MOZ_IMPLICIT nsCOMPtr(already_AddRefed&lt;U&gt;&amp; aSmartPtr)
+<span class="lineNum">     490 </span>            :     : NSCAP_CTOR_BASE(static_cast&lt;T*&gt;(aSmartPtr.take()))
+<span class="lineNum">     491 </span>            :   {
+<span class="lineNum">     492 </span>            :     assert_validity();
+<span class="lineNum">     493 </span>            :     // But make sure that U actually inherits from T.
+<span class="lineNum">     494 </span>            :     static_assert(mozilla::IsBaseOf&lt;T, U&gt;::value,
+<span class="lineNum">     495 </span>            :                   &quot;U is not a subclass of T&quot;);
+<span class="lineNum">     496 </span>            :     NSCAP_LOG_ASSIGNMENT(this, static_cast&lt;T*&gt;(mRawPtr));
+<span class="lineNum">     497 </span>            :     NSCAP_ASSERT_NO_QUERY_NEEDED();
+<span class="lineNum">     498 </span>            :   }
+<span class="lineNum">     499 </span>            : 
+<span class="lineNum">     500 </span>            :   // Construct from |otherComPtr.forget()|.
+<span class="lineNum">     501 </span>            :   template&lt;typename U&gt;
+<span class="lineNum">     502 </span>            :   MOZ_IMPLICIT nsCOMPtr(already_AddRefed&lt;U&gt;&amp;&amp; aSmartPtr)
+<span class="lineNum">     503 </span><span class="lineCov">          1 :     : NSCAP_CTOR_BASE(static_cast&lt;T*&gt;(aSmartPtr.take()))</span>
+<span class="lineNum">     504 </span>            :   {
+<span class="lineNum">     505 </span><span class="lineCov">          1 :     assert_validity();</span>
+<span class="lineNum">     506 </span>            :     // But make sure that U actually inherits from T.
+<span class="lineNum">     507 </span>            :     static_assert(mozilla::IsBaseOf&lt;T, U&gt;::value,
+<span class="lineNum">     508 </span>            :                   &quot;U is not a subclass of T&quot;);
+<span class="lineNum">     509 </span>            :     NSCAP_LOG_ASSIGNMENT(this, static_cast&lt;T*&gt;(mRawPtr));
+<span class="lineNum">     510 </span>            :     NSCAP_ASSERT_NO_QUERY_NEEDED();
+<span class="lineNum">     511 </span>            :   }
+<a name="512"><span class="lineNum">     512 </span>            : </a>
+<span class="lineNum">     513 </span>            :   // Construct from |do_QueryInterface(expr)|.
+<span class="lineNum">     514 </span><span class="lineCov">          1 :   MOZ_IMPLICIT nsCOMPtr(const nsQueryInterface aQI)</span>
+<span class="lineNum">     515 </span><span class="lineCov">          1 :     : NSCAP_CTOR_BASE(nullptr)</span>
+<span class="lineNum">     516 </span>            :   {
+<span class="lineNum">     517 </span><span class="lineCov">          1 :     assert_validity();</span>
+<span class="lineNum">     518 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<span class="lineNum">     519 </span><span class="lineCov">          1 :     assign_from_qi(aQI, NS_GET_TEMPLATE_IID(T));</span>
+<span class="lineNum">     520 </span><span class="lineCov">          1 :   }</span>
+<a name="521"><span class="lineNum">     521 </span>            : </a>
+<span class="lineNum">     522 </span>            :   // Construct from |do_QueryInterface(expr, &amp;rv)|.
+<span class="lineNum">     523 </span><span class="lineCov">          1 :   MOZ_IMPLICIT nsCOMPtr(const nsQueryInterfaceWithError&amp; aQI)</span>
+<span class="lineNum">     524 </span><span class="lineCov">          1 :     : NSCAP_CTOR_BASE(nullptr)</span>
+<span class="lineNum">     525 </span>            :   {
+<span class="lineNum">     526 </span><span class="lineCov">          1 :     assert_validity();</span>
+<span class="lineNum">     527 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<span class="lineNum">     528 </span><span class="lineCov">          1 :     assign_from_qi_with_error(aQI, NS_GET_TEMPLATE_IID(T));</span>
+<span class="lineNum">     529 </span><span class="lineCov">          1 :   }</span>
+<a name="530"><span class="lineNum">     530 </span>            : </a>
+<span class="lineNum">     531 </span>            :   // Construct from |do_GetService(cid_expr)|.
+<span class="lineNum">     532 </span><span class="lineCov">          1 :   MOZ_IMPLICIT nsCOMPtr(const nsGetServiceByCID aGS)</span>
+<span class="lineNum">     533 </span><span class="lineCov">          1 :     : NSCAP_CTOR_BASE(nullptr)</span>
+<span class="lineNum">     534 </span>            :   {
+<span class="lineNum">     535 </span><span class="lineCov">          1 :     assert_validity();</span>
+<span class="lineNum">     536 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<span class="lineNum">     537 </span><span class="lineCov">          1 :     assign_from_gs_cid(aGS, NS_GET_TEMPLATE_IID(T));</span>
+<span class="lineNum">     538 </span><span class="lineCov">          1 :   }</span>
+<a name="539"><span class="lineNum">     539 </span>            : </a>
+<span class="lineNum">     540 </span>            :   // Construct from |do_GetService(cid_expr, &amp;rv)|.
+<span class="lineNum">     541 </span><span class="lineNoCov">          0 :   MOZ_IMPLICIT nsCOMPtr(const nsGetServiceByCIDWithError&amp; aGS)</span>
+<span class="lineNum">     542 </span><span class="lineNoCov">          0 :     : NSCAP_CTOR_BASE(nullptr)</span>
+<span class="lineNum">     543 </span>            :   {
+<span class="lineNum">     544 </span><span class="lineNoCov">          0 :     assert_validity();</span>
+<span class="lineNum">     545 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<span class="lineNum">     546 </span><span class="lineNoCov">          0 :     assign_from_gs_cid_with_error(aGS, NS_GET_TEMPLATE_IID(T));</span>
+<span class="lineNum">     547 </span><span class="lineNoCov">          0 :   }</span>
+<a name="548"><span class="lineNum">     548 </span>            : </a>
+<span class="lineNum">     549 </span>            :   // Construct from |do_GetService(contractid_expr)|.
+<span class="lineNum">     550 </span><span class="lineCov">          1 :   MOZ_IMPLICIT nsCOMPtr(const nsGetServiceByContractID aGS)</span>
+<span class="lineNum">     551 </span><span class="lineCov">          1 :     : NSCAP_CTOR_BASE(nullptr)</span>
+<span class="lineNum">     552 </span>            :   {
+<span class="lineNum">     553 </span><span class="lineCov">          1 :     assert_validity();</span>
+<span class="lineNum">     554 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<span class="lineNum">     555 </span><span class="lineCov">          1 :     assign_from_gs_contractid(aGS, NS_GET_TEMPLATE_IID(T));</span>
+<span class="lineNum">     556 </span><span class="lineCov">          1 :   }</span>
+<a name="557"><span class="lineNum">     557 </span>            : </a>
+<span class="lineNum">     558 </span>            :   // Construct from |do_GetService(contractid_expr, &amp;rv)|.
+<span class="lineNum">     559 </span><span class="lineCov">          1 :   MOZ_IMPLICIT nsCOMPtr(const nsGetServiceByContractIDWithError&amp; aGS)</span>
+<span class="lineNum">     560 </span><span class="lineCov">          1 :     : NSCAP_CTOR_BASE(nullptr)</span>
+<span class="lineNum">     561 </span>            :   {
+<span class="lineNum">     562 </span><span class="lineCov">          1 :     assert_validity();</span>
+<span class="lineNum">     563 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<span class="lineNum">     564 </span><span class="lineCov">          1 :     assign_from_gs_contractid_with_error(aGS, NS_GET_TEMPLATE_IID(T));</span>
+<span class="lineNum">     565 </span><span class="lineCov">          1 :   }</span>
+<span class="lineNum">     566 </span>            : 
+<a name="567"><span class="lineNum">     567 </span>            :   // And finally, anything else we might need to construct from can exploit the</a>
+<span class="lineNum">     568 </span>            :   // nsCOMPtr_helper facility.
+<span class="lineNum">     569 </span><span class="lineCov">          1 :   MOZ_IMPLICIT nsCOMPtr(const nsCOMPtr_helper&amp; aHelper)</span>
+<span class="lineNum">     570 </span><span class="lineCov">          1 :     : NSCAP_CTOR_BASE(nullptr)</span>
+<span class="lineNum">     571 </span>            :   {
+<span class="lineNum">     572 </span><span class="lineCov">          1 :     assert_validity();</span>
+<span class="lineNum">     573 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<span class="lineNum">     574 </span><span class="lineCov">          1 :     assign_from_helper(aHelper, NS_GET_TEMPLATE_IID(T));</span>
+<span class="lineNum">     575 </span>            :     NSCAP_ASSERT_NO_QUERY_NEEDED();
+<span class="lineNum">     576 </span><span class="lineCov">          1 :   }</span>
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span>            :   // Defined in OwningNonNull.h
+<span class="lineNum">     579 </span>            :   template&lt;class U&gt;
+<span class="lineNum">     580 </span>            :   MOZ_IMPLICIT nsCOMPtr(const mozilla::OwningNonNull&lt;U&gt;&amp; aOther);
+<span class="lineNum">     581 </span>            : 
+<span class="lineNum">     582 </span>            : 
+<a name="583"><span class="lineNum">     583 </span>            :   // Assignment operators</a>
+<span class="lineNum">     584 </span>            : 
+<span class="lineNum">     585 </span><span class="lineCov">          1 :   nsCOMPtr&lt;T&gt;&amp; operator=(const nsCOMPtr&lt;T&gt;&amp; aRhs)</span>
+<span class="lineNum">     586 </span>            :   {
+<span class="lineNum">     587 </span><span class="lineCov">          1 :     assign_with_AddRef(aRhs.mRawPtr);</span>
+<span class="lineNum">     588 </span><span class="lineCov">          1 :     return *this;</span>
+<span class="lineNum">     589 </span>            :   }
+<span class="lineNum">     590 </span>            : 
+<span class="lineNum">     591 </span>            :   nsCOMPtr&lt;T&gt;&amp; operator=(T* aRhs)
+<span class="lineNum">     592 </span>            :   {
+<span class="lineNum">     593 </span><span class="lineCov">          1 :     assign_with_AddRef(aRhs);</span>
+<span class="lineNum">     594 </span>            :     NSCAP_ASSERT_NO_QUERY_NEEDED();
+<span class="lineNum">     595 </span>            :     return *this;
+<a name="596"><span class="lineNum">     596 </span>            :   }</a>
+<span class="lineNum">     597 </span>            : 
+<span class="lineNum">     598 </span><span class="lineCov">          1 :   nsCOMPtr&lt;T&gt;&amp; operator=(decltype(nullptr))</span>
+<span class="lineNum">     599 </span>            :   {
+<span class="lineNum">     600 </span><span class="lineCov">          1 :     assign_assuming_AddRef(nullptr);</span>
+<span class="lineNum">     601 </span><span class="lineCov">          1 :     return *this;</span>
+<span class="lineNum">     602 </span>            :   }
+<span class="lineNum">     603 </span>            : 
+<span class="lineNum">     604 </span>            :   // Assign from |already_AddRefed|.
+<span class="lineNum">     605 </span>            :   template&lt;typename U&gt;
+<span class="lineNum">     606 </span>            :   nsCOMPtr&lt;T&gt;&amp; operator=(already_AddRefed&lt;U&gt;&amp; aRhs)
+<span class="lineNum">     607 </span>            :   {
+<span class="lineNum">     608 </span>            :     // Make sure that U actually inherits from T
+<span class="lineNum">     609 </span>            :     static_assert(mozilla::IsBaseOf&lt;T, U&gt;::value,
+<span class="lineNum">     610 </span>            :                   &quot;U is not a subclass of T&quot;);
+<span class="lineNum">     611 </span>            :     assign_assuming_AddRef(static_cast&lt;T*&gt;(aRhs.take()));
+<span class="lineNum">     612 </span>            :     NSCAP_ASSERT_NO_QUERY_NEEDED();
+<span class="lineNum">     613 </span>            :     return *this;
+<span class="lineNum">     614 </span>            :   }
+<span class="lineNum">     615 </span>            : 
+<a name="616"><span class="lineNum">     616 </span>            :   // Assign from |otherComPtr.forget()|.</a>
+<span class="lineNum">     617 </span>            :   template&lt;typename U&gt;
+<span class="lineNum">     618 </span><span class="lineCov">          1 :   nsCOMPtr&lt;T&gt;&amp; operator=(already_AddRefed&lt;U&gt;&amp;&amp; aRhs)</span>
+<span class="lineNum">     619 </span>            :   {
+<span class="lineNum">     620 </span>            :     // Make sure that U actually inherits from T
+<span class="lineNum">     621 </span>            :     static_assert(mozilla::IsBaseOf&lt;T, U&gt;::value,
+<span class="lineNum">     622 </span>            :                   &quot;U is not a subclass of T&quot;);
+<span class="lineNum">     623 </span><span class="lineCov">          1 :     assign_assuming_AddRef(static_cast&lt;T*&gt;(aRhs.take()));</span>
+<span class="lineNum">     624 </span>            :     NSCAP_ASSERT_NO_QUERY_NEEDED();
+<span class="lineNum">     625 </span><span class="lineCov">          1 :     return *this;</span>
+<span class="lineNum">     626 </span>            :   }
+<a name="627"><span class="lineNum">     627 </span>            : </a>
+<span class="lineNum">     628 </span>            :   // Assign from |do_QueryInterface(expr)|.
+<span class="lineNum">     629 </span><span class="lineNoCov">          0 :   nsCOMPtr&lt;T&gt;&amp; operator=(const nsQueryInterface aRhs)</span>
+<span class="lineNum">     630 </span>            :   {
+<span class="lineNum">     631 </span><span class="lineNoCov">          0 :     assign_from_qi(aRhs, NS_GET_TEMPLATE_IID(T));</span>
+<span class="lineNum">     632 </span><span class="lineNoCov">          0 :     return *this;</span>
+<span class="lineNum">     633 </span>            :   }
+<a name="634"><span class="lineNum">     634 </span>            : </a>
+<span class="lineNum">     635 </span>            :   // Assign from |do_QueryInterface(expr, &amp;rv)|.
+<span class="lineNum">     636 </span><span class="lineNoCov">          0 :   nsCOMPtr&lt;T&gt;&amp; operator=(const nsQueryInterfaceWithError&amp; aRhs)</span>
+<span class="lineNum">     637 </span>            :   {
+<span class="lineNum">     638 </span><span class="lineNoCov">          0 :     assign_from_qi_with_error(aRhs, NS_GET_TEMPLATE_IID(T));</span>
+<span class="lineNum">     639 </span><span class="lineNoCov">          0 :     return *this;</span>
+<span class="lineNum">     640 </span>            :   }
+<span class="lineNum">     641 </span>            : 
+<span class="lineNum">     642 </span>            :   // Assign from |do_GetService(cid_expr)|.
+<span class="lineNum">     643 </span>            :   nsCOMPtr&lt;T&gt;&amp; operator=(const nsGetServiceByCID aRhs)
+<span class="lineNum">     644 </span>            :   {
+<span class="lineNum">     645 </span>            :     assign_from_gs_cid(aRhs, NS_GET_TEMPLATE_IID(T));
+<span class="lineNum">     646 </span>            :     return *this;
+<span class="lineNum">     647 </span>            :   }
+<span class="lineNum">     648 </span>            : 
+<span class="lineNum">     649 </span>            :   // Assign from |do_GetService(cid_expr, &amp;rv)|.
+<span class="lineNum">     650 </span>            :   nsCOMPtr&lt;T&gt;&amp; operator=(const nsGetServiceByCIDWithError&amp; aRhs)
+<span class="lineNum">     651 </span>            :   {
+<span class="lineNum">     652 </span>            :     assign_from_gs_cid_with_error(aRhs, NS_GET_TEMPLATE_IID(T));
+<span class="lineNum">     653 </span>            :     return *this;
+<span class="lineNum">     654 </span>            :   }
+<a name="655"><span class="lineNum">     655 </span>            : </a>
+<span class="lineNum">     656 </span>            :   // Assign from |do_GetService(contractid_expr)|.
+<span class="lineNum">     657 </span><span class="lineCov">          1 :   nsCOMPtr&lt;T&gt;&amp; operator=(const nsGetServiceByContractID aRhs)</span>
+<span class="lineNum">     658 </span>            :   {
+<span class="lineNum">     659 </span><span class="lineCov">          1 :     assign_from_gs_contractid(aRhs, NS_GET_TEMPLATE_IID(T));</span>
+<span class="lineNum">     660 </span><span class="lineCov">          1 :     return *this;</span>
+<span class="lineNum">     661 </span>            :   }
+<a name="662"><span class="lineNum">     662 </span>            : </a>
+<span class="lineNum">     663 </span>            :   // Assign from |do_GetService(contractid_expr, &amp;rv)|.
+<span class="lineNum">     664 </span><span class="lineCov">          1 :   nsCOMPtr&lt;T&gt;&amp; operator=(const nsGetServiceByContractIDWithError&amp; aRhs)</span>
+<span class="lineNum">     665 </span>            :   {
+<span class="lineNum">     666 </span><span class="lineCov">          1 :     assign_from_gs_contractid_with_error(aRhs, NS_GET_TEMPLATE_IID(T));</span>
+<span class="lineNum">     667 </span><span class="lineCov">          1 :     return *this;</span>
+<span class="lineNum">     668 </span>            :   }
+<span class="lineNum">     669 </span>            : 
+<a name="670"><span class="lineNum">     670 </span>            :   // And finally, anything else we might need to assign from can exploit the</a>
+<span class="lineNum">     671 </span>            :   // nsCOMPtr_helper facility.
+<span class="lineNum">     672 </span><span class="lineCov">          1 :   nsCOMPtr&lt;T&gt;&amp; operator=(const nsCOMPtr_helper&amp; aRhs)</span>
+<span class="lineNum">     673 </span>            :   {
+<span class="lineNum">     674 </span><span class="lineCov">          1 :     assign_from_helper(aRhs, NS_GET_TEMPLATE_IID(T));</span>
+<span class="lineNum">     675 </span>            :     NSCAP_ASSERT_NO_QUERY_NEEDED();
+<span class="lineNum">     676 </span><span class="lineCov">          1 :     return *this;</span>
+<span class="lineNum">     677 </span>            :   }
+<span class="lineNum">     678 </span>            : 
+<span class="lineNum">     679 </span>            :   // Defined in OwningNonNull.h
+<span class="lineNum">     680 </span>            :   template&lt;class U&gt;
+<span class="lineNum">     681 </span>            :   nsCOMPtr&lt;T&gt;&amp; operator=(const mozilla::OwningNonNull&lt;U&gt;&amp; aOther);
+<span class="lineNum">     682 </span>            : 
+<span class="lineNum">     683 </span>            :   // Exchange ownership with |aRhs|; can save a pair of refcount operations.
+<span class="lineNum">     684 </span>            :   void swap(nsCOMPtr&lt;T&gt;&amp; aRhs)
+<span class="lineNum">     685 </span>            :   {
+<span class="lineNum">     686 </span>            : #ifdef NSCAP_FEATURE_USE_BASE
+<span class="lineNum">     687 </span><span class="lineCov">          1 :     nsISupports* temp = aRhs.mRawPtr;</span>
+<span class="lineNum">     688 </span>            : #else
+<span class="lineNum">     689 </span>            :     T* temp = aRhs.mRawPtr;
+<span class="lineNum">     690 </span>            : #endif
+<span class="lineNum">     691 </span>            :     NSCAP_LOG_ASSIGNMENT(&amp;aRhs, mRawPtr);
+<span class="lineNum">     692 </span>            :     NSCAP_LOG_ASSIGNMENT(this, temp);
+<span class="lineNum">     693 </span>            :     NSCAP_LOG_RELEASE(this, mRawPtr);
+<span class="lineNum">     694 </span>            :     NSCAP_LOG_RELEASE(&amp;aRhs, temp);
+<span class="lineNum">     695 </span><span class="lineCov">          1 :     aRhs.mRawPtr = mRawPtr;</span>
+<span class="lineNum">     696 </span><span class="lineCov">          1 :     mRawPtr = temp;</span>
+<span class="lineNum">     697 </span>            :     // |aRhs| maintains the same invariants, so we don't need to |NSCAP_ASSERT_NO_QUERY_NEEDED|
+<span class="lineNum">     698 </span>            :   }
+<span class="lineNum">     699 </span>            : 
+<span class="lineNum">     700 </span>            :   // Exchange ownership with |aRhs|; can save a pair of refcount operations.
+<span class="lineNum">     701 </span>            :   void swap(T*&amp; aRhs)
+<span class="lineNum">     702 </span>            :   {
+<span class="lineNum">     703 </span>            : #ifdef NSCAP_FEATURE_USE_BASE
+<span class="lineNum">     704 </span><span class="lineCov">          1 :     nsISupports* temp = aRhs;</span>
+<span class="lineNum">     705 </span>            : #else
+<span class="lineNum">     706 </span>            :     T* temp = aRhs;
+<span class="lineNum">     707 </span>            : #endif
+<span class="lineNum">     708 </span>            :     NSCAP_LOG_ASSIGNMENT(this, temp);
+<span class="lineNum">     709 </span>            :     NSCAP_LOG_RELEASE(this, mRawPtr);
+<span class="lineNum">     710 </span><span class="lineCov">          1 :     aRhs = reinterpret_cast&lt;T*&gt;(mRawPtr);</span>
+<span class="lineNum">     711 </span><span class="lineCov">          1 :     mRawPtr = temp;</span>
+<span class="lineNum">     712 </span>            :     NSCAP_ASSERT_NO_QUERY_NEEDED();
+<span class="lineNum">     713 </span>            :   }
+<span class="lineNum">     714 </span>            : 
+<span class="lineNum">     715 </span>            : 
+<span class="lineNum">     716 </span>            :   // Other pointer operators
+<span class="lineNum">     717 </span>            : 
+<span class="lineNum">     718 </span>            :   // Return the value of mRawPtr and null out mRawPtr. Useful for
+<span class="lineNum">     719 </span>            :   // already_AddRefed return values.
+<span class="lineNum">     720 </span>            :   already_AddRefed&lt;T&gt; MOZ_MAY_CALL_AFTER_MUST_RETURN forget()
+<span class="lineNum">     721 </span>            :   {
+<span class="lineNum">     722 </span><span class="lineCov">          1 :     T* temp = nullptr;</span>
+<span class="lineNum">     723 </span>            :     swap(temp);
+<span class="lineNum">     724 </span><span class="lineCov">          1 :     return already_AddRefed&lt;T&gt;(temp);</span>
+<span class="lineNum">     725 </span>            :   }
+<span class="lineNum">     726 </span>            : 
+<span class="lineNum">     727 </span>            :   // Set the target of aRhs to the value of mRawPtr and null out mRawPtr.
+<span class="lineNum">     728 </span>            :   // Useful to avoid unnecessary AddRef/Release pairs with &quot;out&quot; parameters
+<span class="lineNum">     729 </span>            :   // where aRhs bay be a T** or an I** where I is a base class of T.
+<span class="lineNum">     730 </span>            :   template&lt;typename I&gt;
+<span class="lineNum">     731 </span>            :   void forget(I** aRhs)
+<span class="lineNum">     732 </span>            :   {
+<span class="lineNum">     733 </span>            :     NS_ASSERTION(aRhs, &quot;Null pointer passed to forget!&quot;);
+<span class="lineNum">     734 </span>            :     NSCAP_LOG_RELEASE(this, mRawPtr);
+<span class="lineNum">     735 </span><span class="lineCov">          1 :     *aRhs = get();</span>
+<span class="lineNum">     736 </span><span class="lineCov">          1 :     mRawPtr = nullptr;</span>
+<span class="lineNum">     737 </span>            :   }
+<span class="lineNum">     738 </span>            : 
+<span class="lineNum">     739 </span>            :   // Prefer the implicit conversion provided automatically by
+<span class="lineNum">     740 </span>            :   // |operator T*() const|. Use |get()| to resolve ambiguity or to get a
+<span class="lineNum">     741 </span>            :   // castable pointer.
+<span class="lineNum">     742 </span><span class="lineCov">          1 :   T* get() const { return reinterpret_cast&lt;T*&gt;(mRawPtr); }</span>
+<span class="lineNum">     743 </span>            : 
+<span class="lineNum">     744 </span>            :   // Makes an nsCOMPtr act like its underlying raw pointer type whenever it is
+<span class="lineNum">     745 </span>            :   // used in a context where a raw pointer is expected. It is this operator
+<span class="lineNum">     746 </span>            :   // that makes an nsCOMPtr substitutable for a raw pointer.
+<span class="lineNum">     747 </span>            :   //
+<span class="lineNum">     748 </span>            :   // Prefer the implicit use of this operator to calling |get()|, except where
+<span class="lineNum">     749 </span>            :   // necessary to resolve ambiguity.
+<span class="lineNum">     750 </span>            :   operator T*() const &amp; { return get(); }
+<span class="lineNum">     751 </span>            : 
+<span class="lineNum">     752 </span>            :   // Don't allow implicit conversion of temporary nsCOMPtr to raw pointer,
+<span class="lineNum">     753 </span>            :   // because the refcount might be one and the pointer will immediately become
+<span class="lineNum">     754 </span>            :   // invalid.
+<span class="lineNum">     755 </span>            :   operator T*() const &amp;&amp; = delete;
+<span class="lineNum">     756 </span>            : 
+<span class="lineNum">     757 </span>            :   // Needed to avoid the deleted operator above
+<span class="lineNum">     758 </span><span class="lineCov">          1 :   explicit operator bool() const { return !!mRawPtr; }</span>
+<span class="lineNum">     759 </span>            : 
+<span class="lineNum">     760 </span>            :   T* operator-&gt;() const MOZ_NO_ADDREF_RELEASE_ON_RETURN
+<span class="lineNum">     761 </span>            :   {
+<span class="lineNum">     762 </span>            :     MOZ_ASSERT(mRawPtr != nullptr,
+<span class="lineNum">     763 </span>            :                &quot;You can't dereference a NULL nsCOMPtr with operator-&gt;().&quot;);
+<span class="lineNum">     764 </span>            :     return get();
+<span class="lineNum">     765 </span>            :   }
+<span class="lineNum">     766 </span>            : 
+<span class="lineNum">     767 </span>            :   // These are not intended to be used by clients. See |address_of| below.
+<span class="lineNum">     768 </span>            :   nsCOMPtr&lt;T&gt;* get_address() { return this; }
+<span class="lineNum">     769 </span>            :   const nsCOMPtr&lt;T&gt;* get_address() const { return this; }
+<span class="lineNum">     770 </span>            : 
+<span class="lineNum">     771 </span>            : public:
+<span class="lineNum">     772 </span>            :   T&amp; operator*() const
+<span class="lineNum">     773 </span>            :   {
+<span class="lineNum">     774 </span>            :     MOZ_ASSERT(mRawPtr != nullptr,
+<span class="lineNum">     775 </span>            :                &quot;You can't dereference a NULL nsCOMPtr with operator*().&quot;);
+<span class="lineNum">     776 </span>            :     return *get();
+<span class="lineNum">     777 </span>            :   }
+<span class="lineNum">     778 </span>            : 
+<span class="lineNum">     779 </span>            :   T** StartAssignment()
+<span class="lineNum">     780 </span>            :   {
+<span class="lineNum">     781 </span>            : #ifndef NSCAP_FEATURE_INLINE_STARTASSIGNMENT
+<span class="lineNum">     782 </span><span class="lineCov">          1 :     return reinterpret_cast&lt;T**&gt;(begin_assignment());</span>
+<span class="lineNum">     783 </span>            : #else
+<span class="lineNum">     784 </span>            :     assign_assuming_AddRef(nullptr);
+<span class="lineNum">     785 </span>            :     return reinterpret_cast&lt;T**&gt;(&amp;mRawPtr);
+<span class="lineNum">     786 </span>            : #endif
+<span class="lineNum">     787 </span>            :   }
+<span class="lineNum">     788 </span>            : };
+<span class="lineNum">     789 </span>            : 
+<span class="lineNum">     790 </span>            : 
+<span class="lineNum">     791 </span>            : /*
+<span class="lineNum">     792 </span>            :  * Specializing nsCOMPtr for nsISupports allows us to use nsCOMPtr&lt;nsISupports&gt;
+<span class="lineNum">     793 </span>            :  * the same way people use nsISupports* and void*, i.e., as a `catch-all'
+<span class="lineNum">     794 </span>            :  * pointing to any valid [XP]COM interface. Otherwise, an nsCOMPtr&lt;nsISupports&gt;
+<span class="lineNum">     795 </span>            :  * would only be able to point to the single [XP]COM-correct nsISupports
+<span class="lineNum">     796 </span>            :  * instance within an object; extra querying ensues. Clients need to be able to
+<span class="lineNum">     797 </span>            :  * pass around arbitrary interface pointers, without hassles, through
+<span class="lineNum">     798 </span>            :  * intermediary code that doesn't know the exact type.
+<span class="lineNum">     799 </span>            :  */
+<span class="lineNum">     800 </span>            : template&lt;&gt;
+<span class="lineNum">     801 </span><span class="lineCov">          1 : class nsCOMPtr&lt;nsISupports&gt;</span>
+<span class="lineNum">     802 </span>            :   : private nsCOMPtr_base
+<span class="lineNum">     803 </span>            : {
+<span class="lineNum">     804 </span>            : public:
+<span class="lineNum">     805 </span>            :   typedef nsISupports element_type;
+<span class="lineNum">     806 </span>            : 
+<span class="lineNum">     807 </span>            :   // Constructors
+<span class="lineNum">     808 </span>            : 
+<span class="lineNum">     809 </span>            :   nsCOMPtr()
+<span class="lineNum">     810 </span><span class="lineCov">          1 :     : nsCOMPtr_base(nullptr)</span>
+<span class="lineNum">     811 </span>            :   {
+<span class="lineNum">     812 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<span class="lineNum">     813 </span>            :   }
+<span class="lineNum">     814 </span>            : 
+<span class="lineNum">     815 </span>            :   MOZ_IMPLICIT nsCOMPtr(decltype(nullptr))
+<span class="lineNum">     816 </span><span class="lineNoCov">          0 :     : nsCOMPtr_base(nullptr)</span>
+<span class="lineNum">     817 </span>            :   {
+<span class="lineNum">     818 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<a name="819"><span class="lineNum">     819 </span>            :   }</a>
+<span class="lineNum">     820 </span>            : 
+<span class="lineNum">     821 </span><span class="lineNoCov">          0 :   nsCOMPtr(const nsCOMPtr&lt;nsISupports&gt;&amp; aSmartPtr)</span>
+<span class="lineNum">     822 </span><span class="lineNoCov">          0 :     : nsCOMPtr_base(aSmartPtr.mRawPtr)</span>
+<span class="lineNum">     823 </span>            :   {
+<span class="lineNum">     824 </span><span class="lineNoCov">          0 :     if (mRawPtr) {</span>
+<span class="lineNum">     825 </span><span class="lineNoCov">          0 :       NSCAP_ADDREF(this, mRawPtr);</span>
+<span class="lineNum">     826 </span>            :     }
+<span class="lineNum">     827 </span>            :     NSCAP_LOG_ASSIGNMENT(this, aSmartPtr.mRawPtr);
+<a name="828"><span class="lineNum">     828 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">     829 </span>            : 
+<span class="lineNum">     830 </span><span class="lineCov">          1 :   MOZ_IMPLICIT nsCOMPtr(nsISupports* aRawPtr)</span>
+<span class="lineNum">     831 </span><span class="lineCov">          1 :     : nsCOMPtr_base(aRawPtr)</span>
+<span class="lineNum">     832 </span>            :   {
+<span class="lineNum">     833 </span><span class="lineCov">          1 :     if (mRawPtr) {</span>
+<span class="lineNum">     834 </span><span class="lineCov">          1 :       NSCAP_ADDREF(this, mRawPtr);</span>
+<span class="lineNum">     835 </span>            :     }
+<span class="lineNum">     836 </span>            :     NSCAP_LOG_ASSIGNMENT(this, aRawPtr);
+<span class="lineNum">     837 </span><span class="lineCov">          1 :   }</span>
+<span class="lineNum">     838 </span>            : 
+<span class="lineNum">     839 </span>            :   // Construct from |already_AddRefed|.
+<span class="lineNum">     840 </span>            :   MOZ_IMPLICIT nsCOMPtr(already_AddRefed&lt;nsISupports&gt;&amp; aSmartPtr)
+<span class="lineNum">     841 </span>            :     : nsCOMPtr_base(aSmartPtr.take())
+<span class="lineNum">     842 </span>            :   {
+<span class="lineNum">     843 </span>            :     NSCAP_LOG_ASSIGNMENT(this, mRawPtr);
+<span class="lineNum">     844 </span>            :   }
+<span class="lineNum">     845 </span>            : 
+<span class="lineNum">     846 </span>            :   // Construct from |otherComPtr.forget()|.
+<span class="lineNum">     847 </span>            :   MOZ_IMPLICIT nsCOMPtr(already_AddRefed&lt;nsISupports&gt;&amp;&amp; aSmartPtr)
+<span class="lineNum">     848 </span>            :     : nsCOMPtr_base(aSmartPtr.take())
+<span class="lineNum">     849 </span>            :   {
+<span class="lineNum">     850 </span>            :     NSCAP_LOG_ASSIGNMENT(this, mRawPtr);
+<span class="lineNum">     851 </span>            :   }
+<a name="852"><span class="lineNum">     852 </span>            : </a>
+<span class="lineNum">     853 </span>            :   // Construct from |do_QueryInterface(expr)|.
+<span class="lineNum">     854 </span><span class="lineNoCov">          0 :   MOZ_IMPLICIT nsCOMPtr(const nsQueryInterface aQI)</span>
+<span class="lineNum">     855 </span><span class="lineNoCov">          0 :     : nsCOMPtr_base(nullptr)</span>
+<span class="lineNum">     856 </span>            :   {
+<span class="lineNum">     857 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<span class="lineNum">     858 </span><span class="lineNoCov">          0 :     assign_from_qi(aQI, NS_GET_IID(nsISupports));</span>
+<span class="lineNum">     859 </span><span class="lineNoCov">          0 :   }</span>
+<span class="lineNum">     860 </span>            : 
+<span class="lineNum">     861 </span>            :   // Construct from |do_QueryInterface(expr, &amp;rv)|.
+<span class="lineNum">     862 </span>            :   MOZ_IMPLICIT nsCOMPtr(const nsQueryInterfaceWithError&amp; aQI)
+<span class="lineNum">     863 </span>            :     : nsCOMPtr_base(nullptr)
+<span class="lineNum">     864 </span>            :   {
+<span class="lineNum">     865 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<span class="lineNum">     866 </span>            :     assign_from_qi_with_error(aQI, NS_GET_IID(nsISupports));
+<span class="lineNum">     867 </span>            :   }
+<span class="lineNum">     868 </span>            : 
+<span class="lineNum">     869 </span>            :   // Construct from |do_GetService(cid_expr)|.
+<span class="lineNum">     870 </span>            :   MOZ_IMPLICIT nsCOMPtr(const nsGetServiceByCID aGS)
+<span class="lineNum">     871 </span>            :     : nsCOMPtr_base(nullptr)
+<span class="lineNum">     872 </span>            :   {
+<span class="lineNum">     873 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<span class="lineNum">     874 </span>            :     assign_from_gs_cid(aGS, NS_GET_IID(nsISupports));
+<span class="lineNum">     875 </span>            :   }
+<span class="lineNum">     876 </span>            : 
+<span class="lineNum">     877 </span>            :   // Construct from |do_GetService(cid_expr, &amp;rv)|.
+<span class="lineNum">     878 </span>            :   MOZ_IMPLICIT nsCOMPtr(const nsGetServiceByCIDWithError&amp; aGS)
+<span class="lineNum">     879 </span>            :     : nsCOMPtr_base(nullptr)
+<span class="lineNum">     880 </span>            :   {
+<span class="lineNum">     881 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<span class="lineNum">     882 </span>            :     assign_from_gs_cid_with_error(aGS, NS_GET_IID(nsISupports));
+<span class="lineNum">     883 </span>            :   }
+<a name="884"><span class="lineNum">     884 </span>            : </a>
+<span class="lineNum">     885 </span>            :   // Construct from |do_GetService(contractid_expr)|.
+<span class="lineNum">     886 </span><span class="lineCov">          1 :   MOZ_IMPLICIT nsCOMPtr(const nsGetServiceByContractID aGS)</span>
+<span class="lineNum">     887 </span><span class="lineCov">          1 :     : nsCOMPtr_base(nullptr)</span>
+<span class="lineNum">     888 </span>            :   {
+<span class="lineNum">     889 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<span class="lineNum">     890 </span><span class="lineCov">          1 :     assign_from_gs_contractid(aGS, NS_GET_IID(nsISupports));</span>
+<span class="lineNum">     891 </span><span class="lineCov">          1 :   }</span>
+<span class="lineNum">     892 </span>            : 
+<span class="lineNum">     893 </span>            :   // Construct from |do_GetService(contractid_expr, &amp;rv)|.
+<span class="lineNum">     894 </span>            :   MOZ_IMPLICIT nsCOMPtr(const nsGetServiceByContractIDWithError&amp; aGS)
+<span class="lineNum">     895 </span>            :     : nsCOMPtr_base(nullptr)
+<span class="lineNum">     896 </span>            :   {
+<span class="lineNum">     897 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<span class="lineNum">     898 </span>            :     assign_from_gs_contractid_with_error(aGS, NS_GET_IID(nsISupports));
+<span class="lineNum">     899 </span>            :   }
+<span class="lineNum">     900 </span>            : 
+<span class="lineNum">     901 </span>            :   // And finally, anything else we might need to construct from can exploit
+<span class="lineNum">     902 </span>            :   // the |nsCOMPtr_helper| facility
+<span class="lineNum">     903 </span>            :   MOZ_IMPLICIT nsCOMPtr(const nsCOMPtr_helper&amp; aHelper)
+<span class="lineNum">     904 </span>            :     : nsCOMPtr_base(nullptr)
+<span class="lineNum">     905 </span>            :   {
+<span class="lineNum">     906 </span>            :     NSCAP_LOG_ASSIGNMENT(this, nullptr);
+<span class="lineNum">     907 </span>            :     assign_from_helper(aHelper, NS_GET_IID(nsISupports));
+<span class="lineNum">     908 </span>            :   }
+<span class="lineNum">     909 </span>            : 
+<span class="lineNum">     910 </span>            : 
+<a name="911"><span class="lineNum">     911 </span>            :   // Assignment operators</a>
+<span class="lineNum">     912 </span>            : 
+<span class="lineNum">     913 </span><span class="lineNoCov">          0 :   nsCOMPtr&lt;nsISupports&gt;&amp; operator=(const nsCOMPtr&lt;nsISupports&gt;&amp; aRhs)</span>
+<span class="lineNum">     914 </span>            :   {
+<span class="lineNum">     915 </span><span class="lineNoCov">          0 :     assign_with_AddRef(aRhs.mRawPtr);</span>
+<span class="lineNum">     916 </span><span class="lineNoCov">          0 :     return *this;</span>
+<span class="lineNum">     917 </span>            :   }
+<span class="lineNum">     918 </span>            : 
+<span class="lineNum">     919 </span>            :   nsCOMPtr&lt;nsISupports&gt;&amp; operator=(nsISupports* aRhs)
+<span class="lineNum">     920 </span>            :   {
+<span class="lineNum">     921 </span><span class="lineCov">          1 :     assign_with_AddRef(aRhs);</span>
+<span class="lineNum">     922 </span>            :     return *this;
+<a name="923"><span class="lineNum">     923 </span>            :   }</a>
+<span class="lineNum">     924 </span>            : 
+<span class="lineNum">     925 </span><span class="lineCov">          1 :   nsCOMPtr&lt;nsISupports&gt;&amp; operator=(decltype(nullptr))</span>
+<span class="lineNum">     926 </span>            :   {
+<span class="lineNum">     927 </span><span class="lineCov">          1 :     assign_assuming_AddRef(nullptr);</span>
+<span class="lineNum">     928 </span><span class="lineCov">          1 :     return *this;</span>
+<span class="lineNum">     929 </span>            :   }
+<span class="lineNum">     930 </span>            : 
+<span class="lineNum">     931 </span>            :   // Assign from |already_AddRefed|.
+<span class="lineNum">     932 </span>            :   nsCOMPtr&lt;nsISupports&gt;&amp; operator=(already_AddRefed&lt;nsISupports&gt;&amp; aRhs)
+<span class="lineNum">     933 </span>            :   {
+<span class="lineNum">     934 </span>            :     assign_assuming_AddRef(aRhs.take());
+<span class="lineNum">     935 </span>            :     return *this;
+<span class="lineNum">     936 </span>            :   }
+<a name="937"><span class="lineNum">     937 </span>            : </a>
+<span class="lineNum">     938 </span>            :   // Assign from |otherComPtr.forget()|.
+<span class="lineNum">     939 </span><span class="lineNoCov">          0 :   nsCOMPtr&lt;nsISupports&gt;&amp; operator=(already_AddRefed&lt;nsISupports&gt;&amp;&amp; aRhs)</span>
+<span class="lineNum">     940 </span>            :   {
+<span class="lineNum">     941 </span><span class="lineNoCov">          0 :     assign_assuming_AddRef(aRhs.take());</span>
+<span class="lineNum">     942 </span><span class="lineNoCov">          0 :     return *this;</span>
+<span class="lineNum">     943 </span>            :   }
+<span class="lineNum">     944 </span>            : 
+<span class="lineNum">     945 </span>            :   // Assign from |do_QueryInterface(expr)|.
+<span class="lineNum">     946 </span>            :   nsCOMPtr&lt;nsISupports&gt;&amp; operator=(const nsQueryInterface aRhs)
+<span class="lineNum">     947 </span>            :   {
+<span class="lineNum">     948 </span>            :     assign_from_qi(aRhs, NS_GET_IID(nsISupports));
+<span class="lineNum">     949 </span>            :     return *this;
+<span class="lineNum">     950 </span>            :   }
+<span class="lineNum">     951 </span>            : 
+<span class="lineNum">     952 </span>            :   // Assign from |do_QueryInterface(expr, &amp;rv)|.
+<span class="lineNum">     953 </span>            :   nsCOMPtr&lt;nsISupports&gt;&amp; operator=(const nsQueryInterfaceWithError&amp; aRhs)
+<span class="lineNum">     954 </span>            :   {
+<span class="lineNum">     955 </span>            :     assign_from_qi_with_error(aRhs, NS_GET_IID(nsISupports));
+<span class="lineNum">     956 </span>            :     return *this;
+<span class="lineNum">     957 </span>            :   }
+<span class="lineNum">     958 </span>            : 
+<span class="lineNum">     959 </span>            :   // Assign from |do_GetService(cid_expr)|.
+<span class="lineNum">     960 </span>            :   nsCOMPtr&lt;nsISupports&gt;&amp; operator=(const nsGetServiceByCID aRhs)
+<span class="lineNum">     961 </span>            :   {
+<span class="lineNum">     962 </span>            :     assign_from_gs_cid(aRhs, NS_GET_IID(nsISupports));
+<span class="lineNum">     963 </span>            :     return *this;
+<span class="lineNum">     964 </span>            :   }
+<span class="lineNum">     965 </span>            : 
+<span class="lineNum">     966 </span>            :   // Assign from |do_GetService(cid_expr, &amp;rv)|.
+<span class="lineNum">     967 </span>            :   nsCOMPtr&lt;nsISupports&gt;&amp; operator=(const nsGetServiceByCIDWithError&amp; aRhs)
+<span class="lineNum">     968 </span>            :   {
+<span class="lineNum">     969 </span>            :     assign_from_gs_cid_with_error(aRhs, NS_GET_IID(nsISupports));
+<span class="lineNum">     970 </span>            :     return *this;
+<span class="lineNum">     971 </span>            :   }
+<span class="lineNum">     972 </span>            : 
+<span class="lineNum">     973 </span>            :   // Assign from |do_GetService(contractid_expr)|.
+<span class="lineNum">     974 </span>            :   nsCOMPtr&lt;nsISupports&gt;&amp; operator=(const nsGetServiceByContractID aRhs)
+<span class="lineNum">     975 </span>            :   {
+<span class="lineNum">     976 </span>            :     assign_from_gs_contractid(aRhs, NS_GET_IID(nsISupports));
+<span class="lineNum">     977 </span>            :     return *this;
+<span class="lineNum">     978 </span>            :   }
+<span class="lineNum">     979 </span>            : 
+<span class="lineNum">     980 </span>            :   // Assign from |do_GetService(contractid_expr, &amp;rv)|.
+<span class="lineNum">     981 </span>            :   nsCOMPtr&lt;nsISupports&gt;&amp; operator=(const nsGetServiceByContractIDWithError&amp; aRhs)
+<span class="lineNum">     982 </span>            :   {
+<span class="lineNum">     983 </span>            :     assign_from_gs_contractid_with_error(aRhs, NS_GET_IID(nsISupports));
+<span class="lineNum">     984 </span>            :     return *this;
+<span class="lineNum">     985 </span>            :   }
+<span class="lineNum">     986 </span>            : 
+<span class="lineNum">     987 </span>            :   // And finally, anything else we might need to assign from can exploit the
+<span class="lineNum">     988 </span>            :   // nsCOMPtr_helper facility
+<span class="lineNum">     989 </span>            :   nsCOMPtr&lt;nsISupports&gt;&amp; operator=(const nsCOMPtr_helper&amp; aRhs)
+<span class="lineNum">     990 </span>            :   {
+<span class="lineNum">     991 </span>            :     assign_from_helper(aRhs, NS_GET_IID(nsISupports));
+<span class="lineNum">     992 </span>            :     return *this;
+<span class="lineNum">     993 </span>            :   }
+<span class="lineNum">     994 </span>            : 
+<span class="lineNum">     995 </span>            :   // Exchange ownership with |aRhs|; can save a pair of refcount operations.
+<span class="lineNum">     996 </span>            :   void swap(nsCOMPtr&lt;nsISupports&gt;&amp; aRhs)
+<span class="lineNum">     997 </span>            :   {
+<span class="lineNum">     998 </span><span class="lineCov">          1 :     nsISupports* temp = aRhs.mRawPtr;</span>
+<span class="lineNum">     999 </span>            :     NSCAP_LOG_ASSIGNMENT(&amp;aRhs, mRawPtr);
+<span class="lineNum">    1000 </span>            :     NSCAP_LOG_ASSIGNMENT(this, temp);
+<span class="lineNum">    1001 </span>            :     NSCAP_LOG_RELEASE(this, mRawPtr);
+<span class="lineNum">    1002 </span>            :     NSCAP_LOG_RELEASE(&amp;aRhs, temp);
+<span class="lineNum">    1003 </span><span class="lineCov">          1 :     aRhs.mRawPtr = mRawPtr;</span>
+<span class="lineNum">    1004 </span><span class="lineCov">          1 :     mRawPtr = temp;</span>
+<span class="lineNum">    1005 </span>            :   }
+<span class="lineNum">    1006 </span>            : 
+<span class="lineNum">    1007 </span>            :   // Exchange ownership with |aRhs|; can save a pair of refcount operations.
+<span class="lineNum">    1008 </span>            :   void swap(nsISupports*&amp; aRhs)
+<span class="lineNum">    1009 </span>            :   {
+<span class="lineNum">    1010 </span><span class="lineCov">          1 :     nsISupports* temp = aRhs;</span>
+<span class="lineNum">    1011 </span>            :     NSCAP_LOG_ASSIGNMENT(this, temp);
+<span class="lineNum">    1012 </span>            :     NSCAP_LOG_RELEASE(this, mRawPtr);
+<span class="lineNum">    1013 </span><span class="lineCov">          1 :     aRhs = mRawPtr;</span>
+<span class="lineNum">    1014 </span><span class="lineCov">          1 :     mRawPtr = temp;</span>
+<span class="lineNum">    1015 </span>            :   }
+<span class="lineNum">    1016 </span>            : 
+<span class="lineNum">    1017 </span>            :   // Return the value of mRawPtr and null out mRawPtr. Useful for
+<span class="lineNum">    1018 </span>            :   // already_AddRefed return values.
+<span class="lineNum">    1019 </span>            :   already_AddRefed&lt;nsISupports&gt; forget()
+<span class="lineNum">    1020 </span>            :   {
+<span class="lineNum">    1021 </span><span class="lineCov">          1 :     nsISupports* temp = nullptr;</span>
+<span class="lineNum">    1022 </span>            :     swap(temp);
+<span class="lineNum">    1023 </span><span class="lineCov">          1 :     return already_AddRefed&lt;nsISupports&gt;(temp);</span>
+<span class="lineNum">    1024 </span>            :   }
+<span class="lineNum">    1025 </span>            : 
+<span class="lineNum">    1026 </span>            :   // Set the target of aRhs to the value of mRawPtr and null out mRawPtr.
+<span class="lineNum">    1027 </span>            :   // Useful to avoid unnecessary AddRef/Release pairs with &quot;out&quot;
+<span class="lineNum">    1028 </span>            :   // parameters.
+<span class="lineNum">    1029 </span>            :   void forget(nsISupports** aRhs)
+<span class="lineNum">    1030 </span>            :   {
+<span class="lineNum">    1031 </span>            :     NS_ASSERTION(aRhs, &quot;Null pointer passed to forget!&quot;);
+<span class="lineNum">    1032 </span>            :     *aRhs = nullptr;
+<span class="lineNum">    1033 </span>            :     swap(*aRhs);
+<span class="lineNum">    1034 </span>            :   }
+<span class="lineNum">    1035 </span>            : 
+<span class="lineNum">    1036 </span>            :   // Other pointer operators
+<span class="lineNum">    1037 </span>            : 
+<span class="lineNum">    1038 </span>            :   // Prefer the implicit conversion provided automatically by
+<span class="lineNum">    1039 </span>            :   // |operator nsISupports*() const|. Use |get()| to resolve ambiguity or to
+<span class="lineNum">    1040 </span>            :   // get a castable pointer.
+<span class="lineNum">    1041 </span><span class="lineCov">          1 :   nsISupports* get() const { return reinterpret_cast&lt;nsISupports*&gt;(mRawPtr); }</span>
+<span class="lineNum">    1042 </span>            : 
+<span class="lineNum">    1043 </span>            :   // Makes an nsCOMPtr act like its underlying raw pointer type whenever it is
+<span class="lineNum">    1044 </span>            :   // used in a context where a raw pointer is expected. It is this operator
+<span class="lineNum">    1045 </span>            :   // that makes an nsCOMPtr substitutable for a raw pointer.
+<span class="lineNum">    1046 </span>            :   //
+<span class="lineNum">    1047 </span>            :   // Prefer the implicit use of this operator to calling |get()|, except where
+<span class="lineNum">    1048 </span>            :   // necessary to resolve ambiguity/
+<span class="lineNum">    1049 </span>            :   operator nsISupports* () const { return get(); }
+<span class="lineNum">    1050 </span>            : 
+<span class="lineNum">    1051 </span>            :   nsISupports* operator-&gt;() const MOZ_NO_ADDREF_RELEASE_ON_RETURN
+<span class="lineNum">    1052 </span>            :   {
+<span class="lineNum">    1053 </span>            :     MOZ_ASSERT(mRawPtr != nullptr,
+<span class="lineNum">    1054 </span>            :                &quot;You can't dereference a NULL nsCOMPtr with operator-&gt;().&quot;);
+<span class="lineNum">    1055 </span>            :     return get();
+<span class="lineNum">    1056 </span>            :   }
+<span class="lineNum">    1057 </span>            : 
+<span class="lineNum">    1058 </span>            :   // These are not intended to be used by clients. See |address_of| below.
+<span class="lineNum">    1059 </span>            :   nsCOMPtr&lt;nsISupports&gt;* get_address() { return this; }
+<span class="lineNum">    1060 </span>            :   const nsCOMPtr&lt;nsISupports&gt;* get_address() const { return this; }
+<span class="lineNum">    1061 </span>            : 
+<span class="lineNum">    1062 </span>            : public:
+<span class="lineNum">    1063 </span>            : 
+<span class="lineNum">    1064 </span>            :   nsISupports&amp; operator*() const
+<span class="lineNum">    1065 </span>            :   {
+<span class="lineNum">    1066 </span>            :     MOZ_ASSERT(mRawPtr != nullptr,
+<span class="lineNum">    1067 </span>            :                &quot;You can't dereference a NULL nsCOMPtr with operator*().&quot;);
+<span class="lineNum">    1068 </span>            :     return *get();
+<span class="lineNum">    1069 </span>            :   }
+<span class="lineNum">    1070 </span>            : 
+<span class="lineNum">    1071 </span>            :   nsISupports** StartAssignment()
+<span class="lineNum">    1072 </span>            :   {
+<span class="lineNum">    1073 </span>            : #ifndef NSCAP_FEATURE_INLINE_STARTASSIGNMENT
+<span class="lineNum">    1074 </span><span class="lineCov">          1 :     return reinterpret_cast&lt;nsISupports**&gt;(begin_assignment());</span>
+<span class="lineNum">    1075 </span>            : #else
+<span class="lineNum">    1076 </span>            :     assign_assuming_AddRef(nullptr);
+<span class="lineNum">    1077 </span>            :     return reinterpret_cast&lt;nsISupports**&gt;(&amp;mRawPtr);
+<span class="lineNum">    1078 </span>            : #endif
+<span class="lineNum">    1079 </span>            :   }
+<span class="lineNum">    1080 </span>            : };
+<span class="lineNum">    1081 </span>            : 
+<span class="lineNum">    1082 </span>            : template&lt;typename T&gt;
+<span class="lineNum">    1083 </span>            : inline void
+<span class="lineNum">    1084 </span>            : ImplCycleCollectionUnlink(nsCOMPtr&lt;T&gt;&amp; aField)
+<span class="lineNum">    1085 </span>            : {
+<span class="lineNum">    1086 </span><span class="lineNoCov">          0 :   aField = nullptr;</span>
+<span class="lineNum">    1087 </span>            : }
+<span class="lineNum">    1088 </span>            : 
+<a name="1089"><span class="lineNum">    1089 </span>            : template&lt;typename T&gt;</a>
+<span class="lineNum">    1090 </span>            : inline void
+<span class="lineNum">    1091 </span><span class="lineNoCov">          0 : ImplCycleCollectionTraverse(nsCycleCollectionTraversalCallback&amp; aCallback,</span>
+<span class="lineNum">    1092 </span>            :                             nsCOMPtr&lt;T&gt;&amp; aField,
+<span class="lineNum">    1093 </span>            :                             const char* aName,
+<span class="lineNum">    1094 </span>            :                             uint32_t aFlags = 0)
+<span class="lineNum">    1095 </span>            : {
+<span class="lineNum">    1096 </span><span class="lineNoCov">          0 :   CycleCollectionNoteChild(aCallback, aField.get(), aName, aFlags);</span>
+<span class="lineNum">    1097 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">    1098 </span>            : 
+<span class="lineNum">    1099 </span>            : #ifndef NSCAP_FEATURE_USE_BASE
+<span class="lineNum">    1100 </span>            : template&lt;class T&gt;
+<span class="lineNum">    1101 </span>            : void
+<span class="lineNum">    1102 </span>            : nsCOMPtr&lt;T&gt;::assign_with_AddRef(nsISupports* aRawPtr)
+<span class="lineNum">    1103 </span>            : {
+<span class="lineNum">    1104 </span>            :   if (aRawPtr) {
+<span class="lineNum">    1105 </span>            :     NSCAP_ADDREF(this, aRawPtr);
+<span class="lineNum">    1106 </span>            :   }
+<span class="lineNum">    1107 </span>            :   assign_assuming_AddRef(reinterpret_cast&lt;T*&gt;(aRawPtr));
+<span class="lineNum">    1108 </span>            : }
+<span class="lineNum">    1109 </span>            : 
+<span class="lineNum">    1110 </span>            : template&lt;class T&gt;
+<span class="lineNum">    1111 </span>            : void
+<span class="lineNum">    1112 </span>            : nsCOMPtr&lt;T&gt;::assign_from_qi(const nsQueryInterface aQI, const nsIID&amp; aIID)
+<span class="lineNum">    1113 </span>            : {
+<span class="lineNum">    1114 </span>            :   void* newRawPtr;
+<span class="lineNum">    1115 </span>            :   if (NS_FAILED(aQI(aIID, &amp;newRawPtr))) {
+<span class="lineNum">    1116 </span>            :     newRawPtr = nullptr;
+<span class="lineNum">    1117 </span>            :   }
+<span class="lineNum">    1118 </span>            :   assign_assuming_AddRef(static_cast&lt;T*&gt;(newRawPtr));
+<span class="lineNum">    1119 </span>            : }
+<span class="lineNum">    1120 </span>            : 
+<span class="lineNum">    1121 </span>            : template&lt;class T&gt;
+<span class="lineNum">    1122 </span>            : void
+<span class="lineNum">    1123 </span>            : nsCOMPtr&lt;T&gt;::assign_from_qi_with_error(const nsQueryInterfaceWithError&amp; aQI,
+<span class="lineNum">    1124 </span>            :                                        const nsIID&amp; aIID)
+<span class="lineNum">    1125 </span>            : {
+<span class="lineNum">    1126 </span>            :   void* newRawPtr;
+<span class="lineNum">    1127 </span>            :   if (NS_FAILED(aQI(aIID, &amp;newRawPtr))) {
+<span class="lineNum">    1128 </span>            :     newRawPtr = nullptr;
+<span class="lineNum">    1129 </span>            :   }
+<span class="lineNum">    1130 </span>            :   assign_assuming_AddRef(static_cast&lt;T*&gt;(newRawPtr));
+<span class="lineNum">    1131 </span>            : }
+<span class="lineNum">    1132 </span>            : 
+<span class="lineNum">    1133 </span>            : template&lt;class T&gt;
+<span class="lineNum">    1134 </span>            : void
+<span class="lineNum">    1135 </span>            : nsCOMPtr&lt;T&gt;::assign_from_gs_cid(const nsGetServiceByCID aGS, const nsIID&amp; aIID)
+<span class="lineNum">    1136 </span>            : {
+<span class="lineNum">    1137 </span>            :   void* newRawPtr;
+<span class="lineNum">    1138 </span>            :   if (NS_FAILED(aGS(aIID, &amp;newRawPtr))) {
+<span class="lineNum">    1139 </span>            :     newRawPtr = nullptr;
+<span class="lineNum">    1140 </span>            :   }
+<span class="lineNum">    1141 </span>            :   assign_assuming_AddRef(static_cast&lt;T*&gt;(newRawPtr));
+<span class="lineNum">    1142 </span>            : }
+<span class="lineNum">    1143 </span>            : 
+<span class="lineNum">    1144 </span>            : template&lt;class T&gt;
+<span class="lineNum">    1145 </span>            : void
+<span class="lineNum">    1146 </span>            : nsCOMPtr&lt;T&gt;::assign_from_gs_cid_with_error(const nsGetServiceByCIDWithError&amp; aGS,
+<span class="lineNum">    1147 </span>            :                                            const nsIID&amp; aIID)
+<span class="lineNum">    1148 </span>            : {
+<span class="lineNum">    1149 </span>            :   void* newRawPtr;
+<span class="lineNum">    1150 </span>            :   if (NS_FAILED(aGS(aIID, &amp;newRawPtr))) {
+<span class="lineNum">    1151 </span>            :     newRawPtr = nullptr;
+<span class="lineNum">    1152 </span>            :   }
+<span class="lineNum">    1153 </span>            :   assign_assuming_AddRef(static_cast&lt;T*&gt;(newRawPtr));
+<span class="lineNum">    1154 </span>            : }
+<span class="lineNum">    1155 </span>            : 
+<span class="lineNum">    1156 </span>            : template&lt;class T&gt;
+<span class="lineNum">    1157 </span>            : void
+<span class="lineNum">    1158 </span>            : nsCOMPtr&lt;T&gt;::assign_from_gs_contractid(const nsGetServiceByContractID aGS,
+<span class="lineNum">    1159 </span>            :                                        const nsIID&amp; aIID)
+<span class="lineNum">    1160 </span>            : {
+<span class="lineNum">    1161 </span>            :   void* newRawPtr;
+<span class="lineNum">    1162 </span>            :   if (NS_FAILED(aGS(aIID, &amp;newRawPtr))) {
+<span class="lineNum">    1163 </span>            :     newRawPtr = nullptr;
+<span class="lineNum">    1164 </span>            :   }
+<span class="lineNum">    1165 </span>            :   assign_assuming_AddRef(static_cast&lt;T*&gt;(newRawPtr));
+<span class="lineNum">    1166 </span>            : }
+<span class="lineNum">    1167 </span>            : 
+<span class="lineNum">    1168 </span>            : template&lt;class T&gt;
+<span class="lineNum">    1169 </span>            : void
+<span class="lineNum">    1170 </span>            : nsCOMPtr&lt;T&gt;::assign_from_gs_contractid_with_error(
+<span class="lineNum">    1171 </span>            :     const nsGetServiceByContractIDWithError&amp; aGS, const nsIID&amp; aIID)
+<span class="lineNum">    1172 </span>            : {
+<span class="lineNum">    1173 </span>            :   void* newRawPtr;
+<span class="lineNum">    1174 </span>            :   if (NS_FAILED(aGS(aIID, &amp;newRawPtr))) {
+<span class="lineNum">    1175 </span>            :     newRawPtr = nullptr;
+<span class="lineNum">    1176 </span>            :   }
+<span class="lineNum">    1177 </span>            :   assign_assuming_AddRef(static_cast&lt;T*&gt;(newRawPtr));
+<span class="lineNum">    1178 </span>            : }
+<span class="lineNum">    1179 </span>            : 
+<span class="lineNum">    1180 </span>            : template&lt;class T&gt;
+<span class="lineNum">    1181 </span>            : void
+<span class="lineNum">    1182 </span>            : nsCOMPtr&lt;T&gt;::assign_from_helper(const nsCOMPtr_helper&amp; helper, const nsIID&amp; aIID)
+<span class="lineNum">    1183 </span>            : {
+<span class="lineNum">    1184 </span>            :   void* newRawPtr;
+<span class="lineNum">    1185 </span>            :   if (NS_FAILED(helper(aIID, &amp;newRawPtr))) {
+<span class="lineNum">    1186 </span>            :     newRawPtr = nullptr;
+<span class="lineNum">    1187 </span>            :   }
+<span class="lineNum">    1188 </span>            :   assign_assuming_AddRef(static_cast&lt;T*&gt;(newRawPtr));
+<span class="lineNum">    1189 </span>            : }
+<span class="lineNum">    1190 </span>            : 
+<span class="lineNum">    1191 </span>            : template&lt;class T&gt;
+<span class="lineNum">    1192 </span>            : void**
+<span class="lineNum">    1193 </span>            : nsCOMPtr&lt;T&gt;::begin_assignment()
+<span class="lineNum">    1194 </span>            : {
+<span class="lineNum">    1195 </span>            :   assign_assuming_AddRef(nullptr);
+<span class="lineNum">    1196 </span>            :   union
+<span class="lineNum">    1197 </span>            :   {
+<span class="lineNum">    1198 </span>            :     T** mT;
+<span class="lineNum">    1199 </span>            :     void** mVoid;
+<span class="lineNum">    1200 </span>            :   } result;
+<span class="lineNum">    1201 </span>            :   result.mT = &amp;mRawPtr;
+<span class="lineNum">    1202 </span>            :   return result.mVoid;
+<span class="lineNum">    1203 </span>            : }
+<span class="lineNum">    1204 </span>            : #endif
+<span class="lineNum">    1205 </span>            : 
+<span class="lineNum">    1206 </span>            : template&lt;class T&gt;
+<span class="lineNum">    1207 </span>            : inline nsCOMPtr&lt;T&gt;*
+<span class="lineNum">    1208 </span>            : address_of(nsCOMPtr&lt;T&gt;&amp; aPtr)
+<span class="lineNum">    1209 </span>            : {
+<span class="lineNum">    1210 </span>            :   return aPtr.get_address();
+<span class="lineNum">    1211 </span>            : }
+<span class="lineNum">    1212 </span>            : 
+<span class="lineNum">    1213 </span>            : template&lt;class T&gt;
+<span class="lineNum">    1214 </span>            : inline const nsCOMPtr&lt;T&gt;*
+<span class="lineNum">    1215 </span>            : address_of(const nsCOMPtr&lt;T&gt;&amp; aPtr)
+<span class="lineNum">    1216 </span>            : {
+<span class="lineNum">    1217 </span>            :   return aPtr.get_address();
+<span class="lineNum">    1218 </span>            : }
+<span class="lineNum">    1219 </span>            : 
+<span class="lineNum">    1220 </span>            : /**
+<span class="lineNum">    1221 </span>            :  * This class is designed to be used for anonymous temporary objects in the
+<span class="lineNum">    1222 </span>            :  * argument list of calls that return COM interface pointers, e.g.,
+<span class="lineNum">    1223 </span>            :  *
+<span class="lineNum">    1224 </span>            :  *   nsCOMPtr&lt;IFoo&gt; fooP;
+<span class="lineNum">    1225 </span>            :  *   ...-&gt;QueryInterface(iid, getter_AddRefs(fooP))
+<span class="lineNum">    1226 </span>            :  *
+<span class="lineNum">    1227 </span>            :  * DO NOT USE THIS TYPE DIRECTLY IN YOUR CODE. Use |getter_AddRefs()| instead.
+<span class="lineNum">    1228 </span>            :  *
+<span class="lineNum">    1229 </span>            :  * When initialized with a |nsCOMPtr|, as in the example above, it returns
+<span class="lineNum">    1230 </span>            :  * a |void**|, a |T**|, or an |nsISupports**| as needed, that the outer call
+<span class="lineNum">    1231 </span>            :  * (|QueryInterface| in this case) can fill in.
+<span class="lineNum">    1232 </span>            :  *
+<span class="lineNum">    1233 </span>            :  * This type should be a nested class inside |nsCOMPtr&lt;T&gt;|.
+<span class="lineNum">    1234 </span>            :  */
+<span class="lineNum">    1235 </span>            : template&lt;class T&gt;
+<span class="lineNum">    1236 </span>            : class nsGetterAddRefs
+<span class="lineNum">    1237 </span>            : {
+<span class="lineNum">    1238 </span>            : public:
+<span class="lineNum">    1239 </span>            :   explicit nsGetterAddRefs(nsCOMPtr&lt;T&gt;&amp; aSmartPtr)
+<span class="lineNum">    1240 </span>            :     : mTargetSmartPtr(aSmartPtr)
+<span class="lineNum">    1241 </span>            :   {
+<span class="lineNum">    1242 </span>            :   }
+<span class="lineNum">    1243 </span>            : 
+<span class="lineNum">    1244 </span>            : #if defined(NSCAP_FEATURE_TEST_DONTQUERY_CASES) || defined(NSCAP_LOG_EXTERNAL_ASSIGNMENT)
+<span class="lineNum">    1245 </span>            :   ~nsGetterAddRefs()
+<span class="lineNum">    1246 </span>            :   {
+<span class="lineNum">    1247 </span>            : #ifdef NSCAP_LOG_EXTERNAL_ASSIGNMENT
+<span class="lineNum">    1248 </span>            :     NSCAP_LOG_ASSIGNMENT(reinterpret_cast&lt;void*&gt;(address_of(mTargetSmartPtr)),
+<span class="lineNum">    1249 </span>            :                          mTargetSmartPtr.get());
+<span class="lineNum">    1250 </span>            : #endif
+<span class="lineNum">    1251 </span>            : 
+<span class="lineNum">    1252 </span>            : #ifdef NSCAP_FEATURE_TEST_DONTQUERY_CASES
+<span class="lineNum">    1253 </span>            :     mTargetSmartPtr.Assert_NoQueryNeeded();
+<span class="lineNum">    1254 </span>            : #endif
+<span class="lineNum">    1255 </span>            :   }
+<a name="1256"><span class="lineNum">    1256 </span>            : #endif</a>
+<span class="lineNum">    1257 </span>            : 
+<span class="lineNum">    1258 </span><span class="lineCov">          1 :   operator void**()</span>
+<span class="lineNum">    1259 </span>            :   {
+<span class="lineNum">    1260 </span><span class="lineCov">          1 :     return reinterpret_cast&lt;void**&gt;(mTargetSmartPtr.StartAssignment());</span>
+<a name="1261"><span class="lineNum">    1261 </span>            :   }</a>
+<span class="lineNum">    1262 </span>            : 
+<span class="lineNum">    1263 </span><span class="lineCov">          1 :   operator T**() { return mTargetSmartPtr.StartAssignment(); }</span>
+<span class="lineNum">    1264 </span>            :   T*&amp; operator*() { return *(mTargetSmartPtr.StartAssignment()); }
+<span class="lineNum">    1265 </span>            : 
+<span class="lineNum">    1266 </span>            : private:
+<span class="lineNum">    1267 </span>            :   nsCOMPtr&lt;T&gt;&amp; mTargetSmartPtr;
+<span class="lineNum">    1268 </span>            : };
+<span class="lineNum">    1269 </span>            : 
+<span class="lineNum">    1270 </span>            : 
+<span class="lineNum">    1271 </span>            : template&lt;&gt;
+<span class="lineNum">    1272 </span>            : class nsGetterAddRefs&lt;nsISupports&gt;
+<span class="lineNum">    1273 </span>            : {
+<span class="lineNum">    1274 </span>            : public:
+<span class="lineNum">    1275 </span>            :   explicit nsGetterAddRefs(nsCOMPtr&lt;nsISupports&gt;&amp; aSmartPtr)
+<span class="lineNum">    1276 </span>            :     : mTargetSmartPtr(aSmartPtr)
+<span class="lineNum">    1277 </span>            :   {
+<span class="lineNum">    1278 </span>            :   }
+<span class="lineNum">    1279 </span>            : 
+<span class="lineNum">    1280 </span>            : #ifdef NSCAP_LOG_EXTERNAL_ASSIGNMENT
+<span class="lineNum">    1281 </span>            :   ~nsGetterAddRefs()
+<span class="lineNum">    1282 </span>            :   {
+<span class="lineNum">    1283 </span>            :     NSCAP_LOG_ASSIGNMENT(reinterpret_cast&lt;void*&gt;(address_of(mTargetSmartPtr)),
+<span class="lineNum">    1284 </span>            :                          mTargetSmartPtr.get());
+<span class="lineNum">    1285 </span>            :   }
+<a name="1286"><span class="lineNum">    1286 </span>            : #endif</a>
+<span class="lineNum">    1287 </span>            : 
+<span class="lineNum">    1288 </span><span class="lineCov">          1 :   operator void**()</span>
+<span class="lineNum">    1289 </span>            :   {
+<span class="lineNum">    1290 </span><span class="lineCov">          1 :     return reinterpret_cast&lt;void**&gt;(mTargetSmartPtr.StartAssignment());</span>
+<a name="1291"><span class="lineNum">    1291 </span>            :   }</a>
+<span class="lineNum">    1292 </span>            : 
+<span class="lineNum">    1293 </span><span class="lineCov">          1 :   operator nsISupports**() { return mTargetSmartPtr.StartAssignment(); }</span>
+<span class="lineNum">    1294 </span>            :   nsISupports*&amp; operator*() { return *(mTargetSmartPtr.StartAssignment()); }
+<span class="lineNum">    1295 </span>            : 
+<span class="lineNum">    1296 </span>            : private:
+<span class="lineNum">    1297 </span>            :   nsCOMPtr&lt;nsISupports&gt;&amp; mTargetSmartPtr;
+<span class="lineNum">    1298 </span>            : };
+<span class="lineNum">    1299 </span>            : 
+<span class="lineNum">    1300 </span>            : template&lt;class T&gt;
+<span class="lineNum">    1301 </span>            : inline nsGetterAddRefs&lt;T&gt;
+<span class="lineNum">    1302 </span>            : getter_AddRefs(nsCOMPtr&lt;T&gt;&amp; aSmartPtr)
+<span class="lineNum">    1303 </span>            : {
+<span class="lineNum">    1304 </span>            :   return nsGetterAddRefs&lt;T&gt;(aSmartPtr);
+<span class="lineNum">    1305 </span>            : }
+<span class="lineNum">    1306 </span>            : 
+<span class="lineNum">    1307 </span>            : template&lt;class T, class DestinationType&gt;
+<span class="lineNum">    1308 </span>            : inline nsresult
+<span class="lineNum">    1309 </span>            : CallQueryInterface(T* aSource, nsGetterAddRefs&lt;DestinationType&gt; aDestination)
+<span class="lineNum">    1310 </span>            : {
+<span class="lineNum">    1311 </span>            :   return CallQueryInterface(aSource,
+<span class="lineNum">    1312 </span>            :                             static_cast&lt;DestinationType**&gt;(aDestination));
+<span class="lineNum">    1313 </span>            : }
+<span class="lineNum">    1314 </span>            : 
+<span class="lineNum">    1315 </span>            : 
+<span class="lineNum">    1316 </span>            : // Comparing two |nsCOMPtr|s
+<span class="lineNum">    1317 </span>            : 
+<span class="lineNum">    1318 </span>            : template&lt;class T, class U&gt;
+<span class="lineNum">    1319 </span>            : inline bool
+<span class="lineNum">    1320 </span>            : operator==(const nsCOMPtr&lt;T&gt;&amp; aLhs, const nsCOMPtr&lt;U&gt;&amp; aRhs)
+<span class="lineNum">    1321 </span>            : {
+<span class="lineNum">    1322 </span><span class="lineNoCov">          0 :   return static_cast&lt;const T*&gt;(aLhs.get()) == static_cast&lt;const U*&gt;(aRhs.get());</span>
+<span class="lineNum">    1323 </span>            : }
+<span class="lineNum">    1324 </span>            : 
+<span class="lineNum">    1325 </span>            : 
+<span class="lineNum">    1326 </span>            : template&lt;class T, class U&gt;
+<span class="lineNum">    1327 </span>            : inline bool
+<span class="lineNum">    1328 </span>            : operator!=(const nsCOMPtr&lt;T&gt;&amp; aLhs, const nsCOMPtr&lt;U&gt;&amp; aRhs)
+<span class="lineNum">    1329 </span>            : {
+<span class="lineNum">    1330 </span>            :   return static_cast&lt;const T*&gt;(aLhs.get()) != static_cast&lt;const U*&gt;(aRhs.get());
+<span class="lineNum">    1331 </span>            : }
+<span class="lineNum">    1332 </span>            : 
+<span class="lineNum">    1333 </span>            : 
+<span class="lineNum">    1334 </span>            : // Comparing an |nsCOMPtr| to a raw pointer
+<span class="lineNum">    1335 </span>            : 
+<span class="lineNum">    1336 </span>            : template&lt;class T, class U&gt;
+<span class="lineNum">    1337 </span>            : inline bool
+<span class="lineNum">    1338 </span>            : operator==(const nsCOMPtr&lt;T&gt;&amp; aLhs, const U* aRhs)
+<span class="lineNum">    1339 </span>            : {
+<span class="lineNum">    1340 </span>            :   return static_cast&lt;const T*&gt;(aLhs.get()) == aRhs;
+<span class="lineNum">    1341 </span>            : }
+<span class="lineNum">    1342 </span>            : 
+<span class="lineNum">    1343 </span>            : template&lt;class T, class U&gt;
+<span class="lineNum">    1344 </span>            : inline bool
+<span class="lineNum">    1345 </span>            : operator==(const U* aLhs, const nsCOMPtr&lt;T&gt;&amp; aRhs)
+<span class="lineNum">    1346 </span>            : {
+<span class="lineNum">    1347 </span>            :   return aLhs == static_cast&lt;const T*&gt;(aRhs.get());
+<span class="lineNum">    1348 </span>            : }
+<span class="lineNum">    1349 </span>            : 
+<span class="lineNum">    1350 </span>            : template&lt;class T, class U&gt;
+<span class="lineNum">    1351 </span>            : inline bool
+<span class="lineNum">    1352 </span>            : operator!=(const nsCOMPtr&lt;T&gt;&amp; aLhs, const U* aRhs)
+<span class="lineNum">    1353 </span>            : {
+<span class="lineNum">    1354 </span>            :   return static_cast&lt;const T*&gt;(aLhs.get()) != aRhs;
+<span class="lineNum">    1355 </span>            : }
+<span class="lineNum">    1356 </span>            : 
+<span class="lineNum">    1357 </span>            : template&lt;class T, class U&gt;
+<span class="lineNum">    1358 </span>            : inline bool
+<span class="lineNum">    1359 </span>            : operator!=(const U* aLhs, const nsCOMPtr&lt;T&gt;&amp; aRhs)
+<span class="lineNum">    1360 </span>            : {
+<span class="lineNum">    1361 </span>            :   return aLhs != static_cast&lt;const T*&gt;(aRhs.get());
+<span class="lineNum">    1362 </span>            : }
+<span class="lineNum">    1363 </span>            : 
+<span class="lineNum">    1364 </span>            : template&lt;class T, class U&gt;
+<span class="lineNum">    1365 </span>            : inline bool
+<span class="lineNum">    1366 </span>            : operator==(const nsCOMPtr&lt;T&gt;&amp; aLhs, U* aRhs)
+<span class="lineNum">    1367 </span>            : {
+<span class="lineNum">    1368 </span>            :   return static_cast&lt;const T*&gt;(aLhs.get()) == const_cast&lt;const U*&gt;(aRhs);
+<span class="lineNum">    1369 </span>            : }
+<span class="lineNum">    1370 </span>            : 
+<span class="lineNum">    1371 </span>            : template&lt;class T, class U&gt;
+<span class="lineNum">    1372 </span>            : inline bool
+<span class="lineNum">    1373 </span>            : operator==(U* aLhs, const nsCOMPtr&lt;T&gt;&amp; aRhs)
+<span class="lineNum">    1374 </span>            : {
+<span class="lineNum">    1375 </span>            :   return const_cast&lt;const U*&gt;(aLhs) == static_cast&lt;const T*&gt;(aRhs.get());
+<span class="lineNum">    1376 </span>            : }
+<span class="lineNum">    1377 </span>            : 
+<span class="lineNum">    1378 </span>            : template&lt;class T, class U&gt;
+<span class="lineNum">    1379 </span>            : inline bool
+<span class="lineNum">    1380 </span>            : operator!=(const nsCOMPtr&lt;T&gt;&amp; aLhs, U* aRhs)
+<span class="lineNum">    1381 </span>            : {
+<span class="lineNum">    1382 </span>            :   return static_cast&lt;const T*&gt;(aLhs.get()) != const_cast&lt;const U*&gt;(aRhs);
+<span class="lineNum">    1383 </span>            : }
+<span class="lineNum">    1384 </span>            : 
+<span class="lineNum">    1385 </span>            : template&lt;class T, class U&gt;
+<span class="lineNum">    1386 </span>            : inline bool
+<span class="lineNum">    1387 </span>            : operator!=(U* aLhs, const nsCOMPtr&lt;T&gt;&amp; aRhs)
+<span class="lineNum">    1388 </span>            : {
+<span class="lineNum">    1389 </span>            :   return const_cast&lt;const U*&gt;(aLhs) != static_cast&lt;const T*&gt;(aRhs.get());
+<span class="lineNum">    1390 </span>            : }
+<span class="lineNum">    1391 </span>            : 
+<span class="lineNum">    1392 </span>            : 
+<span class="lineNum">    1393 </span>            : 
+<span class="lineNum">    1394 </span>            : // Comparing an |nsCOMPtr| to |nullptr|
+<span class="lineNum">    1395 </span>            : 
+<span class="lineNum">    1396 </span>            : template&lt;class T&gt;
+<span class="lineNum">    1397 </span>            : inline bool
+<span class="lineNum">    1398 </span>            : operator==(const nsCOMPtr&lt;T&gt;&amp; aLhs, decltype(nullptr))
+<span class="lineNum">    1399 </span>            : {
+<span class="lineNum">    1400 </span>            :   return aLhs.get() == nullptr;
+<span class="lineNum">    1401 </span>            : }
+<span class="lineNum">    1402 </span>            : 
+<span class="lineNum">    1403 </span>            : template&lt;class T&gt;
+<span class="lineNum">    1404 </span>            : inline bool
+<span class="lineNum">    1405 </span>            : operator==(decltype(nullptr), const nsCOMPtr&lt;T&gt;&amp; aRhs)
+<span class="lineNum">    1406 </span>            : {
+<span class="lineNum">    1407 </span>            :   return nullptr == aRhs.get();
+<span class="lineNum">    1408 </span>            : }
+<span class="lineNum">    1409 </span>            : 
+<span class="lineNum">    1410 </span>            : template&lt;class T&gt;
+<span class="lineNum">    1411 </span>            : inline bool
+<span class="lineNum">    1412 </span>            : operator!=(const nsCOMPtr&lt;T&gt;&amp; aLhs, decltype(nullptr))
+<span class="lineNum">    1413 </span>            : {
+<span class="lineNum">    1414 </span><span class="lineNoCov">          0 :   return aLhs.get() != nullptr;</span>
+<span class="lineNum">    1415 </span>            : }
+<span class="lineNum">    1416 </span>            : 
+<span class="lineNum">    1417 </span>            : template&lt;class T&gt;
+<span class="lineNum">    1418 </span>            : inline bool
+<span class="lineNum">    1419 </span>            : operator!=(decltype(nullptr), const nsCOMPtr&lt;T&gt;&amp; aRhs)
+<span class="lineNum">    1420 </span>            : {
+<span class="lineNum">    1421 </span>            :   return nullptr != aRhs.get();
+<span class="lineNum">    1422 </span>            : }
+<span class="lineNum">    1423 </span>            : 
+<span class="lineNum">    1424 </span>            : 
+<span class="lineNum">    1425 </span>            : // Comparing any two [XP]COM objects for identity
+<a name="1426"><span class="lineNum">    1426 </span>            : </a>
+<span class="lineNum">    1427 </span>            : inline bool
+<span class="lineNum">    1428 </span><span class="lineNoCov">          0 : SameCOMIdentity(nsISupports* aLhs, nsISupports* aRhs)</span>
+<span class="lineNum">    1429 </span>            : {
+<span class="lineNum">    1430 </span><span class="lineNoCov">          0 :   return nsCOMPtr&lt;nsISupports&gt;(do_QueryInterface(aLhs)) ==</span>
+<span class="lineNum">    1431 </span><span class="lineNoCov">          0 :     nsCOMPtr&lt;nsISupports&gt;(do_QueryInterface(aRhs));</span>
+<span class="lineNum">    1432 </span>            : }
+<span class="lineNum">    1433 </span>            : 
+<span class="lineNum">    1434 </span>            : 
+<span class="lineNum">    1435 </span>            : 
+<a name="1436"><span class="lineNum">    1436 </span>            : template&lt;class SourceType, class DestinationType&gt;</a>
+<span class="lineNum">    1437 </span>            : inline nsresult
+<span class="lineNum">    1438 </span><span class="lineNoCov">          0 : CallQueryInterface(nsCOMPtr&lt;SourceType&gt;&amp; aSourcePtr, DestinationType** aDestPtr)</span>
+<span class="lineNum">    1439 </span>            : {
+<span class="lineNum">    1440 </span><span class="lineNoCov">          0 :   return CallQueryInterface(aSourcePtr.get(), aDestPtr);</span>
+<span class="lineNum">    1441 </span>            : }
+<span class="lineNum">    1442 </span>            : 
+<span class="lineNum">    1443 </span>            : template &lt;class T&gt;
+<span class="lineNum">    1444 </span>            : RefPtr&lt;T&gt;::RefPtr(const nsCOMPtr_helper&amp; aHelper)
+<span class="lineNum">    1445 </span>            : {
+<span class="lineNum">    1446 </span>            :   void* newRawPtr;
+<span class="lineNum">    1447 </span>            :   if (NS_FAILED(aHelper(NS_GET_TEMPLATE_IID(T), &amp;newRawPtr))) {
+<span class="lineNum">    1448 </span>            :     newRawPtr = nullptr;
+<span class="lineNum">    1449 </span>            :   }
+<span class="lineNum">    1450 </span>            :   mRawPtr = static_cast&lt;T*&gt;(newRawPtr);
+<span class="lineNum">    1451 </span>            : }
+<span class="lineNum">    1452 </span>            : 
+<span class="lineNum">    1453 </span>            : template &lt;class T&gt;
+<span class="lineNum">    1454 </span>            : RefPtr&lt;T&gt;&amp;
+<span class="lineNum">    1455 </span>            : RefPtr&lt;T&gt;::operator=(const nsCOMPtr_helper&amp; aHelper)
+<span class="lineNum">    1456 </span>            : {
+<span class="lineNum">    1457 </span>            :   void* newRawPtr;
+<span class="lineNum">    1458 </span>            :   if (NS_FAILED(aHelper(NS_GET_TEMPLATE_IID(T), &amp;newRawPtr))) {
+<span class="lineNum">    1459 </span>            :     newRawPtr = nullptr;
+<span class="lineNum">    1460 </span>            :   }
+<span class="lineNum">    1461 </span>            :   assign_assuming_AddRef(static_cast&lt;T*&gt;(newRawPtr));
+<span class="lineNum">    1462 </span>            :   return *this;
+<span class="lineNum">    1463 </span>            : }
+<span class="lineNum">    1464 </span>            : 
+<span class="lineNum">    1465 </span>            : #endif // !defined(nsCOMPtr_h___)
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

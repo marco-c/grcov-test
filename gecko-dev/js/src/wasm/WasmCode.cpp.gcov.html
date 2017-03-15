@@ -1,0 +1,1232 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/js/src/wasm/WasmCode.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">gecko-dev/js/src/wasm</a> - WasmCode.cpp<span style="font-size: 80%;"> (source / <a href="WasmCode.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">86</td>
+            <td class="headerCovTableEntry">467</td>
+            <td class="headerCovTableEntryLo">18.4 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntry">54</td>
+            <td class="headerCovTableEntryLo">22.2 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-</a>
+<span class="lineNum">       2 </span>            :  * vim: set ts=8 sts=4 et sw=4 tw=99:
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  * Copyright 2016 Mozilla Foundation
+<span class="lineNum">       5 </span>            :  *
+<span class="lineNum">       6 </span>            :  * Licensed under the Apache License, Version 2.0 (the &quot;License&quot;);
+<span class="lineNum">       7 </span>            :  * you may not use this file except in compliance with the License.
+<span class="lineNum">       8 </span>            :  * You may obtain a copy of the License at
+<span class="lineNum">       9 </span>            :  *
+<span class="lineNum">      10 </span>            :  *     http://www.apache.org/licenses/LICENSE-2.0
+<span class="lineNum">      11 </span>            :  *
+<span class="lineNum">      12 </span>            :  * Unless required by applicable law or agreed to in writing, software
+<span class="lineNum">      13 </span>            :  * distributed under the License is distributed on an &quot;AS IS&quot; BASIS,
+<span class="lineNum">      14 </span>            :  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+<span class="lineNum">      15 </span>            :  * See the License for the specific language governing permissions and
+<span class="lineNum">      16 </span>            :  * limitations under the License.
+<span class="lineNum">      17 </span>            :  */
+<span class="lineNum">      18 </span>            : 
+<span class="lineNum">      19 </span>            : #include &quot;wasm/WasmCode.h&quot;
+<span class="lineNum">      20 </span>            : 
+<span class="lineNum">      21 </span>            : #include &quot;mozilla/Atomics.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;mozilla/BinarySearch.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;mozilla/EnumeratedRange.h&quot;
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : #include &quot;jsprf.h&quot;
+<span class="lineNum">      26 </span>            : 
+<span class="lineNum">      27 </span>            : #include &quot;ds/Sort.h&quot;
+<span class="lineNum">      28 </span>            : #include &quot;jit/ExecutableAllocator.h&quot;
+<span class="lineNum">      29 </span>            : #include &quot;jit/MacroAssembler.h&quot;
+<span class="lineNum">      30 </span>            : #ifdef JS_ION_PERF
+<span class="lineNum">      31 </span>            : # include &quot;jit/PerfSpewer.h&quot;
+<span class="lineNum">      32 </span>            : #endif
+<span class="lineNum">      33 </span>            : #include &quot;vm/Debugger.h&quot;
+<span class="lineNum">      34 </span>            : #include &quot;vm/StringBuffer.h&quot;
+<span class="lineNum">      35 </span>            : #include &quot;vtune/VTuneWrapper.h&quot;
+<span class="lineNum">      36 </span>            : #include &quot;wasm/WasmBinaryToText.h&quot;
+<span class="lineNum">      37 </span>            : #include &quot;wasm/WasmModule.h&quot;
+<span class="lineNum">      38 </span>            : #include &quot;wasm/WasmSerialize.h&quot;
+<span class="lineNum">      39 </span>            : #include &quot;wasm/WasmValidate.h&quot;
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span>            : #include &quot;jsobjinlines.h&quot;
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : #include &quot;jit/MacroAssembler-inl.h&quot;
+<span class="lineNum">      44 </span>            : #include &quot;vm/ArrayBufferObject-inl.h&quot;
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span>            : using namespace js;
+<span class="lineNum">      47 </span>            : using namespace js::jit;
+<span class="lineNum">      48 </span>            : using namespace js::wasm;
+<span class="lineNum">      49 </span>            : using mozilla::Atomic;
+<span class="lineNum">      50 </span>            : using mozilla::BinarySearch;
+<span class="lineNum">      51 </span>            : using mozilla::BinarySearchIf;
+<span class="lineNum">      52 </span>            : using mozilla::MakeEnumeratedRange;
+<span class="lineNum">      53 </span>            : using JS::GenericNaN;
+<span class="lineNum">      54 </span>            : 
+<span class="lineNum">      55 </span>            : // Limit the number of concurrent wasm code allocations per process. Note that
+<span class="lineNum">      56 </span>            : // on Linux, the real maximum is ~32k, as each module requires 2 maps (RW/RX),
+<span class="lineNum">      57 </span>            : // and the kernel's default max_map_count is ~65k.
+<span class="lineNum">      58 </span>            : //
+<span class="lineNum">      59 </span>            : // Note: this can be removed once writable/non-executable global data stops
+<span class="lineNum">      60 </span>            : // being stored in the code segment.
+<span class="lineNum">      61 </span>            : static Atomic&lt;uint32_t&gt; wasmCodeAllocations(0);
+<span class="lineNum">      62 </span>            : static const uint32_t MaxWasmCodeAllocations = 16384;
+<a name="63"><span class="lineNum">      63 </span>            : </a>
+<span class="lineNum">      64 </span>            : static uint8_t*
+<span class="lineNum">      65 </span><span class="lineCov">          1 : AllocateCodeSegment(JSContext* cx, uint32_t codeLength)</span>
+<span class="lineNum">      66 </span>            : {
+<span class="lineNum">      67 </span><span class="lineCov">          1 :     if (wasmCodeAllocations &gt;= MaxWasmCodeAllocations)</span>
+<span class="lineNum">      68 </span>            :         return nullptr;
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            :     // codeLength is a multiple of the system's page size, but not necessarily
+<span class="lineNum">      71 </span>            :     // a multiple of ExecutableCodePageSize.
+<span class="lineNum">      72 </span><span class="lineCov">          1 :     codeLength = JS_ROUNDUP(codeLength, ExecutableCodePageSize);</span>
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span><span class="lineCov">          1 :     void* p = AllocateExecutableMemory(codeLength, ProtectionSetting::Writable);</span>
+<span class="lineNum">      75 </span>            : 
+<span class="lineNum">      76 </span>            :     // If the allocation failed and the embedding gives us a last-ditch attempt
+<span class="lineNum">      77 </span>            :     // to purge all memory (which, in gecko, does a purging GC/CC/GC), do that
+<span class="lineNum">      78 </span>            :     // then retry the allocation.
+<span class="lineNum">      79 </span><span class="lineCov">          1 :     if (!p) {</span>
+<span class="lineNum">      80 </span><span class="lineNoCov">          0 :         JSRuntime* rt = cx-&gt;runtime();</span>
+<span class="lineNum">      81 </span><span class="lineNoCov">          0 :         if (rt-&gt;largeAllocationFailureCallback) {</span>
+<span class="lineNum">      82 </span><span class="lineNoCov">          0 :             rt-&gt;largeAllocationFailureCallback(rt-&gt;largeAllocationFailureCallbackData);</span>
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :             p = AllocateExecutableMemory(codeLength, ProtectionSetting::Writable);</span>
+<span class="lineNum">      84 </span>            :         }
+<span class="lineNum">      85 </span>            :     }
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span><span class="lineCov">          1 :     if (!p) {</span>
+<span class="lineNum">      88 </span><span class="lineNoCov">          0 :         ReportOutOfMemory(cx);</span>
+<span class="lineNum">      89 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">      90 </span>            :     }
+<span class="lineNum">      91 </span>            : 
+<span class="lineNum">      92 </span><span class="lineCov">          1 :     cx-&gt;zone()-&gt;updateJitCodeMallocBytes(codeLength);</span>
+<span class="lineNum">      93 </span>            : 
+<span class="lineNum">      94 </span><span class="lineCov">          1 :     wasmCodeAllocations++;</span>
+<span class="lineNum">      95 </span><span class="lineCov">          1 :     return (uint8_t*)p;</span>
+<span class="lineNum">      96 </span>            : }
+<a name="97"><span class="lineNum">      97 </span>            : </a>
+<span class="lineNum">      98 </span>            : static void
+<span class="lineNum">      99 </span><span class="lineCov">          1 : StaticallyLink(CodeSegment&amp; cs, const LinkData&amp; linkData, JSContext* cx)</span>
+<span class="lineNum">     100 </span>            : {
+<span class="lineNum">     101 </span><span class="lineCov">          1 :     for (LinkData::InternalLink link : linkData.internalLinks) {</span>
+<span class="lineNum">     102 </span><span class="lineCov">          1 :         uint8_t* patchAt = cs.base() + link.patchAtOffset;</span>
+<span class="lineNum">     103 </span><span class="lineCov">          1 :         void* target = cs.base() + link.targetOffset;</span>
+<span class="lineNum">     104 </span><span class="lineCov">          1 :         if (link.isRawPointerPatch())</span>
+<span class="lineNum">     105 </span><span class="lineCov">          1 :             *(void**)(patchAt) = target;</span>
+<span class="lineNum">     106 </span>            :         else
+<span class="lineNum">     107 </span><span class="lineNoCov">          0 :             Assembler::PatchInstructionImmediate(patchAt, PatchedImmPtr(target));</span>
+<span class="lineNum">     108 </span>            :     }
+<span class="lineNum">     109 </span>            : 
+<span class="lineNum">     110 </span><span class="lineCov">          1 :     for (auto imm : MakeEnumeratedRange(SymbolicAddress::Limit)) {</span>
+<span class="lineNum">     111 </span><span class="lineCov">          1 :         const Uint32Vector&amp; offsets = linkData.symbolicLinks[imm];</span>
+<span class="lineNum">     112 </span><span class="lineCov">          1 :         for (size_t i = 0; i &lt; offsets.length(); i++) {</span>
+<span class="lineNum">     113 </span><span class="lineCov">          1 :             uint8_t* patchAt = cs.base() + offsets[i];</span>
+<span class="lineNum">     114 </span><span class="lineCov">          1 :             void* target = AddressOf(imm, cx);</span>
+<span class="lineNum">     115 </span>            :             Assembler::PatchDataWithValueCheck(CodeLocationLabel(patchAt),
+<span class="lineNum">     116 </span>            :                                                PatchedImmPtr(target),
+<span class="lineNum">     117 </span><span class="lineCov">          1 :                                                PatchedImmPtr((void*)-1));</span>
+<span class="lineNum">     118 </span>            :         }
+<span class="lineNum">     119 </span>            :     }
+<span class="lineNum">     120 </span><span class="lineCov">          1 : }</span>
+<a name="121"><span class="lineNum">     121 </span>            : </a>
+<span class="lineNum">     122 </span>            : static void
+<span class="lineNum">     123 </span><span class="lineCov">          1 : SendCodeRangesToProfiler(CodeSegment&amp; cs, const Bytes&amp; bytecode, const Metadata&amp; metadata)</span>
+<span class="lineNum">     124 </span>            : {
+<span class="lineNum">     125 </span><span class="lineCov">          1 :     bool enabled = false;</span>
+<span class="lineNum">     126 </span>            : #ifdef JS_ION_PERF
+<span class="lineNum">     127 </span>            :     enabled |= PerfFuncEnabled();
+<span class="lineNum">     128 </span>            : #endif
+<span class="lineNum">     129 </span>            : #ifdef MOZ_VTUNE
+<span class="lineNum">     130 </span><span class="lineCov">          1 :     enabled |= vtune::IsProfilingActive();</span>
+<span class="lineNum">     131 </span>            : #endif
+<span class="lineNum">     132 </span><span class="lineCov">          1 :     if (!enabled)</span>
+<span class="lineNum">     133 </span>            :         return;
+<span class="lineNum">     134 </span>            : 
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 :     for (const CodeRange&amp; codeRange : metadata.codeRanges) {</span>
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 :         if (!codeRange.isFunction())</span>
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     138 </span>            : 
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :         uintptr_t start = uintptr_t(cs.base() + codeRange.begin());</span>
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :         uintptr_t end = uintptr_t(cs.base() + codeRange.end());</span>
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :         uintptr_t size = end - start;</span>
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span>            :         UTF8Bytes name;
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :         if (!metadata.getFuncName(&amp;bytecode, codeRange.funcIndex(), &amp;name))</span>
+<span class="lineNum">     145 </span>            :             return;
+<span class="lineNum">     146 </span><span class="lineNoCov">          0 :         if (!name.append('\0'))</span>
+<span class="lineNum">     147 </span>            :             return;
+<span class="lineNum">     148 </span>            : 
+<span class="lineNum">     149 </span>            :         // Avoid &quot;unused&quot; warnings
+<span class="lineNum">     150 </span>            :         (void)start;
+<span class="lineNum">     151 </span>            :         (void)size;
+<span class="lineNum">     152 </span>            : 
+<span class="lineNum">     153 </span>            : #ifdef JS_ION_PERF
+<span class="lineNum">     154 </span>            :         if (PerfFuncEnabled()) {
+<span class="lineNum">     155 </span>            :             const char* file = metadata.filename.get();
+<span class="lineNum">     156 </span>            :             unsigned line = codeRange.funcLineOrBytecode();
+<span class="lineNum">     157 </span>            :             unsigned column = 0;
+<span class="lineNum">     158 </span>            :             writePerfSpewerWasmFunctionMap(start, size, file, line, column, name.begin());
+<span class="lineNum">     159 </span>            :         }
+<span class="lineNum">     160 </span>            : #endif
+<span class="lineNum">     161 </span>            : #ifdef MOZ_VTUNE
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :         if (vtune::IsProfilingActive()) {</span>
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :             cs.vtune_method_id_ = vtune::GenerateUniqueMethodID();</span>
+<span class="lineNum">     164 </span><span class="lineNoCov">          0 :             vtune::MarkWasm(cs, name.begin(), (void*)start, size);</span>
+<span class="lineNum">     165 </span>            :         }
+<span class="lineNum">     166 </span>            : #endif
+<span class="lineNum">     167 </span>            :     }
+<span class="lineNum">     168 </span>            : 
+<span class="lineNum">     169 </span>            :     return;
+<span class="lineNum">     170 </span>            : }
+<a name="171"><span class="lineNum">     171 </span>            : </a>
+<span class="lineNum">     172 </span>            : /* static */ UniqueCodeSegment
+<span class="lineNum">     173 </span><span class="lineCov">          1 : CodeSegment::create(JSContext* cx,</span>
+<span class="lineNum">     174 </span>            :                     const Bytes&amp; bytecode,
+<span class="lineNum">     175 </span>            :                     const LinkData&amp; linkData,
+<span class="lineNum">     176 </span>            :                     const Metadata&amp; metadata,
+<span class="lineNum">     177 </span>            :                     HandleWasmMemoryObject memory)
+<span class="lineNum">     178 </span>            : {
+<span class="lineNum">     179 </span>            :     MOZ_ASSERT(bytecode.length() % gc::SystemPageSize() == 0);
+<span class="lineNum">     180 </span>            :     MOZ_ASSERT(linkData.functionCodeLength &lt; bytecode.length());
+<span class="lineNum">     181 </span>            : 
+<span class="lineNum">     182 </span>            :     // These should always exist and should never be first in the code segment.
+<span class="lineNum">     183 </span>            :     MOZ_ASSERT(linkData.interruptOffset != 0);
+<span class="lineNum">     184 </span>            :     MOZ_ASSERT(linkData.outOfBoundsOffset != 0);
+<span class="lineNum">     185 </span>            :     MOZ_ASSERT(linkData.unalignedAccessOffset != 0);
+<span class="lineNum">     186 </span>            : 
+<span class="lineNum">     187 </span>            :     auto cs = cx-&gt;make_unique&lt;CodeSegment&gt;();
+<span class="lineNum">     188 </span><span class="lineCov">          1 :     if (!cs)</span>
+<span class="lineNum">     189 </span>            :         return nullptr;
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span><span class="lineCov">          1 :     cs-&gt;bytes_ = AllocateCodeSegment(cx, bytecode.length());</span>
+<span class="lineNum">     192 </span><span class="lineCov">          1 :     if (!cs-&gt;bytes_)</span>
+<span class="lineNum">     193 </span>            :         return nullptr;
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span><span class="lineCov">          1 :     uint8_t* codeBase = cs-&gt;base();</span>
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span><span class="lineCov">          1 :     cs-&gt;functionLength_ = linkData.functionCodeLength;</span>
+<span class="lineNum">     198 </span><span class="lineCov">          1 :     cs-&gt;length_ = bytecode.length();</span>
+<span class="lineNum">     199 </span>            :     cs-&gt;interruptCode_ = codeBase + linkData.interruptOffset;
+<span class="lineNum">     200 </span><span class="lineCov">          1 :     cs-&gt;outOfBoundsCode_ = codeBase + linkData.outOfBoundsOffset;</span>
+<span class="lineNum">     201 </span><span class="lineCov">          1 :     cs-&gt;unalignedAccessCode_ = codeBase + linkData.unalignedAccessOffset;</span>
+<span class="lineNum">     202 </span>            : 
+<span class="lineNum">     203 </span>            :     {
+<span class="lineNum">     204 </span><span class="lineCov">          1 :         JitContext jcx(CompileRuntime::get(cx-&gt;compartment()-&gt;runtimeFromAnyThread()));</span>
+<span class="lineNum">     205 </span><span class="lineCov">          1 :         AutoFlushICache afc(&quot;CodeSegment::create&quot;);</span>
+<span class="lineNum">     206 </span><span class="lineCov">          1 :         AutoFlushICache::setRange(uintptr_t(codeBase), cs-&gt;length());</span>
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span><span class="lineCov">          1 :         memcpy(codeBase, bytecode.begin(), bytecode.length());</span>
+<span class="lineNum">     209 </span><span class="lineCov">          1 :         StaticallyLink(*cs, linkData, cx);</span>
+<span class="lineNum">     210 </span>            :     }
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span>            :     // Reprotect the whole region to avoid having separate RW and RX mappings.
+<span class="lineNum">     213 </span><span class="lineCov">          1 :     uint32_t size = JS_ROUNDUP(cs-&gt;length(), ExecutableCodePageSize);</span>
+<span class="lineNum">     214 </span><span class="lineCov">          1 :     if (!ExecutableAllocator::makeExecutable(codeBase, size)) {</span>
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 :         ReportOutOfMemory(cx);</span>
+<span class="lineNum">     216 </span>            :         return nullptr;
+<span class="lineNum">     217 </span>            :     }
+<span class="lineNum">     218 </span>            : 
+<span class="lineNum">     219 </span><span class="lineCov">          1 :     SendCodeRangesToProfiler(*cs, bytecode, metadata);</span>
+<span class="lineNum">     220 </span>            : 
+<span class="lineNum">     221 </span>            :     return cs;
+<a name="222"><span class="lineNum">     222 </span>            : }</a>
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span><span class="lineNoCov">          0 : CodeSegment::~CodeSegment()</span>
+<span class="lineNum">     225 </span>            : {
+<span class="lineNum">     226 </span><span class="lineNoCov">          0 :     if (!bytes_)</span>
+<span class="lineNum">     227 </span>            :         return;
+<span class="lineNum">     228 </span>            : 
+<span class="lineNum">     229 </span>            :     MOZ_ASSERT(wasmCodeAllocations &gt; 0);
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :     wasmCodeAllocations--;</span>
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span>            :     MOZ_ASSERT(length() &gt; 0);
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span>            :     // Match AllocateCodeSegment.
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :     uint32_t size = JS_ROUNDUP(length(), ExecutableCodePageSize);</span>
+<span class="lineNum">     236 </span>            : #ifdef MOZ_VTUNE
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :     vtune::UnmarkBytes(bytes_, size);</span>
+<span class="lineNum">     238 </span>            : #endif
+<span class="lineNum">     239 </span><span class="lineNoCov">          0 :     DeallocateExecutableMemory(bytes_, size);</span>
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 : }</span>
+<a name="241"><span class="lineNum">     241 </span>            : </a>
+<span class="lineNum">     242 </span>            : size_t
+<span class="lineNum">     243 </span><span class="lineNoCov">          0 : FuncExport::serializedSize() const</span>
+<span class="lineNum">     244 </span>            : {
+<span class="lineNum">     245 </span><span class="lineCov">          1 :     return sig_.serializedSize() +</span>
+<span class="lineNum">     246 </span><span class="lineCov">          1 :            sizeof(pod);</span>
+<span class="lineNum">     247 </span>            : }
+<a name="248"><span class="lineNum">     248 </span>            : </a>
+<span class="lineNum">     249 </span>            : uint8_t*
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 : FuncExport::serialize(uint8_t* cursor) const</span>
+<span class="lineNum">     251 </span>            : {
+<span class="lineNum">     252 </span><span class="lineNoCov">          0 :     cursor = sig_.serialize(cursor);</span>
+<span class="lineNum">     253 </span><span class="lineNoCov">          0 :     cursor = WriteBytes(cursor, &amp;pod, sizeof(pod));</span>
+<span class="lineNum">     254 </span><span class="lineNoCov">          0 :     return cursor;</span>
+<span class="lineNum">     255 </span>            : }
+<a name="256"><span class="lineNum">     256 </span>            : </a>
+<span class="lineNum">     257 </span>            : const uint8_t*
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 : FuncExport::deserialize(const uint8_t* cursor)</span>
+<span class="lineNum">     259 </span>            : {
+<span class="lineNum">     260 </span><span class="lineNoCov">          0 :     (cursor = sig_.deserialize(cursor)) &amp;&amp;</span>
+<span class="lineNum">     261 </span><span class="lineNoCov">          0 :     (cursor = ReadBytes(cursor, &amp;pod, sizeof(pod)));</span>
+<span class="lineNum">     262 </span><span class="lineNoCov">          0 :     return cursor;</span>
+<span class="lineNum">     263 </span>            : }
+<a name="264"><span class="lineNum">     264 </span>            : </a>
+<span class="lineNum">     265 </span>            : size_t
+<span class="lineNum">     266 </span><span class="lineNoCov">          0 : FuncExport::sizeOfExcludingThis(MallocSizeOf mallocSizeOf) const</span>
+<span class="lineNum">     267 </span>            : {
+<span class="lineNum">     268 </span><span class="lineNoCov">          0 :     return sig_.sizeOfExcludingThis(mallocSizeOf);</span>
+<span class="lineNum">     269 </span>            : }
+<a name="270"><span class="lineNum">     270 </span>            : </a>
+<span class="lineNum">     271 </span>            : size_t
+<span class="lineNum">     272 </span><span class="lineNoCov">          0 : FuncImport::serializedSize() const</span>
+<span class="lineNum">     273 </span>            : {
+<span class="lineNum">     274 </span><span class="lineCov">          1 :     return sig_.serializedSize() +</span>
+<span class="lineNum">     275 </span><span class="lineCov">          1 :            sizeof(pod);</span>
+<span class="lineNum">     276 </span>            : }
+<a name="277"><span class="lineNum">     277 </span>            : </a>
+<span class="lineNum">     278 </span>            : uint8_t*
+<span class="lineNum">     279 </span><span class="lineNoCov">          0 : FuncImport::serialize(uint8_t* cursor) const</span>
+<span class="lineNum">     280 </span>            : {
+<span class="lineNum">     281 </span><span class="lineNoCov">          0 :     cursor = sig_.serialize(cursor);</span>
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 :     cursor = WriteBytes(cursor, &amp;pod, sizeof(pod));</span>
+<span class="lineNum">     283 </span><span class="lineNoCov">          0 :     return cursor;</span>
+<span class="lineNum">     284 </span>            : }
+<a name="285"><span class="lineNum">     285 </span>            : </a>
+<span class="lineNum">     286 </span>            : const uint8_t*
+<span class="lineNum">     287 </span><span class="lineNoCov">          0 : FuncImport::deserialize(const uint8_t* cursor)</span>
+<span class="lineNum">     288 </span>            : {
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :     (cursor = sig_.deserialize(cursor)) &amp;&amp;</span>
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :     (cursor = ReadBytes(cursor, &amp;pod, sizeof(pod)));</span>
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :     return cursor;</span>
+<span class="lineNum">     292 </span>            : }
+<a name="293"><span class="lineNum">     293 </span>            : </a>
+<span class="lineNum">     294 </span>            : size_t
+<span class="lineNum">     295 </span><span class="lineNoCov">          0 : FuncImport::sizeOfExcludingThis(MallocSizeOf mallocSizeOf) const</span>
+<span class="lineNum">     296 </span>            : {
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :     return sig_.sizeOfExcludingThis(mallocSizeOf);</span>
+<a name="298"><span class="lineNum">     298 </span>            : }</a>
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span><span class="lineCov">          1 : CodeRange::CodeRange(Kind kind, Offsets offsets)</span>
+<span class="lineNum">     301 </span>            :   : begin_(offsets.begin),
+<span class="lineNum">     302 </span>            :     profilingReturn_(0),
+<span class="lineNum">     303 </span>            :     end_(offsets.end),
+<span class="lineNum">     304 </span>            :     funcIndex_(0),
+<span class="lineNum">     305 </span>            :     funcLineOrBytecode_(0),
+<span class="lineNum">     306 </span>            :     funcBeginToTableEntry_(0),
+<span class="lineNum">     307 </span>            :     funcBeginToTableProfilingJump_(0),
+<span class="lineNum">     308 </span>            :     funcBeginToNonProfilingEntry_(0),
+<span class="lineNum">     309 </span>            :     funcProfilingJumpToProfilingReturn_(0),
+<span class="lineNum">     310 </span>            :     funcProfilingEpilogueToProfilingReturn_(0),
+<span class="lineNum">     311 </span><span class="lineCov">          1 :     kind_(kind)</span>
+<span class="lineNum">     312 </span>            : {
+<span class="lineNum">     313 </span>            :     MOZ_ASSERT(begin_ &lt;= end_);
+<span class="lineNum">     314 </span>            :     MOZ_ASSERT(kind_ == Entry || kind_ == Inline ||
+<span class="lineNum">     315 </span>            :                kind_ == FarJumpIsland || kind_ == DebugTrap);
+<a name="316"><span class="lineNum">     316 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     317 </span>            : 
+<span class="lineNum">     318 </span><span class="lineCov">          1 : CodeRange::CodeRange(Kind kind, ProfilingOffsets offsets)</span>
+<span class="lineNum">     319 </span>            :   : begin_(offsets.begin),
+<span class="lineNum">     320 </span>            :     profilingReturn_(offsets.profilingReturn),
+<span class="lineNum">     321 </span>            :     end_(offsets.end),
+<span class="lineNum">     322 </span>            :     funcIndex_(0),
+<span class="lineNum">     323 </span>            :     funcLineOrBytecode_(0),
+<span class="lineNum">     324 </span>            :     funcBeginToTableEntry_(0),
+<span class="lineNum">     325 </span>            :     funcBeginToTableProfilingJump_(0),
+<span class="lineNum">     326 </span>            :     funcBeginToNonProfilingEntry_(0),
+<span class="lineNum">     327 </span>            :     funcProfilingJumpToProfilingReturn_(0),
+<span class="lineNum">     328 </span>            :     funcProfilingEpilogueToProfilingReturn_(0),
+<span class="lineNum">     329 </span><span class="lineCov">          1 :     kind_(kind)</span>
+<span class="lineNum">     330 </span>            : {
+<span class="lineNum">     331 </span>            :     MOZ_ASSERT(begin_ &lt; profilingReturn_);
+<span class="lineNum">     332 </span>            :     MOZ_ASSERT(profilingReturn_ &lt; end_);
+<span class="lineNum">     333 </span>            :     MOZ_ASSERT(kind_ == ImportJitExit || kind_ == ImportInterpExit || kind_ == TrapExit);
+<a name="334"><span class="lineNum">     334 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     335 </span>            : 
+<span class="lineNum">     336 </span><span class="lineCov">          1 : CodeRange::CodeRange(uint32_t funcIndex, uint32_t funcLineOrBytecode, FuncOffsets offsets)</span>
+<span class="lineNum">     337 </span>            :   : begin_(offsets.begin),
+<span class="lineNum">     338 </span>            :     profilingReturn_(offsets.profilingReturn),
+<span class="lineNum">     339 </span>            :     end_(offsets.end),
+<span class="lineNum">     340 </span>            :     funcIndex_(funcIndex),
+<span class="lineNum">     341 </span>            :     funcLineOrBytecode_(funcLineOrBytecode),
+<span class="lineNum">     342 </span>            :     funcBeginToTableEntry_(offsets.tableEntry - begin_),
+<span class="lineNum">     343 </span>            :     funcBeginToTableProfilingJump_(offsets.tableProfilingJump - begin_),
+<span class="lineNum">     344 </span>            :     funcBeginToNonProfilingEntry_(offsets.nonProfilingEntry - begin_),
+<span class="lineNum">     345 </span>            :     funcProfilingJumpToProfilingReturn_(profilingReturn_ - offsets.profilingJump),
+<span class="lineNum">     346 </span>            :     funcProfilingEpilogueToProfilingReturn_(profilingReturn_ - offsets.profilingEpilogue),
+<span class="lineNum">     347 </span><span class="lineCov">          1 :     kind_(Function)</span>
+<span class="lineNum">     348 </span>            : {
+<span class="lineNum">     349 </span>            :     MOZ_ASSERT(begin_ &lt; profilingReturn_);
+<span class="lineNum">     350 </span>            :     MOZ_ASSERT(profilingReturn_ &lt; end_);
+<span class="lineNum">     351 </span>            :     MOZ_ASSERT(offsets.tableEntry - begin_ &lt;= UINT8_MAX);
+<span class="lineNum">     352 </span>            :     MOZ_ASSERT(offsets.tableProfilingJump - begin_ &lt;= UINT8_MAX);
+<span class="lineNum">     353 </span>            :     MOZ_ASSERT(offsets.nonProfilingEntry - begin_ &lt;= UINT8_MAX);
+<span class="lineNum">     354 </span>            :     MOZ_ASSERT(profilingReturn_ - offsets.profilingJump &lt;= UINT8_MAX);
+<span class="lineNum">     355 </span>            :     MOZ_ASSERT(profilingReturn_ - offsets.profilingEpilogue &lt;= UINT8_MAX);
+<span class="lineNum">     356 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     357 </span>            : 
+<span class="lineNum">     358 </span>            : static size_t
+<span class="lineNum">     359 </span>            : StringLengthWithNullChar(const char* chars)
+<span class="lineNum">     360 </span>            : {
+<span class="lineNum">     361 </span><span class="lineCov">          1 :     return chars ? strlen(chars) + 1 : 0;</span>
+<span class="lineNum">     362 </span>            : }
+<a name="363"><span class="lineNum">     363 </span>            : </a>
+<span class="lineNum">     364 </span>            : size_t
+<span class="lineNum">     365 </span><span class="lineCov">          1 : CacheableChars::serializedSize() const</span>
+<span class="lineNum">     366 </span>            : {
+<span class="lineNum">     367 </span><span class="lineCov">          1 :     return sizeof(uint32_t) + StringLengthWithNullChar(get());</span>
+<span class="lineNum">     368 </span>            : }
+<a name="369"><span class="lineNum">     369 </span>            : </a>
+<span class="lineNum">     370 </span>            : uint8_t*
+<span class="lineNum">     371 </span><span class="lineNoCov">          0 : CacheableChars::serialize(uint8_t* cursor) const</span>
+<span class="lineNum">     372 </span>            : {
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :     uint32_t lengthWithNullChar = StringLengthWithNullChar(get());</span>
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :     cursor = WriteScalar&lt;uint32_t&gt;(cursor, lengthWithNullChar);</span>
+<span class="lineNum">     375 </span><span class="lineNoCov">          0 :     cursor = WriteBytes(cursor, get(), lengthWithNullChar);</span>
+<span class="lineNum">     376 </span><span class="lineNoCov">          0 :     return cursor;</span>
+<span class="lineNum">     377 </span>            : }
+<a name="378"><span class="lineNum">     378 </span>            : </a>
+<span class="lineNum">     379 </span>            : const uint8_t*
+<span class="lineNum">     380 </span><span class="lineNoCov">          0 : CacheableChars::deserialize(const uint8_t* cursor)</span>
+<span class="lineNum">     381 </span>            : {
+<span class="lineNum">     382 </span>            :     uint32_t lengthWithNullChar;
+<span class="lineNum">     383 </span><span class="lineNoCov">          0 :     cursor = ReadBytes(cursor, &amp;lengthWithNullChar, sizeof(uint32_t));</span>
+<span class="lineNum">     384 </span>            : 
+<span class="lineNum">     385 </span><span class="lineNoCov">          0 :     if (lengthWithNullChar) {</span>
+<span class="lineNum">     386 </span><span class="lineNoCov">          0 :         reset(js_pod_malloc&lt;char&gt;(lengthWithNullChar));</span>
+<span class="lineNum">     387 </span><span class="lineNoCov">          0 :         if (!get())</span>
+<span class="lineNum">     388 </span>            :             return nullptr;
+<span class="lineNum">     389 </span>            : 
+<span class="lineNum">     390 </span><span class="lineNoCov">          0 :         cursor = ReadBytes(cursor, get(), lengthWithNullChar);</span>
+<span class="lineNum">     391 </span>            :     } else {
+<span class="lineNum">     392 </span>            :         MOZ_ASSERT(!get());
+<span class="lineNum">     393 </span>            :     }
+<span class="lineNum">     394 </span>            : 
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 :     return cursor;</span>
+<span class="lineNum">     396 </span>            : }
+<a name="397"><span class="lineNum">     397 </span>            : </a>
+<span class="lineNum">     398 </span>            : size_t
+<span class="lineNum">     399 </span><span class="lineNoCov">          0 : CacheableChars::sizeOfExcludingThis(MallocSizeOf mallocSizeOf) const</span>
+<span class="lineNum">     400 </span>            : {
+<span class="lineNum">     401 </span><span class="lineNoCov">          0 :     return mallocSizeOf(get());</span>
+<span class="lineNum">     402 </span>            : }
+<a name="403"><span class="lineNum">     403 </span>            : </a>
+<span class="lineNum">     404 </span>            : size_t
+<span class="lineNum">     405 </span><span class="lineCov">          1 : Metadata::serializedSize() const</span>
+<span class="lineNum">     406 </span>            : {
+<span class="lineNum">     407 </span><span class="lineCov">          1 :     return sizeof(pod()) +</span>
+<span class="lineNum">     408 </span><span class="lineCov">          1 :            SerializedVectorSize(funcImports) +</span>
+<span class="lineNum">     409 </span><span class="lineCov">          1 :            SerializedVectorSize(funcExports) +</span>
+<span class="lineNum">     410 </span><span class="lineCov">          1 :            SerializedVectorSize(sigIds) +</span>
+<span class="lineNum">     411 </span><span class="lineCov">          1 :            SerializedPodVectorSize(globals) +</span>
+<span class="lineNum">     412 </span><span class="lineCov">          1 :            SerializedPodVectorSize(tables) +</span>
+<span class="lineNum">     413 </span><span class="lineCov">          1 :            SerializedPodVectorSize(memoryAccesses) +</span>
+<span class="lineNum">     414 </span><span class="lineCov">          1 :            SerializedPodVectorSize(codeRanges) +</span>
+<span class="lineNum">     415 </span><span class="lineCov">          1 :            SerializedPodVectorSize(callSites) +</span>
+<span class="lineNum">     416 </span><span class="lineCov">          1 :            SerializedPodVectorSize(callThunks) +</span>
+<span class="lineNum">     417 </span><span class="lineCov">          1 :            SerializedPodVectorSize(funcNames) +</span>
+<span class="lineNum">     418 </span><span class="lineCov">          1 :            SerializedPodVectorSize(customSections) +</span>
+<span class="lineNum">     419 </span><span class="lineCov">          1 :            filename.serializedSize();</span>
+<span class="lineNum">     420 </span>            : }
+<a name="421"><span class="lineNum">     421 </span>            : </a>
+<span class="lineNum">     422 </span>            : uint8_t*
+<span class="lineNum">     423 </span><span class="lineNoCov">          0 : Metadata::serialize(uint8_t* cursor) const</span>
+<span class="lineNum">     424 </span>            : {
+<span class="lineNum">     425 </span>            :     MOZ_ASSERT(!debugEnabled &amp;&amp; debugTrapFarJumpOffsets.empty() &amp;&amp;
+<span class="lineNum">     426 </span>            :                debugFuncArgTypes.empty() &amp;&amp; debugFuncReturnTypes.empty() &amp;&amp;
+<span class="lineNum">     427 </span>            :                debugFuncToCodeRange.empty());
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :     cursor = WriteBytes(cursor, &amp;pod(), sizeof(pod()));</span>
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 :     cursor = SerializeVector(cursor, funcImports);</span>
+<span class="lineNum">     430 </span><span class="lineNoCov">          0 :     cursor = SerializeVector(cursor, funcExports);</span>
+<span class="lineNum">     431 </span><span class="lineNoCov">          0 :     cursor = SerializeVector(cursor, sigIds);</span>
+<span class="lineNum">     432 </span><span class="lineNoCov">          0 :     cursor = SerializePodVector(cursor, globals);</span>
+<span class="lineNum">     433 </span><span class="lineNoCov">          0 :     cursor = SerializePodVector(cursor, tables);</span>
+<span class="lineNum">     434 </span><span class="lineNoCov">          0 :     cursor = SerializePodVector(cursor, memoryAccesses);</span>
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :     cursor = SerializePodVector(cursor, codeRanges);</span>
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :     cursor = SerializePodVector(cursor, callSites);</span>
+<span class="lineNum">     437 </span><span class="lineNoCov">          0 :     cursor = SerializePodVector(cursor, callThunks);</span>
+<span class="lineNum">     438 </span><span class="lineNoCov">          0 :     cursor = SerializePodVector(cursor, funcNames);</span>
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :     cursor = SerializePodVector(cursor, customSections);</span>
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :     cursor = filename.serialize(cursor);</span>
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :     return cursor;</span>
+<span class="lineNum">     442 </span>            : }
+<a name="443"><span class="lineNum">     443 </span>            : </a>
+<span class="lineNum">     444 </span>            : /* static */ const uint8_t*
+<span class="lineNum">     445 </span><span class="lineNoCov">          0 : Metadata::deserialize(const uint8_t* cursor)</span>
+<span class="lineNum">     446 </span>            : {
+<span class="lineNum">     447 </span><span class="lineNoCov">          0 :     (cursor = ReadBytes(cursor, &amp;pod(), sizeof(pod()))) &amp;&amp;</span>
+<span class="lineNum">     448 </span><span class="lineNoCov">          0 :     (cursor = DeserializeVector(cursor, &amp;funcImports)) &amp;&amp;</span>
+<span class="lineNum">     449 </span><span class="lineNoCov">          0 :     (cursor = DeserializeVector(cursor, &amp;funcExports)) &amp;&amp;</span>
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 :     (cursor = DeserializeVector(cursor, &amp;sigIds)) &amp;&amp;</span>
+<span class="lineNum">     451 </span><span class="lineNoCov">          0 :     (cursor = DeserializePodVector(cursor, &amp;globals)) &amp;&amp;</span>
+<span class="lineNum">     452 </span><span class="lineNoCov">          0 :     (cursor = DeserializePodVector(cursor, &amp;tables)) &amp;&amp;</span>
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :     (cursor = DeserializePodVector(cursor, &amp;memoryAccesses)) &amp;&amp;</span>
+<span class="lineNum">     454 </span><span class="lineNoCov">          0 :     (cursor = DeserializePodVector(cursor, &amp;codeRanges)) &amp;&amp;</span>
+<span class="lineNum">     455 </span><span class="lineNoCov">          0 :     (cursor = DeserializePodVector(cursor, &amp;callSites)) &amp;&amp;</span>
+<span class="lineNum">     456 </span><span class="lineNoCov">          0 :     (cursor = DeserializePodVector(cursor, &amp;callThunks)) &amp;&amp;</span>
+<span class="lineNum">     457 </span><span class="lineNoCov">          0 :     (cursor = DeserializePodVector(cursor, &amp;funcNames)) &amp;&amp;</span>
+<span class="lineNum">     458 </span><span class="lineNoCov">          0 :     (cursor = DeserializePodVector(cursor, &amp;customSections)) &amp;&amp;</span>
+<span class="lineNum">     459 </span><span class="lineNoCov">          0 :     (cursor = filename.deserialize(cursor));</span>
+<span class="lineNum">     460 </span><span class="lineNoCov">          0 :     debugEnabled = false;</span>
+<span class="lineNum">     461 </span><span class="lineNoCov">          0 :     debugTrapFarJumpOffsets.clear();</span>
+<span class="lineNum">     462 </span><span class="lineNoCov">          0 :     debugFuncToCodeRange.clear();</span>
+<span class="lineNum">     463 </span><span class="lineNoCov">          0 :     debugFuncArgTypes.clear();</span>
+<span class="lineNum">     464 </span><span class="lineNoCov">          0 :     debugFuncReturnTypes.clear();</span>
+<span class="lineNum">     465 </span><span class="lineNoCov">          0 :     return cursor;</span>
+<span class="lineNum">     466 </span>            : }
+<a name="467"><span class="lineNum">     467 </span>            : </a>
+<span class="lineNum">     468 </span>            : size_t
+<span class="lineNum">     469 </span><span class="lineNoCov">          0 : Metadata::sizeOfExcludingThis(MallocSizeOf mallocSizeOf) const</span>
+<span class="lineNum">     470 </span>            : {
+<span class="lineNum">     471 </span><span class="lineNoCov">          0 :     return SizeOfVectorExcludingThis(funcImports, mallocSizeOf) +</span>
+<span class="lineNum">     472 </span><span class="lineNoCov">          0 :            SizeOfVectorExcludingThis(funcExports, mallocSizeOf) +</span>
+<span class="lineNum">     473 </span><span class="lineNoCov">          0 :            SizeOfVectorExcludingThis(sigIds, mallocSizeOf) +</span>
+<span class="lineNum">     474 </span><span class="lineNoCov">          0 :            globals.sizeOfExcludingThis(mallocSizeOf) +</span>
+<span class="lineNum">     475 </span><span class="lineNoCov">          0 :            tables.sizeOfExcludingThis(mallocSizeOf) +</span>
+<span class="lineNum">     476 </span><span class="lineNoCov">          0 :            memoryAccesses.sizeOfExcludingThis(mallocSizeOf) +</span>
+<span class="lineNum">     477 </span><span class="lineNoCov">          0 :            codeRanges.sizeOfExcludingThis(mallocSizeOf) +</span>
+<span class="lineNum">     478 </span><span class="lineNoCov">          0 :            callSites.sizeOfExcludingThis(mallocSizeOf) +</span>
+<span class="lineNum">     479 </span><span class="lineNoCov">          0 :            callThunks.sizeOfExcludingThis(mallocSizeOf) +</span>
+<span class="lineNum">     480 </span><span class="lineNoCov">          0 :            funcNames.sizeOfExcludingThis(mallocSizeOf) +</span>
+<span class="lineNum">     481 </span><span class="lineNoCov">          0 :            customSections.sizeOfExcludingThis(mallocSizeOf) +</span>
+<span class="lineNum">     482 </span><span class="lineNoCov">          0 :            filename.sizeOfExcludingThis(mallocSizeOf);</span>
+<span class="lineNum">     483 </span>            : }
+<span class="lineNum">     484 </span>            : 
+<span class="lineNum">     485 </span>            : struct ProjectFuncIndex
+<span class="lineNum">     486 </span>            : {
+<span class="lineNum">     487 </span>            :     const FuncExportVector&amp; funcExports;
+<span class="lineNum">     488 </span>            : 
+<span class="lineNum">     489 </span>            :     explicit ProjectFuncIndex(const FuncExportVector&amp; funcExports)
+<span class="lineNum">     490 </span><span class="lineCov">          1 :       : funcExports(funcExports)</span>
+<span class="lineNum">     491 </span>            :     {}
+<span class="lineNum">     492 </span>            :     uint32_t operator[](size_t index) const {
+<span class="lineNum">     493 </span><span class="lineCov">          1 :         return funcExports[index].funcIndex();</span>
+<span class="lineNum">     494 </span>            :     }
+<span class="lineNum">     495 </span>            : };
+<a name="496"><span class="lineNum">     496 </span>            : </a>
+<span class="lineNum">     497 </span>            : const FuncExport&amp;
+<span class="lineNum">     498 </span><span class="lineCov">          1 : Metadata::lookupFuncExport(uint32_t funcIndex) const</span>
+<span class="lineNum">     499 </span>            : {
+<span class="lineNum">     500 </span>            :     size_t match;
+<span class="lineNum">     501 </span><span class="lineCov">          1 :     if (!BinarySearch(ProjectFuncIndex(funcExports), 0, funcExports.length(), funcIndex, &amp;match))</span>
+<span class="lineNum">     502 </span><span class="lineNoCov">          0 :         MOZ_CRASH(&quot;missing function export&quot;);</span>
+<span class="lineNum">     503 </span>            : 
+<span class="lineNum">     504 </span><span class="lineCov">          1 :     return funcExports[match];</span>
+<span class="lineNum">     505 </span>            : }
+<a name="506"><span class="lineNum">     506 </span>            : </a>
+<span class="lineNum">     507 </span>            : bool
+<span class="lineNum">     508 </span><span class="lineNoCov">          0 : Metadata::getFuncName(const Bytes* maybeBytecode, uint32_t funcIndex, UTF8Bytes* name) const</span>
+<span class="lineNum">     509 </span>            : {
+<span class="lineNum">     510 </span><span class="lineNoCov">          0 :     if (funcIndex &lt; funcNames.length()) {</span>
+<span class="lineNum">     511 </span>            :         MOZ_ASSERT(maybeBytecode, &quot;NameInBytecode requires preserved bytecode&quot;);
+<span class="lineNum">     512 </span>            : 
+<span class="lineNum">     513 </span><span class="lineNoCov">          0 :         const NameInBytecode&amp; n = funcNames[funcIndex];</span>
+<span class="lineNum">     514 </span>            :         MOZ_ASSERT(n.offset + n.length &lt; maybeBytecode-&gt;length());
+<span class="lineNum">     515 </span>            : 
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :         if (n.length != 0)</span>
+<span class="lineNum">     517 </span><span class="lineNoCov">          0 :             return name-&gt;append((const char*)maybeBytecode-&gt;begin() + n.offset, n.length);</span>
+<span class="lineNum">     518 </span>            :     }
+<span class="lineNum">     519 </span>            : 
+<span class="lineNum">     520 </span>            :     // For names that are out of range or invalid, synthesize a name.
+<span class="lineNum">     521 </span>            : 
+<span class="lineNum">     522 </span><span class="lineNoCov">          0 :     const char beforeFuncIndex[] = &quot;wasm-function[&quot;;</span>
+<span class="lineNum">     523 </span><span class="lineNoCov">          0 :     const char afterFuncIndex[] = &quot;]&quot;;</span>
+<span class="lineNum">     524 </span>            : 
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :     ToCStringBuf cbuf;</span>
+<span class="lineNum">     526 </span><span class="lineNoCov">          0 :     const char* funcIndexStr = NumberToCString(nullptr, &amp;cbuf, funcIndex);</span>
+<span class="lineNum">     527 </span>            :     MOZ_ASSERT(funcIndexStr);
+<span class="lineNum">     528 </span>            : 
+<span class="lineNum">     529 </span><span class="lineNoCov">          0 :     return name-&gt;append(beforeFuncIndex, strlen(beforeFuncIndex)) &amp;&amp;</span>
+<span class="lineNum">     530 </span><span class="lineNoCov">          0 :            name-&gt;append(funcIndexStr, strlen(funcIndexStr)) &amp;&amp;</span>
+<span class="lineNum">     531 </span><span class="lineNoCov">          0 :            name-&gt;append(afterFuncIndex, strlen(afterFuncIndex));</span>
+<span class="lineNum">     532 </span>            : }
+<a name="533"><span class="lineNum">     533 </span>            : </a>
+<span class="lineNum">     534 </span>            : bool
+<span class="lineNum">     535 </span><span class="lineNoCov">          0 : GeneratedSourceMap::searchLineByOffset(JSContext* cx, uint32_t offset, size_t* exprlocIndex)</span>
+<span class="lineNum">     536 </span>            : {
+<span class="lineNum">     537 </span>            :     MOZ_ASSERT(!exprlocs_.empty());
+<span class="lineNum">     538 </span><span class="lineNoCov">          0 :     size_t exprlocsLength = exprlocs_.length();</span>
+<span class="lineNum">     539 </span>            : 
+<span class="lineNum">     540 </span>            :     // Lazily build sorted array for fast log(n) lookup.
+<span class="lineNum">     541 </span><span class="lineNoCov">          0 :     if (!sortedByOffsetExprLocIndices_) {</span>
+<span class="lineNum">     542 </span>            :         ExprLocIndexVector scratch;
+<span class="lineNum">     543 </span><span class="lineNoCov">          0 :         auto indices = MakeUnique&lt;ExprLocIndexVector&gt;();</span>
+<span class="lineNum">     544 </span><span class="lineNoCov">          0 :         if (!indices || !indices-&gt;resize(exprlocsLength) || !scratch.resize(exprlocsLength)) {</span>
+<span class="lineNum">     545 </span><span class="lineNoCov">          0 :             ReportOutOfMemory(cx);</span>
+<span class="lineNum">     546 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     547 </span>            :         }
+<span class="lineNum">     548 </span><span class="lineNoCov">          0 :         sortedByOffsetExprLocIndices_ = Move(indices);</span>
+<span class="lineNum">     549 </span>            : 
+<span class="lineNum">     550 </span><span class="lineNoCov">          0 :         for (size_t i = 0; i &lt; exprlocsLength; i++)</span>
+<a name="551"><span class="lineNum">     551 </span><span class="lineNoCov">          0 :             (*sortedByOffsetExprLocIndices_)[i] = i;</span></a>
+<span class="lineNum">     552 </span>            : 
+<span class="lineNum">     553 </span><span class="lineNoCov">          0 :         auto compareExprLocViaIndex = [&amp;](uint32_t i, uint32_t j, bool* lessOrEqualp) -&gt; bool {</span>
+<span class="lineNum">     554 </span><span class="lineNoCov">          0 :             *lessOrEqualp = exprlocs_[i].offset &lt;= exprlocs_[j].offset;</span>
+<span class="lineNum">     555 </span><span class="lineNoCov">          0 :             return true;</span>
+<span class="lineNum">     556 </span><span class="lineNoCov">          0 :         };</span>
+<span class="lineNum">     557 </span><span class="lineNoCov">          0 :         MOZ_ALWAYS_TRUE(MergeSort(sortedByOffsetExprLocIndices_-&gt;begin(), exprlocsLength,</span>
+<span class="lineNum">     558 </span>            :                                   scratch.begin(), compareExprLocViaIndex));
+<span class="lineNum">     559 </span>            :     }
+<span class="lineNum">     560 </span>            : 
+<span class="lineNum">     561 </span>            :     // Allowing non-exact search and if BinarySearchIf returns out-of-bound
+<span class="lineNum">     562 </span>            :     // index, moving the index to the last index.
+<span class="lineNum">     563 </span>            :     auto lookupFn = [&amp;](uint32_t i) -&gt; int {
+<span class="lineNum">     564 </span><span class="lineNoCov">          0 :         const ExprLoc&amp; loc = exprlocs_[i];</span>
+<span class="lineNum">     565 </span><span class="lineNoCov">          0 :         return offset == loc.offset ? 0 : offset &lt; loc.offset ? -1 : 1;</span>
+<span class="lineNum">     566 </span><span class="lineNoCov">          0 :     };</span>
+<span class="lineNum">     567 </span>            :     size_t match;
+<span class="lineNum">     568 </span><span class="lineNoCov">          0 :     Unused &lt;&lt; BinarySearchIf(sortedByOffsetExprLocIndices_-&gt;begin(), 0, exprlocsLength, lookupFn, &amp;match);</span>
+<span class="lineNum">     569 </span><span class="lineNoCov">          0 :     if (match &gt;= exprlocsLength)</span>
+<span class="lineNum">     570 </span><span class="lineNoCov">          0 :         match = exprlocsLength - 1;</span>
+<span class="lineNum">     571 </span><span class="lineNoCov">          0 :     *exprlocIndex = (*sortedByOffsetExprLocIndices_)[match];</span>
+<span class="lineNum">     572 </span><span class="lineNoCov">          0 :     return true;</span>
+<a name="573"><span class="lineNum">     573 </span>            : }</a>
+<span class="lineNum">     574 </span>            : 
+<span class="lineNum">     575 </span><span class="lineCov">          1 : Code::Code(UniqueCodeSegment segment,</span>
+<span class="lineNum">     576 </span>            :            const Metadata&amp; metadata,
+<span class="lineNum">     577 </span>            :            const ShareableBytes* maybeBytecode)
+<span class="lineNum">     578 </span>            :   : segment_(Move(segment)),
+<span class="lineNum">     579 </span>            :     metadata_(&amp;metadata),
+<span class="lineNum">     580 </span>            :     maybeBytecode_(maybeBytecode),
+<span class="lineNum">     581 </span>            :     profilingEnabled_(false),
+<span class="lineNum">     582 </span><span class="lineCov">          1 :     enterAndLeaveFrameTrapsCounter_(0)</span>
+<span class="lineNum">     583 </span>            : {
+<span class="lineNum">     584 </span>            :     MOZ_ASSERT_IF(metadata_-&gt;debugEnabled, maybeBytecode);
+<span class="lineNum">     585 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     586 </span>            : 
+<span class="lineNum">     587 </span>            : struct CallSiteRetAddrOffset
+<span class="lineNum">     588 </span>            : {
+<span class="lineNum">     589 </span>            :     const CallSiteVector&amp; callSites;
+<span class="lineNum">     590 </span><span class="lineNoCov">          0 :     explicit CallSiteRetAddrOffset(const CallSiteVector&amp; callSites) : callSites(callSites) {}</span>
+<span class="lineNum">     591 </span>            :     uint32_t operator[](size_t index) const {
+<span class="lineNum">     592 </span><span class="lineNoCov">          0 :         return callSites[index].returnAddressOffset();</span>
+<span class="lineNum">     593 </span>            :     }
+<span class="lineNum">     594 </span>            : };
+<a name="595"><span class="lineNum">     595 </span>            : </a>
+<span class="lineNum">     596 </span>            : const CallSite*
+<span class="lineNum">     597 </span><span class="lineNoCov">          0 : Code::lookupCallSite(void* returnAddress) const</span>
+<span class="lineNum">     598 </span>            : {
+<span class="lineNum">     599 </span><span class="lineNoCov">          0 :     uint32_t target = ((uint8_t*)returnAddress) - segment_-&gt;base();</span>
+<span class="lineNum">     600 </span><span class="lineNoCov">          0 :     size_t lowerBound = 0;</span>
+<span class="lineNum">     601 </span><span class="lineNoCov">          0 :     size_t upperBound = metadata_-&gt;callSites.length();</span>
+<span class="lineNum">     602 </span>            : 
+<span class="lineNum">     603 </span>            :     size_t match;
+<span class="lineNum">     604 </span><span class="lineNoCov">          0 :     if (!BinarySearch(CallSiteRetAddrOffset(metadata_-&gt;callSites), lowerBound, upperBound, target, &amp;match))</span>
+<span class="lineNum">     605 </span>            :         return nullptr;
+<span class="lineNum">     606 </span>            : 
+<span class="lineNum">     607 </span><span class="lineNoCov">          0 :     return &amp;metadata_-&gt;callSites[match];</span>
+<span class="lineNum">     608 </span>            : }
+<a name="609"><span class="lineNum">     609 </span>            : </a>
+<span class="lineNum">     610 </span>            : const CodeRange*
+<span class="lineNum">     611 </span><span class="lineNoCov">          0 : Code::lookupRange(void* pc) const</span>
+<span class="lineNum">     612 </span>            : {
+<span class="lineNum">     613 </span><span class="lineNoCov">          0 :     CodeRange::PC target((uint8_t*)pc - segment_-&gt;base());</span>
+<span class="lineNum">     614 </span><span class="lineNoCov">          0 :     size_t lowerBound = 0;</span>
+<span class="lineNum">     615 </span><span class="lineNoCov">          0 :     size_t upperBound = metadata_-&gt;codeRanges.length();</span>
+<span class="lineNum">     616 </span>            : 
+<span class="lineNum">     617 </span>            :     size_t match;
+<span class="lineNum">     618 </span><span class="lineNoCov">          0 :     if (!BinarySearch(metadata_-&gt;codeRanges, lowerBound, upperBound, target, &amp;match))</span>
+<span class="lineNum">     619 </span>            :         return nullptr;
+<span class="lineNum">     620 </span>            : 
+<span class="lineNum">     621 </span><span class="lineNoCov">          0 :     return &amp;metadata_-&gt;codeRanges[match];</span>
+<span class="lineNum">     622 </span>            : }
+<span class="lineNum">     623 </span>            : 
+<span class="lineNum">     624 </span>            : struct MemoryAccessOffset
+<span class="lineNum">     625 </span>            : {
+<span class="lineNum">     626 </span>            :     const MemoryAccessVector&amp; accesses;
+<span class="lineNum">     627 </span><span class="lineNoCov">          0 :     explicit MemoryAccessOffset(const MemoryAccessVector&amp; accesses) : accesses(accesses) {}</span>
+<span class="lineNum">     628 </span>            :     uintptr_t operator[](size_t index) const {
+<span class="lineNum">     629 </span><span class="lineNoCov">          0 :         return accesses[index].insnOffset();</span>
+<span class="lineNum">     630 </span>            :     }
+<span class="lineNum">     631 </span>            : };
+<a name="632"><span class="lineNum">     632 </span>            : </a>
+<span class="lineNum">     633 </span>            : const MemoryAccess*
+<span class="lineNum">     634 </span><span class="lineNoCov">          0 : Code::lookupMemoryAccess(void* pc) const</span>
+<span class="lineNum">     635 </span>            : {
+<span class="lineNum">     636 </span>            :     MOZ_ASSERT(segment_-&gt;containsFunctionPC(pc));
+<span class="lineNum">     637 </span>            : 
+<span class="lineNum">     638 </span><span class="lineNoCov">          0 :     uint32_t target = ((uint8_t*)pc) - segment_-&gt;base();</span>
+<span class="lineNum">     639 </span><span class="lineNoCov">          0 :     size_t lowerBound = 0;</span>
+<span class="lineNum">     640 </span><span class="lineNoCov">          0 :     size_t upperBound = metadata_-&gt;memoryAccesses.length();</span>
+<span class="lineNum">     641 </span>            : 
+<span class="lineNum">     642 </span>            :     size_t match;
+<span class="lineNum">     643 </span><span class="lineNoCov">          0 :     if (!BinarySearch(MemoryAccessOffset(metadata_-&gt;memoryAccesses), lowerBound, upperBound, target, &amp;match))</span>
+<span class="lineNum">     644 </span>            :         return nullptr;
+<span class="lineNum">     645 </span>            : 
+<span class="lineNum">     646 </span><span class="lineNoCov">          0 :     return &amp;metadata_-&gt;memoryAccesses[match];</span>
+<span class="lineNum">     647 </span>            : }
+<a name="648"><span class="lineNum">     648 </span>            : </a>
+<span class="lineNum">     649 </span>            : bool
+<span class="lineNum">     650 </span><span class="lineNoCov">          0 : Code::getFuncName(uint32_t funcIndex, UTF8Bytes* name) const</span>
+<span class="lineNum">     651 </span>            : {
+<span class="lineNum">     652 </span><span class="lineCov">          1 :     const Bytes* maybeBytecode = maybeBytecode_ ? &amp;maybeBytecode_.get()-&gt;bytes : nullptr;</span>
+<span class="lineNum">     653 </span><span class="lineCov">          1 :     return metadata_-&gt;getFuncName(maybeBytecode, funcIndex, name);</span>
+<span class="lineNum">     654 </span>            : }
+<a name="655"><span class="lineNum">     655 </span>            : </a>
+<span class="lineNum">     656 </span>            : JSAtom*
+<span class="lineNum">     657 </span><span class="lineCov">          1 : Code::getFuncAtom(JSContext* cx, uint32_t funcIndex) const</span>
+<span class="lineNum">     658 </span>            : {
+<span class="lineNum">     659 </span>            :     UTF8Bytes name;
+<span class="lineNum">     660 </span><span class="lineCov">          1 :     if (!getFuncName(funcIndex, &amp;name))</span>
+<span class="lineNum">     661 </span>            :         return nullptr;
+<span class="lineNum">     662 </span>            : 
+<span class="lineNum">     663 </span><span class="lineCov">          1 :     return AtomizeUTF8Chars(cx, name.begin(), name.length());</span>
+<span class="lineNum">     664 </span>            : }
+<span class="lineNum">     665 </span>            : 
+<span class="lineNum">     666 </span>            : const char enabledMessage[] =
+<span class="lineNum">     667 </span>            :     &quot;Restart with developer tools open to view WebAssembly source&quot;;
+<span class="lineNum">     668 </span>            : 
+<span class="lineNum">     669 </span>            : const char tooBigMessage[] =
+<span class="lineNum">     670 </span>            :     &quot;Unfortunately, this WebAssembly module is too big to view as text.\n&quot;
+<span class="lineNum">     671 </span>            :     &quot;We are working hard to remove this limitation.&quot;;
+<span class="lineNum">     672 </span>            : 
+<span class="lineNum">     673 </span>            : static const unsigned TooBig = 1000000;
+<a name="674"><span class="lineNum">     674 </span>            : </a>
+<span class="lineNum">     675 </span>            : JSString*
+<span class="lineNum">     676 </span><span class="lineNoCov">          0 : Code::createText(JSContext* cx)</span>
+<span class="lineNum">     677 </span>            : {
+<span class="lineNum">     678 </span>            :     StringBuffer buffer(cx);
+<span class="lineNum">     679 </span><span class="lineNoCov">          0 :     if (!maybeBytecode_) {</span>
+<span class="lineNum">     680 </span><span class="lineNoCov">          0 :         if (!buffer.append(enabledMessage))</span>
+<span class="lineNum">     681 </span>            :             return nullptr;
+<span class="lineNum">     682 </span>            : 
+<span class="lineNum">     683 </span>            :         MOZ_ASSERT(!maybeSourceMap_);
+<span class="lineNum">     684 </span><span class="lineNoCov">          0 :     } else if (maybeBytecode_-&gt;bytes.length() &gt; TooBig) {</span>
+<span class="lineNum">     685 </span><span class="lineNoCov">          0 :         if (!buffer.append(tooBigMessage))</span>
+<span class="lineNum">     686 </span>            :             return nullptr;
+<span class="lineNum">     687 </span>            : 
+<span class="lineNum">     688 </span>            :         MOZ_ASSERT(!maybeSourceMap_);
+<span class="lineNum">     689 </span>            :     } else {
+<span class="lineNum">     690 </span><span class="lineNoCov">          0 :         const Bytes&amp; bytes = maybeBytecode_-&gt;bytes;</span>
+<span class="lineNum">     691 </span><span class="lineNoCov">          0 :         auto sourceMap = MakeUnique&lt;GeneratedSourceMap&gt;();</span>
+<span class="lineNum">     692 </span><span class="lineNoCov">          0 :         if (!sourceMap) {</span>
+<span class="lineNum">     693 </span><span class="lineNoCov">          0 :             ReportOutOfMemory(cx);</span>
+<span class="lineNum">     694 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     695 </span>            :         }
+<span class="lineNum">     696 </span><span class="lineNoCov">          0 :         maybeSourceMap_ = Move(sourceMap);</span>
+<span class="lineNum">     697 </span>            : 
+<span class="lineNum">     698 </span><span class="lineNoCov">          0 :         if (!BinaryToText(cx, bytes.begin(), bytes.length(), buffer, maybeSourceMap_.get()))</span>
+<span class="lineNum">     699 </span>            :             return nullptr;
+<span class="lineNum">     700 </span>            : 
+<span class="lineNum">     701 </span>            : #if DEBUG
+<span class="lineNum">     702 </span>            :         // Check that expression locations are sorted by line number.
+<span class="lineNum">     703 </span>            :         uint32_t lastLineno = 0;
+<span class="lineNum">     704 </span>            :         for (const ExprLoc&amp; loc : maybeSourceMap_-&gt;exprlocs()) {
+<span class="lineNum">     705 </span>            :             MOZ_ASSERT(lastLineno &lt;= loc.lineno);
+<span class="lineNum">     706 </span>            :             lastLineno = loc.lineno;
+<span class="lineNum">     707 </span>            :         }
+<span class="lineNum">     708 </span>            : #endif
+<span class="lineNum">     709 </span>            :     }
+<span class="lineNum">     710 </span>            : 
+<span class="lineNum">     711 </span><span class="lineNoCov">          0 :     return buffer.finishString();</span>
+<span class="lineNum">     712 </span>            : }
+<a name="713"><span class="lineNum">     713 </span>            : </a>
+<span class="lineNum">     714 </span>            : bool
+<span class="lineNum">     715 </span><span class="lineNoCov">          0 : Code::ensureSourceMap(JSContext* cx)</span>
+<span class="lineNum">     716 </span>            : {
+<span class="lineNum">     717 </span><span class="lineNoCov">          0 :     if (maybeSourceMap_ || !maybeBytecode_)</span>
+<span class="lineNum">     718 </span>            :         return true;
+<span class="lineNum">     719 </span>            : 
+<span class="lineNum">     720 </span>            :     // We just need to cache maybeSourceMap_, ignoring the text result.
+<span class="lineNum">     721 </span><span class="lineNoCov">          0 :     return createText(cx);</span>
+<span class="lineNum">     722 </span>            : }
+<span class="lineNum">     723 </span>            : 
+<span class="lineNum">     724 </span>            : struct LineComparator
+<span class="lineNum">     725 </span>            : {
+<span class="lineNum">     726 </span>            :     const uint32_t lineno;
+<span class="lineNum">     727 </span><span class="lineNoCov">          0 :     explicit LineComparator(uint32_t lineno) : lineno(lineno) {}</span>
+<span class="lineNum">     728 </span>            : 
+<span class="lineNum">     729 </span>            :     int operator()(const ExprLoc&amp; loc) const {
+<span class="lineNum">     730 </span><span class="lineNoCov">          0 :         return lineno == loc.lineno ? 0 : lineno &lt; loc.lineno ? -1 : 1;</span>
+<span class="lineNum">     731 </span>            :     }
+<span class="lineNum">     732 </span>            : };
+<a name="733"><span class="lineNum">     733 </span>            : </a>
+<span class="lineNum">     734 </span>            : bool
+<span class="lineNum">     735 </span><span class="lineNoCov">          0 : Code::getLineOffsets(JSContext* cx, size_t lineno, Vector&lt;uint32_t&gt;* offsets)</span>
+<span class="lineNum">     736 </span>            : {
+<span class="lineNum">     737 </span><span class="lineNoCov">          0 :     if (!metadata_-&gt;debugEnabled)</span>
+<span class="lineNum">     738 </span>            :         return true;
+<span class="lineNum">     739 </span>            : 
+<span class="lineNum">     740 </span><span class="lineNoCov">          0 :     if (!ensureSourceMap(cx))</span>
+<span class="lineNum">     741 </span>            :         return false;
+<span class="lineNum">     742 </span>            : 
+<span class="lineNum">     743 </span><span class="lineNoCov">          0 :     if (!maybeSourceMap_)</span>
+<span class="lineNum">     744 </span>            :         return true; // no source text available, keep offsets empty.
+<span class="lineNum">     745 </span>            : 
+<span class="lineNum">     746 </span><span class="lineNoCov">          0 :     ExprLocVector&amp; exprlocs = maybeSourceMap_-&gt;exprlocs();</span>
+<span class="lineNum">     747 </span>            : 
+<span class="lineNum">     748 </span>            :     // Binary search for the expression with the specified line number and
+<span class="lineNum">     749 </span>            :     // rewind to the first expression, if more than one expression on the same line.
+<span class="lineNum">     750 </span>            :     size_t match;
+<span class="lineNum">     751 </span><span class="lineNoCov">          0 :     if (!BinarySearchIf(exprlocs, 0, exprlocs.length(), LineComparator(lineno), &amp;match))</span>
+<span class="lineNum">     752 </span>            :         return true;
+<span class="lineNum">     753 </span>            : 
+<span class="lineNum">     754 </span><span class="lineNoCov">          0 :     while (match &gt; 0 &amp;&amp; exprlocs[match - 1].lineno == lineno)</span>
+<span class="lineNum">     755 </span><span class="lineNoCov">          0 :         match--;</span>
+<span class="lineNum">     756 </span>            : 
+<span class="lineNum">     757 </span>            :     // Return all expression offsets that were printed on the specified line.
+<span class="lineNum">     758 </span><span class="lineNoCov">          0 :     for (size_t i = match; i &lt; exprlocs.length() &amp;&amp; exprlocs[i].lineno == lineno; i++) {</span>
+<span class="lineNum">     759 </span><span class="lineNoCov">          0 :         if (!offsets-&gt;append(exprlocs[i].offset))</span>
+<span class="lineNum">     760 </span>            :             return false;
+<span class="lineNum">     761 </span>            :     }
+<span class="lineNum">     762 </span>            : 
+<span class="lineNum">     763 </span>            :     return true;
+<span class="lineNum">     764 </span>            : }
+<a name="765"><span class="lineNum">     765 </span>            : </a>
+<span class="lineNum">     766 </span>            : bool
+<span class="lineNum">     767 </span><span class="lineNoCov">          0 : Code::getOffsetLocation(JSContext* cx, uint32_t offset, bool* found, size_t* lineno, size_t* column)</span>
+<span class="lineNum">     768 </span>            : {
+<span class="lineNum">     769 </span><span class="lineNoCov">          0 :     *found = false;</span>
+<span class="lineNum">     770 </span><span class="lineNoCov">          0 :     if (!metadata_-&gt;debugEnabled)</span>
+<span class="lineNum">     771 </span>            :         return true;
+<span class="lineNum">     772 </span>            : 
+<span class="lineNum">     773 </span><span class="lineNoCov">          0 :     if (!ensureSourceMap(cx))</span>
+<span class="lineNum">     774 </span>            :         return false;
+<span class="lineNum">     775 </span>            : 
+<span class="lineNum">     776 </span><span class="lineNoCov">          0 :     if (!maybeSourceMap_ || maybeSourceMap_-&gt;exprlocs().empty())</span>
+<span class="lineNum">     777 </span>            :         return true; // no source text available
+<span class="lineNum">     778 </span>            : 
+<span class="lineNum">     779 </span>            :     size_t foundAt;
+<span class="lineNum">     780 </span><span class="lineNoCov">          0 :     if (!maybeSourceMap_-&gt;searchLineByOffset(cx, offset, &amp;foundAt))</span>
+<span class="lineNum">     781 </span>            :         return false;
+<span class="lineNum">     782 </span>            : 
+<span class="lineNum">     783 </span><span class="lineNoCov">          0 :     const ExprLoc&amp; loc = maybeSourceMap_-&gt;exprlocs()[foundAt];</span>
+<span class="lineNum">     784 </span><span class="lineNoCov">          0 :     *found = true;</span>
+<span class="lineNum">     785 </span><span class="lineNoCov">          0 :     *lineno = loc.lineno;</span>
+<span class="lineNum">     786 </span><span class="lineNoCov">          0 :     *column = loc.column;</span>
+<span class="lineNum">     787 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">     788 </span>            : }
+<a name="789"><span class="lineNum">     789 </span>            : </a>
+<span class="lineNum">     790 </span>            : bool
+<span class="lineNum">     791 </span><span class="lineNoCov">          0 : Code::totalSourceLines(JSContext* cx, uint32_t* count)</span>
+<span class="lineNum">     792 </span>            : {
+<span class="lineNum">     793 </span><span class="lineNoCov">          0 :     *count = 0;</span>
+<span class="lineNum">     794 </span><span class="lineNoCov">          0 :     if (!metadata_-&gt;debugEnabled)</span>
+<span class="lineNum">     795 </span>            :         return true;
+<span class="lineNum">     796 </span>            : 
+<span class="lineNum">     797 </span><span class="lineNoCov">          0 :     if (!ensureSourceMap(cx))</span>
+<span class="lineNum">     798 </span>            :         return false;
+<span class="lineNum">     799 </span>            : 
+<span class="lineNum">     800 </span><span class="lineNoCov">          0 :     if (maybeSourceMap_)</span>
+<span class="lineNum">     801 </span><span class="lineNoCov">          0 :         *count = maybeSourceMap_-&gt;totalLines();</span>
+<span class="lineNum">     802 </span>            :     return true;
+<span class="lineNum">     803 </span>            : }
+<a name="804"><span class="lineNum">     804 </span>            : </a>
+<span class="lineNum">     805 </span>            : bool
+<span class="lineNum">     806 </span><span class="lineNoCov">          0 : Code::stepModeEnabled(uint32_t funcIndex) const</span>
+<span class="lineNum">     807 </span>            : {
+<span class="lineNum">     808 </span><span class="lineNoCov">          0 :     return stepModeCounters_.initialized() &amp;&amp; stepModeCounters_.lookup(funcIndex);</span>
+<span class="lineNum">     809 </span>            : }
+<a name="810"><span class="lineNum">     810 </span>            : </a>
+<span class="lineNum">     811 </span>            : bool
+<span class="lineNum">     812 </span><span class="lineNoCov">          0 : Code::incrementStepModeCount(JSContext* cx, uint32_t funcIndex)</span>
+<span class="lineNum">     813 </span>            : {
+<span class="lineNum">     814 </span>            :     MOZ_ASSERT(metadata_-&gt;debugEnabled);
+<span class="lineNum">     815 </span><span class="lineNoCov">          0 :     const CodeRange&amp; codeRange = metadata_-&gt;codeRanges[metadata_-&gt;debugFuncToCodeRange[funcIndex]];</span>
+<span class="lineNum">     816 </span>            :     MOZ_ASSERT(codeRange.isFunction());
+<span class="lineNum">     817 </span>            : 
+<span class="lineNum">     818 </span><span class="lineNoCov">          0 :     if (!stepModeCounters_.initialized() &amp;&amp; !stepModeCounters_.init()) {</span>
+<span class="lineNum">     819 </span><span class="lineNoCov">          0 :         ReportOutOfMemory(cx);</span>
+<span class="lineNum">     820 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     821 </span>            :     }
+<span class="lineNum">     822 </span>            : 
+<span class="lineNum">     823 </span><span class="lineNoCov">          0 :     StepModeCounters::AddPtr p = stepModeCounters_.lookupForAdd(funcIndex);</span>
+<span class="lineNum">     824 </span><span class="lineNoCov">          0 :     if (p) {</span>
+<span class="lineNum">     825 </span>            :         MOZ_ASSERT(p-&gt;value() &gt; 0);
+<span class="lineNum">     826 </span><span class="lineNoCov">          0 :         p-&gt;value()++;</span>
+<span class="lineNum">     827 </span><span class="lineNoCov">          0 :         return true;</span>
+<span class="lineNum">     828 </span>            :     }
+<span class="lineNum">     829 </span><span class="lineNoCov">          0 :     if (!stepModeCounters_.add(p, funcIndex, 1)) {</span>
+<span class="lineNum">     830 </span><span class="lineNoCov">          0 :         ReportOutOfMemory(cx);</span>
+<span class="lineNum">     831 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     832 </span>            :     }
+<span class="lineNum">     833 </span>            : 
+<span class="lineNum">     834 </span><span class="lineNoCov">          0 :     AutoWritableJitCode awjc(cx-&gt;runtime(), segment_-&gt;base() + codeRange.begin(),</span>
+<span class="lineNum">     835 </span><span class="lineNoCov">          0 :                              codeRange.end() - codeRange.begin());</span>
+<span class="lineNum">     836 </span><span class="lineNoCov">          0 :     AutoFlushICache afc(&quot;Code::incrementStepModeCount&quot;);</span>
+<span class="lineNum">     837 </span>            : 
+<span class="lineNum">     838 </span><span class="lineNoCov">          0 :     for (const CallSite&amp; callSite : metadata_-&gt;callSites) {</span>
+<span class="lineNum">     839 </span><span class="lineNoCov">          0 :         if (callSite.kind() != CallSite::Breakpoint)</span>
+<span class="lineNum">     840 </span>            :             continue;
+<span class="lineNum">     841 </span><span class="lineNoCov">          0 :         uint32_t offset = callSite.returnAddressOffset();</span>
+<span class="lineNum">     842 </span><span class="lineNoCov">          0 :         if (codeRange.begin() &lt;= offset &amp;&amp; offset &lt;= codeRange.end())</span>
+<span class="lineNum">     843 </span><span class="lineNoCov">          0 :             toggleDebugTrap(offset, true);</span>
+<span class="lineNum">     844 </span>            :     }
+<span class="lineNum">     845 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">     846 </span>            : }
+<a name="847"><span class="lineNum">     847 </span>            : </a>
+<span class="lineNum">     848 </span>            : bool
+<span class="lineNum">     849 </span><span class="lineNoCov">          0 : Code::decrementStepModeCount(JSContext* cx, uint32_t funcIndex)</span>
+<span class="lineNum">     850 </span>            : {
+<span class="lineNum">     851 </span>            :     MOZ_ASSERT(metadata_-&gt;debugEnabled);
+<span class="lineNum">     852 </span><span class="lineNoCov">          0 :     const CodeRange&amp; codeRange = metadata_-&gt;codeRanges[metadata_-&gt;debugFuncToCodeRange[funcIndex]];</span>
+<span class="lineNum">     853 </span>            :     MOZ_ASSERT(codeRange.isFunction());
+<span class="lineNum">     854 </span>            : 
+<span class="lineNum">     855 </span>            :     MOZ_ASSERT(stepModeCounters_.initialized() &amp;&amp; !stepModeCounters_.empty());
+<span class="lineNum">     856 </span><span class="lineNoCov">          0 :     StepModeCounters::Ptr p = stepModeCounters_.lookup(funcIndex);</span>
+<span class="lineNum">     857 </span>            :     MOZ_ASSERT(p);
+<span class="lineNum">     858 </span><span class="lineNoCov">          0 :     if (--p-&gt;value())</span>
+<span class="lineNum">     859 </span>            :         return true;
+<span class="lineNum">     860 </span>            : 
+<span class="lineNum">     861 </span><span class="lineNoCov">          0 :     stepModeCounters_.remove(p);</span>
+<span class="lineNum">     862 </span>            : 
+<span class="lineNum">     863 </span><span class="lineNoCov">          0 :     AutoWritableJitCode awjc(cx-&gt;runtime(), segment_-&gt;base() + codeRange.begin(),</span>
+<span class="lineNum">     864 </span><span class="lineNoCov">          0 :                              codeRange.end() - codeRange.begin());</span>
+<span class="lineNum">     865 </span><span class="lineNoCov">          0 :     AutoFlushICache afc(&quot;Code::decrementStepModeCount&quot;);</span>
+<span class="lineNum">     866 </span>            : 
+<span class="lineNum">     867 </span><span class="lineNoCov">          0 :     for (const CallSite&amp; callSite : metadata_-&gt;callSites) {</span>
+<span class="lineNum">     868 </span><span class="lineNoCov">          0 :         if (callSite.kind() != CallSite::Breakpoint)</span>
+<span class="lineNum">     869 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     870 </span><span class="lineNoCov">          0 :         uint32_t offset = callSite.returnAddressOffset();</span>
+<span class="lineNum">     871 </span><span class="lineNoCov">          0 :         if (codeRange.begin() &lt;= offset &amp;&amp; offset &lt;= codeRange.end()) {</span>
+<span class="lineNum">     872 </span><span class="lineNoCov">          0 :             bool enabled = breakpointSites_.initialized() &amp;&amp; breakpointSites_.has(offset);</span>
+<span class="lineNum">     873 </span><span class="lineNoCov">          0 :             toggleDebugTrap(offset, enabled);</span>
+<span class="lineNum">     874 </span>            :         }
+<span class="lineNum">     875 </span>            :     }
+<span class="lineNum">     876 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">     877 </span>            : }
+<span class="lineNum">     878 </span>            : 
+<span class="lineNum">     879 </span>            : static const CallSite*
+<span class="lineNum">     880 </span>            : SlowCallSiteSearchByOffset(const Metadata&amp; metadata, uint32_t offset)
+<span class="lineNum">     881 </span>            : {
+<span class="lineNum">     882 </span><span class="lineNoCov">          0 :     for (const CallSite&amp; callSite : metadata.callSites) {</span>
+<span class="lineNum">     883 </span><span class="lineNoCov">          0 :         if (callSite.lineOrBytecode() == offset &amp;&amp; callSite.kind() == CallSiteDesc::Breakpoint)</span>
+<span class="lineNum">     884 </span><span class="lineNoCov">          0 :             return &amp;callSite;</span>
+<span class="lineNum">     885 </span>            :     }
+<span class="lineNum">     886 </span>            :     return nullptr;
+<span class="lineNum">     887 </span>            : }
+<a name="888"><span class="lineNum">     888 </span>            : </a>
+<span class="lineNum">     889 </span>            : bool
+<span class="lineNum">     890 </span><span class="lineNoCov">          0 : Code::hasBreakpointTrapAtOffset(uint32_t offset)</span>
+<span class="lineNum">     891 </span>            : {
+<span class="lineNum">     892 </span><span class="lineNoCov">          0 :     if (!metadata_-&gt;debugEnabled)</span>
+<span class="lineNum">     893 </span>            :         return false;
+<span class="lineNum">     894 </span><span class="lineNoCov">          0 :     return SlowCallSiteSearchByOffset(*metadata_, offset);</span>
+<span class="lineNum">     895 </span>            : }
+<a name="896"><span class="lineNum">     896 </span>            : </a>
+<span class="lineNum">     897 </span>            : void
+<span class="lineNum">     898 </span><span class="lineNoCov">          0 : Code::toggleBreakpointTrap(JSRuntime* rt, uint32_t offset, bool enabled)</span>
+<span class="lineNum">     899 </span>            : {
+<span class="lineNum">     900 </span>            :     MOZ_ASSERT(metadata_-&gt;debugEnabled);
+<span class="lineNum">     901 </span><span class="lineNoCov">          0 :     const CallSite* callSite = SlowCallSiteSearchByOffset(*metadata_, offset);</span>
+<span class="lineNum">     902 </span><span class="lineNoCov">          0 :     if (!callSite)</span>
+<span class="lineNum">     903 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     904 </span><span class="lineNoCov">          0 :     size_t debugTrapOffset = callSite-&gt;returnAddressOffset();</span>
+<span class="lineNum">     905 </span>            : 
+<span class="lineNum">     906 </span><span class="lineNoCov">          0 :     const CodeRange* codeRange = lookupRange(segment_-&gt;base() + debugTrapOffset);</span>
+<span class="lineNum">     907 </span>            :     MOZ_ASSERT(codeRange &amp;&amp; codeRange-&gt;isFunction());
+<span class="lineNum">     908 </span>            : 
+<span class="lineNum">     909 </span><span class="lineNoCov">          0 :     if (stepModeCounters_.initialized() &amp;&amp; stepModeCounters_.lookup(codeRange-&gt;funcIndex()))</span>
+<span class="lineNum">     910 </span>            :         return; // no need to toggle when step mode is enabled
+<span class="lineNum">     911 </span>            : 
+<span class="lineNum">     912 </span><span class="lineNoCov">          0 :     AutoWritableJitCode awjc(rt, segment_-&gt;base(), segment_-&gt;length());</span>
+<span class="lineNum">     913 </span><span class="lineNoCov">          0 :     AutoFlushICache afc(&quot;Code::toggleBreakpointTrap&quot;);</span>
+<span class="lineNum">     914 </span><span class="lineNoCov">          0 :     AutoFlushICache::setRange(uintptr_t(segment_-&gt;base()), segment_-&gt;length());</span>
+<span class="lineNum">     915 </span><span class="lineNoCov">          0 :     toggleDebugTrap(debugTrapOffset, enabled);</span>
+<span class="lineNum">     916 </span>            : }
+<a name="917"><span class="lineNum">     917 </span>            : </a>
+<span class="lineNum">     918 </span>            : WasmBreakpointSite*
+<span class="lineNum">     919 </span><span class="lineNoCov">          0 : Code::getOrCreateBreakpointSite(JSContext* cx, uint32_t offset)</span>
+<span class="lineNum">     920 </span>            : {
+<span class="lineNum">     921 </span>            :     WasmBreakpointSite* site;
+<span class="lineNum">     922 </span><span class="lineNoCov">          0 :     if (!breakpointSites_.initialized() &amp;&amp; !breakpointSites_.init()) {</span>
+<span class="lineNum">     923 </span><span class="lineNoCov">          0 :         ReportOutOfMemory(cx);</span>
+<span class="lineNum">     924 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     925 </span>            :     }
+<span class="lineNum">     926 </span>            : 
+<span class="lineNum">     927 </span><span class="lineNoCov">          0 :     WasmBreakpointSiteMap::AddPtr p = breakpointSites_.lookupForAdd(offset);</span>
+<span class="lineNum">     928 </span><span class="lineNoCov">          0 :     if (!p) {</span>
+<span class="lineNum">     929 </span><span class="lineNoCov">          0 :         site = cx-&gt;runtime()-&gt;new_&lt;WasmBreakpointSite&gt;(this, offset);</span>
+<span class="lineNum">     930 </span><span class="lineNoCov">          0 :         if (!site || !breakpointSites_.add(p, offset, site)) {</span>
+<span class="lineNum">     931 </span><span class="lineNoCov">          0 :             js_delete(site);</span>
+<span class="lineNum">     932 </span><span class="lineNoCov">          0 :             ReportOutOfMemory(cx);</span>
+<span class="lineNum">     933 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     934 </span>            :         }
+<span class="lineNum">     935 </span>            :     } else {
+<span class="lineNum">     936 </span><span class="lineNoCov">          0 :         site = p-&gt;value();</span>
+<span class="lineNum">     937 </span>            :     }
+<span class="lineNum">     938 </span><span class="lineNoCov">          0 :     return site;</span>
+<span class="lineNum">     939 </span>            : }
+<a name="940"><span class="lineNum">     940 </span>            : </a>
+<span class="lineNum">     941 </span>            : bool
+<span class="lineNum">     942 </span><span class="lineNoCov">          0 : Code::hasBreakpointSite(uint32_t offset)</span>
+<span class="lineNum">     943 </span>            : {
+<span class="lineNum">     944 </span><span class="lineNoCov">          0 :     return breakpointSites_.initialized() &amp;&amp; breakpointSites_.has(offset);</span>
+<span class="lineNum">     945 </span>            : }
+<a name="946"><span class="lineNum">     946 </span>            : </a>
+<span class="lineNum">     947 </span>            : void
+<span class="lineNum">     948 </span><span class="lineNoCov">          0 : Code::destroyBreakpointSite(FreeOp* fop, uint32_t offset)</span>
+<span class="lineNum">     949 </span>            : {
+<span class="lineNum">     950 </span>            :     MOZ_ASSERT(breakpointSites_.initialized());
+<span class="lineNum">     951 </span><span class="lineNoCov">          0 :     WasmBreakpointSiteMap::Ptr p = breakpointSites_.lookup(offset);</span>
+<span class="lineNum">     952 </span>            :     MOZ_ASSERT(p);
+<span class="lineNum">     953 </span><span class="lineNoCov">          0 :     fop-&gt;delete_(p-&gt;value());</span>
+<span class="lineNum">     954 </span><span class="lineNoCov">          0 :     breakpointSites_.remove(p);</span>
+<span class="lineNum">     955 </span><span class="lineNoCov">          0 : }</span>
+<a name="956"><span class="lineNum">     956 </span>            : </a>
+<span class="lineNum">     957 </span>            : bool
+<span class="lineNum">     958 </span><span class="lineNoCov">          0 : Code::clearBreakpointsIn(JSContext* cx, WasmInstanceObject* instance, js::Debugger* dbg, JSObject* handler)</span>
+<span class="lineNum">     959 </span>            : {
+<span class="lineNum">     960 </span>            :     MOZ_ASSERT(instance);
+<span class="lineNum">     961 </span><span class="lineNoCov">          0 :     if (!breakpointSites_.initialized())</span>
+<span class="lineNum">     962 </span>            :         return true;
+<span class="lineNum">     963 </span>            : 
+<span class="lineNum">     964 </span>            :     // Make copy of all sites list, so breakpointSites_ can be modified by
+<span class="lineNum">     965 </span>            :     // destroyBreakpointSite calls.
+<span class="lineNum">     966 </span>            :     Vector&lt;WasmBreakpointSite*&gt; sites(cx);
+<span class="lineNum">     967 </span><span class="lineNoCov">          0 :     if (!sites.resize(breakpointSites_.count()))</span>
+<span class="lineNum">     968 </span>            :         return false;
+<span class="lineNum">     969 </span><span class="lineNoCov">          0 :     size_t i = 0;</span>
+<span class="lineNum">     970 </span><span class="lineNoCov">          0 :     for (WasmBreakpointSiteMap::Range r = breakpointSites_.all(); !r.empty(); r.popFront())</span>
+<span class="lineNum">     971 </span><span class="lineNoCov">          0 :         sites[i++] = r.front().value();</span>
+<span class="lineNum">     972 </span>            : 
+<span class="lineNum">     973 </span><span class="lineNoCov">          0 :     for (WasmBreakpointSite* site : sites) {</span>
+<span class="lineNum">     974 </span>            :         Breakpoint* nextbp;
+<span class="lineNum">     975 </span><span class="lineNoCov">          0 :         for (Breakpoint* bp = site-&gt;firstBreakpoint(); bp; bp = nextbp) {</span>
+<span class="lineNum">     976 </span><span class="lineNoCov">          0 :             nextbp = bp-&gt;nextInSite();</span>
+<span class="lineNum">     977 </span><span class="lineNoCov">          0 :             if (bp-&gt;asWasm()-&gt;wasmInstance == instance &amp;&amp;</span>
+<span class="lineNum">     978 </span><span class="lineNoCov">          0 :                 (!dbg || bp-&gt;debugger == dbg) &amp;&amp;</span>
+<span class="lineNum">     979 </span><span class="lineNoCov">          0 :                 (!handler || bp-&gt;getHandler() == handler))</span>
+<span class="lineNum">     980 </span>            :             {
+<span class="lineNum">     981 </span><span class="lineNoCov">          0 :                 bp-&gt;destroy(cx-&gt;runtime()-&gt;defaultFreeOp());</span>
+<span class="lineNum">     982 </span>            :             }
+<span class="lineNum">     983 </span>            :         }
+<span class="lineNum">     984 </span>            :     }
+<span class="lineNum">     985 </span>            :     return true;
+<span class="lineNum">     986 </span>            : }
+<span class="lineNum">     987 </span>            : 
+<a name="988"><span class="lineNum">     988 </span>            : </a>
+<span class="lineNum">     989 </span>            : bool
+<span class="lineNum">     990 </span><span class="lineNoCov">          0 : Code::ensureProfilingState(JSRuntime* rt, bool newProfilingEnabled)</span>
+<span class="lineNum">     991 </span>            : {
+<span class="lineNum">     992 </span><span class="lineNoCov">          0 :     if (profilingEnabled_ == newProfilingEnabled)</span>
+<span class="lineNum">     993 </span>            :         return true;
+<span class="lineNum">     994 </span>            : 
+<span class="lineNum">     995 </span>            :     // When enabled, generate profiling labels for every name in funcNames_
+<span class="lineNum">     996 </span>            :     // that is the name of some Function CodeRange. This involves malloc() so
+<span class="lineNum">     997 </span>            :     // do it now since, once we start sampling, we'll be in a signal-handing
+<span class="lineNum">     998 </span>            :     // context where we cannot malloc.
+<span class="lineNum">     999 </span><span class="lineNoCov">          0 :     if (newProfilingEnabled) {</span>
+<span class="lineNum">    1000 </span><span class="lineNoCov">          0 :         for (const CodeRange&amp; codeRange : metadata_-&gt;codeRanges) {</span>
+<span class="lineNum">    1001 </span><span class="lineNoCov">          0 :             if (!codeRange.isFunction())</span>
+<span class="lineNum">    1002 </span><span class="lineNoCov">          0 :                 continue;</span>
+<span class="lineNum">    1003 </span>            : 
+<span class="lineNum">    1004 </span><span class="lineNoCov">          0 :             ToCStringBuf cbuf;</span>
+<span class="lineNum">    1005 </span><span class="lineNoCov">          0 :             const char* bytecodeStr = NumberToCString(nullptr, &amp;cbuf, codeRange.funcLineOrBytecode());</span>
+<span class="lineNum">    1006 </span>            :             MOZ_ASSERT(bytecodeStr);
+<span class="lineNum">    1007 </span>            : 
+<span class="lineNum">    1008 </span>            :             UTF8Bytes name;
+<span class="lineNum">    1009 </span><span class="lineNoCov">          0 :             if (!getFuncName(codeRange.funcIndex(), &amp;name) || !name.append(&quot; (&quot;, 2))</span>
+<span class="lineNum">    1010 </span>            :                 return false;
+<span class="lineNum">    1011 </span>            : 
+<span class="lineNum">    1012 </span><span class="lineNoCov">          0 :             if (const char* filename = metadata_-&gt;filename.get()) {</span>
+<span class="lineNum">    1013 </span><span class="lineNoCov">          0 :                 if (!name.append(filename, strlen(filename)))</span>
+<span class="lineNum">    1014 </span>            :                     return false;
+<span class="lineNum">    1015 </span>            :             } else {
+<span class="lineNum">    1016 </span><span class="lineNoCov">          0 :                 if (!name.append('?'))</span>
+<span class="lineNum">    1017 </span>            :                     return false;
+<span class="lineNum">    1018 </span>            :             }
+<span class="lineNum">    1019 </span>            : 
+<span class="lineNum">    1020 </span><span class="lineNoCov">          0 :             if (!name.append(':') ||</span>
+<span class="lineNum">    1021 </span><span class="lineNoCov">          0 :                 !name.append(bytecodeStr, strlen(bytecodeStr)) ||</span>
+<span class="lineNum">    1022 </span>            :                 !name.append(&quot;)\0&quot;, 2))
+<span class="lineNum">    1023 </span>            :             {
+<span class="lineNum">    1024 </span>            :                 return false;
+<span class="lineNum">    1025 </span>            :             }
+<span class="lineNum">    1026 </span>            : 
+<span class="lineNum">    1027 </span><span class="lineNoCov">          0 :             UniqueChars label(name.extractOrCopyRawBuffer());</span>
+<span class="lineNum">    1028 </span><span class="lineNoCov">          0 :             if (!label)</span>
+<span class="lineNum">    1029 </span>            :                 return false;
+<span class="lineNum">    1030 </span>            : 
+<span class="lineNum">    1031 </span><span class="lineNoCov">          0 :             if (codeRange.funcIndex() &gt;= funcLabels_.length()) {</span>
+<span class="lineNum">    1032 </span><span class="lineNoCov">          0 :                 if (!funcLabels_.resize(codeRange.funcIndex() + 1))</span>
+<span class="lineNum">    1033 </span>            :                     return false;
+<span class="lineNum">    1034 </span>            :             }
+<span class="lineNum">    1035 </span>            : 
+<span class="lineNum">    1036 </span><span class="lineNoCov">          0 :             funcLabels_[codeRange.funcIndex()] = Move(label);</span>
+<span class="lineNum">    1037 </span><span class="lineNoCov">          0 :         }</span>
+<span class="lineNum">    1038 </span>            :     } else {
+<span class="lineNum">    1039 </span><span class="lineNoCov">          0 :         funcLabels_.clear();</span>
+<span class="lineNum">    1040 </span>            :     }
+<span class="lineNum">    1041 </span>            : 
+<span class="lineNum">    1042 </span>            :     // Only mutate the code after the fallible operations are complete to avoid
+<span class="lineNum">    1043 </span>            :     // the need to rollback.
+<span class="lineNum">    1044 </span><span class="lineNoCov">          0 :     profilingEnabled_ = newProfilingEnabled;</span>
+<span class="lineNum">    1045 </span>            : 
+<span class="lineNum">    1046 </span>            :     {
+<span class="lineNum">    1047 </span><span class="lineNoCov">          0 :         AutoWritableJitCode awjc(segment_-&gt;base(), segment_-&gt;length());</span>
+<span class="lineNum">    1048 </span><span class="lineNoCov">          0 :         AutoFlushICache afc(&quot;Code::ensureProfilingState&quot;);</span>
+<span class="lineNum">    1049 </span><span class="lineNoCov">          0 :         AutoFlushICache::setRange(uintptr_t(segment_-&gt;base()), segment_-&gt;length());</span>
+<span class="lineNum">    1050 </span>            : 
+<span class="lineNum">    1051 </span><span class="lineNoCov">          0 :         for (const CallSite&amp; callSite : metadata_-&gt;callSites)</span>
+<span class="lineNum">    1052 </span><span class="lineNoCov">          0 :             ToggleProfiling(*this, callSite, newProfilingEnabled);</span>
+<span class="lineNum">    1053 </span><span class="lineNoCov">          0 :         for (const CallThunk&amp; callThunk : metadata_-&gt;callThunks)</span>
+<span class="lineNum">    1054 </span><span class="lineNoCov">          0 :             ToggleProfiling(*this, callThunk, newProfilingEnabled);</span>
+<span class="lineNum">    1055 </span><span class="lineNoCov">          0 :         for (const CodeRange&amp; codeRange : metadata_-&gt;codeRanges)</span>
+<span class="lineNum">    1056 </span><span class="lineNoCov">          0 :             ToggleProfiling(*this, codeRange, newProfilingEnabled);</span>
+<span class="lineNum">    1057 </span>            :     }
+<span class="lineNum">    1058 </span>            : 
+<span class="lineNum">    1059 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">    1060 </span>            : }
+<a name="1061"><span class="lineNum">    1061 </span>            : </a>
+<span class="lineNum">    1062 </span>            : void
+<span class="lineNum">    1063 </span><span class="lineNoCov">          0 : Code::toggleDebugTrap(uint32_t offset, bool enabled)</span>
+<span class="lineNum">    1064 </span>            : {
+<span class="lineNum">    1065 </span>            :     MOZ_ASSERT(offset);
+<span class="lineNum">    1066 </span><span class="lineNoCov">          0 :     uint8_t* trap = segment_-&gt;base() + offset;</span>
+<span class="lineNum">    1067 </span><span class="lineNoCov">          0 :     const Uint32Vector&amp; farJumpOffsets = metadata_-&gt;debugTrapFarJumpOffsets;</span>
+<span class="lineNum">    1068 </span><span class="lineNoCov">          0 :     if (enabled) {</span>
+<span class="lineNum">    1069 </span>            :         MOZ_ASSERT(farJumpOffsets.length() &gt; 0);
+<span class="lineNum">    1070 </span>            :         size_t i = 0;
+<span class="lineNum">    1071 </span><span class="lineNoCov">          0 :         while (i &lt; farJumpOffsets.length() &amp;&amp; offset &lt; farJumpOffsets[i])</span>
+<span class="lineNum">    1072 </span><span class="lineNoCov">          0 :             i++;</span>
+<span class="lineNum">    1073 </span><span class="lineNoCov">          0 :         if (i &gt;= farJumpOffsets.length() ||</span>
+<span class="lineNum">    1074 </span><span class="lineNoCov">          0 :             (i &gt; 0 &amp;&amp; offset - farJumpOffsets[i - 1] &lt; farJumpOffsets[i] - offset))</span>
+<span class="lineNum">    1075 </span><span class="lineNoCov">          0 :             i--;</span>
+<span class="lineNum">    1076 </span><span class="lineNoCov">          0 :         uint8_t* farJump = segment_-&gt;base() + farJumpOffsets[i];</span>
+<span class="lineNum">    1077 </span><span class="lineNoCov">          0 :         MacroAssembler::patchNopToCall(trap, farJump);</span>
+<span class="lineNum">    1078 </span>            :     } else {
+<span class="lineNum">    1079 </span><span class="lineNoCov">          0 :         MacroAssembler::patchCallToNop(trap);</span>
+<span class="lineNum">    1080 </span>            :     }
+<span class="lineNum">    1081 </span><span class="lineNoCov">          0 : }</span>
+<a name="1082"><span class="lineNum">    1082 </span>            : </a>
+<span class="lineNum">    1083 </span>            : void
+<span class="lineNum">    1084 </span><span class="lineNoCov">          0 : Code::adjustEnterAndLeaveFrameTrapsState(JSContext* cx, bool enabled)</span>
+<span class="lineNum">    1085 </span>            : {
+<span class="lineNum">    1086 </span>            :     MOZ_ASSERT(metadata_-&gt;debugEnabled);
+<span class="lineNum">    1087 </span>            :     MOZ_ASSERT_IF(!enabled, enterAndLeaveFrameTrapsCounter_ &gt; 0);
+<span class="lineNum">    1088 </span>            : 
+<span class="lineNum">    1089 </span><span class="lineNoCov">          0 :     bool wasEnabled = enterAndLeaveFrameTrapsCounter_ &gt; 0;</span>
+<span class="lineNum">    1090 </span><span class="lineNoCov">          0 :     if (enabled)</span>
+<span class="lineNum">    1091 </span><span class="lineNoCov">          0 :         ++enterAndLeaveFrameTrapsCounter_;</span>
+<span class="lineNum">    1092 </span>            :     else
+<span class="lineNum">    1093 </span><span class="lineNoCov">          0 :         --enterAndLeaveFrameTrapsCounter_;</span>
+<span class="lineNum">    1094 </span><span class="lineNoCov">          0 :     bool stillEnabled = enterAndLeaveFrameTrapsCounter_ &gt; 0;</span>
+<span class="lineNum">    1095 </span><span class="lineNoCov">          0 :     if (wasEnabled == stillEnabled)</span>
+<span class="lineNum">    1096 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1097 </span>            : 
+<span class="lineNum">    1098 </span><span class="lineNoCov">          0 :     AutoWritableJitCode awjc(cx-&gt;runtime(), segment_-&gt;base(), segment_-&gt;length());</span>
+<span class="lineNum">    1099 </span><span class="lineNoCov">          0 :     AutoFlushICache afc(&quot;Code::adjustEnterAndLeaveFrameTrapsState&quot;);</span>
+<span class="lineNum">    1100 </span><span class="lineNoCov">          0 :     AutoFlushICache::setRange(uintptr_t(segment_-&gt;base()), segment_-&gt;length());</span>
+<span class="lineNum">    1101 </span><span class="lineNoCov">          0 :     for (const CallSite&amp; callSite : metadata_-&gt;callSites) {</span>
+<span class="lineNum">    1102 </span><span class="lineNoCov">          0 :         if (callSite.kind() != CallSite::EnterFrame &amp;&amp; callSite.kind() != CallSite::LeaveFrame)</span>
+<span class="lineNum">    1103 </span>            :             continue;
+<span class="lineNum">    1104 </span><span class="lineNoCov">          0 :         toggleDebugTrap(callSite.returnAddressOffset(), stillEnabled);</span>
+<span class="lineNum">    1105 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">    1106 </span>            : }
+<a name="1107"><span class="lineNum">    1107 </span>            : </a>
+<span class="lineNum">    1108 </span>            : bool
+<span class="lineNum">    1109 </span><span class="lineNoCov">          0 : Code::debugGetLocalTypes(uint32_t funcIndex, ValTypeVector* locals, size_t* argsLength)</span>
+<span class="lineNum">    1110 </span>            : {
+<span class="lineNum">    1111 </span>            :     MOZ_ASSERT(metadata_-&gt;debugEnabled);
+<span class="lineNum">    1112 </span>            : 
+<span class="lineNum">    1113 </span><span class="lineNoCov">          0 :     const ValTypeVector&amp; args = metadata_-&gt;debugFuncArgTypes[funcIndex];</span>
+<span class="lineNum">    1114 </span><span class="lineNoCov">          0 :     *argsLength = args.length();</span>
+<span class="lineNum">    1115 </span><span class="lineNoCov">          0 :     if (!locals-&gt;appendAll(args))</span>
+<span class="lineNum">    1116 </span>            :         return false;
+<span class="lineNum">    1117 </span>            : 
+<span class="lineNum">    1118 </span>            :     // Decode local var types from wasm binary function body.
+<span class="lineNum">    1119 </span><span class="lineNoCov">          0 :     const CodeRange&amp; range = metadata_-&gt;codeRanges[metadata_-&gt;debugFuncToCodeRange[funcIndex]];</span>
+<span class="lineNum">    1120 </span>            :     // In wasm, the Code points to the function start via funcLineOrBytecode.
+<span class="lineNum">    1121 </span>            :     MOZ_ASSERT(!metadata_-&gt;isAsmJS() &amp;&amp; maybeBytecode_);
+<span class="lineNum">    1122 </span><span class="lineNoCov">          0 :     size_t offsetInModule = range.funcLineOrBytecode();</span>
+<span class="lineNum">    1123 </span><span class="lineNoCov">          0 :     Decoder d(maybeBytecode_-&gt;begin() + offsetInModule,  maybeBytecode_-&gt;end(),</span>
+<span class="lineNum">    1124 </span><span class="lineNoCov">          0 :               offsetInModule, /* error = */ nullptr);</span>
+<span class="lineNum">    1125 </span><span class="lineNoCov">          0 :     return DecodeLocalEntries(d, metadata_-&gt;kind, locals);</span>
+<span class="lineNum">    1126 </span>            : }
+<a name="1127"><span class="lineNum">    1127 </span>            : </a>
+<span class="lineNum">    1128 </span>            : ExprType
+<span class="lineNum">    1129 </span><span class="lineNoCov">          0 : Code::debugGetResultType(uint32_t funcIndex)</span>
+<span class="lineNum">    1130 </span>            : {
+<span class="lineNum">    1131 </span>            :     MOZ_ASSERT(metadata_-&gt;debugEnabled);
+<span class="lineNum">    1132 </span><span class="lineNoCov">          0 :     return metadata_-&gt;debugFuncReturnTypes[funcIndex];</span>
+<span class="lineNum">    1133 </span>            : }
+<a name="1134"><span class="lineNum">    1134 </span>            : </a>
+<span class="lineNum">    1135 </span>            : void
+<span class="lineNum">    1136 </span><span class="lineNoCov">          0 : Code::addSizeOfMisc(MallocSizeOf mallocSizeOf,</span>
+<span class="lineNum">    1137 </span>            :                     Metadata::SeenSet* seenMetadata,
+<span class="lineNum">    1138 </span>            :                     ShareableBytes::SeenSet* seenBytes,
+<span class="lineNum">    1139 </span>            :                     size_t* code,
+<span class="lineNum">    1140 </span>            :                     size_t* data) const
+<span class="lineNum">    1141 </span>            : {
+<span class="lineNum">    1142 </span><span class="lineNoCov">          0 :     *code += segment_-&gt;length();</span>
+<span class="lineNum">    1143 </span><span class="lineNoCov">          0 :     *data += mallocSizeOf(this) +</span>
+<span class="lineNum">    1144 </span><span class="lineNoCov">          0 :              metadata_-&gt;sizeOfIncludingThisIfNotSeen(mallocSizeOf, seenMetadata);</span>
+<span class="lineNum">    1145 </span>            : 
+<span class="lineNum">    1146 </span><span class="lineNoCov">          0 :     if (maybeBytecode_)</span>
+<span class="lineNum">    1147 </span><span class="lineNoCov">          0 :         *data += maybeBytecode_-&gt;sizeOfIncludingThisIfNotSeen(mallocSizeOf, seenBytes);</span>
+<span class="lineNum">    1148 </span><span class="lineNoCov">          0 : }</span>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

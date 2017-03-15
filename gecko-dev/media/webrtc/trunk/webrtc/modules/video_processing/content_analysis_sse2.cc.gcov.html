@@ -1,0 +1,355 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/media/webrtc/trunk/webrtc/modules/video_processing/content_analysis_sse2.cc</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../../../index.html">top level</a> - <a href="index.html">gecko-dev/media/webrtc/trunk/webrtc/modules/video_processing</a> - content_analysis_sse2.cc<span style="font-size: 80%;"> (source / <a href="content_analysis_sse2.cc.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">115</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">2</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  *  Copyright (c) 2012 The WebRTC project authors. All Rights Reserved.
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  *  Use of this source code is governed by a BSD-style license
+<span class="lineNum">       5 </span>            :  *  that can be found in the LICENSE file in the root of the source
+<span class="lineNum">       6 </span>            :  *  tree. An additional intellectual property rights grant can be found
+<span class="lineNum">       7 </span>            :  *  in the file PATENTS.  All contributing project authors may
+<span class="lineNum">       8 </span>            :  *  be found in the AUTHORS file in the root of the source tree.
+<span class="lineNum">       9 </span>            :  */
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;webrtc/modules/video_processing/content_analysis.h&quot;
+<span class="lineNum">      12 </span>            : 
+<span class="lineNum">      13 </span>            : #include &lt;emmintrin.h&gt;
+<span class="lineNum">      14 </span>            : #include &lt;math.h&gt;
+<span class="lineNum">      15 </span>            : 
+<a name="16"><span class="lineNum">      16 </span>            : namespace webrtc {</a>
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span><span class="lineNoCov">          0 : int32_t VPMContentAnalysis::TemporalDiffMetric_SSE2() {</span>
+<span class="lineNum">      19 </span><span class="lineNoCov">          0 :   uint32_t num_pixels = 0;  // counter for # of pixels</span>
+<span class="lineNum">      20 </span><span class="lineNoCov">          0 :   const uint8_t* imgBufO = orig_frame_ + border_ * width_ + border_;</span>
+<span class="lineNum">      21 </span><span class="lineNoCov">          0 :   const uint8_t* imgBufP = prev_frame_.get() + border_*width_ + border_;</span>
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span><span class="lineNoCov">          0 :   const int32_t width_end = ((width_ - 2 * border_) &amp; -16) + border_;</span>
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span><span class="lineNoCov">          0 :   __m128i sad_64 = _mm_setzero_si128();</span>
+<span class="lineNum">      26 </span><span class="lineNoCov">          0 :   __m128i sum_64 = _mm_setzero_si128();</span>
+<span class="lineNum">      27 </span><span class="lineNoCov">          0 :   __m128i sqsum_64 = _mm_setzero_si128();</span>
+<span class="lineNum">      28 </span><span class="lineNoCov">          0 :   const __m128i z = _mm_setzero_si128();</span>
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span><span class="lineNoCov">          0 :   for (uint16_t i = 0; i &lt; (height_ - 2 * border_); i += skip_num_) {</span>
+<span class="lineNum">      31 </span>            :     __m128i sqsum_32 = _mm_setzero_si128();
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            :     const uint8_t* lineO = imgBufO;
+<span class="lineNum">      34 </span>            :     const uint8_t* lineP = imgBufP;
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            :     // Work on 16 pixels at a time.  For HD content with a width of 1920
+<span class="lineNum">      37 </span>            :     // this loop will run ~67 times (depending on border).  Maximum for
+<span class="lineNum">      38 </span>            :     // abs(o-p) and sum(o) will be 255. _mm_sad_epu8 produces 2 64 bit
+<span class="lineNum">      39 </span>            :     // results which are then accumulated.  There is no chance of
+<span class="lineNum">      40 </span>            :     // rollover for these two accumulators.
+<span class="lineNum">      41 </span>            :     // o*o will have a maximum of 255*255 = 65025.  This will roll over
+<span class="lineNum">      42 </span>            :     // a 16 bit accumulator as 67*65025 &gt; 65535, but will fit in a
+<span class="lineNum">      43 </span>            :     // 32 bit accumulator.
+<span class="lineNum">      44 </span><span class="lineNoCov">          0 :     for (uint16_t j = 0; j &lt; width_end - border_; j += 16) {</span>
+<span class="lineNum">      45 </span><span class="lineNoCov">          0 :       const __m128i o = _mm_loadu_si128((__m128i*)(lineO));</span>
+<span class="lineNum">      46 </span><span class="lineNoCov">          0 :       const __m128i p = _mm_loadu_si128((__m128i*)(lineP));</span>
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span><span class="lineNoCov">          0 :       lineO += 16;</span>
+<span class="lineNum">      49 </span><span class="lineNoCov">          0 :       lineP += 16;</span>
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            :       // Abs pixel difference between frames.
+<span class="lineNum">      52 </span><span class="lineNoCov">          0 :       sad_64 = _mm_add_epi64(sad_64, _mm_sad_epu8(o, p));</span>
+<span class="lineNum">      53 </span>            : 
+<span class="lineNum">      54 </span>            :       // sum of all pixels in frame
+<span class="lineNum">      55 </span><span class="lineNoCov">          0 :       sum_64 = _mm_add_epi64(sum_64, _mm_sad_epu8(o, z));</span>
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            :       // Squared sum of all pixels in frame.
+<span class="lineNum">      58 </span><span class="lineNoCov">          0 :       const __m128i olo = _mm_unpacklo_epi8(o, z);</span>
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 :       const __m128i ohi = _mm_unpackhi_epi8(o, z);</span>
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span><span class="lineNoCov">          0 :       const __m128i sqsum_32_lo = _mm_madd_epi16(olo, olo);</span>
+<span class="lineNum">      62 </span><span class="lineNoCov">          0 :       const __m128i sqsum_32_hi = _mm_madd_epi16(ohi, ohi);</span>
+<span class="lineNum">      63 </span>            : 
+<span class="lineNum">      64 </span><span class="lineNoCov">          0 :       sqsum_32 = _mm_add_epi32(sqsum_32, sqsum_32_lo);</span>
+<span class="lineNum">      65 </span><span class="lineNoCov">          0 :       sqsum_32 = _mm_add_epi32(sqsum_32, sqsum_32_hi);</span>
+<span class="lineNum">      66 </span>            :     }
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            :     // Add to 64 bit running sum as to not roll over.
+<span class="lineNum">      69 </span>            :     sqsum_64 =
+<span class="lineNum">      70 </span>            :         _mm_add_epi64(sqsum_64, _mm_add_epi64(_mm_unpackhi_epi32(sqsum_32, z),
+<span class="lineNum">      71 </span><span class="lineNoCov">          0 :                                               _mm_unpacklo_epi32(sqsum_32, z)));</span>
+<span class="lineNum">      72 </span>            : 
+<span class="lineNum">      73 </span><span class="lineNoCov">          0 :     imgBufO += width_ * skip_num_;</span>
+<span class="lineNum">      74 </span><span class="lineNoCov">          0 :     imgBufP += width_ * skip_num_;</span>
+<span class="lineNum">      75 </span><span class="lineNoCov">          0 :     num_pixels += (width_end - border_);</span>
+<span class="lineNum">      76 </span>            :   }
+<span class="lineNum">      77 </span>            : 
+<span class="lineNum">      78 </span>            :   __m128i sad_final_128;
+<span class="lineNum">      79 </span>            :   __m128i sum_final_128;
+<span class="lineNum">      80 </span>            :   __m128i sqsum_final_128;
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            :   // Bring sums out of vector registers and into integer register
+<span class="lineNum">      83 </span>            :   // domain, summing them along the way.
+<span class="lineNum">      84 </span>            :   _mm_store_si128(&amp;sad_final_128, sad_64);
+<span class="lineNum">      85 </span>            :   _mm_store_si128(&amp;sum_final_128, sum_64);
+<span class="lineNum">      86 </span>            :   _mm_store_si128(&amp;sqsum_final_128, sqsum_64);
+<span class="lineNum">      87 </span>            : 
+<span class="lineNum">      88 </span><span class="lineNoCov">          0 :   uint64_t* sad_final_64 = reinterpret_cast&lt;uint64_t*&gt;(&amp;sad_final_128);</span>
+<span class="lineNum">      89 </span><span class="lineNoCov">          0 :   uint64_t* sum_final_64 = reinterpret_cast&lt;uint64_t*&gt;(&amp;sum_final_128);</span>
+<span class="lineNum">      90 </span><span class="lineNoCov">          0 :   uint64_t* sqsum_final_64 = reinterpret_cast&lt;uint64_t*&gt;(&amp;sqsum_final_128);</span>
+<span class="lineNum">      91 </span>            : 
+<span class="lineNum">      92 </span><span class="lineNoCov">          0 :   const uint32_t pixelSum = sum_final_64[0] + sum_final_64[1];</span>
+<span class="lineNum">      93 </span><span class="lineNoCov">          0 :   const uint64_t pixelSqSum = sqsum_final_64[0] + sqsum_final_64[1];</span>
+<span class="lineNum">      94 </span><span class="lineNoCov">          0 :   const uint32_t tempDiffSum = sad_final_64[0] + sad_final_64[1];</span>
+<span class="lineNum">      95 </span>            : 
+<span class="lineNum">      96 </span>            :   // Default.
+<span class="lineNum">      97 </span><span class="lineNoCov">          0 :   motion_magnitude_ = 0.0f;</span>
+<span class="lineNum">      98 </span>            : 
+<span class="lineNum">      99 </span><span class="lineNoCov">          0 :   if (tempDiffSum == 0)</span>
+<span class="lineNum">     100 </span>            :     return VPM_OK;
+<span class="lineNum">     101 </span>            : 
+<span class="lineNum">     102 </span>            :   // Normalize over all pixels.
+<span class="lineNum">     103 </span>            :   const float tempDiffAvg =
+<span class="lineNum">     104 </span><span class="lineNoCov">          0 :       static_cast&lt;float&gt;(tempDiffSum) / static_cast&lt;float&gt;(num_pixels);</span>
+<span class="lineNum">     105 </span>            :   const float pixelSumAvg =
+<span class="lineNum">     106 </span><span class="lineNoCov">          0 :       static_cast&lt;float&gt;(pixelSum) / static_cast&lt;float&gt;(num_pixels);</span>
+<span class="lineNum">     107 </span>            :   const float pixelSqSumAvg =
+<span class="lineNum">     108 </span><span class="lineNoCov">          0 :       static_cast&lt;float&gt;(pixelSqSum) / static_cast&lt;float&gt;(num_pixels);</span>
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 :   float contrast = pixelSqSumAvg - (pixelSumAvg * pixelSumAvg);</span>
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span><span class="lineNoCov">          0 :   if (contrast &gt; 0.0) {</span>
+<span class="lineNum">     112 </span><span class="lineNoCov">          0 :     contrast = sqrt(contrast);</span>
+<span class="lineNum">     113 </span><span class="lineNoCov">          0 :     motion_magnitude_ = tempDiffAvg / contrast;</span>
+<span class="lineNum">     114 </span>            :   }
+<span class="lineNum">     115 </span>            : 
+<span class="lineNum">     116 </span>            :   return VPM_OK;
+<a name="117"><span class="lineNum">     117 </span>            : }</a>
+<span class="lineNum">     118 </span>            : 
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 : int32_t VPMContentAnalysis::ComputeSpatialMetrics_SSE2() {</span>
+<span class="lineNum">     120 </span><span class="lineNoCov">          0 :   const uint8_t* imgBuf = orig_frame_ + border_ * width_;</span>
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :   const int32_t width_end = ((width_ - 2 * border_) &amp; -16) + border_;</span>
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span><span class="lineNoCov">          0 :   __m128i se_32 = _mm_setzero_si128();</span>
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :   __m128i sev_32 = _mm_setzero_si128();</span>
+<span class="lineNum">     125 </span><span class="lineNoCov">          0 :   __m128i seh_32 = _mm_setzero_si128();</span>
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :   __m128i msa_32 = _mm_setzero_si128();</span>
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 :   const __m128i z = _mm_setzero_si128();</span>
+<span class="lineNum">     128 </span>            : 
+<span class="lineNum">     129 </span>            :   // Error is accumulated as a 32 bit value.  Looking at HD content with a
+<span class="lineNum">     130 </span>            :   // height of 1080 lines, or about 67 macro blocks.  If the 16 bit row
+<span class="lineNum">     131 </span>            :   // value is maxed out at 65529 for every row, 65529*1080 = 70777800, which
+<span class="lineNum">     132 </span>            :   // will not roll over a 32 bit accumulator.
+<span class="lineNum">     133 </span>            :   // skip_num_ is also used to reduce the number of rows
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :   for (int32_t i = 0; i &lt; (height_ - 2 * border_); i += skip_num_) {</span>
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 :     __m128i se_16 = _mm_setzero_si128();</span>
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 :     __m128i sev_16 = _mm_setzero_si128();</span>
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :     __m128i seh_16 = _mm_setzero_si128();</span>
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 :     __m128i msa_16 = _mm_setzero_si128();</span>
+<span class="lineNum">     139 </span>            : 
+<span class="lineNum">     140 </span>            :     // Row error is accumulated as a 16 bit value.  There are 8
+<span class="lineNum">     141 </span>            :     // accumulators.  Max value of a 16 bit number is 65529.  Looking
+<span class="lineNum">     142 </span>            :     // at HD content, 1080p, has a width of 1920, 120 macro blocks.
+<span class="lineNum">     143 </span>            :     // A mb at a time is processed at a time.  Absolute max error at
+<span class="lineNum">     144 </span>            :     // a point would be abs(0-255+255+255+255) which equals 1020.
+<span class="lineNum">     145 </span>            :     // 120*1020 = 122400.  The probability of hitting this is quite low
+<span class="lineNum">     146 </span>            :     // on well behaved content.  A specially crafted image could roll over.
+<span class="lineNum">     147 </span>            :     // border_ could also be adjusted to concentrate on just the center of
+<span class="lineNum">     148 </span>            :     // the images for an HD capture in order to reduce the possiblity of
+<span class="lineNum">     149 </span>            :     // rollover.
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :     const uint8_t* lineTop = imgBuf - width_ + border_;</span>
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :     const uint8_t* lineCen = imgBuf + border_;</span>
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :     const uint8_t* lineBot = imgBuf + width_ + border_;</span>
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :     for (int32_t j = 0; j &lt; width_end - border_; j += 16) {</span>
+<span class="lineNum">     155 </span><span class="lineNoCov">          0 :       const __m128i t = _mm_loadu_si128((__m128i*)(lineTop));</span>
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :       const __m128i l = _mm_loadu_si128((__m128i*)(lineCen - 1));</span>
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :       const __m128i c = _mm_loadu_si128((__m128i*)(lineCen));</span>
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :       const __m128i r = _mm_loadu_si128((__m128i*)(lineCen + 1));</span>
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :       const __m128i b = _mm_loadu_si128((__m128i*)(lineBot));</span>
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :       lineTop += 16;</span>
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :       lineCen += 16;</span>
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :       lineBot += 16;</span>
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span>            :       // center pixel unpacked
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :       __m128i clo = _mm_unpacklo_epi8(c, z);</span>
+<span class="lineNum">     167 </span><span class="lineNoCov">          0 :       __m128i chi = _mm_unpackhi_epi8(c, z);</span>
+<span class="lineNum">     168 </span>            : 
+<span class="lineNum">     169 </span>            :       // left right pixels unpacked and added together
+<span class="lineNum">     170 </span>            :       const __m128i lrlo =
+<span class="lineNum">     171 </span><span class="lineNoCov">          0 :           _mm_add_epi16(_mm_unpacklo_epi8(l, z), _mm_unpacklo_epi8(r, z));</span>
+<span class="lineNum">     172 </span>            :       const __m128i lrhi =
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 :           _mm_add_epi16(_mm_unpackhi_epi8(l, z), _mm_unpackhi_epi8(r, z));</span>
+<span class="lineNum">     174 </span>            : 
+<span class="lineNum">     175 </span>            :       // top &amp; bottom pixels unpacked and added together
+<span class="lineNum">     176 </span>            :       const __m128i tblo =
+<span class="lineNum">     177 </span><span class="lineNoCov">          0 :           _mm_add_epi16(_mm_unpacklo_epi8(t, z), _mm_unpacklo_epi8(b, z));</span>
+<span class="lineNum">     178 </span>            :       const __m128i tbhi =
+<span class="lineNum">     179 </span><span class="lineNoCov">          0 :           _mm_add_epi16(_mm_unpackhi_epi8(t, z), _mm_unpackhi_epi8(b, z));</span>
+<span class="lineNum">     180 </span>            : 
+<span class="lineNum">     181 </span>            :       // running sum of all pixels
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :       msa_16 = _mm_add_epi16(msa_16, _mm_add_epi16(chi, clo));</span>
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :       clo = _mm_slli_epi16(clo, 1);</span>
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :       chi = _mm_slli_epi16(chi, 1);</span>
+<span class="lineNum">     186 </span><span class="lineNoCov">          0 :       const __m128i sevtlo = _mm_subs_epi16(clo, tblo);</span>
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 :       const __m128i sevthi = _mm_subs_epi16(chi, tbhi);</span>
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :       const __m128i sehtlo = _mm_subs_epi16(clo, lrlo);</span>
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 :       const __m128i sehthi = _mm_subs_epi16(chi, lrhi);</span>
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span><span class="lineNoCov">          0 :       clo = _mm_slli_epi16(clo, 1);</span>
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :       chi = _mm_slli_epi16(chi, 1);</span>
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 :       const __m128i setlo = _mm_subs_epi16(clo, _mm_add_epi16(lrlo, tblo));</span>
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 :       const __m128i sethi = _mm_subs_epi16(chi, _mm_add_epi16(lrhi, tbhi));</span>
+<span class="lineNum">     195 </span>            : 
+<span class="lineNum">     196 </span>            :       // Add to 16 bit running sum
+<span class="lineNum">     197 </span>            :       se_16 =
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 :           _mm_add_epi16(se_16, _mm_max_epi16(setlo, _mm_subs_epi16(z, setlo)));</span>
+<span class="lineNum">     199 </span>            :       se_16 =
+<span class="lineNum">     200 </span><span class="lineNoCov">          0 :           _mm_add_epi16(se_16, _mm_max_epi16(sethi, _mm_subs_epi16(z, sethi)));</span>
+<span class="lineNum">     201 </span>            :       sev_16 = _mm_add_epi16(sev_16,
+<span class="lineNum">     202 </span><span class="lineNoCov">          0 :                              _mm_max_epi16(sevtlo, _mm_subs_epi16(z, sevtlo)));</span>
+<span class="lineNum">     203 </span>            :       sev_16 = _mm_add_epi16(sev_16,
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 :                              _mm_max_epi16(sevthi, _mm_subs_epi16(z, sevthi)));</span>
+<span class="lineNum">     205 </span>            :       seh_16 = _mm_add_epi16(seh_16,
+<span class="lineNum">     206 </span><span class="lineNoCov">          0 :                              _mm_max_epi16(sehtlo, _mm_subs_epi16(z, sehtlo)));</span>
+<span class="lineNum">     207 </span>            :       seh_16 = _mm_add_epi16(seh_16,
+<span class="lineNum">     208 </span><span class="lineNoCov">          0 :                              _mm_max_epi16(sehthi, _mm_subs_epi16(z, sehthi)));</span>
+<span class="lineNum">     209 </span>            :     }
+<span class="lineNum">     210 </span>            : 
+<span class="lineNum">     211 </span>            :     // Add to 32 bit running sum as to not roll over.
+<span class="lineNum">     212 </span>            :     se_32 = _mm_add_epi32(se_32, _mm_add_epi32(_mm_unpackhi_epi16(se_16, z),
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :                                                _mm_unpacklo_epi16(se_16, z)));</span>
+<span class="lineNum">     214 </span>            :     sev_32 =
+<span class="lineNum">     215 </span>            :         _mm_add_epi32(sev_32, _mm_add_epi32(_mm_unpackhi_epi16(sev_16, z),
+<span class="lineNum">     216 </span><span class="lineNoCov">          0 :                                             _mm_unpacklo_epi16(sev_16, z)));</span>
+<span class="lineNum">     217 </span>            :     seh_32 =
+<span class="lineNum">     218 </span>            :         _mm_add_epi32(seh_32, _mm_add_epi32(_mm_unpackhi_epi16(seh_16, z),
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 :                                             _mm_unpacklo_epi16(seh_16, z)));</span>
+<span class="lineNum">     220 </span>            :     msa_32 =
+<span class="lineNum">     221 </span>            :         _mm_add_epi32(msa_32, _mm_add_epi32(_mm_unpackhi_epi16(msa_16, z),
+<span class="lineNum">     222 </span><span class="lineNoCov">          0 :                                             _mm_unpacklo_epi16(msa_16, z)));</span>
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span><span class="lineNoCov">          0 :     imgBuf += width_ * skip_num_;</span>
+<span class="lineNum">     225 </span>            :   }
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span>            :   __m128i se_128;
+<span class="lineNum">     228 </span>            :   __m128i sev_128;
+<span class="lineNum">     229 </span>            :   __m128i seh_128;
+<span class="lineNum">     230 </span>            :   __m128i msa_128;
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span>            :   // Bring sums out of vector registers and into integer register
+<span class="lineNum">     233 </span>            :   // domain, summing them along the way.
+<span class="lineNum">     234 </span>            :   _mm_store_si128(&amp;se_128, _mm_add_epi64(_mm_unpackhi_epi32(se_32, z),
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :                                          _mm_unpacklo_epi32(se_32, z)));</span>
+<span class="lineNum">     236 </span>            :   _mm_store_si128(&amp;sev_128, _mm_add_epi64(_mm_unpackhi_epi32(sev_32, z),
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :                                           _mm_unpacklo_epi32(sev_32, z)));</span>
+<span class="lineNum">     238 </span>            :   _mm_store_si128(&amp;seh_128, _mm_add_epi64(_mm_unpackhi_epi32(seh_32, z),
+<span class="lineNum">     239 </span><span class="lineNoCov">          0 :                                           _mm_unpacklo_epi32(seh_32, z)));</span>
+<span class="lineNum">     240 </span>            :   _mm_store_si128(&amp;msa_128, _mm_add_epi64(_mm_unpackhi_epi32(msa_32, z),
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :                                           _mm_unpacklo_epi32(msa_32, z)));</span>
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span><span class="lineNoCov">          0 :   uint64_t* se_64 = reinterpret_cast&lt;uint64_t*&gt;(&amp;se_128);</span>
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :   uint64_t* sev_64 = reinterpret_cast&lt;uint64_t*&gt;(&amp;sev_128);</span>
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :   uint64_t* seh_64 = reinterpret_cast&lt;uint64_t*&gt;(&amp;seh_128);</span>
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :   uint64_t* msa_64 = reinterpret_cast&lt;uint64_t*&gt;(&amp;msa_128);</span>
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span><span class="lineNoCov">          0 :   const uint32_t spatialErrSum = se_64[0] + se_64[1];</span>
+<span class="lineNum">     249 </span><span class="lineNoCov">          0 :   const uint32_t spatialErrVSum = sev_64[0] + sev_64[1];</span>
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 :   const uint32_t spatialErrHSum = seh_64[0] + seh_64[1];</span>
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 :   const uint32_t pixelMSA = msa_64[0] + msa_64[1];</span>
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span>            :   // Normalize over all pixels.
+<span class="lineNum">     254 </span><span class="lineNoCov">          0 :   const float spatialErr = static_cast&lt;float&gt;(spatialErrSum &gt;&gt; 2);</span>
+<span class="lineNum">     255 </span><span class="lineNoCov">          0 :   const float spatialErrH = static_cast&lt;float&gt;(spatialErrHSum &gt;&gt; 1);</span>
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 :   const float spatialErrV = static_cast&lt;float&gt;(spatialErrVSum &gt;&gt; 1);</span>
+<span class="lineNum">     257 </span><span class="lineNoCov">          0 :   const float norm = static_cast&lt;float&gt;(pixelMSA);</span>
+<span class="lineNum">     258 </span>            : 
+<span class="lineNum">     259 </span>            :   // 2X2:
+<span class="lineNum">     260 </span><span class="lineNoCov">          0 :   spatial_pred_err_ = spatialErr / norm;</span>
+<span class="lineNum">     261 </span>            : 
+<span class="lineNum">     262 </span>            :   // 1X2:
+<span class="lineNum">     263 </span><span class="lineNoCov">          0 :   spatial_pred_err_h_ = spatialErrH / norm;</span>
+<span class="lineNum">     264 </span>            : 
+<span class="lineNum">     265 </span>            :   // 2X1:
+<span class="lineNum">     266 </span><span class="lineNoCov">          0 :   spatial_pred_err_v_ = spatialErrV / norm;</span>
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span><span class="lineNoCov">          0 :   return VPM_OK;</span>
+<span class="lineNum">     269 </span>            : }
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span>            : }  // namespace webrtc
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

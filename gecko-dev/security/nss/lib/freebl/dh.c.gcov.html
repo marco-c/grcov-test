@@ -1,0 +1,536 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/security/nss/lib/freebl/dh.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">gecko-dev/security/nss/lib/freebl</a> - dh.c<span style="font-size: 80%;"> (source / <a href="dh.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">254</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">6</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public</a>
+<span class="lineNum">       2 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       3 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : /*
+<span class="lineNum">       6 </span>            :  * Diffie-Hellman parameter generation, key generation, and secret derivation.
+<span class="lineNum">       7 </span>            :  * KEA secret generation and verification.
+<span class="lineNum">       8 </span>            :  */
+<span class="lineNum">       9 </span>            : #ifdef FREEBL_NO_DEPEND
+<span class="lineNum">      10 </span>            : #include &quot;stubs.h&quot;
+<span class="lineNum">      11 </span>            : #endif
+<span class="lineNum">      12 </span>            : 
+<span class="lineNum">      13 </span>            : #include &quot;prerr.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;secerr.h&quot;
+<span class="lineNum">      15 </span>            : 
+<span class="lineNum">      16 </span>            : #include &quot;blapi.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;secitem.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;mpi.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;mpprime.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;secmpi.h&quot;
+<span class="lineNum">      21 </span>            : 
+<span class="lineNum">      22 </span>            : #define KEA_DERIVED_SECRET_LEN 128
+<span class="lineNum">      23 </span>            : 
+<a name="24"><span class="lineNum">      24 </span>            : /* Lengths are in bytes. */</a>
+<span class="lineNum">      25 </span>            : static unsigned int
+<span class="lineNum">      26 </span><span class="lineNoCov">          0 : dh_GetSecretKeyLen(unsigned int primeLen)</span>
+<span class="lineNum">      27 </span>            : {
+<span class="lineNum">      28 </span>            :     /* Based on Table 2 in NIST SP 800-57. */
+<span class="lineNum">      29 </span><span class="lineNoCov">          0 :     if (primeLen &gt;= 1920) { /* 15360 bits */</span>
+<span class="lineNum">      30 </span>            :         return 64;          /* 512 bits */
+<span class="lineNum">      31 </span>            :     }
+<span class="lineNum">      32 </span><span class="lineNoCov">          0 :     if (primeLen &gt;= 960) { /* 7680 bits */</span>
+<span class="lineNum">      33 </span>            :         return 48;         /* 384 bits */
+<span class="lineNum">      34 </span>            :     }
+<span class="lineNum">      35 </span><span class="lineNoCov">          0 :     if (primeLen &gt;= 384) { /* 3072 bits */</span>
+<span class="lineNum">      36 </span>            :         return 32;         /* 256 bits */
+<span class="lineNum">      37 </span>            :     }
+<span class="lineNum">      38 </span><span class="lineNoCov">          0 :     if (primeLen &gt;= 256) { /* 2048 bits */</span>
+<span class="lineNum">      39 </span>            :         return 28;         /* 224 bits */
+<span class="lineNum">      40 </span>            :     }
+<span class="lineNum">      41 </span><span class="lineNoCov">          0 :     return 20; /* 160 bits */</span>
+<span class="lineNum">      42 </span>            : }
+<a name="43"><span class="lineNum">      43 </span>            : </a>
+<span class="lineNum">      44 </span>            : SECStatus
+<span class="lineNum">      45 </span><span class="lineNoCov">          0 : DH_GenParam(int primeLen, DHParams **params)</span>
+<span class="lineNum">      46 </span>            : {
+<span class="lineNum">      47 </span>            :     PLArenaPool *arena;
+<span class="lineNum">      48 </span>            :     DHParams *dhparams;
+<span class="lineNum">      49 </span><span class="lineNoCov">          0 :     unsigned char *pb = NULL;</span>
+<span class="lineNum">      50 </span><span class="lineNoCov">          0 :     unsigned char *ab = NULL;</span>
+<span class="lineNum">      51 </span><span class="lineNoCov">          0 :     unsigned long counter = 0;</span>
+<span class="lineNum">      52 </span>            :     mp_int p, q, a, h, psub1, test;
+<span class="lineNum">      53 </span><span class="lineNoCov">          0 :     mp_err err = MP_OKAY;</span>
+<span class="lineNum">      54 </span><span class="lineNoCov">          0 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">      55 </span><span class="lineNoCov">          0 :     if (!params || primeLen &lt; 0) {</span>
+<span class="lineNum">      56 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">      57 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">      58 </span>            :     }
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 :     arena = PORT_NewArena(NSS_FREEBL_DEFAULT_CHUNKSIZE);</span>
+<span class="lineNum">      60 </span><span class="lineNoCov">          0 :     if (!arena) {</span>
+<span class="lineNum">      61 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_MEMORY);</span>
+<span class="lineNum">      62 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">      63 </span>            :     }
+<span class="lineNum">      64 </span><span class="lineNoCov">          0 :     dhparams = (DHParams *)PORT_ArenaZAlloc(arena, sizeof(DHParams));</span>
+<span class="lineNum">      65 </span><span class="lineNoCov">          0 :     if (!dhparams) {</span>
+<span class="lineNum">      66 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_MEMORY);</span>
+<span class="lineNum">      67 </span><span class="lineNoCov">          0 :         PORT_FreeArena(arena, PR_TRUE);</span>
+<span class="lineNum">      68 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">      69 </span>            :     }
+<span class="lineNum">      70 </span><span class="lineNoCov">          0 :     dhparams-&gt;arena = arena;</span>
+<span class="lineNum">      71 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;p) = 0;</span>
+<span class="lineNum">      72 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;q) = 0;</span>
+<span class="lineNum">      73 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;a) = 0;</span>
+<span class="lineNum">      74 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;h) = 0;</span>
+<span class="lineNum">      75 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;psub1) = 0;</span>
+<span class="lineNum">      76 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;test) = 0;</span>
+<span class="lineNum">      77 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;p));</span>
+<span class="lineNum">      78 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;q));</span>
+<span class="lineNum">      79 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;a));</span>
+<span class="lineNum">      80 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;h));</span>
+<span class="lineNum">      81 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;psub1));</span>
+<span class="lineNum">      82 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;test));</span>
+<span class="lineNum">      83 </span>            :     /* generate prime with MPI, uses Miller-Rabin to generate strong prime. */
+<span class="lineNum">      84 </span><span class="lineNoCov">          0 :     pb = PORT_Alloc(primeLen);</span>
+<span class="lineNum">      85 </span><span class="lineNoCov">          0 :     CHECK_SEC_OK(RNG_GenerateGlobalRandomBytes(pb, primeLen));</span>
+<span class="lineNum">      86 </span><span class="lineNoCov">          0 :     pb[0] |= 0x80;            /* set high-order bit */</span>
+<span class="lineNum">      87 </span><span class="lineNoCov">          0 :     pb[primeLen - 1] |= 0x01; /* set low-order bit  */</span>
+<span class="lineNum">      88 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_read_unsigned_octets(&amp;p, pb, primeLen));</span>
+<span class="lineNum">      89 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mpp_make_prime(&amp;p, primeLen * 8, PR_TRUE, &amp;counter));</span>
+<span class="lineNum">      90 </span>            :     /* construct Sophie-Germain prime q = (p-1)/2. */
+<span class="lineNum">      91 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_sub_d(&amp;p, 1, &amp;psub1));</span>
+<span class="lineNum">      92 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_div_2(&amp;psub1, &amp;q));</span>
+<span class="lineNum">      93 </span>            :     /* construct a generator from the prime. */
+<span class="lineNum">      94 </span><span class="lineNoCov">          0 :     ab = PORT_Alloc(primeLen);</span>
+<span class="lineNum">      95 </span>            :     /* generate a candidate number a in p's field */
+<span class="lineNum">      96 </span><span class="lineNoCov">          0 :     CHECK_SEC_OK(RNG_GenerateGlobalRandomBytes(ab, primeLen));</span>
+<span class="lineNum">      97 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_read_unsigned_octets(&amp;a, ab, primeLen));</span>
+<span class="lineNum">      98 </span>            :     /* force a &lt; p (note that quot(a/p) &lt;= 1) */
+<span class="lineNum">      99 </span><span class="lineNoCov">          0 :     if (mp_cmp(&amp;a, &amp;p) &gt; 0)</span>
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_sub(&amp;a, &amp;p, &amp;a));</span>
+<span class="lineNum">     101 </span>            :     do {
+<span class="lineNum">     102 </span>            :         /* check that a is in the range [2..p-1] */
+<span class="lineNum">     103 </span><span class="lineNoCov">          0 :         if (mp_cmp_d(&amp;a, 2) &lt; 0 || mp_cmp(&amp;a, &amp;psub1) &gt;= 0) {</span>
+<span class="lineNum">     104 </span>            :             /* a is outside of the allowed range.  Set a=3 and keep going. */
+<span class="lineNum">     105 </span><span class="lineNoCov">          0 :             mp_set(&amp;a, 3);</span>
+<span class="lineNum">     106 </span>            :         }
+<span class="lineNum">     107 </span>            :         /* if a**q mod p != 1 then a is a generator */
+<span class="lineNum">     108 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_exptmod(&amp;a, &amp;q, &amp;p, &amp;test));</span>
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 :         if (mp_cmp_d(&amp;test, 1) != 0)</span>
+<span class="lineNum">     110 </span>            :             break;
+<span class="lineNum">     111 </span>            :         /* increment the candidate and try again. */
+<span class="lineNum">     112 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_add_d(&amp;a, 1, &amp;a));</span>
+<span class="lineNum">     113 </span>            :     } while (PR_TRUE);
+<span class="lineNum">     114 </span><span class="lineNoCov">          0 :     MPINT_TO_SECITEM(&amp;p, &amp;dhparams-&gt;prime, arena);</span>
+<span class="lineNum">     115 </span><span class="lineNoCov">          0 :     MPINT_TO_SECITEM(&amp;a, &amp;dhparams-&gt;base, arena);</span>
+<span class="lineNum">     116 </span><span class="lineNoCov">          0 :     *params = dhparams;</span>
+<span class="lineNum">     117 </span>            : cleanup:
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :     mp_clear(&amp;p);</span>
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 :     mp_clear(&amp;q);</span>
+<span class="lineNum">     120 </span><span class="lineNoCov">          0 :     mp_clear(&amp;a);</span>
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :     mp_clear(&amp;h);</span>
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :     mp_clear(&amp;psub1);</span>
+<span class="lineNum">     123 </span><span class="lineNoCov">          0 :     mp_clear(&amp;test);</span>
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :     if (pb)</span>
+<span class="lineNum">     125 </span><span class="lineNoCov">          0 :         PORT_ZFree(pb, primeLen);</span>
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :     if (ab)</span>
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 :         PORT_ZFree(ab, primeLen);</span>
+<span class="lineNum">     128 </span><span class="lineNoCov">          0 :     if (err) {</span>
+<span class="lineNum">     129 </span><span class="lineNoCov">          0 :         MP_TO_SEC_ERROR(err);</span>
+<span class="lineNum">     130 </span>            :         rv = SECFailure;
+<span class="lineNum">     131 </span>            :     }
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :     if (rv)</span>
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :         PORT_FreeArena(arena, PR_TRUE);</span>
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :     return rv;</span>
+<span class="lineNum">     135 </span>            : }
+<a name="136"><span class="lineNum">     136 </span>            : </a>
+<span class="lineNum">     137 </span>            : SECStatus
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 : DH_NewKey(DHParams *params, DHPrivateKey **privKey)</span>
+<span class="lineNum">     139 </span>            : {
+<span class="lineNum">     140 </span>            :     PLArenaPool *arena;
+<span class="lineNum">     141 </span>            :     DHPrivateKey *key;
+<span class="lineNum">     142 </span>            :     mp_int g, xa, p, Ya;
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :     mp_err err = MP_OKAY;</span>
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     145 </span><span class="lineNoCov">          0 :     if (!params || !privKey) {</span>
+<span class="lineNum">     146 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     148 </span>            :     }
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :     arena = PORT_NewArena(NSS_FREEBL_DEFAULT_CHUNKSIZE);</span>
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :     if (!arena) {</span>
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_MEMORY);</span>
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     153 </span>            :     }
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :     key = (DHPrivateKey *)PORT_ArenaZAlloc(arena, sizeof(DHPrivateKey));</span>
+<span class="lineNum">     155 </span><span class="lineNoCov">          0 :     if (!key) {</span>
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_MEMORY);</span>
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :         PORT_FreeArena(arena, PR_TRUE);</span>
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     159 </span>            :     }
+<span class="lineNum">     160 </span><span class="lineNoCov">          0 :     key-&gt;arena = arena;</span>
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;g) = 0;</span>
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;xa) = 0;</span>
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;p) = 0;</span>
+<span class="lineNum">     164 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;Ya) = 0;</span>
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;g));</span>
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;xa));</span>
+<span class="lineNum">     167 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;p));</span>
+<span class="lineNum">     168 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;Ya));</span>
+<span class="lineNum">     169 </span>            :     /* Set private key's p */
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :     CHECK_SEC_OK(SECITEM_CopyItem(arena, &amp;key-&gt;prime, &amp;params-&gt;prime));</span>
+<span class="lineNum">     171 </span><span class="lineNoCov">          0 :     SECITEM_TO_MPINT(key-&gt;prime, &amp;p);</span>
+<span class="lineNum">     172 </span>            :     /* Set private key's g */
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 :     CHECK_SEC_OK(SECITEM_CopyItem(arena, &amp;key-&gt;base, &amp;params-&gt;base));</span>
+<span class="lineNum">     174 </span><span class="lineNoCov">          0 :     SECITEM_TO_MPINT(key-&gt;base, &amp;g);</span>
+<span class="lineNum">     175 </span>            :     /* Generate private key xa */
+<span class="lineNum">     176 </span><span class="lineNoCov">          0 :     SECITEM_AllocItem(arena, &amp;key-&gt;privateValue,</span>
+<span class="lineNum">     177 </span>            :                       dh_GetSecretKeyLen(params-&gt;prime.len));
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :     CHECK_SEC_OK(RNG_GenerateGlobalRandomBytes(key-&gt;privateValue.data,</span>
+<span class="lineNum">     179 </span>            :                                                key-&gt;privateValue.len));
+<span class="lineNum">     180 </span><span class="lineNoCov">          0 :     SECITEM_TO_MPINT(key-&gt;privateValue, &amp;xa);</span>
+<span class="lineNum">     181 </span>            :     /* xa &lt; p */
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_mod(&amp;xa, &amp;p, &amp;xa));</span>
+<span class="lineNum">     183 </span>            :     /* Compute public key Ya = g ** xa mod p */
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_exptmod(&amp;g, &amp;xa, &amp;p, &amp;Ya));</span>
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :     MPINT_TO_SECITEM(&amp;Ya, &amp;key-&gt;publicValue, key-&gt;arena);</span>
+<span class="lineNum">     186 </span><span class="lineNoCov">          0 :     *privKey = key;</span>
+<span class="lineNum">     187 </span>            : cleanup:
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :     mp_clear(&amp;g);</span>
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 :     mp_clear(&amp;xa);</span>
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :     mp_clear(&amp;p);</span>
+<span class="lineNum">     191 </span><span class="lineNoCov">          0 :     mp_clear(&amp;Ya);</span>
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :     if (err) {</span>
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 :         MP_TO_SEC_ERROR(err);</span>
+<span class="lineNum">     194 </span>            :         rv = SECFailure;
+<span class="lineNum">     195 </span>            :     }
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :     if (rv) {</span>
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :         *privKey = NULL;</span>
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 :         PORT_FreeArena(arena, PR_TRUE);</span>
+<span class="lineNum">     199 </span>            :     }
+<span class="lineNum">     200 </span><span class="lineNoCov">          0 :     return rv;</span>
+<span class="lineNum">     201 </span>            : }
+<a name="202"><span class="lineNum">     202 </span>            : </a>
+<span class="lineNum">     203 </span>            : SECStatus
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 : DH_Derive(SECItem *publicValue,</span>
+<span class="lineNum">     205 </span>            :           SECItem *prime,
+<span class="lineNum">     206 </span>            :           SECItem *privateValue,
+<span class="lineNum">     207 </span>            :           SECItem *derivedSecret,
+<span class="lineNum">     208 </span>            :           unsigned int outBytes)
+<span class="lineNum">     209 </span>            : {
+<span class="lineNum">     210 </span>            :     mp_int p, Xa, Yb, ZZ, psub1;
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 :     mp_err err = MP_OKAY;</span>
+<span class="lineNum">     212 </span><span class="lineNoCov">          0 :     unsigned int len = 0;</span>
+<span class="lineNum">     213 </span>            :     unsigned int nb;
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 :     unsigned char *secret = NULL;</span>
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 :     if (!publicValue || !prime || !privateValue || !derivedSecret) {</span>
+<span class="lineNum">     216 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     217 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     218 </span>            :     }
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 :     memset(derivedSecret, 0, sizeof *derivedSecret);</span>
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;p) = 0;</span>
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;Xa) = 0;</span>
+<span class="lineNum">     222 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;Yb) = 0;</span>
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;ZZ) = 0;</span>
+<span class="lineNum">     224 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;psub1) = 0;</span>
+<span class="lineNum">     225 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;p));</span>
+<span class="lineNum">     226 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;Xa));</span>
+<span class="lineNum">     227 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;Yb));</span>
+<span class="lineNum">     228 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;ZZ));</span>
+<span class="lineNum">     229 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;psub1));</span>
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :     SECITEM_TO_MPINT(*publicValue, &amp;Yb);</span>
+<span class="lineNum">     231 </span><span class="lineNoCov">          0 :     SECITEM_TO_MPINT(*privateValue, &amp;Xa);</span>
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :     SECITEM_TO_MPINT(*prime, &amp;p);</span>
+<span class="lineNum">     233 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_sub_d(&amp;p, 1, &amp;psub1));</span>
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span>            :     /* We assume that the modulus, p, is a safe prime. That is, p = 2q+1 where
+<span class="lineNum">     236 </span>            :      * q is also a prime. Thus the orders of the subgroups are factors of 2q:
+<span class="lineNum">     237 </span>            :      * namely 1, 2, q and 2q.
+<span class="lineNum">     238 </span>            :      *
+<span class="lineNum">     239 </span>            :      * We check that the peer's public value isn't zero (which isn't in the
+<span class="lineNum">     240 </span>            :      * group), one (subgroup of order one) or p-1 (subgroup of order 2). We
+<span class="lineNum">     241 </span>            :      * also check that the public value is less than p, to avoid being fooled
+<span class="lineNum">     242 </span>            :      * by values like p+1 or 2*p-1.
+<span class="lineNum">     243 </span>            :      *
+<span class="lineNum">     244 </span>            :      * Thus we must be operating in the subgroup of size q or 2q. */
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :     if (mp_cmp_d(&amp;Yb, 1) &lt;= 0 ||</span>
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :         mp_cmp(&amp;Yb, &amp;psub1) &gt;= 0) {</span>
+<span class="lineNum">     247 </span>            :         err = MP_BADARG;
+<span class="lineNum">     248 </span>            :         goto cleanup;
+<span class="lineNum">     249 </span>            :     }
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span>            :     /* ZZ = (Yb)**Xa mod p */
+<span class="lineNum">     252 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_exptmod(&amp;Yb, &amp;Xa, &amp;p, &amp;ZZ));</span>
+<span class="lineNum">     253 </span>            :     /* number of bytes in the derived secret */
+<span class="lineNum">     254 </span><span class="lineNoCov">          0 :     len = mp_unsigned_octet_size(&amp;ZZ);</span>
+<span class="lineNum">     255 </span><span class="lineNoCov">          0 :     if (len &lt;= 0) {</span>
+<span class="lineNum">     256 </span>            :         err = MP_BADARG;
+<span class="lineNum">     257 </span>            :         goto cleanup;
+<span class="lineNum">     258 </span>            :     }
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span>            :     /*
+<span class="lineNum">     261 </span>            :      * We check to make sure that ZZ is not equal to 1 or -1 mod p.
+<span class="lineNum">     262 </span>            :      * This helps guard against small subgroup attacks, since an attacker
+<span class="lineNum">     263 </span>            :      * using a subgroup of size N will produce 1 or -1 with probability 1/N.
+<span class="lineNum">     264 </span>            :      * When the protocol is executed within a properly large subgroup, the
+<span class="lineNum">     265 </span>            :      * probability of this result will be negligibly small.  For example,
+<span class="lineNum">     266 </span>            :      * with a strong prime of the form 2p+1, the probability will be 1/p.
+<span class="lineNum">     267 </span>            :      *
+<span class="lineNum">     268 </span>            :      * We return MP_BADARG because this is probably the result of a bad
+<span class="lineNum">     269 </span>            :      * public value or a bad prime having been provided.
+<span class="lineNum">     270 </span>            :      */
+<span class="lineNum">     271 </span><span class="lineNoCov">          0 :     if (mp_cmp_d(&amp;ZZ, 1) == 0 ||</span>
+<span class="lineNum">     272 </span><span class="lineNoCov">          0 :         mp_cmp(&amp;ZZ, &amp;psub1) == 0) {</span>
+<span class="lineNum">     273 </span>            :         err = MP_BADARG;
+<span class="lineNum">     274 </span>            :         goto cleanup;
+<span class="lineNum">     275 </span>            :     }
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span>            :     /* allocate a buffer which can hold the entire derived secret. */
+<span class="lineNum">     278 </span><span class="lineNoCov">          0 :     secret = PORT_Alloc(len);</span>
+<span class="lineNum">     279 </span><span class="lineNoCov">          0 :     if (secret == NULL) {</span>
+<span class="lineNum">     280 </span>            :         err = MP_MEM;
+<span class="lineNum">     281 </span>            :         goto cleanup;
+<span class="lineNum">     282 </span>            :     }
+<span class="lineNum">     283 </span>            :     /* grab the derived secret */
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 :     err = mp_to_unsigned_octets(&amp;ZZ, secret, len);</span>
+<span class="lineNum">     285 </span><span class="lineNoCov">          0 :     if (err &gt;= 0)</span>
+<span class="lineNum">     286 </span><span class="lineNoCov">          0 :         err = MP_OKAY;</span>
+<span class="lineNum">     287 </span>            :     /*
+<span class="lineNum">     288 </span>            :     ** if outBytes is 0 take all of the bytes from the derived secret.
+<span class="lineNum">     289 </span>            :     ** if outBytes is not 0 take exactly outBytes from the derived secret, zero
+<span class="lineNum">     290 </span>            :     ** pad at the beginning if necessary, and truncate beginning bytes
+<span class="lineNum">     291 </span>            :     ** if necessary.
+<span class="lineNum">     292 </span>            :     */
+<span class="lineNum">     293 </span><span class="lineNoCov">          0 :     if (outBytes &gt; 0)</span>
+<span class="lineNum">     294 </span>            :         nb = outBytes;
+<span class="lineNum">     295 </span>            :     else
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :         nb = len;</span>
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :     if (SECITEM_AllocItem(NULL, derivedSecret, nb) == NULL) {</span>
+<span class="lineNum">     298 </span>            :         err = MP_MEM;
+<span class="lineNum">     299 </span>            :         goto cleanup;
+<span class="lineNum">     300 </span>            :     }
+<span class="lineNum">     301 </span><span class="lineNoCov">          0 :     if (len &lt; nb) {</span>
+<span class="lineNum">     302 </span><span class="lineNoCov">          0 :         unsigned int offset = nb - len;</span>
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 :         memset(derivedSecret-&gt;data, 0, offset);</span>
+<span class="lineNum">     304 </span><span class="lineNoCov">          0 :         memcpy(derivedSecret-&gt;data + offset, secret, len);</span>
+<span class="lineNum">     305 </span>            :     } else {
+<span class="lineNum">     306 </span><span class="lineNoCov">          0 :         memcpy(derivedSecret-&gt;data, secret + len - nb, nb);</span>
+<span class="lineNum">     307 </span>            :     }
+<span class="lineNum">     308 </span>            : cleanup:
+<span class="lineNum">     309 </span><span class="lineNoCov">          0 :     mp_clear(&amp;p);</span>
+<span class="lineNum">     310 </span><span class="lineNoCov">          0 :     mp_clear(&amp;Xa);</span>
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :     mp_clear(&amp;Yb);</span>
+<span class="lineNum">     312 </span><span class="lineNoCov">          0 :     mp_clear(&amp;ZZ);</span>
+<span class="lineNum">     313 </span><span class="lineNoCov">          0 :     mp_clear(&amp;psub1);</span>
+<span class="lineNum">     314 </span><span class="lineNoCov">          0 :     if (secret) {</span>
+<span class="lineNum">     315 </span>            :         /* free the buffer allocated for the full secret. */
+<span class="lineNum">     316 </span><span class="lineNoCov">          0 :         PORT_ZFree(secret, len);</span>
+<span class="lineNum">     317 </span>            :     }
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :     if (err) {</span>
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :         MP_TO_SEC_ERROR(err);</span>
+<span class="lineNum">     320 </span><span class="lineNoCov">          0 :         if (derivedSecret-&gt;data)</span>
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :             PORT_ZFree(derivedSecret-&gt;data, derivedSecret-&gt;len);</span>
+<span class="lineNum">     322 </span>            :         return SECFailure;
+<span class="lineNum">     323 </span>            :     }
+<span class="lineNum">     324 </span>            :     return SECSuccess;
+<span class="lineNum">     325 </span>            : }
+<a name="326"><span class="lineNum">     326 </span>            : </a>
+<span class="lineNum">     327 </span>            : SECStatus
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 : KEA_Derive(SECItem *prime,</span>
+<span class="lineNum">     329 </span>            :            SECItem *public1,
+<span class="lineNum">     330 </span>            :            SECItem *public2,
+<span class="lineNum">     331 </span>            :            SECItem *private1,
+<span class="lineNum">     332 </span>            :            SECItem *private2,
+<span class="lineNum">     333 </span>            :            SECItem *derivedSecret)
+<span class="lineNum">     334 </span>            : {
+<span class="lineNum">     335 </span>            :     mp_int p, Y, R, r, x, t, u, w;
+<span class="lineNum">     336 </span>            :     mp_err err;
+<span class="lineNum">     337 </span><span class="lineNoCov">          0 :     unsigned char *secret = NULL;</span>
+<span class="lineNum">     338 </span><span class="lineNoCov">          0 :     unsigned int len = 0, offset;</span>
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 :     if (!prime || !public1 || !public2 || !private1 || !private2 ||</span>
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :         !derivedSecret) {</span>
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     343 </span>            :     }
+<span class="lineNum">     344 </span><span class="lineNoCov">          0 :     memset(derivedSecret, 0, sizeof *derivedSecret);</span>
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;p) = 0;</span>
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;Y) = 0;</span>
+<span class="lineNum">     347 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;R) = 0;</span>
+<span class="lineNum">     348 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;r) = 0;</span>
+<span class="lineNum">     349 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;x) = 0;</span>
+<span class="lineNum">     350 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;t) = 0;</span>
+<span class="lineNum">     351 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;u) = 0;</span>
+<span class="lineNum">     352 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;w) = 0;</span>
+<span class="lineNum">     353 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;p));</span>
+<span class="lineNum">     354 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;Y));</span>
+<span class="lineNum">     355 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;R));</span>
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;r));</span>
+<span class="lineNum">     357 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;x));</span>
+<span class="lineNum">     358 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;t));</span>
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;u));</span>
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;w));</span>
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 :     SECITEM_TO_MPINT(*prime, &amp;p);</span>
+<span class="lineNum">     362 </span><span class="lineNoCov">          0 :     SECITEM_TO_MPINT(*public1, &amp;Y);</span>
+<span class="lineNum">     363 </span><span class="lineNoCov">          0 :     SECITEM_TO_MPINT(*public2, &amp;R);</span>
+<span class="lineNum">     364 </span><span class="lineNoCov">          0 :     SECITEM_TO_MPINT(*private1, &amp;r);</span>
+<span class="lineNum">     365 </span><span class="lineNoCov">          0 :     SECITEM_TO_MPINT(*private2, &amp;x);</span>
+<span class="lineNum">     366 </span>            :     /* t = DH(Y, r, p) = Y ** r mod p */
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_exptmod(&amp;Y, &amp;r, &amp;p, &amp;t));</span>
+<span class="lineNum">     368 </span>            :     /* u = DH(R, x, p) = R ** x mod p */
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_exptmod(&amp;R, &amp;x, &amp;p, &amp;u));</span>
+<span class="lineNum">     370 </span>            :     /* w = (t + u) mod p */
+<span class="lineNum">     371 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_addmod(&amp;t, &amp;u, &amp;p, &amp;w));</span>
+<span class="lineNum">     372 </span>            :     /* allocate a buffer for the full derived secret */
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :     len = mp_unsigned_octet_size(&amp;w);</span>
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :     secret = PORT_Alloc(len);</span>
+<span class="lineNum">     375 </span><span class="lineNoCov">          0 :     if (secret == NULL) {</span>
+<span class="lineNum">     376 </span>            :         err = MP_MEM;
+<span class="lineNum">     377 </span>            :         goto cleanup;
+<span class="lineNum">     378 </span>            :     }
+<span class="lineNum">     379 </span>            :     /* grab the secret */
+<span class="lineNum">     380 </span><span class="lineNoCov">          0 :     err = mp_to_unsigned_octets(&amp;w, secret, len);</span>
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 :     if (err &gt; 0)</span>
+<span class="lineNum">     382 </span><span class="lineNoCov">          0 :         err = MP_OKAY;</span>
+<span class="lineNum">     383 </span>            :     /* allocate output buffer */
+<span class="lineNum">     384 </span><span class="lineNoCov">          0 :     if (SECITEM_AllocItem(NULL, derivedSecret, KEA_DERIVED_SECRET_LEN) == NULL) {</span>
+<span class="lineNum">     385 </span>            :         err = MP_MEM;
+<span class="lineNum">     386 </span>            :         goto cleanup;
+<span class="lineNum">     387 </span>            :     }
+<span class="lineNum">     388 </span><span class="lineNoCov">          0 :     memset(derivedSecret-&gt;data, 0, derivedSecret-&gt;len);</span>
+<span class="lineNum">     389 </span>            :     /* copy in the 128 lsb of the secret */
+<span class="lineNum">     390 </span><span class="lineNoCov">          0 :     if (len &gt;= KEA_DERIVED_SECRET_LEN) {</span>
+<span class="lineNum">     391 </span><span class="lineNoCov">          0 :         memcpy(derivedSecret-&gt;data, secret + (len - KEA_DERIVED_SECRET_LEN),</span>
+<span class="lineNum">     392 </span>            :                KEA_DERIVED_SECRET_LEN);
+<span class="lineNum">     393 </span>            :     } else {
+<span class="lineNum">     394 </span><span class="lineNoCov">          0 :         offset = KEA_DERIVED_SECRET_LEN - len;</span>
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 :         memcpy(derivedSecret-&gt;data + offset, secret, len);</span>
+<span class="lineNum">     396 </span>            :     }
+<span class="lineNum">     397 </span>            : cleanup:
+<span class="lineNum">     398 </span><span class="lineNoCov">          0 :     mp_clear(&amp;p);</span>
+<span class="lineNum">     399 </span><span class="lineNoCov">          0 :     mp_clear(&amp;Y);</span>
+<span class="lineNum">     400 </span><span class="lineNoCov">          0 :     mp_clear(&amp;R);</span>
+<span class="lineNum">     401 </span><span class="lineNoCov">          0 :     mp_clear(&amp;r);</span>
+<span class="lineNum">     402 </span><span class="lineNoCov">          0 :     mp_clear(&amp;x);</span>
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :     mp_clear(&amp;t);</span>
+<span class="lineNum">     404 </span><span class="lineNoCov">          0 :     mp_clear(&amp;u);</span>
+<span class="lineNum">     405 </span><span class="lineNoCov">          0 :     mp_clear(&amp;w);</span>
+<span class="lineNum">     406 </span><span class="lineNoCov">          0 :     if (secret)</span>
+<span class="lineNum">     407 </span><span class="lineNoCov">          0 :         PORT_ZFree(secret, len);</span>
+<span class="lineNum">     408 </span><span class="lineNoCov">          0 :     if (err) {</span>
+<span class="lineNum">     409 </span><span class="lineNoCov">          0 :         MP_TO_SEC_ERROR(err);</span>
+<span class="lineNum">     410 </span><span class="lineNoCov">          0 :         if (derivedSecret-&gt;data)</span>
+<span class="lineNum">     411 </span><span class="lineNoCov">          0 :             PORT_ZFree(derivedSecret-&gt;data, derivedSecret-&gt;len);</span>
+<span class="lineNum">     412 </span>            :         return SECFailure;
+<span class="lineNum">     413 </span>            :     }
+<span class="lineNum">     414 </span>            :     return SECSuccess;
+<span class="lineNum">     415 </span>            : }
+<a name="416"><span class="lineNum">     416 </span>            : </a>
+<span class="lineNum">     417 </span>            : PRBool
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 : KEA_Verify(SECItem *Y, SECItem *prime, SECItem *subPrime)</span>
+<span class="lineNum">     419 </span>            : {
+<span class="lineNum">     420 </span>            :     mp_int p, q, y, r;
+<span class="lineNum">     421 </span>            :     mp_err err;
+<span class="lineNum">     422 </span><span class="lineNoCov">          0 :     int cmp = 1; /* default is false */</span>
+<span class="lineNum">     423 </span><span class="lineNoCov">          0 :     if (!Y || !prime || !subPrime) {</span>
+<span class="lineNum">     424 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     425 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     426 </span>            :     }
+<span class="lineNum">     427 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;p) = 0;</span>
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;q) = 0;</span>
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;y) = 0;</span>
+<span class="lineNum">     430 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;r) = 0;</span>
+<span class="lineNum">     431 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;p));</span>
+<span class="lineNum">     432 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;q));</span>
+<span class="lineNum">     433 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;y));</span>
+<span class="lineNum">     434 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;r));</span>
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :     SECITEM_TO_MPINT(*prime, &amp;p);</span>
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :     SECITEM_TO_MPINT(*subPrime, &amp;q);</span>
+<span class="lineNum">     437 </span><span class="lineNoCov">          0 :     SECITEM_TO_MPINT(*Y, &amp;y);</span>
+<span class="lineNum">     438 </span>            :     /* compute r = y**q mod p */
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_exptmod(&amp;y, &amp;q, &amp;p, &amp;r));</span>
+<span class="lineNum">     440 </span>            :     /* compare to 1 */
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :     cmp = mp_cmp_d(&amp;r, 1);</span>
+<span class="lineNum">     442 </span>            : cleanup:
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :     mp_clear(&amp;p);</span>
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 :     mp_clear(&amp;q);</span>
+<span class="lineNum">     445 </span><span class="lineNoCov">          0 :     mp_clear(&amp;y);</span>
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :     mp_clear(&amp;r);</span>
+<span class="lineNum">     447 </span><span class="lineNoCov">          0 :     if (err) {</span>
+<span class="lineNum">     448 </span><span class="lineNoCov">          0 :         MP_TO_SEC_ERROR(err);</span>
+<span class="lineNum">     449 </span>            :         return PR_FALSE;
+<span class="lineNum">     450 </span>            :     }
+<span class="lineNum">     451 </span><span class="lineNoCov">          0 :     return (cmp == 0) ? PR_TRUE : PR_FALSE;</span>
+<span class="lineNum">     452 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

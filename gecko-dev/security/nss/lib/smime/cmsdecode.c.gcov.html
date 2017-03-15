@@ -1,0 +1,822 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/security/nss/lib/smime/cmsdecode.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">gecko-dev/security/nss/lib/smime</a> - cmsdecode.c<span style="font-size: 80%;"> (source / <a href="cmsdecode.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">72</td>
+            <td class="headerCovTableEntry">254</td>
+            <td class="headerCovTableEntryLo">28.3 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">6</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntryLo">50.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public</a>
+<span class="lineNum">       2 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       3 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : /*
+<span class="lineNum">       6 </span>            :  * CMS decoding.
+<span class="lineNum">       7 </span>            :  */
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &quot;cmslocal.h&quot;
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;cert.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;key.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;secasn1.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;secitem.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;secoid.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;prtime.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;secerr.h&quot;
+<span class="lineNum">      18 </span>            : 
+<span class="lineNum">      19 </span>            : struct NSSCMSDecoderContextStr {
+<span class="lineNum">      20 </span>            :     SEC_ASN1DecoderContext *dcx;      /* ASN.1 decoder context */
+<span class="lineNum">      21 </span>            :     NSSCMSMessage *cmsg;              /* backpointer to the root message */
+<span class="lineNum">      22 </span>            :     SECOidTag type;                   /* type of message */
+<span class="lineNum">      23 </span>            :     NSSCMSContent content;            /* pointer to message */
+<span class="lineNum">      24 </span>            :     NSSCMSDecoderContext *childp7dcx; /* inner CMS decoder context */
+<span class="lineNum">      25 </span>            :     PRBool saw_contents;
+<span class="lineNum">      26 </span>            :     int error;
+<span class="lineNum">      27 </span>            :     NSSCMSContentCallback cb;
+<span class="lineNum">      28 </span>            :     void *cb_arg;
+<span class="lineNum">      29 </span>            :     PRBool first_decoded;
+<span class="lineNum">      30 </span>            :     PRBool need_indefinite_finish;
+<span class="lineNum">      31 </span>            : };
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : struct NSSCMSDecoderDataStr {
+<span class="lineNum">      34 </span>            :     SECItem data; /* must be first */
+<span class="lineNum">      35 </span>            :     unsigned int totalBufferSize;
+<span class="lineNum">      36 </span>            : };
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : typedef struct NSSCMSDecoderDataStr NSSCMSDecoderData;
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : static void nss_cms_decoder_update_filter(void *arg, const char *data,
+<span class="lineNum">      41 </span>            :                                           unsigned long len, int depth,
+<span class="lineNum">      42 </span>            :                                           SEC_ASN1EncodingPart data_kind);
+<span class="lineNum">      43 </span>            : static SECStatus nss_cms_before_data(NSSCMSDecoderContext *p7dcx);
+<span class="lineNum">      44 </span>            : static SECStatus nss_cms_after_data(NSSCMSDecoderContext *p7dcx);
+<span class="lineNum">      45 </span>            : static SECStatus nss_cms_after_end(NSSCMSDecoderContext *p7dcx);
+<span class="lineNum">      46 </span>            : static void nss_cms_decoder_work_data(NSSCMSDecoderContext *p7dcx,
+<span class="lineNum">      47 </span>            :                                       const unsigned char *data,
+<span class="lineNum">      48 </span>            :                                       unsigned long len,
+<span class="lineNum">      49 </span>            :                                       PRBool final);
+<span class="lineNum">      50 </span>            : static NSSCMSDecoderData *nss_cms_create_decoder_data(PLArenaPool *poolp);
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span>            : extern const SEC_ASN1Template NSSCMSMessageTemplate[];
+<a name="53"><span class="lineNum">      53 </span>            : </a>
+<span class="lineNum">      54 </span>            : static NSSCMSDecoderData *
+<span class="lineNum">      55 </span><span class="lineNoCov">          0 : nss_cms_create_decoder_data(PLArenaPool *poolp)</span>
+<span class="lineNum">      56 </span>            : {
+<span class="lineNum">      57 </span><span class="lineNoCov">          0 :     NSSCMSDecoderData *decoderData = NULL;</span>
+<span class="lineNum">      58 </span>            : 
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 :     decoderData = (NSSCMSDecoderData *)</span>
+<span class="lineNum">      60 </span>            :         PORT_ArenaAlloc(poolp, sizeof(NSSCMSDecoderData));
+<span class="lineNum">      61 </span><span class="lineNoCov">          0 :     if (!decoderData) {</span>
+<span class="lineNum">      62 </span>            :         return NULL;
+<span class="lineNum">      63 </span>            :     }
+<span class="lineNum">      64 </span><span class="lineNoCov">          0 :     decoderData-&gt;data.data = NULL;</span>
+<span class="lineNum">      65 </span><span class="lineNoCov">          0 :     decoderData-&gt;data.len = 0;</span>
+<span class="lineNum">      66 </span><span class="lineNoCov">          0 :     decoderData-&gt;totalBufferSize = 0;</span>
+<span class="lineNum">      67 </span><span class="lineNoCov">          0 :     return decoderData;</span>
+<span class="lineNum">      68 </span>            : }
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            : /*
+<span class="lineNum">      71 </span>            :  * nss_cms_decoder_notify -
+<span class="lineNum">      72 </span>            :  *  this is the driver of the decoding process. It gets called by the ASN.1
+<span class="lineNum">      73 </span>            :  *  decoder before and after an object is decoded.
+<span class="lineNum">      74 </span>            :  *  at various points in the decoding process, we intercept to set up and do
+<span class="lineNum">      75 </span>            :  *  further processing.
+<a name="76"><span class="lineNum">      76 </span>            :  */</a>
+<span class="lineNum">      77 </span>            : static void
+<span class="lineNum">      78 </span><span class="lineCov">          1 : nss_cms_decoder_notify(void *arg, PRBool before, void *dest, int depth)</span>
+<span class="lineNum">      79 </span>            : {
+<span class="lineNum">      80 </span>            :     NSSCMSDecoderContext *p7dcx;
+<span class="lineNum">      81 </span>            :     NSSCMSContentInfo *rootcinfo, *cinfo;
+<span class="lineNum">      82 </span><span class="lineCov">          1 :     PRBool after = !before;</span>
+<span class="lineNum">      83 </span>            : 
+<span class="lineNum">      84 </span><span class="lineCov">          1 :     p7dcx = (NSSCMSDecoderContext *)arg;</span>
+<span class="lineNum">      85 </span><span class="lineCov">          1 :     rootcinfo = &amp;(p7dcx-&gt;cmsg-&gt;contentInfo);</span>
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span>            : /* XXX error handling: need to set p7dcx-&gt;error */
+<span class="lineNum">      88 </span>            : 
+<span class="lineNum">      89 </span>            : #ifdef CMSDEBUG
+<span class="lineNum">      90 </span>            :     fprintf(stderr, &quot;%6.6s, dest = 0x%08x, depth = %d\n&quot;, before ? &quot;before&quot;
+<span class="lineNum">      91 </span>            :                                                                  : &quot;after&quot;,
+<span class="lineNum">      92 </span>            :             dest, depth);
+<span class="lineNum">      93 </span>            : #endif
+<span class="lineNum">      94 </span>            : 
+<span class="lineNum">      95 </span>            :     /* so what are we working on right now? */
+<span class="lineNum">      96 </span><span class="lineCov">          1 :     if (p7dcx-&gt;type == SEC_OID_UNKNOWN) {</span>
+<span class="lineNum">      97 </span>            :         /*
+<span class="lineNum">      98 </span>            :          * right now, we are still decoding the OUTER (root) cinfo
+<span class="lineNum">      99 </span>            :          * As soon as we know the inner content type, set up the info,
+<span class="lineNum">     100 </span>            :          * but NO inner decoder or filter. The root decoder handles the first
+<span class="lineNum">     101 </span>            :          * level children by itself - only for encapsulated contents (which
+<span class="lineNum">     102 </span>            :          * are encoded as DER inside of an OCTET STRING) we need to set up a
+<span class="lineNum">     103 </span>            :          * child decoder...
+<span class="lineNum">     104 </span>            :          */
+<span class="lineNum">     105 </span><span class="lineCov">          1 :         if (after &amp;&amp; dest == &amp;(rootcinfo-&gt;contentType)) {</span>
+<span class="lineNum">     106 </span><span class="lineCov">          1 :             p7dcx-&gt;type = NSS_CMSContentInfo_GetContentTypeTag(rootcinfo);</span>
+<span class="lineNum">     107 </span><span class="lineCov">          1 :             p7dcx-&gt;content = rootcinfo-&gt;content;</span>
+<span class="lineNum">     108 </span>            :             /* is this ready already ? need to alloc? */
+<span class="lineNum">     109 </span>            :             /* XXX yes we need to alloc -- continue here */
+<span class="lineNum">     110 </span>            :         }
+<span class="lineNum">     111 </span><span class="lineCov">          1 :     } else if (NSS_CMSType_IsData(p7dcx-&gt;type)) {</span>
+<span class="lineNum">     112 </span>            :         /* this can only happen if the outermost cinfo has DATA in it */
+<span class="lineNum">     113 </span>            :         /* otherwise, we handle this type implicitely in the inner decoders */
+<span class="lineNum">     114 </span>            : 
+<span class="lineNum">     115 </span><span class="lineNoCov">          0 :         if (before &amp;&amp; dest == &amp;(rootcinfo-&gt;content)) {</span>
+<span class="lineNum">     116 </span>            :             /* cause the filter to put the data in the right place...
+<span class="lineNum">     117 </span>            :             ** We want the ASN.1 decoder to deliver the decoded bytes to us
+<span class="lineNum">     118 </span>            :             ** from now on
+<span class="lineNum">     119 </span>            :             */
+<span class="lineNum">     120 </span><span class="lineNoCov">          0 :             SEC_ASN1DecoderSetFilterProc(p7dcx-&gt;dcx,</span>
+<span class="lineNum">     121 </span>            :                                          nss_cms_decoder_update_filter,
+<span class="lineNum">     122 </span>            :                                          p7dcx,
+<span class="lineNum">     123 </span><span class="lineNoCov">          0 :                                          (PRBool)(p7dcx-&gt;cb != NULL));</span>
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :         } else if (after &amp;&amp; dest == &amp;(rootcinfo-&gt;content.data)) {</span>
+<span class="lineNum">     125 </span>            :             /* remove the filter */
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :             SEC_ASN1DecoderClearFilterProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     127 </span>            :         }
+<span class="lineNum">     128 </span><span class="lineCov">          1 :     } else if (NSS_CMSType_IsWrapper(p7dcx-&gt;type)) {</span>
+<span class="lineNum">     129 </span><span class="lineCov">          1 :         if (!before || dest != &amp;(rootcinfo-&gt;content)) {</span>
+<span class="lineNum">     130 </span>            : 
+<span class="lineNum">     131 </span><span class="lineCov">          1 :             if (p7dcx-&gt;content.pointer == NULL)</span>
+<span class="lineNum">     132 </span><span class="lineCov">          1 :                 p7dcx-&gt;content = rootcinfo-&gt;content;</span>
+<span class="lineNum">     133 </span>            : 
+<span class="lineNum">     134 </span>            :             /* get this data type's inner contentInfo */
+<span class="lineNum">     135 </span><span class="lineCov">          1 :             cinfo = NSS_CMSContent_GetContentInfo(p7dcx-&gt;content.pointer,</span>
+<span class="lineNum">     136 </span>            :                                                   p7dcx-&gt;type);
+<span class="lineNum">     137 </span>            : 
+<span class="lineNum">     138 </span><span class="lineCov">          1 :             if (before &amp;&amp; dest == &amp;(cinfo-&gt;contentType)) {</span>
+<span class="lineNum">     139 </span>            :                 /* at this point, set up the &amp;%$&amp;$ back pointer */
+<span class="lineNum">     140 </span>            :                 /* we cannot do it later, because the content itself
+<span class="lineNum">     141 </span>            :                  * is optional! */
+<span class="lineNum">     142 </span><span class="lineCov">          1 :                 switch (p7dcx-&gt;type) {</span>
+<span class="lineNum">     143 </span>            :                     case SEC_OID_PKCS7_SIGNED_DATA:
+<span class="lineNum">     144 </span><span class="lineCov">          1 :                         p7dcx-&gt;content.signedData-&gt;cmsg = p7dcx-&gt;cmsg;</span>
+<span class="lineNum">     145 </span><span class="lineCov">          1 :                         break;</span>
+<span class="lineNum">     146 </span>            :                     case SEC_OID_PKCS7_DIGESTED_DATA:
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 :                         p7dcx-&gt;content.digestedData-&gt;cmsg = p7dcx-&gt;cmsg;</span>
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 :                         break;</span>
+<span class="lineNum">     149 </span>            :                     case SEC_OID_PKCS7_ENVELOPED_DATA:
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :                         p7dcx-&gt;content.envelopedData-&gt;cmsg = p7dcx-&gt;cmsg;</span>
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :                         break;</span>
+<span class="lineNum">     152 </span>            :                     case SEC_OID_PKCS7_ENCRYPTED_DATA:
+<span class="lineNum">     153 </span><span class="lineNoCov">          0 :                         p7dcx-&gt;content.encryptedData-&gt;cmsg = p7dcx-&gt;cmsg;</span>
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :                         break;</span>
+<span class="lineNum">     155 </span>            :                     default:
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :                         p7dcx-&gt;content.genericData-&gt;cmsg = p7dcx-&gt;cmsg;</span>
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :                         break;</span>
+<span class="lineNum">     158 </span>            :                 }
+<span class="lineNum">     159 </span>            :             }
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span><span class="lineCov">          1 :             if (before &amp;&amp; dest == &amp;(cinfo-&gt;rawContent)) {</span>
+<span class="lineNum">     162 </span>            :                 /* we want the ASN.1 decoder to deliver the decoded bytes to us
+<span class="lineNum">     163 </span>            :                  ** from now on
+<span class="lineNum">     164 </span>            :                  */
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 :                 SEC_ASN1DecoderSetFilterProc(p7dcx-&gt;dcx,</span>
+<span class="lineNum">     166 </span>            :                                              nss_cms_decoder_update_filter,
+<span class="lineNum">     167 </span><span class="lineNoCov">          0 :                                              p7dcx, (PRBool)(p7dcx-&gt;cb != NULL));</span>
+<span class="lineNum">     168 </span>            : 
+<span class="lineNum">     169 </span>            :                 /* we're right in front of the data */
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :                 if (nss_cms_before_data(p7dcx) != SECSuccess) {</span>
+<span class="lineNum">     171 </span><span class="lineNoCov">          0 :                     SEC_ASN1DecoderClearFilterProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     172 </span>            :                     /* stop all processing */
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 :                     p7dcx-&gt;error = PORT_GetError();</span>
+<span class="lineNum">     174 </span>            :                 }
+<span class="lineNum">     175 </span>            :             }
+<span class="lineNum">     176 </span><span class="lineCov">          1 :             if (after &amp;&amp; dest == &amp;(cinfo-&gt;rawContent)) {</span>
+<span class="lineNum">     177 </span>            :                 /* we're right after of the data */
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :                 if (nss_cms_after_data(p7dcx) != SECSuccess)</span>
+<span class="lineNum">     179 </span><span class="lineNoCov">          0 :                     p7dcx-&gt;error = PORT_GetError();</span>
+<span class="lineNum">     180 </span>            : 
+<span class="lineNum">     181 </span>            :                 /* we don't need to see the contents anymore */
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :                 SEC_ASN1DecoderClearFilterProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     183 </span>            :             }
+<span class="lineNum">     184 </span>            :         }
+<span class="lineNum">     185 </span>            :     } else {
+<span class="lineNum">     186 </span>            :         /* unsupported or unknown message type - fail  gracefully */
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 :         p7dcx-&gt;error = SEC_ERROR_UNSUPPORTED_MESSAGE_TYPE;</span>
+<span class="lineNum">     188 </span>            :     }
+<span class="lineNum">     189 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span>            : /*
+<span class="lineNum">     192 </span>            :  * nss_cms_before_data - set up the current encoder to receive data
+<a name="193"><span class="lineNum">     193 </span>            :  */</a>
+<span class="lineNum">     194 </span>            : static SECStatus
+<span class="lineNum">     195 </span><span class="lineNoCov">          0 : nss_cms_before_data(NSSCMSDecoderContext *p7dcx)</span>
+<span class="lineNum">     196 </span>            : {
+<span class="lineNum">     197 </span>            :     SECStatus rv;
+<span class="lineNum">     198 </span>            :     SECOidTag childtype;
+<span class="lineNum">     199 </span>            :     PLArenaPool *poolp;
+<span class="lineNum">     200 </span>            :     NSSCMSDecoderContext *childp7dcx;
+<span class="lineNum">     201 </span>            :     NSSCMSContentInfo *cinfo;
+<span class="lineNum">     202 </span>            :     const SEC_ASN1Template *template;
+<span class="lineNum">     203 </span><span class="lineNoCov">          0 :     void *mark = NULL;</span>
+<span class="lineNum">     204 </span>            :     size_t size;
+<span class="lineNum">     205 </span>            : 
+<span class="lineNum">     206 </span><span class="lineNoCov">          0 :     poolp = p7dcx-&gt;cmsg-&gt;poolp;</span>
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span>            :     /* call _Decode_BeforeData handlers */
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 :     switch (p7dcx-&gt;type) {</span>
+<span class="lineNum">     210 </span>            :         case SEC_OID_PKCS7_SIGNED_DATA:
+<span class="lineNum">     211 </span>            :             /* we're decoding a signedData, so set up the digests */
+<span class="lineNum">     212 </span><span class="lineNoCov">          0 :             rv = NSS_CMSSignedData_Decode_BeforeData(p7dcx-&gt;content.signedData);</span>
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     214 </span>            :         case SEC_OID_PKCS7_DIGESTED_DATA:
+<span class="lineNum">     215 </span>            :             /* we're encoding a digestedData, so set up the digest */
+<span class="lineNum">     216 </span><span class="lineNoCov">          0 :             rv = NSS_CMSDigestedData_Decode_BeforeData(p7dcx-&gt;content.digestedData);</span>
+<span class="lineNum">     217 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     218 </span>            :         case SEC_OID_PKCS7_ENVELOPED_DATA:
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 :             rv = NSS_CMSEnvelopedData_Decode_BeforeData(</span>
+<span class="lineNum">     220 </span>            :                 p7dcx-&gt;content.envelopedData);
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     222 </span>            :         case SEC_OID_PKCS7_ENCRYPTED_DATA:
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :             rv = NSS_CMSEncryptedData_Decode_BeforeData(</span>
+<span class="lineNum">     224 </span>            :                 p7dcx-&gt;content.encryptedData);
+<span class="lineNum">     225 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     226 </span>            :         default:
+<span class="lineNum">     227 </span><span class="lineNoCov">          0 :             rv = NSS_CMSGenericWrapperData_Decode_BeforeData(p7dcx-&gt;type,</span>
+<span class="lineNum">     228 </span>            :                                                              p7dcx-&gt;content.genericData);
+<span class="lineNum">     229 </span>            :     }
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess)</span>
+<span class="lineNum">     231 </span>            :         return SECFailure;
+<span class="lineNum">     232 </span>            : 
+<span class="lineNum">     233 </span>            :     /* ok, now we have a pointer to cinfo */
+<span class="lineNum">     234 </span>            :     /* find out what kind of data is encapsulated */
+<span class="lineNum">     235 </span>            : 
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :     cinfo = NSS_CMSContent_GetContentInfo(p7dcx-&gt;content.pointer, p7dcx-&gt;type);</span>
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :     childtype = NSS_CMSContentInfo_GetContentTypeTag(cinfo);</span>
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span><span class="lineNoCov">          0 :     if (NSS_CMSType_IsData(childtype)) {</span>
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 :         cinfo-&gt;content.pointer = (void *)nss_cms_create_decoder_data(poolp);</span>
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :         if (cinfo-&gt;content.pointer == NULL)</span>
+<span class="lineNum">     242 </span>            :             /* set memory error */
+<span class="lineNum">     243 </span>            :             return SECFailure;
+<span class="lineNum">     244 </span>            : 
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :         p7dcx-&gt;childp7dcx = NULL;</span>
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :         return SECSuccess;</span>
+<span class="lineNum">     247 </span>            :     }
+<span class="lineNum">     248 </span>            : 
+<span class="lineNum">     249 </span>            :     /* set up inner decoder */
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 :     if ((template = NSS_CMSUtil_GetTemplateByTypeTag(childtype)) == NULL)</span>
+<span class="lineNum">     252 </span>            :         return SECFailure;
+<span class="lineNum">     253 </span>            : 
+<span class="lineNum">     254 </span><span class="lineNoCov">          0 :     childp7dcx = PORT_ZNew(NSSCMSDecoderContext);</span>
+<span class="lineNum">     255 </span><span class="lineNoCov">          0 :     if (childp7dcx == NULL)</span>
+<span class="lineNum">     256 </span>            :         return SECFailure;
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 :     mark = PORT_ArenaMark(poolp);</span>
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span>            :     /* allocate space for the stuff we're creating */
+<span class="lineNum">     261 </span><span class="lineNoCov">          0 :     size = NSS_CMSUtil_GetSizeByTypeTag(childtype);</span>
+<span class="lineNum">     262 </span><span class="lineNoCov">          0 :     childp7dcx-&gt;content.pointer = (void *)PORT_ArenaZAlloc(poolp, size);</span>
+<span class="lineNum">     263 </span><span class="lineNoCov">          0 :     if (childp7dcx-&gt;content.pointer == NULL)</span>
+<span class="lineNum">     264 </span>            :         goto loser;
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span>            :     /* give the parent a copy of the pointer so that it doesn't get lost */
+<span class="lineNum">     267 </span><span class="lineNoCov">          0 :     cinfo-&gt;content.pointer = childp7dcx-&gt;content.pointer;</span>
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span>            :     /* start the child decoder */
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 :     childp7dcx-&gt;dcx = SEC_ASN1DecoderStart(poolp, childp7dcx-&gt;content.pointer,</span>
+<span class="lineNum">     271 </span>            :                                            template);
+<span class="lineNum">     272 </span><span class="lineNoCov">          0 :     if (childp7dcx-&gt;dcx == NULL)</span>
+<span class="lineNum">     273 </span>            :         goto loser;
+<span class="lineNum">     274 </span>            : 
+<span class="lineNum">     275 </span>            :     /* the new decoder needs to notify, too */
+<span class="lineNum">     276 </span><span class="lineNoCov">          0 :     SEC_ASN1DecoderSetNotifyProc(childp7dcx-&gt;dcx, nss_cms_decoder_notify,</span>
+<span class="lineNum">     277 </span>            :                                  childp7dcx);
+<span class="lineNum">     278 </span>            : 
+<span class="lineNum">     279 </span>            :     /* tell the parent decoder that it needs to feed us the content data */
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 :     p7dcx-&gt;childp7dcx = childp7dcx;</span>
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 :     childp7dcx-&gt;type = childtype; /* our type */</span>
+<span class="lineNum">     283 </span>            : 
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 :     childp7dcx-&gt;cmsg = p7dcx-&gt;cmsg; /* backpointer to root message */</span>
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span>            :     /* should the child decoder encounter real data,
+<span class="lineNum">     287 </span>            :     ** it must give it to the caller
+<span class="lineNum">     288 </span>            :     */
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :     childp7dcx-&gt;cb = p7dcx-&gt;cb;</span>
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :     childp7dcx-&gt;cb_arg = p7dcx-&gt;cb_arg;</span>
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :     childp7dcx-&gt;first_decoded = PR_FALSE;</span>
+<span class="lineNum">     292 </span><span class="lineNoCov">          0 :     childp7dcx-&gt;need_indefinite_finish = PR_FALSE;</span>
+<span class="lineNum">     293 </span><span class="lineNoCov">          0 :     if (childtype == SEC_OID_PKCS7_SIGNED_DATA) {</span>
+<span class="lineNum">     294 </span><span class="lineNoCov">          0 :         childp7dcx-&gt;first_decoded = PR_TRUE;</span>
+<span class="lineNum">     295 </span>            :     }
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span>            :     /* now set up the parent to hand decoded data to the next level decoder */
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 :     p7dcx-&gt;cb = (NSSCMSContentCallback)NSS_CMSDecoder_Update;</span>
+<span class="lineNum">     299 </span><span class="lineNoCov">          0 :     p7dcx-&gt;cb_arg = childp7dcx;</span>
+<span class="lineNum">     300 </span>            : 
+<span class="lineNum">     301 </span><span class="lineNoCov">          0 :     PORT_ArenaUnmark(poolp, mark);</span>
+<span class="lineNum">     302 </span>            : 
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     304 </span>            : 
+<span class="lineNum">     305 </span>            : loser:
+<span class="lineNum">     306 </span><span class="lineNoCov">          0 :     if (mark)</span>
+<span class="lineNum">     307 </span><span class="lineNoCov">          0 :         PORT_ArenaRelease(poolp, mark);</span>
+<span class="lineNum">     308 </span><span class="lineNoCov">          0 :     PORT_Free(childp7dcx);</span>
+<span class="lineNum">     309 </span><span class="lineNoCov">          0 :     p7dcx-&gt;childp7dcx = NULL;</span>
+<span class="lineNum">     310 </span><span class="lineNoCov">          0 :     return SECFailure;</span>
+<span class="lineNum">     311 </span>            : }
+<a name="312"><span class="lineNum">     312 </span>            : </a>
+<span class="lineNum">     313 </span>            : static SECStatus
+<span class="lineNum">     314 </span><span class="lineNoCov">          0 : nss_cms_after_data(NSSCMSDecoderContext *p7dcx)</span>
+<span class="lineNum">     315 </span>            : {
+<span class="lineNum">     316 </span>            :     NSSCMSDecoderContext *childp7dcx;
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :     SECStatus rv = SECFailure;</span>
+<span class="lineNum">     318 </span>            : 
+<span class="lineNum">     319 </span>            :     /* Handle last block. This is necessary to flush out the last bytes
+<span class="lineNum">     320 </span>            :      * of a possibly incomplete block */
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :     nss_cms_decoder_work_data(p7dcx, NULL, 0, PR_TRUE);</span>
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span>            :     /* finish any &quot;inner&quot; decoders - there's no more data coming... */
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 :     if (p7dcx-&gt;childp7dcx != NULL) {</span>
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :         childp7dcx = p7dcx-&gt;childp7dcx;</span>
+<span class="lineNum">     326 </span><span class="lineNoCov">          0 :         if (childp7dcx-&gt;dcx != NULL) {</span>
+<span class="lineNum">     327 </span>            :             /* we started and indefinite sequence somewhere, not complete it */
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 :             if (childp7dcx-&gt;need_indefinite_finish) {</span>
+<span class="lineNum">     329 </span>            :                 static const char lbuf[2] = { 0, 0 };
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 :                 NSS_CMSDecoder_Update(childp7dcx, lbuf, sizeof(lbuf));</span>
+<span class="lineNum">     331 </span><span class="lineNoCov">          0 :                 childp7dcx-&gt;need_indefinite_finish = PR_FALSE;</span>
+<span class="lineNum">     332 </span>            :             }
+<span class="lineNum">     333 </span>            : 
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :             if (SEC_ASN1DecoderFinish(childp7dcx-&gt;dcx) != SECSuccess) {</span>
+<span class="lineNum">     335 </span>            :                 /* do what? free content? */
+<span class="lineNum">     336 </span>            :                 rv = SECFailure;
+<span class="lineNum">     337 </span>            :             } else {
+<span class="lineNum">     338 </span><span class="lineNoCov">          0 :                 rv = nss_cms_after_end(childp7dcx);</span>
+<span class="lineNum">     339 </span>            :             }
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :             if (rv != SECSuccess)</span>
+<span class="lineNum">     341 </span>            :                 goto done;
+<span class="lineNum">     342 </span>            :         }
+<span class="lineNum">     343 </span><span class="lineNoCov">          0 :         PORT_Free(p7dcx-&gt;childp7dcx);</span>
+<span class="lineNum">     344 </span><span class="lineNoCov">          0 :         p7dcx-&gt;childp7dcx = NULL;</span>
+<span class="lineNum">     345 </span>            :     }
+<span class="lineNum">     346 </span>            : 
+<span class="lineNum">     347 </span><span class="lineNoCov">          0 :     switch (p7dcx-&gt;type) {</span>
+<span class="lineNum">     348 </span>            :         case SEC_OID_PKCS7_SIGNED_DATA:
+<span class="lineNum">     349 </span>            :             /* this will finish the digests and verify */
+<span class="lineNum">     350 </span><span class="lineNoCov">          0 :             rv = NSS_CMSSignedData_Decode_AfterData(p7dcx-&gt;content.signedData);</span>
+<span class="lineNum">     351 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     352 </span>            :         case SEC_OID_PKCS7_ENVELOPED_DATA:
+<span class="lineNum">     353 </span><span class="lineNoCov">          0 :             rv = NSS_CMSEnvelopedData_Decode_AfterData(</span>
+<span class="lineNum">     354 </span>            :                 p7dcx-&gt;content.envelopedData);
+<span class="lineNum">     355 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     356 </span>            :         case SEC_OID_PKCS7_DIGESTED_DATA:
+<span class="lineNum">     357 </span><span class="lineNoCov">          0 :             rv = NSS_CMSDigestedData_Decode_AfterData(</span>
+<span class="lineNum">     358 </span>            :                 p7dcx-&gt;content.digestedData);
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     360 </span>            :         case SEC_OID_PKCS7_ENCRYPTED_DATA:
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 :             rv = NSS_CMSEncryptedData_Decode_AfterData(</span>
+<span class="lineNum">     362 </span>            :                 p7dcx-&gt;content.encryptedData);
+<span class="lineNum">     363 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     364 </span>            :         case SEC_OID_PKCS7_DATA:
+<span class="lineNum">     365 </span>            :             /* do nothing */
+<span class="lineNum">     366 </span>            :             break;
+<span class="lineNum">     367 </span>            :         default:
+<span class="lineNum">     368 </span><span class="lineNoCov">          0 :             rv = NSS_CMSGenericWrapperData_Decode_AfterData(p7dcx-&gt;type,</span>
+<span class="lineNum">     369 </span>            :                                                             p7dcx-&gt;content.genericData);
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     371 </span>            :     }
+<span class="lineNum">     372 </span>            : done:
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :     return rv;</span>
+<span class="lineNum">     374 </span>            : }
+<a name="375"><span class="lineNum">     375 </span>            : </a>
+<span class="lineNum">     376 </span>            : static SECStatus
+<span class="lineNum">     377 </span><span class="lineCov">          1 : nss_cms_after_end(NSSCMSDecoderContext *p7dcx)</span>
+<span class="lineNum">     378 </span>            : {
+<span class="lineNum">     379 </span><span class="lineCov">          1 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     380 </span>            : 
+<span class="lineNum">     381 </span><span class="lineCov">          1 :     switch (p7dcx-&gt;type) {</span>
+<span class="lineNum">     382 </span>            :         case SEC_OID_PKCS7_SIGNED_DATA:
+<span class="lineNum">     383 </span><span class="lineCov">          1 :             if (p7dcx-&gt;content.signedData)</span>
+<span class="lineNum">     384 </span><span class="lineCov">          1 :                 rv = NSS_CMSSignedData_Decode_AfterEnd(p7dcx-&gt;content.signedData);</span>
+<span class="lineNum">     385 </span>            :             break;
+<span class="lineNum">     386 </span>            :         case SEC_OID_PKCS7_ENVELOPED_DATA:
+<span class="lineNum">     387 </span><span class="lineNoCov">          0 :             if (p7dcx-&gt;content.envelopedData)</span>
+<span class="lineNum">     388 </span><span class="lineNoCov">          0 :                 rv = NSS_CMSEnvelopedData_Decode_AfterEnd(</span>
+<span class="lineNum">     389 </span>            :                     p7dcx-&gt;content.envelopedData);
+<span class="lineNum">     390 </span>            :             break;
+<span class="lineNum">     391 </span>            :         case SEC_OID_PKCS7_DIGESTED_DATA:
+<span class="lineNum">     392 </span><span class="lineNoCov">          0 :             if (p7dcx-&gt;content.digestedData)</span>
+<span class="lineNum">     393 </span><span class="lineNoCov">          0 :                 rv = NSS_CMSDigestedData_Decode_AfterEnd(</span>
+<span class="lineNum">     394 </span>            :                     p7dcx-&gt;content.digestedData);
+<span class="lineNum">     395 </span>            :             break;
+<span class="lineNum">     396 </span>            :         case SEC_OID_PKCS7_ENCRYPTED_DATA:
+<span class="lineNum">     397 </span><span class="lineNoCov">          0 :             if (p7dcx-&gt;content.encryptedData)</span>
+<span class="lineNum">     398 </span><span class="lineNoCov">          0 :                 rv = NSS_CMSEncryptedData_Decode_AfterEnd(</span>
+<span class="lineNum">     399 </span>            :                     p7dcx-&gt;content.encryptedData);
+<span class="lineNum">     400 </span>            :             break;
+<span class="lineNum">     401 </span>            :         case SEC_OID_PKCS7_DATA:
+<span class="lineNum">     402 </span>            :             break;
+<span class="lineNum">     403 </span>            :         default:
+<span class="lineNum">     404 </span><span class="lineNoCov">          0 :             rv = NSS_CMSGenericWrapperData_Decode_AfterEnd(p7dcx-&gt;type,</span>
+<span class="lineNum">     405 </span>            :                                                            p7dcx-&gt;content.genericData);
+<span class="lineNum">     406 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     407 </span>            :     }
+<span class="lineNum">     408 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">     409 </span>            : }
+<span class="lineNum">     410 </span>            : 
+<span class="lineNum">     411 </span>            : /*
+<span class="lineNum">     412 </span>            :  * nss_cms_decoder_work_data - handle decoded data bytes.
+<span class="lineNum">     413 </span>            :  *
+<span class="lineNum">     414 </span>            :  * This function either decrypts the data if needed, and/or calculates digests
+<span class="lineNum">     415 </span>            :  * on it, then either stores it or passes it on to the next level decoder.
+<a name="416"><span class="lineNum">     416 </span>            :  */</a>
+<span class="lineNum">     417 </span>            : static void
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 : nss_cms_decoder_work_data(NSSCMSDecoderContext *p7dcx,</span>
+<span class="lineNum">     419 </span>            :                           const unsigned char *data, unsigned long len,
+<span class="lineNum">     420 </span>            :                           PRBool final)
+<span class="lineNum">     421 </span>            : {
+<span class="lineNum">     422 </span>            :     NSSCMSContentInfo *cinfo;
+<span class="lineNum">     423 </span><span class="lineNoCov">          0 :     unsigned char *buf = NULL;</span>
+<span class="lineNum">     424 </span>            :     unsigned char *dest;
+<span class="lineNum">     425 </span>            :     unsigned int offset;
+<span class="lineNum">     426 </span>            :     SECStatus rv;
+<span class="lineNum">     427 </span>            : 
+<span class="lineNum">     428 </span>            :     /*
+<span class="lineNum">     429 </span>            :      * We should really have data to process, or we should be trying
+<span class="lineNum">     430 </span>            :      * to finish/flush the last block.  (This is an overly paranoid
+<span class="lineNum">     431 </span>            :      * check since all callers are in this file and simple inspection
+<span class="lineNum">     432 </span>            :      * proves they do it right.  But it could find a bug in future
+<span class="lineNum">     433 </span>            :      * modifications/development, that is why it is here.)
+<span class="lineNum">     434 </span>            :      */
+<span class="lineNum">     435 </span>            :     PORT_Assert((data != NULL &amp;&amp; len) || final);
+<span class="lineNum">     436 </span>            : 
+<span class="lineNum">     437 </span><span class="lineNoCov">          0 :     cinfo = NSS_CMSContent_GetContentInfo(p7dcx-&gt;content.pointer, p7dcx-&gt;type);</span>
+<span class="lineNum">     438 </span><span class="lineNoCov">          0 :     if (!cinfo) {</span>
+<span class="lineNum">     439 </span>            :         /* The original programmer didn't expect this to happen */
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :         p7dcx-&gt;error = SEC_ERROR_LIBRARY_FAILURE;</span>
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :         goto loser;</span>
+<span class="lineNum">     442 </span>            :     }
+<span class="lineNum">     443 </span>            : 
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 :     if (cinfo-&gt;privateInfo &amp;&amp; cinfo-&gt;privateInfo-&gt;ciphcx != NULL) {</span>
+<span class="lineNum">     445 </span>            :         /*
+<span class="lineNum">     446 </span>            :          * we are decrypting.
+<span class="lineNum">     447 </span>            :          *
+<span class="lineNum">     448 </span>            :          * XXX If we get an error, we do not want to do the digest or callback,
+<span class="lineNum">     449 </span>            :          * but we want to keep decoding.  Or maybe we want to stop decoding
+<span class="lineNum">     450 </span>            :          * altogether if there is a callback, because obviously we are not
+<span class="lineNum">     451 </span>            :          * sending the data back and they want to know that.
+<span class="lineNum">     452 </span>            :          */
+<span class="lineNum">     453 </span>            : 
+<span class="lineNum">     454 </span><span class="lineNoCov">          0 :         unsigned int outlen = 0; /* length of decrypted data */</span>
+<span class="lineNum">     455 </span>            :         unsigned int buflen;     /* length available for decrypted data */
+<span class="lineNum">     456 </span>            : 
+<span class="lineNum">     457 </span>            :         /* find out about the length of decrypted data */
+<span class="lineNum">     458 </span><span class="lineNoCov">          0 :         buflen = NSS_CMSCipherContext_DecryptLength(cinfo-&gt;privateInfo-&gt;ciphcx, len, final);</span>
+<span class="lineNum">     459 </span>            : 
+<span class="lineNum">     460 </span>            :         /*
+<span class="lineNum">     461 </span>            :          * it might happen that we did not provide enough data for a full
+<span class="lineNum">     462 </span>            :          * block (decryption unit), and that there is no output available
+<span class="lineNum">     463 </span>            :          */
+<span class="lineNum">     464 </span>            : 
+<span class="lineNum">     465 </span>            :         /* no output available, AND no input? */
+<span class="lineNum">     466 </span><span class="lineNoCov">          0 :         if (buflen == 0 &amp;&amp; len == 0)</span>
+<span class="lineNum">     467 </span>            :             goto loser; /* bail out */
+<span class="lineNum">     468 </span>            : 
+<span class="lineNum">     469 </span>            :         /*
+<span class="lineNum">     470 </span>            :          * have inner decoder: pass the data on (means inner content type is NOT data)
+<span class="lineNum">     471 </span>            :          * no inner decoder: we have DATA in here: either call callback or store
+<span class="lineNum">     472 </span>            :          */
+<span class="lineNum">     473 </span><span class="lineNoCov">          0 :         if (buflen != 0) {</span>
+<span class="lineNum">     474 </span>            :             /* there will be some output - need to make room for it */
+<span class="lineNum">     475 </span>            :             /* allocate buffer from the heap */
+<span class="lineNum">     476 </span><span class="lineNoCov">          0 :             buf = (unsigned char *)PORT_Alloc(buflen);</span>
+<span class="lineNum">     477 </span><span class="lineNoCov">          0 :             if (buf == NULL) {</span>
+<span class="lineNum">     478 </span><span class="lineNoCov">          0 :                 p7dcx-&gt;error = SEC_ERROR_NO_MEMORY;</span>
+<span class="lineNum">     479 </span><span class="lineNoCov">          0 :                 goto loser;</span>
+<span class="lineNum">     480 </span>            :             }
+<span class="lineNum">     481 </span>            :         }
+<span class="lineNum">     482 </span>            : 
+<span class="lineNum">     483 </span>            :         /*
+<span class="lineNum">     484 </span>            :          * decrypt incoming data
+<span class="lineNum">     485 </span>            :          * buf can still be NULL here (and buflen == 0) here if we don't expect
+<span class="lineNum">     486 </span>            :          * any output (see above), but we still need to call NSS_CMSCipherContext_Decrypt to
+<span class="lineNum">     487 </span>            :          * keep track of incoming data
+<span class="lineNum">     488 </span>            :          */
+<span class="lineNum">     489 </span><span class="lineNoCov">          0 :         rv = NSS_CMSCipherContext_Decrypt(cinfo-&gt;privateInfo-&gt;ciphcx, buf, &amp;outlen, buflen,</span>
+<span class="lineNum">     490 </span>            :                                           data, len, final);
+<span class="lineNum">     491 </span><span class="lineNoCov">          0 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     492 </span><span class="lineNoCov">          0 :             p7dcx-&gt;error = PORT_GetError();</span>
+<span class="lineNum">     493 </span><span class="lineNoCov">          0 :             goto loser;</span>
+<span class="lineNum">     494 </span>            :         }
+<span class="lineNum">     495 </span>            : 
+<span class="lineNum">     496 </span>            :         PORT_Assert(final || outlen == buflen);
+<span class="lineNum">     497 </span>            : 
+<span class="lineNum">     498 </span>            :         /* swap decrypted data in */
+<span class="lineNum">     499 </span><span class="lineNoCov">          0 :         data = buf;</span>
+<span class="lineNum">     500 </span><span class="lineNoCov">          0 :         len = outlen;</span>
+<span class="lineNum">     501 </span>            :     }
+<span class="lineNum">     502 </span>            : 
+<span class="lineNum">     503 </span><span class="lineNoCov">          0 :     if (len == 0)</span>
+<span class="lineNum">     504 </span>            :         goto done; /* nothing more to do */
+<span class="lineNum">     505 </span>            : 
+<span class="lineNum">     506 </span>            :     /*
+<span class="lineNum">     507 </span>            :      * Update the running digests with plaintext bytes (if we need to).
+<span class="lineNum">     508 </span>            :      */
+<span class="lineNum">     509 </span><span class="lineNoCov">          0 :     if (cinfo-&gt;privateInfo &amp;&amp; cinfo-&gt;privateInfo-&gt;digcx)</span>
+<span class="lineNum">     510 </span><span class="lineNoCov">          0 :         NSS_CMSDigestContext_Update(cinfo-&gt;privateInfo-&gt;digcx, data, len);</span>
+<span class="lineNum">     511 </span>            : 
+<span class="lineNum">     512 </span>            :     /* at this point, we have the plain decoded &amp; decrypted data
+<span class="lineNum">     513 </span>            :     ** which is either more encoded DER (which we need to hand to the child
+<span class="lineNum">     514 </span>            :     ** decoder) or data we need to hand back to our caller
+<span class="lineNum">     515 </span>            :     */
+<span class="lineNum">     516 </span>            : 
+<span class="lineNum">     517 </span>            :     /* pass the content back to our caller or */
+<span class="lineNum">     518 </span>            :     /* feed our freshly decrypted and decoded data into child decoder */
+<span class="lineNum">     519 </span><span class="lineNoCov">          0 :     if (p7dcx-&gt;cb != NULL) {</span>
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 :         (*p7dcx-&gt;cb)(p7dcx-&gt;cb_arg, (const char *)data, len);</span>
+<span class="lineNum">     521 </span>            :     }
+<span class="lineNum">     522 </span>            : #if 1
+<span class="lineNum">     523 </span>            :     else
+<span class="lineNum">     524 </span>            : #endif
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :         if (NSS_CMSContentInfo_GetContentTypeTag(cinfo) == SEC_OID_PKCS7_DATA) {</span>
+<span class="lineNum">     526 </span>            :         /* store it in &quot;inner&quot; data item as well */
+<span class="lineNum">     527 </span>            :         /* find the DATA item in the encapsulated cinfo and store it there */
+<span class="lineNum">     528 </span><span class="lineNoCov">          0 :         NSSCMSDecoderData *decoderData =</span>
+<span class="lineNum">     529 </span>            :             (NSSCMSDecoderData *)cinfo-&gt;content.pointer;
+<span class="lineNum">     530 </span><span class="lineNoCov">          0 :         SECItem *dataItem = &amp;decoderData-&gt;data;</span>
+<span class="lineNum">     531 </span>            : 
+<span class="lineNum">     532 </span><span class="lineNoCov">          0 :         offset = dataItem-&gt;len;</span>
+<span class="lineNum">     533 </span><span class="lineNoCov">          0 :         if (dataItem-&gt;len + len &gt; decoderData-&gt;totalBufferSize) {</span>
+<span class="lineNum">     534 </span><span class="lineNoCov">          0 :             int needLen = (dataItem-&gt;len + len) * 2;</span>
+<span class="lineNum">     535 </span><span class="lineNoCov">          0 :             dest = (unsigned char *)</span>
+<span class="lineNum">     536 </span><span class="lineNoCov">          0 :                 PORT_ArenaAlloc(p7dcx-&gt;cmsg-&gt;poolp, needLen);</span>
+<span class="lineNum">     537 </span><span class="lineNoCov">          0 :             if (dest == NULL) {</span>
+<span class="lineNum">     538 </span><span class="lineNoCov">          0 :                 p7dcx-&gt;error = SEC_ERROR_NO_MEMORY;</span>
+<span class="lineNum">     539 </span><span class="lineNoCov">          0 :                 goto loser;</span>
+<span class="lineNum">     540 </span>            :             }
+<span class="lineNum">     541 </span>            : 
+<span class="lineNum">     542 </span><span class="lineNoCov">          0 :             if (dataItem-&gt;len) {</span>
+<span class="lineNum">     543 </span><span class="lineNoCov">          0 :                 PORT_Memcpy(dest, dataItem-&gt;data, dataItem-&gt;len);</span>
+<span class="lineNum">     544 </span>            :             }
+<span class="lineNum">     545 </span><span class="lineNoCov">          0 :             decoderData-&gt;totalBufferSize = needLen;</span>
+<span class="lineNum">     546 </span><span class="lineNoCov">          0 :             dataItem-&gt;data = dest;</span>
+<span class="lineNum">     547 </span>            :         }
+<span class="lineNum">     548 </span>            : 
+<span class="lineNum">     549 </span>            :         /* copy it in */
+<span class="lineNum">     550 </span><span class="lineNoCov">          0 :         PORT_Memcpy(dataItem-&gt;data + offset, data, len);</span>
+<span class="lineNum">     551 </span><span class="lineNoCov">          0 :         dataItem-&gt;len += len;</span>
+<span class="lineNum">     552 </span>            :     }
+<span class="lineNum">     553 </span>            : 
+<span class="lineNum">     554 </span>            : done:
+<span class="lineNum">     555 </span>            : loser:
+<span class="lineNum">     556 </span><span class="lineNoCov">          0 :     if (buf)</span>
+<span class="lineNum">     557 </span><span class="lineNoCov">          0 :         PORT_Free(buf);</span>
+<span class="lineNum">     558 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     559 </span>            : 
+<span class="lineNum">     560 </span>            : /*
+<span class="lineNum">     561 </span>            :  * nss_cms_decoder_update_filter - process ASN.1 data
+<span class="lineNum">     562 </span>            :  *
+<span class="lineNum">     563 </span>            :  * once we have set up a filter in nss_cms_decoder_notify(),
+<span class="lineNum">     564 </span>            :  * all data processed by the ASN.1 decoder is also passed through here.
+<span class="lineNum">     565 </span>            :  * we pass the content bytes (as opposed to length and tag bytes) on to
+<span class="lineNum">     566 </span>            :  * nss_cms_decoder_work_data().
+<a name="567"><span class="lineNum">     567 </span>            :  */</a>
+<span class="lineNum">     568 </span>            : static void
+<span class="lineNum">     569 </span><span class="lineNoCov">          0 : nss_cms_decoder_update_filter(void *arg, const char *data, unsigned long len,</span>
+<span class="lineNum">     570 </span>            :                               int depth, SEC_ASN1EncodingPart data_kind)
+<span class="lineNum">     571 </span>            : {
+<span class="lineNum">     572 </span>            :     NSSCMSDecoderContext *p7dcx;
+<span class="lineNum">     573 </span>            : 
+<span class="lineNum">     574 </span>            :     PORT_Assert(len); /* paranoia */
+<span class="lineNum">     575 </span><span class="lineNoCov">          0 :     if (len == 0)</span>
+<span class="lineNum">     576 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span><span class="lineNoCov">          0 :     p7dcx = (NSSCMSDecoderContext *)arg;</span>
+<span class="lineNum">     579 </span>            : 
+<span class="lineNum">     580 </span><span class="lineNoCov">          0 :     p7dcx-&gt;saw_contents = PR_TRUE;</span>
+<span class="lineNum">     581 </span>            : 
+<span class="lineNum">     582 </span>            :     /* pass on the content bytes only */
+<span class="lineNum">     583 </span><span class="lineNoCov">          0 :     if (data_kind == SEC_ASN1_Contents)</span>
+<span class="lineNum">     584 </span><span class="lineNoCov">          0 :         nss_cms_decoder_work_data(p7dcx, (const unsigned char *)data, len,</span>
+<span class="lineNum">     585 </span>            :                                   PR_FALSE);
+<span class="lineNum">     586 </span>            : }
+<span class="lineNum">     587 </span>            : 
+<span class="lineNum">     588 </span>            : /*
+<span class="lineNum">     589 </span>            :  * NSS_CMSDecoder_Start - set up decoding of a DER-encoded CMS message
+<span class="lineNum">     590 </span>            :  *
+<span class="lineNum">     591 </span>            :  * &quot;poolp&quot; - pointer to arena for message, or NULL if new pool should be created
+<span class="lineNum">     592 </span>            :  * &quot;cb&quot;, &quot;cb_arg&quot; - callback function and argument for delivery of inner content
+<span class="lineNum">     593 </span>            :  * &quot;pwfn&quot;, pwfn_arg&quot; - callback function for getting token password
+<span class="lineNum">     594 </span>            :  * &quot;decrypt_key_cb&quot;, &quot;decrypt_key_cb_arg&quot; - callback function for getting bulk key for encryptedData
+<a name="595"><span class="lineNum">     595 </span>            :  */</a>
+<span class="lineNum">     596 </span>            : NSSCMSDecoderContext *
+<span class="lineNum">     597 </span><span class="lineCov">          1 : NSS_CMSDecoder_Start(PLArenaPool *poolp,</span>
+<span class="lineNum">     598 </span>            :                      NSSCMSContentCallback cb, void *cb_arg,
+<span class="lineNum">     599 </span>            :                      PK11PasswordFunc pwfn, void *pwfn_arg,
+<span class="lineNum">     600 </span>            :                      NSSCMSGetDecryptKeyCallback decrypt_key_cb,
+<span class="lineNum">     601 </span>            :                      void *decrypt_key_cb_arg)
+<span class="lineNum">     602 </span>            : {
+<span class="lineNum">     603 </span>            :     NSSCMSDecoderContext *p7dcx;
+<span class="lineNum">     604 </span>            :     NSSCMSMessage *cmsg;
+<span class="lineNum">     605 </span>            : 
+<span class="lineNum">     606 </span><span class="lineCov">          1 :     cmsg = NSS_CMSMessage_Create(poolp);</span>
+<span class="lineNum">     607 </span><span class="lineCov">          1 :     if (cmsg == NULL)</span>
+<span class="lineNum">     608 </span>            :         return NULL;
+<span class="lineNum">     609 </span>            : 
+<span class="lineNum">     610 </span><span class="lineCov">          1 :     NSS_CMSMessage_SetEncodingParams(cmsg, pwfn, pwfn_arg, decrypt_key_cb,</span>
+<span class="lineNum">     611 </span>            :                                      decrypt_key_cb_arg, NULL, NULL);
+<span class="lineNum">     612 </span>            : 
+<span class="lineNum">     613 </span><span class="lineCov">          1 :     p7dcx = PORT_ZNew(NSSCMSDecoderContext);</span>
+<span class="lineNum">     614 </span><span class="lineCov">          1 :     if (p7dcx == NULL) {</span>
+<span class="lineNum">     615 </span><span class="lineNoCov">          0 :         NSS_CMSMessage_Destroy(cmsg);</span>
+<span class="lineNum">     616 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     617 </span>            :     }
+<span class="lineNum">     618 </span>            : 
+<span class="lineNum">     619 </span><span class="lineCov">          1 :     p7dcx-&gt;dcx = SEC_ASN1DecoderStart(cmsg-&gt;poolp, cmsg, NSSCMSMessageTemplate);</span>
+<span class="lineNum">     620 </span><span class="lineCov">          1 :     if (p7dcx-&gt;dcx == NULL) {</span>
+<span class="lineNum">     621 </span><span class="lineNoCov">          0 :         PORT_Free(p7dcx);</span>
+<span class="lineNum">     622 </span><span class="lineNoCov">          0 :         NSS_CMSMessage_Destroy(cmsg);</span>
+<span class="lineNum">     623 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     624 </span>            :     }
+<span class="lineNum">     625 </span>            : 
+<span class="lineNum">     626 </span><span class="lineCov">          1 :     SEC_ASN1DecoderSetNotifyProc(p7dcx-&gt;dcx, nss_cms_decoder_notify, p7dcx);</span>
+<span class="lineNum">     627 </span>            : 
+<span class="lineNum">     628 </span><span class="lineCov">          1 :     p7dcx-&gt;cmsg = cmsg;</span>
+<span class="lineNum">     629 </span><span class="lineCov">          1 :     p7dcx-&gt;type = SEC_OID_UNKNOWN;</span>
+<span class="lineNum">     630 </span>            : 
+<span class="lineNum">     631 </span><span class="lineCov">          1 :     p7dcx-&gt;cb = cb;</span>
+<span class="lineNum">     632 </span><span class="lineCov">          1 :     p7dcx-&gt;cb_arg = cb_arg;</span>
+<span class="lineNum">     633 </span><span class="lineCov">          1 :     p7dcx-&gt;first_decoded = PR_FALSE;</span>
+<span class="lineNum">     634 </span><span class="lineCov">          1 :     p7dcx-&gt;need_indefinite_finish = PR_FALSE;</span>
+<span class="lineNum">     635 </span><span class="lineCov">          1 :     return p7dcx;</span>
+<span class="lineNum">     636 </span>            : }
+<span class="lineNum">     637 </span>            : 
+<span class="lineNum">     638 </span>            : /*
+<span class="lineNum">     639 </span>            :  * NSS_CMSDecoder_Update - feed DER-encoded data to decoder
+<a name="640"><span class="lineNum">     640 </span>            :  */</a>
+<span class="lineNum">     641 </span>            : SECStatus
+<span class="lineNum">     642 </span><span class="lineCov">          1 : NSS_CMSDecoder_Update(NSSCMSDecoderContext *p7dcx, const char *buf,</span>
+<span class="lineNum">     643 </span>            :                       unsigned long len)
+<span class="lineNum">     644 </span>            : {
+<span class="lineNum">     645 </span><span class="lineCov">          1 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     646 </span><span class="lineCov">          1 :     if (p7dcx-&gt;dcx != NULL &amp;&amp; p7dcx-&gt;error == 0) {</span>
+<span class="lineNum">     647 </span>            :         /* if error is set already, don't bother */
+<span class="lineNum">     648 </span><span class="lineCov">          1 :         if ((p7dcx-&gt;type == SEC_OID_PKCS7_SIGNED_DATA) &amp;&amp; (p7dcx-&gt;first_decoded == PR_TRUE) &amp;&amp; (buf[0] == SEC_ASN1_INTEGER)) {</span>
+<span class="lineNum">     649 </span>            :             /* Microsoft Windows 2008 left out the Sequence wrapping in some
+<span class="lineNum">     650 </span>            :              * of their kerberos replies. If we are here, we most likely are
+<span class="lineNum">     651 </span>            :              * dealing with one of those replies. Supply the Sequence wrap
+<span class="lineNum">     652 </span>            :              * as indefinite encoding (since we don't know the total length
+<span class="lineNum">     653 </span>            :              * yet) */
+<span class="lineNum">     654 </span>            :             static const char lbuf[2] =
+<span class="lineNum">     655 </span>            :                 { SEC_ASN1_SEQUENCE | SEC_ASN1_CONSTRUCTED, 0x80 };
+<span class="lineNum">     656 </span><span class="lineNoCov">          0 :             rv = SEC_ASN1DecoderUpdate(p7dcx-&gt;dcx, lbuf, sizeof(lbuf));</span>
+<span class="lineNum">     657 </span><span class="lineNoCov">          0 :             if (rv != SECSuccess) {</span>
+<span class="lineNum">     658 </span>            :                 goto loser;
+<span class="lineNum">     659 </span>            :             }
+<span class="lineNum">     660 </span>            :             /* ok, we're going to need the indefinite finish when we are done */
+<span class="lineNum">     661 </span><span class="lineNoCov">          0 :             p7dcx-&gt;need_indefinite_finish = PR_TRUE;</span>
+<span class="lineNum">     662 </span>            :         }
+<span class="lineNum">     663 </span>            : 
+<span class="lineNum">     664 </span><span class="lineCov">          1 :         rv = SEC_ASN1DecoderUpdate(p7dcx-&gt;dcx, buf, len);</span>
+<span class="lineNum">     665 </span>            :     }
+<span class="lineNum">     666 </span>            : 
+<span class="lineNum">     667 </span>            : loser:
+<span class="lineNum">     668 </span><span class="lineCov">          1 :     p7dcx-&gt;first_decoded = PR_FALSE;</span>
+<span class="lineNum">     669 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     670 </span><span class="lineCov">          1 :         p7dcx-&gt;error = PORT_GetError();</span>
+<span class="lineNum">     671 </span>            :         PORT_Assert(p7dcx-&gt;error);
+<span class="lineNum">     672 </span><span class="lineCov">          1 :         if (p7dcx-&gt;error == 0)</span>
+<span class="lineNum">     673 </span><span class="lineNoCov">          0 :             p7dcx-&gt;error = -1;</span>
+<span class="lineNum">     674 </span>            :     }
+<span class="lineNum">     675 </span>            : 
+<span class="lineNum">     676 </span><span class="lineCov">          1 :     if (p7dcx-&gt;error == 0)</span>
+<span class="lineNum">     677 </span>            :         return SECSuccess;
+<span class="lineNum">     678 </span>            : 
+<span class="lineNum">     679 </span>            :     /* there has been a problem, let's finish the decoder */
+<span class="lineNum">     680 </span><span class="lineCov">          1 :     if (p7dcx-&gt;dcx != NULL) {</span>
+<span class="lineNum">     681 </span><span class="lineCov">          1 :         (void)SEC_ASN1DecoderFinish(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     682 </span><span class="lineCov">          1 :         p7dcx-&gt;dcx = NULL;</span>
+<span class="lineNum">     683 </span>            :     }
+<span class="lineNum">     684 </span><span class="lineCov">          1 :     PORT_SetError(p7dcx-&gt;error);</span>
+<span class="lineNum">     685 </span>            : 
+<span class="lineNum">     686 </span><span class="lineCov">          1 :     return SECFailure;</span>
+<span class="lineNum">     687 </span>            : }
+<span class="lineNum">     688 </span>            : 
+<span class="lineNum">     689 </span>            : /*
+<span class="lineNum">     690 </span>            :  * NSS_CMSDecoder_Cancel - stop decoding in case of error
+<a name="691"><span class="lineNum">     691 </span>            :  */</a>
+<span class="lineNum">     692 </span>            : void
+<span class="lineNum">     693 </span><span class="lineNoCov">          0 : NSS_CMSDecoder_Cancel(NSSCMSDecoderContext *p7dcx)</span>
+<span class="lineNum">     694 </span>            : {
+<span class="lineNum">     695 </span><span class="lineNoCov">          0 :     if (p7dcx-&gt;dcx != NULL)</span>
+<span class="lineNum">     696 </span><span class="lineNoCov">          0 :         (void)SEC_ASN1DecoderFinish(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     697 </span><span class="lineNoCov">          0 :     NSS_CMSMessage_Destroy(p7dcx-&gt;cmsg);</span>
+<span class="lineNum">     698 </span><span class="lineNoCov">          0 :     PORT_Free(p7dcx);</span>
+<span class="lineNum">     699 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     700 </span>            : 
+<span class="lineNum">     701 </span>            : /*
+<span class="lineNum">     702 </span>            :  * NSS_CMSDecoder_Finish - mark the end of inner content and finish decoding
+<a name="703"><span class="lineNum">     703 </span>            :  */</a>
+<span class="lineNum">     704 </span>            : NSSCMSMessage *
+<span class="lineNum">     705 </span><span class="lineCov">          1 : NSS_CMSDecoder_Finish(NSSCMSDecoderContext *p7dcx)</span>
+<span class="lineNum">     706 </span>            : {
+<span class="lineNum">     707 </span>            :     NSSCMSMessage *cmsg;
+<span class="lineNum">     708 </span>            : 
+<span class="lineNum">     709 </span><span class="lineCov">          1 :     cmsg = p7dcx-&gt;cmsg;</span>
+<span class="lineNum">     710 </span>            : 
+<span class="lineNum">     711 </span><span class="lineCov">          1 :     if (p7dcx-&gt;dcx == NULL ||</span>
+<span class="lineNum">     712 </span><span class="lineCov">          1 :         SEC_ASN1DecoderFinish(p7dcx-&gt;dcx) != SECSuccess ||</span>
+<span class="lineNum">     713 </span><span class="lineCov">          1 :         nss_cms_after_end(p7dcx) != SECSuccess) {</span>
+<span class="lineNum">     714 </span><span class="lineCov">          1 :         NSS_CMSMessage_Destroy(cmsg); /* get rid of pool if it's ours */</span>
+<span class="lineNum">     715 </span><span class="lineCov">          1 :         cmsg = NULL;</span>
+<span class="lineNum">     716 </span>            :     }
+<span class="lineNum">     717 </span>            : 
+<span class="lineNum">     718 </span><span class="lineCov">          1 :     PORT_Free(p7dcx);</span>
+<span class="lineNum">     719 </span><span class="lineCov">          1 :     return cmsg;</span>
+<span class="lineNum">     720 </span>            : }
+<a name="721"><span class="lineNum">     721 </span>            : </a>
+<span class="lineNum">     722 </span>            : NSSCMSMessage *
+<span class="lineNum">     723 </span><span class="lineCov">          1 : NSS_CMSMessage_CreateFromDER(SECItem *DERmessage,</span>
+<span class="lineNum">     724 </span>            :                              NSSCMSContentCallback cb, void *cb_arg,
+<span class="lineNum">     725 </span>            :                              PK11PasswordFunc pwfn, void *pwfn_arg,
+<span class="lineNum">     726 </span>            :                              NSSCMSGetDecryptKeyCallback decrypt_key_cb,
+<span class="lineNum">     727 </span>            :                              void *decrypt_key_cb_arg)
+<span class="lineNum">     728 </span>            : {
+<span class="lineNum">     729 </span>            :     NSSCMSDecoderContext *p7dcx;
+<span class="lineNum">     730 </span>            : 
+<span class="lineNum">     731 </span>            :     /* first arg(poolp) == NULL =&gt; create our own pool */
+<span class="lineNum">     732 </span><span class="lineCov">          1 :     p7dcx = NSS_CMSDecoder_Start(NULL, cb, cb_arg, pwfn, pwfn_arg,</span>
+<span class="lineNum">     733 </span>            :                                  decrypt_key_cb, decrypt_key_cb_arg);
+<span class="lineNum">     734 </span><span class="lineCov">          1 :     if (p7dcx == NULL)</span>
+<span class="lineNum">     735 </span>            :         return NULL;
+<span class="lineNum">     736 </span><span class="lineCov">          1 :     NSS_CMSDecoder_Update(p7dcx, (char *)DERmessage-&gt;data, DERmessage-&gt;len);</span>
+<span class="lineNum">     737 </span><span class="lineCov">          1 :     return NSS_CMSDecoder_Finish(p7dcx);</span>
+<span class="lineNum">     738 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

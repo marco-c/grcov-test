@@ -1,0 +1,411 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/security/nss/lib/freebl/chacha20_vec.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">gecko-dev/security/nss/lib/freebl</a> - chacha20_vec.c<span style="font-size: 80%;"> (source / <a href="chacha20_vec.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">61</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">1</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public</a>
+<span class="lineNum">       2 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       3 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : /* This implementation is by Ted Krovetz and was submitted to SUPERCOP and
+<span class="lineNum">       6 </span>            :  * marked as public domain. It was been altered to allow for non-aligned inputs
+<span class="lineNum">       7 </span>            :  * and to allow the block counter to be passed in specifically. */
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &lt;string.h&gt;
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;chacha20.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;blapii.h&quot;
+<span class="lineNum">      13 </span>            : 
+<span class="lineNum">      14 </span>            : #ifndef CHACHA_RNDS
+<span class="lineNum">      15 </span>            : #define CHACHA_RNDS 20 /* 8 (high speed), 20 (conservative), 12 (middle) */
+<span class="lineNum">      16 </span>            : #endif
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : /* Architecture-neutral way to specify 16-byte vector of ints              */
+<span class="lineNum">      19 </span>            : typedef unsigned vec __attribute__((vector_size(16)));
+<span class="lineNum">      20 </span>            : 
+<span class="lineNum">      21 </span>            : /* This implementation is designed for Neon, SSE and AltiVec machines. The
+<span class="lineNum">      22 </span>            :  * following specify how to do certain vector operations efficiently on
+<span class="lineNum">      23 </span>            :  * each architecture, using intrinsics.
+<span class="lineNum">      24 </span>            :  * This implementation supports parallel processing of multiple blocks,
+<span class="lineNum">      25 </span>            :  * including potentially using general-purpose registers.
+<span class="lineNum">      26 </span>            :  */
+<span class="lineNum">      27 </span>            : #if __ARM_NEON__
+<span class="lineNum">      28 </span>            : #include &lt;arm_neon.h&gt;
+<span class="lineNum">      29 </span>            : #define GPR_TOO 1
+<span class="lineNum">      30 </span>            : #define VBPI 2
+<span class="lineNum">      31 </span>            : #define ONE (vec) vsetq_lane_u32(1, vdupq_n_u32(0), 0)
+<span class="lineNum">      32 </span>            : #define LOAD(m) (vec)(*((vec *)(m)))
+<span class="lineNum">      33 </span>            : #define STORE(m, r) (*((vec *)(m))) = (r)
+<span class="lineNum">      34 </span>            : #define ROTV1(x) (vec) vextq_u32((uint32x4_t)x, (uint32x4_t)x, 1)
+<span class="lineNum">      35 </span>            : #define ROTV2(x) (vec) vextq_u32((uint32x4_t)x, (uint32x4_t)x, 2)
+<span class="lineNum">      36 </span>            : #define ROTV3(x) (vec) vextq_u32((uint32x4_t)x, (uint32x4_t)x, 3)
+<span class="lineNum">      37 </span>            : #define ROTW16(x) (vec) vrev32q_u16((uint16x8_t)x)
+<span class="lineNum">      38 </span>            : #if __clang__
+<span class="lineNum">      39 </span>            : #define ROTW7(x) (x &lt;&lt; ((vec){ 7, 7, 7, 7 })) ^ (x &gt;&gt; ((vec){ 25, 25, 25, 25 }))
+<span class="lineNum">      40 </span>            : #define ROTW8(x) (x &lt;&lt; ((vec){ 8, 8, 8, 8 })) ^ (x &gt;&gt; ((vec){ 24, 24, 24, 24 }))
+<span class="lineNum">      41 </span>            : #define ROTW12(x) (x &lt;&lt; ((vec){ 12, 12, 12, 12 })) ^ (x &gt;&gt; ((vec){ 20, 20, 20, 20 }))
+<span class="lineNum">      42 </span>            : #else
+<span class="lineNum">      43 </span>            : #define ROTW7(x) (vec) vsriq_n_u32(vshlq_n_u32((uint32x4_t)x, 7), (uint32x4_t)x, 25)
+<span class="lineNum">      44 </span>            : #define ROTW8(x) (vec) vsriq_n_u32(vshlq_n_u32((uint32x4_t)x, 8), (uint32x4_t)x, 24)
+<span class="lineNum">      45 </span>            : #define ROTW12(x) (vec) vsriq_n_u32(vshlq_n_u32((uint32x4_t)x, 12), (uint32x4_t)x, 20)
+<span class="lineNum">      46 </span>            : #endif
+<span class="lineNum">      47 </span>            : #elif __SSE2__
+<span class="lineNum">      48 </span>            : #include &lt;emmintrin.h&gt;
+<span class="lineNum">      49 </span>            : #define GPR_TOO 0
+<span class="lineNum">      50 </span>            : #if __clang__
+<span class="lineNum">      51 </span>            : #define VBPI 4
+<span class="lineNum">      52 </span>            : #else
+<span class="lineNum">      53 </span>            : #define VBPI 3
+<span class="lineNum">      54 </span>            : #endif
+<span class="lineNum">      55 </span>            : #define ONE (vec) _mm_set_epi32(0, 0, 0, 1)
+<span class="lineNum">      56 </span>            : #define LOAD(m) (vec) _mm_loadu_si128((__m128i *)(m))
+<span class="lineNum">      57 </span>            : #define STORE(m, r) _mm_storeu_si128((__m128i *)(m), (__m128i)(r))
+<span class="lineNum">      58 </span>            : #define ROTV1(x) (vec) _mm_shuffle_epi32((__m128i)x, _MM_SHUFFLE(0, 3, 2, 1))
+<span class="lineNum">      59 </span>            : #define ROTV2(x) (vec) _mm_shuffle_epi32((__m128i)x, _MM_SHUFFLE(1, 0, 3, 2))
+<span class="lineNum">      60 </span>            : #define ROTV3(x) (vec) _mm_shuffle_epi32((__m128i)x, _MM_SHUFFLE(2, 1, 0, 3))
+<span class="lineNum">      61 </span>            : #define ROTW7(x) (vec)(_mm_slli_epi32((__m128i)x, 7) ^ _mm_srli_epi32((__m128i)x, 25))
+<span class="lineNum">      62 </span>            : #define ROTW12(x) (vec)(_mm_slli_epi32((__m128i)x, 12) ^ _mm_srli_epi32((__m128i)x, 20))
+<span class="lineNum">      63 </span>            : #if __SSSE3__
+<span class="lineNum">      64 </span>            : #include &lt;tmmintrin.h&gt;
+<span class="lineNum">      65 </span>            : #define ROTW8(x) (vec) _mm_shuffle_epi8((__m128i)x, _mm_set_epi8(14, 13, 12, 15, 10, 9, 8, 11, 6, 5, 4, 7, 2, 1, 0, 3))
+<span class="lineNum">      66 </span>            : #define ROTW16(x) (vec) _mm_shuffle_epi8((__m128i)x, _mm_set_epi8(13, 12, 15, 14, 9, 8, 11, 10, 5, 4, 7, 6, 1, 0, 3, 2))
+<span class="lineNum">      67 </span>            : #else
+<span class="lineNum">      68 </span>            : #define ROTW8(x) (vec)(_mm_slli_epi32((__m128i)x, 8) ^ _mm_srli_epi32((__m128i)x, 24))
+<span class="lineNum">      69 </span>            : #define ROTW16(x) (vec)(_mm_slli_epi32((__m128i)x, 16) ^ _mm_srli_epi32((__m128i)x, 16))
+<span class="lineNum">      70 </span>            : #endif
+<span class="lineNum">      71 </span>            : #else
+<span class="lineNum">      72 </span>            : #error-- Implementation supports only machines with neon or SSE2
+<span class="lineNum">      73 </span>            : #endif
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span>            : #ifndef REVV_BE
+<span class="lineNum">      76 </span>            : #define REVV_BE(x) (x)
+<span class="lineNum">      77 </span>            : #endif
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span>            : #ifndef REVW_BE
+<span class="lineNum">      80 </span>            : #define REVW_BE(x) (x)
+<span class="lineNum">      81 </span>            : #endif
+<span class="lineNum">      82 </span>            : 
+<span class="lineNum">      83 </span>            : #define BPI (VBPI + GPR_TOO) /* Blocks computed per loop iteration   */
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span>            : #define DQROUND_VECTORS(a, b, c, d) \
+<span class="lineNum">      86 </span>            :     a += b;                         \
+<span class="lineNum">      87 </span>            :     d ^= a;                         \
+<span class="lineNum">      88 </span>            :     d = ROTW16(d);                  \
+<span class="lineNum">      89 </span>            :     c += d;                         \
+<span class="lineNum">      90 </span>            :     b ^= c;                         \
+<span class="lineNum">      91 </span>            :     b = ROTW12(b);                  \
+<span class="lineNum">      92 </span>            :     a += b;                         \
+<span class="lineNum">      93 </span>            :     d ^= a;                         \
+<span class="lineNum">      94 </span>            :     d = ROTW8(d);                   \
+<span class="lineNum">      95 </span>            :     c += d;                         \
+<span class="lineNum">      96 </span>            :     b ^= c;                         \
+<span class="lineNum">      97 </span>            :     b = ROTW7(b);                   \
+<span class="lineNum">      98 </span>            :     b = ROTV1(b);                   \
+<span class="lineNum">      99 </span>            :     c = ROTV2(c);                   \
+<span class="lineNum">     100 </span>            :     d = ROTV3(d);                   \
+<span class="lineNum">     101 </span>            :     a += b;                         \
+<span class="lineNum">     102 </span>            :     d ^= a;                         \
+<span class="lineNum">     103 </span>            :     d = ROTW16(d);                  \
+<span class="lineNum">     104 </span>            :     c += d;                         \
+<span class="lineNum">     105 </span>            :     b ^= c;                         \
+<span class="lineNum">     106 </span>            :     b = ROTW12(b);                  \
+<span class="lineNum">     107 </span>            :     a += b;                         \
+<span class="lineNum">     108 </span>            :     d ^= a;                         \
+<span class="lineNum">     109 </span>            :     d = ROTW8(d);                   \
+<span class="lineNum">     110 </span>            :     c += d;                         \
+<span class="lineNum">     111 </span>            :     b ^= c;                         \
+<span class="lineNum">     112 </span>            :     b = ROTW7(b);                   \
+<span class="lineNum">     113 </span>            :     b = ROTV3(b);                   \
+<span class="lineNum">     114 </span>            :     c = ROTV2(c);                   \
+<span class="lineNum">     115 </span>            :     d = ROTV1(d);
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            : #define QROUND_WORDS(a, b, c, d) \
+<span class="lineNum">     118 </span>            :     a = a + b;                   \
+<span class="lineNum">     119 </span>            :     d ^= a;                      \
+<span class="lineNum">     120 </span>            :     d = d &lt;&lt; 16 | d &gt;&gt; 16;       \
+<span class="lineNum">     121 </span>            :     c = c + d;                   \
+<span class="lineNum">     122 </span>            :     b ^= c;                      \
+<span class="lineNum">     123 </span>            :     b = b &lt;&lt; 12 | b &gt;&gt; 20;       \
+<span class="lineNum">     124 </span>            :     a = a + b;                   \
+<span class="lineNum">     125 </span>            :     d ^= a;                      \
+<span class="lineNum">     126 </span>            :     d = d &lt;&lt; 8 | d &gt;&gt; 24;        \
+<span class="lineNum">     127 </span>            :     c = c + d;                   \
+<span class="lineNum">     128 </span>            :     b ^= c;                      \
+<span class="lineNum">     129 </span>            :     b = b &lt;&lt; 7 | b &gt;&gt; 25;
+<span class="lineNum">     130 </span>            : 
+<span class="lineNum">     131 </span>            : #define WRITE_XOR(in, op, d, v0, v1, v2, v3)           \
+<span class="lineNum">     132 </span>            :     STORE(op + d + 0, LOAD(in + d + 0) ^ REVV_BE(v0)); \
+<span class="lineNum">     133 </span>            :     STORE(op + d + 4, LOAD(in + d + 4) ^ REVV_BE(v1)); \
+<span class="lineNum">     134 </span>            :     STORE(op + d + 8, LOAD(in + d + 8) ^ REVV_BE(v2)); \
+<span class="lineNum">     135 </span>            :     STORE(op + d + 12, LOAD(in + d + 12) ^ REVV_BE(v3));
+<a name="136"><span class="lineNum">     136 </span>            : </a>
+<span class="lineNum">     137 </span>            : void NO_SANITIZE_ALIGNMENT
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 : ChaCha20XOR(unsigned char *out, const unsigned char *in, unsigned int inlen,</span>
+<span class="lineNum">     139 </span>            :             const unsigned char key[32], const unsigned char nonce[12],
+<span class="lineNum">     140 </span>            :             uint32_t counter)
+<span class="lineNum">     141 </span>            : {
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :     unsigned iters, i, *op = (unsigned *)out, *ip = (unsigned *)in, *kp;</span>
+<span class="lineNum">     143 </span>            : #if defined(__ARM_NEON__)
+<span class="lineNum">     144 </span>            :     unsigned *np;
+<span class="lineNum">     145 </span>            : #endif
+<span class="lineNum">     146 </span>            :     vec s0, s1, s2, s3;
+<span class="lineNum">     147 </span>            : #if !defined(__ARM_NEON__) &amp;&amp; !defined(__SSE2__)
+<span class="lineNum">     148 </span>            :     __attribute__((aligned(16))) unsigned key[8], nonce[4];
+<span class="lineNum">     149 </span>            : #endif
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :     __attribute__((aligned(16))) unsigned chacha_const[] =</span>
+<span class="lineNum">     151 </span>            :         { 0x61707865, 0x3320646E, 0x79622D32, 0x6B206574 };
+<span class="lineNum">     152 </span>            : #if defined(__ARM_NEON__) || defined(__SSE2__)
+<span class="lineNum">     153 </span><span class="lineNoCov">          0 :     kp = (unsigned *)key;</span>
+<span class="lineNum">     154 </span>            : #else
+<span class="lineNum">     155 </span>            :     ((vec *)key)[0] = REVV_BE(((vec *)key)[0]);
+<span class="lineNum">     156 </span>            :     ((vec *)key)[1] = REVV_BE(((vec *)key)[1]);
+<span class="lineNum">     157 </span>            :     ((unsigned *)nonce)[0] = REVW_BE(((unsigned *)nonce)[0]);
+<span class="lineNum">     158 </span>            :     ((unsigned *)nonce)[1] = REVW_BE(((unsigned *)nonce)[1]);
+<span class="lineNum">     159 </span>            :     ((unsigned *)nonce)[2] = REVW_BE(((unsigned *)nonce)[2]);
+<span class="lineNum">     160 </span>            :     ((unsigned *)nonce)[3] = REVW_BE(((unsigned *)nonce)[3]);
+<span class="lineNum">     161 </span>            :     kp = (unsigned *)key;
+<span class="lineNum">     162 </span>            :     np = (unsigned *)nonce;
+<span class="lineNum">     163 </span>            : #endif
+<span class="lineNum">     164 </span>            : #if defined(__ARM_NEON__)
+<span class="lineNum">     165 </span>            :     np = (unsigned *)nonce;
+<span class="lineNum">     166 </span>            : #endif
+<span class="lineNum">     167 </span><span class="lineNoCov">          0 :     s0 = LOAD(chacha_const);</span>
+<span class="lineNum">     168 </span><span class="lineNoCov">          0 :     s1 = LOAD(&amp;((vec *)kp)[0]);</span>
+<span class="lineNum">     169 </span><span class="lineNoCov">          0 :     s2 = LOAD(&amp;((vec *)kp)[1]);</span>
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :     s3 = (vec){</span>
+<span class="lineNum">     171 </span>            :         counter,
+<span class="lineNum">     172 </span><span class="lineNoCov">          0 :         ((uint32_t *)nonce)[0],</span>
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 :         ((uint32_t *)nonce)[1],</span>
+<span class="lineNum">     174 </span><span class="lineNoCov">          0 :         ((uint32_t *)nonce)[2]</span>
+<span class="lineNum">     175 </span>            :     };
+<span class="lineNum">     176 </span>            : 
+<span class="lineNum">     177 </span><span class="lineNoCov">          0 :     for (iters = 0; iters &lt; inlen / (BPI * 64); iters++) {</span>
+<span class="lineNum">     178 </span>            : #if GPR_TOO
+<span class="lineNum">     179 </span>            :         register unsigned x0, x1, x2, x3, x4, x5, x6, x7, x8,
+<span class="lineNum">     180 </span>            :             x9, x10, x11, x12, x13, x14, x15;
+<span class="lineNum">     181 </span>            : #endif
+<span class="lineNum">     182 </span>            : #if VBPI &gt; 2
+<span class="lineNum">     183 </span>            :         vec v8, v9, v10, v11;
+<span class="lineNum">     184 </span>            : #endif
+<span class="lineNum">     185 </span>            : #if VBPI &gt; 3
+<span class="lineNum">     186 </span>            :         vec v12, v13, v14, v15;
+<span class="lineNum">     187 </span>            : #endif
+<span class="lineNum">     188 </span>            : 
+<span class="lineNum">     189 </span>            :         vec v0, v1, v2, v3, v4, v5, v6, v7;
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :         v4 = v0 = s0;</span>
+<span class="lineNum">     191 </span><span class="lineNoCov">          0 :         v5 = v1 = s1;</span>
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :         v6 = v2 = s2;</span>
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 :         v3 = s3;</span>
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 :         v7 = v3 + ONE;</span>
+<span class="lineNum">     195 </span>            : #if VBPI &gt; 2
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :         v8 = v4;</span>
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :         v9 = v5;</span>
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 :         v10 = v6;</span>
+<span class="lineNum">     199 </span><span class="lineNoCov">          0 :         v11 = v7 + ONE;</span>
+<span class="lineNum">     200 </span>            : #endif
+<span class="lineNum">     201 </span>            : #if VBPI &gt; 3
+<span class="lineNum">     202 </span>            :         v12 = v8;
+<span class="lineNum">     203 </span>            :         v13 = v9;
+<span class="lineNum">     204 </span>            :         v14 = v10;
+<span class="lineNum">     205 </span>            :         v15 = v11 + ONE;
+<span class="lineNum">     206 </span>            : #endif
+<span class="lineNum">     207 </span>            : #if GPR_TOO
+<span class="lineNum">     208 </span>            :         x0 = chacha_const[0];
+<span class="lineNum">     209 </span>            :         x1 = chacha_const[1];
+<span class="lineNum">     210 </span>            :         x2 = chacha_const[2];
+<span class="lineNum">     211 </span>            :         x3 = chacha_const[3];
+<span class="lineNum">     212 </span>            :         x4 = kp[0];
+<span class="lineNum">     213 </span>            :         x5 = kp[1];
+<span class="lineNum">     214 </span>            :         x6 = kp[2];
+<span class="lineNum">     215 </span>            :         x7 = kp[3];
+<span class="lineNum">     216 </span>            :         x8 = kp[4];
+<span class="lineNum">     217 </span>            :         x9 = kp[5];
+<span class="lineNum">     218 </span>            :         x10 = kp[6];
+<span class="lineNum">     219 </span>            :         x11 = kp[7];
+<span class="lineNum">     220 </span>            :         x12 = counter + BPI * iters + (BPI - 1);
+<span class="lineNum">     221 </span>            :         x13 = np[0];
+<span class="lineNum">     222 </span>            :         x14 = np[1];
+<span class="lineNum">     223 </span>            :         x15 = np[2];
+<span class="lineNum">     224 </span>            : #endif
+<span class="lineNum">     225 </span><span class="lineNoCov">          0 :         for (i = CHACHA_RNDS / 2; i; i--) {</span>
+<span class="lineNum">     226 </span><span class="lineNoCov">          0 :             DQROUND_VECTORS(v0, v1, v2, v3)</span>
+<span class="lineNum">     227 </span><span class="lineNoCov">          0 :             DQROUND_VECTORS(v4, v5, v6, v7)</span>
+<span class="lineNum">     228 </span>            : #if VBPI &gt; 2
+<span class="lineNum">     229 </span><span class="lineNoCov">          0 :             DQROUND_VECTORS(v8, v9, v10, v11)</span>
+<span class="lineNum">     230 </span>            : #endif
+<span class="lineNum">     231 </span>            : #if VBPI &gt; 3
+<span class="lineNum">     232 </span>            :             DQROUND_VECTORS(v12, v13, v14, v15)
+<span class="lineNum">     233 </span>            : #endif
+<span class="lineNum">     234 </span>            : #if GPR_TOO
+<span class="lineNum">     235 </span>            :             QROUND_WORDS(x0, x4, x8, x12)
+<span class="lineNum">     236 </span>            :             QROUND_WORDS(x1, x5, x9, x13)
+<span class="lineNum">     237 </span>            :             QROUND_WORDS(x2, x6, x10, x14)
+<span class="lineNum">     238 </span>            :             QROUND_WORDS(x3, x7, x11, x15)
+<span class="lineNum">     239 </span>            :             QROUND_WORDS(x0, x5, x10, x15)
+<span class="lineNum">     240 </span>            :             QROUND_WORDS(x1, x6, x11, x12)
+<span class="lineNum">     241 </span>            :             QROUND_WORDS(x2, x7, x8, x13)
+<span class="lineNum">     242 </span>            :             QROUND_WORDS(x3, x4, x9, x14)
+<span class="lineNum">     243 </span>            : #endif
+<span class="lineNum">     244 </span>            :         }
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :         WRITE_XOR(ip, op, 0, v0 + s0, v1 + s1, v2 + s2, v3 + s3)</span>
+<span class="lineNum">     247 </span><span class="lineNoCov">          0 :         s3 += ONE;</span>
+<span class="lineNum">     248 </span><span class="lineNoCov">          0 :         WRITE_XOR(ip, op, 16, v4 + s0, v5 + s1, v6 + s2, v7 + s3)</span>
+<span class="lineNum">     249 </span><span class="lineNoCov">          0 :         s3 += ONE;</span>
+<span class="lineNum">     250 </span>            : #if VBPI &gt; 2
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 :         WRITE_XOR(ip, op, 32, v8 + s0, v9 + s1, v10 + s2, v11 + s3)</span>
+<span class="lineNum">     252 </span><span class="lineNoCov">          0 :         s3 += ONE;</span>
+<span class="lineNum">     253 </span>            : #endif
+<span class="lineNum">     254 </span>            : #if VBPI &gt; 3
+<span class="lineNum">     255 </span>            :         WRITE_XOR(ip, op, 48, v12 + s0, v13 + s1, v14 + s2, v15 + s3)
+<span class="lineNum">     256 </span>            :         s3 += ONE;
+<span class="lineNum">     257 </span>            : #endif
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 :         ip += VBPI * 16;</span>
+<span class="lineNum">     259 </span><span class="lineNoCov">          0 :         op += VBPI * 16;</span>
+<span class="lineNum">     260 </span>            : #if GPR_TOO
+<span class="lineNum">     261 </span>            :         op[0] = REVW_BE(REVW_BE(ip[0]) ^ (x0 + chacha_const[0]));
+<span class="lineNum">     262 </span>            :         op[1] = REVW_BE(REVW_BE(ip[1]) ^ (x1 + chacha_const[1]));
+<span class="lineNum">     263 </span>            :         op[2] = REVW_BE(REVW_BE(ip[2]) ^ (x2 + chacha_const[2]));
+<span class="lineNum">     264 </span>            :         op[3] = REVW_BE(REVW_BE(ip[3]) ^ (x3 + chacha_const[3]));
+<span class="lineNum">     265 </span>            :         op[4] = REVW_BE(REVW_BE(ip[4]) ^ (x4 + kp[0]));
+<span class="lineNum">     266 </span>            :         op[5] = REVW_BE(REVW_BE(ip[5]) ^ (x5 + kp[1]));
+<span class="lineNum">     267 </span>            :         op[6] = REVW_BE(REVW_BE(ip[6]) ^ (x6 + kp[2]));
+<span class="lineNum">     268 </span>            :         op[7] = REVW_BE(REVW_BE(ip[7]) ^ (x7 + kp[3]));
+<span class="lineNum">     269 </span>            :         op[8] = REVW_BE(REVW_BE(ip[8]) ^ (x8 + kp[4]));
+<span class="lineNum">     270 </span>            :         op[9] = REVW_BE(REVW_BE(ip[9]) ^ (x9 + kp[5]));
+<span class="lineNum">     271 </span>            :         op[10] = REVW_BE(REVW_BE(ip[10]) ^ (x10 + kp[6]));
+<span class="lineNum">     272 </span>            :         op[11] = REVW_BE(REVW_BE(ip[11]) ^ (x11 + kp[7]));
+<span class="lineNum">     273 </span>            :         op[12] = REVW_BE(REVW_BE(ip[12]) ^ (x12 + counter + BPI * iters + (BPI - 1)));
+<span class="lineNum">     274 </span>            :         op[13] = REVW_BE(REVW_BE(ip[13]) ^ (x13 + np[0]));
+<span class="lineNum">     275 </span>            :         op[14] = REVW_BE(REVW_BE(ip[14]) ^ (x14 + np[1]));
+<span class="lineNum">     276 </span>            :         op[15] = REVW_BE(REVW_BE(ip[15]) ^ (x15 + np[2]));
+<span class="lineNum">     277 </span>            :         s3 += ONE;
+<span class="lineNum">     278 </span>            :         ip += 16;
+<span class="lineNum">     279 </span>            :         op += 16;
+<span class="lineNum">     280 </span>            : #endif
+<span class="lineNum">     281 </span>            :     }
+<span class="lineNum">     282 </span>            : 
+<span class="lineNum">     283 </span><span class="lineNoCov">          0 :     for (iters = inlen % (BPI * 64) / 64; iters != 0; iters--) {</span>
+<span class="lineNum">     284 </span>            :         vec v0 = s0, v1 = s1, v2 = s2, v3 = s3;
+<span class="lineNum">     285 </span><span class="lineNoCov">          0 :         for (i = CHACHA_RNDS / 2; i; i--) {</span>
+<span class="lineNum">     286 </span><span class="lineNoCov">          0 :             DQROUND_VECTORS(v0, v1, v2, v3);</span>
+<span class="lineNum">     287 </span>            :         }
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :         WRITE_XOR(ip, op, 0, v0 + s0, v1 + s1, v2 + s2, v3 + s3)</span>
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :         s3 += ONE;</span>
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :         ip += 16;</span>
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :         op += 16;</span>
+<span class="lineNum">     292 </span>            :     }
+<span class="lineNum">     293 </span>            : 
+<span class="lineNum">     294 </span><span class="lineNoCov">          0 :     inlen = inlen % 64;</span>
+<span class="lineNum">     295 </span><span class="lineNoCov">          0 :     if (inlen) {</span>
+<span class="lineNum">     296 </span>            :         __attribute__((aligned(16))) vec buf[4];
+<span class="lineNum">     297 </span>            :         vec v0, v1, v2, v3;
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 :         v0 = s0;</span>
+<span class="lineNum">     299 </span><span class="lineNoCov">          0 :         v1 = s1;</span>
+<span class="lineNum">     300 </span><span class="lineNoCov">          0 :         v2 = s2;</span>
+<span class="lineNum">     301 </span><span class="lineNoCov">          0 :         v3 = s3;</span>
+<span class="lineNum">     302 </span><span class="lineNoCov">          0 :         for (i = CHACHA_RNDS / 2; i; i--) {</span>
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 :             DQROUND_VECTORS(v0, v1, v2, v3);</span>
+<span class="lineNum">     304 </span>            :         }
+<span class="lineNum">     305 </span>            : 
+<span class="lineNum">     306 </span><span class="lineNoCov">          0 :         if (inlen &gt;= 16) {</span>
+<span class="lineNum">     307 </span><span class="lineNoCov">          0 :             STORE(op + 0, LOAD(ip + 0) ^ REVV_BE(v0 + s0));</span>
+<span class="lineNum">     308 </span><span class="lineNoCov">          0 :             if (inlen &gt;= 32) {</span>
+<span class="lineNum">     309 </span><span class="lineNoCov">          0 :                 STORE(op + 4, LOAD(ip + 4) ^ REVV_BE(v1 + s1));</span>
+<span class="lineNum">     310 </span><span class="lineNoCov">          0 :                 if (inlen &gt;= 48) {</span>
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :                     STORE(op + 8, LOAD(ip + 8) ^ REVV_BE(v2 + s2));</span>
+<span class="lineNum">     312 </span><span class="lineNoCov">          0 :                     buf[3] = REVV_BE(v3 + s3);</span>
+<span class="lineNum">     313 </span>            :                 } else {
+<span class="lineNum">     314 </span><span class="lineNoCov">          0 :                     buf[2] = REVV_BE(v2 + s2);</span>
+<span class="lineNum">     315 </span>            :                 }
+<span class="lineNum">     316 </span>            :             } else {
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :                 buf[1] = REVV_BE(v1 + s1);</span>
+<span class="lineNum">     318 </span>            :             }
+<span class="lineNum">     319 </span>            :         } else {
+<span class="lineNum">     320 </span><span class="lineNoCov">          0 :             buf[0] = REVV_BE(v0 + s0);</span>
+<span class="lineNum">     321 </span>            :         }
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span><span class="lineNoCov">          0 :         for (i = inlen &amp; ~15; i &lt; inlen; i++) {</span>
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 :             ((char *)op)[i] = ((char *)ip)[i] ^ ((char *)buf)[i];</span>
+<span class="lineNum">     325 </span>            :         }
+<span class="lineNum">     326 </span>            :     }
+<span class="lineNum">     327 </span><span class="lineNoCov">          0 : }</span>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

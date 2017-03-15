@@ -1,0 +1,462 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/gfx/thebes/gfxFT2Utils.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">gecko-dev/gfx/thebes</a> - gfxFT2Utils.cpp<span style="font-size: 80%;"> (source / <a href="gfxFT2Utils.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">109</td>
+            <td class="headerCovTableEntry">141</td>
+            <td class="headerCovTableEntryMed">77.3 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">7</td>
+            <td class="headerCovTableEntry">7</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 20; indent-tabs-mode: nil; c-basic-offset: 4 -*-</a>
+<span class="lineNum">       2 </span>            :  * This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       3 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       4 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       5 </span>            : 
+<span class="lineNum">       6 </span>            : #include &quot;gfxFT2FontBase.h&quot;
+<span class="lineNum">       7 </span>            : #include &quot;gfxFT2Utils.h&quot;
+<span class="lineNum">       8 </span>            : #include &quot;mozilla/Likely.h&quot;
+<span class="lineNum">       9 </span>            : #include FT_TRUETYPE_TAGS_H
+<span class="lineNum">      10 </span>            : #include FT_TRUETYPE_TABLES_H
+<span class="lineNum">      11 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      12 </span>            : 
+<span class="lineNum">      13 </span>            : #ifdef HAVE_FONTCONFIG_FCFREETYPE_H
+<span class="lineNum">      14 </span>            : #include &lt;fontconfig/fcfreetype.h&gt;
+<span class="lineNum">      15 </span>            : #endif
+<span class="lineNum">      16 </span>            : 
+<span class="lineNum">      17 </span>            : #include &quot;prlink.h&quot;
+<span class="lineNum">      18 </span>            : 
+<a name="19"><span class="lineNum">      19 </span>            : // aScale is intended for a 16.16 x/y_scale of an FT_Size_Metrics</a>
+<span class="lineNum">      20 </span>            : static inline FT_Long
+<span class="lineNum">      21 </span><span class="lineCov">          1 : ScaleRoundDesignUnits(FT_Short aDesignMetric, FT_Fixed aScale)</span>
+<span class="lineNum">      22 </span>            : {
+<span class="lineNum">      23 </span><span class="lineCov">          1 :     FT_Long fixed26dot6 = FT_MulFix(aDesignMetric, aScale);</span>
+<span class="lineNum">      24 </span><span class="lineCov">          1 :     return ROUND_26_6_TO_INT(fixed26dot6);</span>
+<span class="lineNum">      25 </span>            : }
+<span class="lineNum">      26 </span>            : 
+<span class="lineNum">      27 </span>            : // Snap a line to pixels while keeping the center and size of the line as
+<span class="lineNum">      28 </span>            : // close to the original position as possible.
+<span class="lineNum">      29 </span>            : //
+<span class="lineNum">      30 </span>            : // Pango does similar snapping for underline and strikethrough when fonts are
+<span class="lineNum">      31 </span>            : // hinted, but nsCSSRendering::GetTextDecorationRectInternal always snaps the
+<span class="lineNum">      32 </span>            : // top and size of lines.  Optimizing the distance between the line and
+<span class="lineNum">      33 </span>            : // baseline is probably good for the gap between text and underline, but
+<a name="34"><span class="lineNum">      34 </span>            : // optimizing the center of the line is better for positioning strikethough.</a>
+<span class="lineNum">      35 </span>            : static void
+<span class="lineNum">      36 </span><span class="lineCov">          1 : SnapLineToPixels(gfxFloat&amp; aOffset, gfxFloat&amp; aSize)</span>
+<span class="lineNum">      37 </span>            : {
+<span class="lineNum">      38 </span><span class="lineCov">          1 :     gfxFloat snappedSize = std::max(floor(aSize + 0.5), 1.0);</span>
+<span class="lineNum">      39 </span>            :     // Correct offset for change in size
+<span class="lineNum">      40 </span><span class="lineCov">          1 :     gfxFloat offset = aOffset - 0.5 * (aSize - snappedSize);</span>
+<span class="lineNum">      41 </span>            :     // Snap offset
+<span class="lineNum">      42 </span><span class="lineCov">          1 :     aOffset = floor(offset + 0.5);</span>
+<span class="lineNum">      43 </span><span class="lineCov">          1 :     aSize = snappedSize;</span>
+<span class="lineNum">      44 </span><span class="lineCov">          1 : }</span>
+<a name="45"><span class="lineNum">      45 </span>            : </a>
+<span class="lineNum">      46 </span>            : void
+<span class="lineNum">      47 </span><span class="lineCov">          1 : gfxFT2LockedFace::GetMetrics(gfxFont::Metrics* aMetrics,</span>
+<span class="lineNum">      48 </span>            :                              uint32_t* aSpaceGlyph)
+<span class="lineNum">      49 </span>            : {
+<span class="lineNum">      50 </span>            :     NS_PRECONDITION(aMetrics != nullptr, &quot;aMetrics must not be NULL&quot;);
+<span class="lineNum">      51 </span>            :     NS_PRECONDITION(aSpaceGlyph != nullptr, &quot;aSpaceGlyph must not be NULL&quot;);
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span><span class="lineCov">          1 :     if (MOZ_UNLIKELY(!mFace)) {</span>
+<span class="lineNum">      54 </span>            :         // No face.  This unfortunate situation might happen if the font
+<span class="lineNum">      55 </span>            :         // file is (re)moved at the wrong time.
+<span class="lineNum">      56 </span><span class="lineNoCov">          0 :         const gfxFloat emHeight = mGfxFont-&gt;GetStyle()-&gt;size;</span>
+<span class="lineNum">      57 </span><span class="lineNoCov">          0 :         aMetrics-&gt;emHeight = emHeight;</span>
+<span class="lineNum">      58 </span><span class="lineNoCov">          0 :         aMetrics-&gt;maxAscent = aMetrics-&gt;emAscent = 0.8 * emHeight;</span>
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 :         aMetrics-&gt;maxDescent = aMetrics-&gt;emDescent = 0.2 * emHeight;</span>
+<span class="lineNum">      60 </span><span class="lineNoCov">          0 :         aMetrics-&gt;maxHeight = emHeight;</span>
+<span class="lineNum">      61 </span><span class="lineNoCov">          0 :         aMetrics-&gt;internalLeading = 0.0;</span>
+<span class="lineNum">      62 </span><span class="lineNoCov">          0 :         aMetrics-&gt;externalLeading = 0.2 * emHeight;</span>
+<span class="lineNum">      63 </span><span class="lineNoCov">          0 :         const gfxFloat spaceWidth = 0.5 * emHeight;</span>
+<span class="lineNum">      64 </span><span class="lineNoCov">          0 :         aMetrics-&gt;spaceWidth = spaceWidth;</span>
+<span class="lineNum">      65 </span><span class="lineNoCov">          0 :         aMetrics-&gt;maxAdvance = spaceWidth;</span>
+<span class="lineNum">      66 </span><span class="lineNoCov">          0 :         aMetrics-&gt;aveCharWidth = spaceWidth;</span>
+<span class="lineNum">      67 </span><span class="lineNoCov">          0 :         aMetrics-&gt;zeroOrAveCharWidth = spaceWidth;</span>
+<span class="lineNum">      68 </span><span class="lineNoCov">          0 :         const gfxFloat xHeight = 0.5 * emHeight;</span>
+<span class="lineNum">      69 </span><span class="lineNoCov">          0 :         aMetrics-&gt;xHeight = xHeight;</span>
+<span class="lineNum">      70 </span><span class="lineNoCov">          0 :         aMetrics-&gt;capHeight = aMetrics-&gt;maxAscent;</span>
+<span class="lineNum">      71 </span><span class="lineNoCov">          0 :         const gfxFloat underlineSize = emHeight / 14.0;</span>
+<span class="lineNum">      72 </span><span class="lineNoCov">          0 :         aMetrics-&gt;underlineSize = underlineSize;</span>
+<span class="lineNum">      73 </span><span class="lineNoCov">          0 :         aMetrics-&gt;underlineOffset = -underlineSize;</span>
+<span class="lineNum">      74 </span><span class="lineNoCov">          0 :         aMetrics-&gt;strikeoutOffset = 0.25 * emHeight;</span>
+<span class="lineNum">      75 </span><span class="lineNoCov">          0 :         aMetrics-&gt;strikeoutSize = underlineSize;</span>
+<span class="lineNum">      76 </span>            : 
+<span class="lineNum">      77 </span><span class="lineNoCov">          0 :         *aSpaceGlyph = 0;</span>
+<span class="lineNum">      78 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">      79 </span>            :     }
+<span class="lineNum">      80 </span>            : 
+<span class="lineNum">      81 </span><span class="lineCov">          1 :     const FT_Size_Metrics&amp; ftMetrics = mFace-&gt;size-&gt;metrics;</span>
+<span class="lineNum">      82 </span>            : 
+<span class="lineNum">      83 </span>            :     gfxFloat emHeight;
+<span class="lineNum">      84 </span>            :     // Scale for vertical design metric conversion: pixels per design unit.
+<span class="lineNum">      85 </span>            :     // If this remains at 0.0, we can't use metrics from OS/2 etc.
+<span class="lineNum">      86 </span><span class="lineCov">          1 :     gfxFloat yScale = 0.0;</span>
+<span class="lineNum">      87 </span><span class="lineCov">          1 :     if (FT_IS_SCALABLE(mFace)) {</span>
+<span class="lineNum">      88 </span>            :         // Prefer FT_Size_Metrics::x_scale to x_ppem as x_ppem does not
+<span class="lineNum">      89 </span>            :         // have subpixel accuracy.
+<span class="lineNum">      90 </span>            :         //
+<span class="lineNum">      91 </span>            :         // FT_Size_Metrics::y_scale is in 16.16 fixed point format.  Its
+<span class="lineNum">      92 </span>            :         // (fractional) value is a factor that converts vertical metrics from
+<span class="lineNum">      93 </span>            :         // design units to units of 1/64 pixels, so that the result may be
+<span class="lineNum">      94 </span>            :         // interpreted as pixels in 26.6 fixed point format.
+<span class="lineNum">      95 </span><span class="lineCov">          1 :         yScale = FLOAT_FROM_26_6(FLOAT_FROM_16_16(ftMetrics.y_scale));</span>
+<span class="lineNum">      96 </span><span class="lineCov">          1 :         emHeight = mFace-&gt;units_per_EM * yScale;</span>
+<span class="lineNum">      97 </span>            :     } else { // Not scalable.
+<span class="lineNum">      98 </span><span class="lineNoCov">          0 :         emHeight = ftMetrics.y_ppem;</span>
+<span class="lineNum">      99 </span>            :         // FT_Face doc says units_per_EM and a bunch of following fields
+<span class="lineNum">     100 </span>            :         // are &quot;only relevant to scalable outlines&quot;. If it's an sfnt,
+<span class="lineNum">     101 </span>            :         // we can get units_per_EM from the 'head' table instead; otherwise,
+<span class="lineNum">     102 </span>            :         // we don't have a unitsPerEm value so we can't compute/use yScale.
+<span class="lineNum">     103 </span>            :         const TT_Header* head =
+<span class="lineNum">     104 </span><span class="lineNoCov">          0 :             static_cast&lt;TT_Header*&gt;(FT_Get_Sfnt_Table(mFace, ft_sfnt_head));</span>
+<span class="lineNum">     105 </span><span class="lineNoCov">          0 :         if (head) {</span>
+<span class="lineNum">     106 </span><span class="lineNoCov">          0 :             gfxFloat emUnit = head-&gt;Units_Per_EM;</span>
+<span class="lineNum">     107 </span><span class="lineNoCov">          0 :             yScale = emHeight / emUnit;</span>
+<span class="lineNum">     108 </span>            :         }
+<span class="lineNum">     109 </span>            :     }
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span>            :     TT_OS2 *os2 =
+<span class="lineNum">     112 </span><span class="lineCov">          1 :         static_cast&lt;TT_OS2*&gt;(FT_Get_Sfnt_Table(mFace, ft_sfnt_os2));</span>
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span><span class="lineCov">          1 :     aMetrics-&gt;maxAscent = FLOAT_FROM_26_6(ftMetrics.ascender);</span>
+<span class="lineNum">     115 </span><span class="lineCov">          1 :     aMetrics-&gt;maxDescent = -FLOAT_FROM_26_6(ftMetrics.descender);</span>
+<span class="lineNum">     116 </span><span class="lineCov">          1 :     aMetrics-&gt;maxAdvance = FLOAT_FROM_26_6(ftMetrics.max_advance);</span>
+<span class="lineNum">     117 </span>            : 
+<span class="lineNum">     118 </span>            :     gfxFloat lineHeight;
+<span class="lineNum">     119 </span><span class="lineCov">          1 :     if (os2 &amp;&amp; os2-&gt;sTypoAscender &amp;&amp; yScale &gt; 0.0) {</span>
+<span class="lineNum">     120 </span><span class="lineCov">          1 :         aMetrics-&gt;emAscent = os2-&gt;sTypoAscender * yScale;</span>
+<span class="lineNum">     121 </span><span class="lineCov">          1 :         aMetrics-&gt;emDescent = -os2-&gt;sTypoDescender * yScale;</span>
+<span class="lineNum">     122 </span>            :         FT_Short typoHeight =
+<span class="lineNum">     123 </span><span class="lineCov">          1 :             os2-&gt;sTypoAscender - os2-&gt;sTypoDescender + os2-&gt;sTypoLineGap;</span>
+<span class="lineNum">     124 </span><span class="lineCov">          1 :         lineHeight = typoHeight * yScale;</span>
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span>            :         // If the OS/2 fsSelection USE_TYPO_METRICS bit is set,
+<span class="lineNum">     127 </span>            :         // set maxAscent/Descent from the sTypo* fields instead of hhea.
+<span class="lineNum">     128 </span><span class="lineCov">          1 :         const uint16_t kUseTypoMetricsMask = 1 &lt;&lt; 7;</span>
+<span class="lineNum">     129 </span><span class="lineCov">          1 :         if (os2-&gt;fsSelection &amp; kUseTypoMetricsMask) {</span>
+<span class="lineNum">     130 </span><span class="lineCov">          1 :             aMetrics-&gt;maxAscent = NS_round(aMetrics-&gt;emAscent);</span>
+<span class="lineNum">     131 </span><span class="lineCov">          1 :             aMetrics-&gt;maxDescent = NS_round(aMetrics-&gt;emDescent);</span>
+<span class="lineNum">     132 </span>            :         } else {
+<span class="lineNum">     133 </span>            :             // maxAscent/maxDescent get used for frame heights, and some fonts
+<span class="lineNum">     134 </span>            :             // don't have the HHEA table ascent/descent set (bug 279032).
+<span class="lineNum">     135 </span>            :             // We use NS_round here to parallel the pixel-rounded values that
+<span class="lineNum">     136 </span>            :             // freetype gives us for ftMetrics.ascender/descender.
+<span class="lineNum">     137 </span>            :             aMetrics-&gt;maxAscent =
+<span class="lineNum">     138 </span><span class="lineCov">          1 :                 std::max(aMetrics-&gt;maxAscent, NS_round(aMetrics-&gt;emAscent));</span>
+<span class="lineNum">     139 </span>            :             aMetrics-&gt;maxDescent =
+<span class="lineNum">     140 </span><span class="lineCov">          1 :                 std::max(aMetrics-&gt;maxDescent, NS_round(aMetrics-&gt;emDescent));</span>
+<span class="lineNum">     141 </span>            :         }
+<span class="lineNum">     142 </span>            :     } else {
+<span class="lineNum">     143 </span><span class="lineCov">          1 :         aMetrics-&gt;emAscent = aMetrics-&gt;maxAscent;</span>
+<span class="lineNum">     144 </span><span class="lineCov">          1 :         aMetrics-&gt;emDescent = aMetrics-&gt;maxDescent;</span>
+<span class="lineNum">     145 </span><span class="lineCov">          1 :         lineHeight = FLOAT_FROM_26_6(ftMetrics.height);</span>
+<span class="lineNum">     146 </span>            :     }
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span>            :     cairo_text_extents_t extents;
+<span class="lineNum">     149 </span><span class="lineCov">          1 :     *aSpaceGlyph = GetCharExtents(' ', &amp;extents);</span>
+<span class="lineNum">     150 </span><span class="lineCov">          1 :     if (*aSpaceGlyph) {</span>
+<span class="lineNum">     151 </span><span class="lineCov">          1 :         aMetrics-&gt;spaceWidth = extents.x_advance;</span>
+<span class="lineNum">     152 </span>            :     } else {
+<span class="lineNum">     153 </span><span class="lineCov">          1 :         aMetrics-&gt;spaceWidth = aMetrics-&gt;maxAdvance; // guess</span>
+<span class="lineNum">     154 </span>            :     }
+<span class="lineNum">     155 </span>            : 
+<span class="lineNum">     156 </span><span class="lineCov">          1 :     aMetrics-&gt;zeroOrAveCharWidth = 0.0;</span>
+<span class="lineNum">     157 </span><span class="lineCov">          1 :     if (GetCharExtents('0', &amp;extents)) {</span>
+<span class="lineNum">     158 </span><span class="lineCov">          1 :         aMetrics-&gt;zeroOrAveCharWidth = extents.x_advance;</span>
+<span class="lineNum">     159 </span>            :     }
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span>            :     // Prefering a measured x over sxHeight because sxHeight doesn't consider
+<span class="lineNum">     162 </span>            :     // hinting, but maybe the x extents are not quite right in some fancy
+<span class="lineNum">     163 </span>            :     // script fonts.  CSS 2.1 suggests possibly using the height of an &quot;o&quot;,
+<span class="lineNum">     164 </span>            :     // which would have a more consistent glyph across fonts.
+<span class="lineNum">     165 </span><span class="lineCov">          1 :     if (GetCharExtents('x', &amp;extents) &amp;&amp; extents.y_bearing &lt; 0.0) {</span>
+<span class="lineNum">     166 </span><span class="lineCov">          1 :         aMetrics-&gt;xHeight = -extents.y_bearing;</span>
+<span class="lineNum">     167 </span><span class="lineCov">          1 :         aMetrics-&gt;aveCharWidth = extents.x_advance;</span>
+<span class="lineNum">     168 </span>            :     } else {
+<span class="lineNum">     169 </span><span class="lineCov">          1 :         if (os2 &amp;&amp; os2-&gt;sxHeight &amp;&amp; yScale &gt; 0.0) {</span>
+<span class="lineNum">     170 </span><span class="lineCov">          1 :             aMetrics-&gt;xHeight = os2-&gt;sxHeight * yScale;</span>
+<span class="lineNum">     171 </span>            :         } else {
+<span class="lineNum">     172 </span>            :             // CSS 2.1, section 4.3.2 Lengths: &quot;In the cases where it is
+<span class="lineNum">     173 </span>            :             // impossible or impractical to determine the x-height, a value of
+<span class="lineNum">     174 </span>            :             // 0.5em should be used.&quot;
+<span class="lineNum">     175 </span><span class="lineCov">          1 :             aMetrics-&gt;xHeight = 0.5 * emHeight;</span>
+<span class="lineNum">     176 </span>            :         }
+<span class="lineNum">     177 </span><span class="lineCov">          1 :         aMetrics-&gt;aveCharWidth = 0.0; // updated below</span>
+<span class="lineNum">     178 </span>            :     }
+<span class="lineNum">     179 </span>            : 
+<span class="lineNum">     180 </span><span class="lineCov">          1 :     if (GetCharExtents('H', &amp;extents) &amp;&amp; extents.y_bearing &lt; 0.0) {</span>
+<span class="lineNum">     181 </span><span class="lineCov">          1 :         aMetrics-&gt;capHeight = -extents.y_bearing;</span>
+<span class="lineNum">     182 </span>            :     } else {
+<span class="lineNum">     183 </span><span class="lineCov">          1 :         if (os2 &amp;&amp; os2-&gt;sCapHeight &amp;&amp; yScale &gt; 0.0) {</span>
+<span class="lineNum">     184 </span><span class="lineCov">          1 :             aMetrics-&gt;capHeight = os2-&gt;sCapHeight * yScale;</span>
+<span class="lineNum">     185 </span>            :         } else {
+<span class="lineNum">     186 </span><span class="lineCov">          1 :             aMetrics-&gt;capHeight = aMetrics-&gt;maxAscent;</span>
+<span class="lineNum">     187 </span>            :         }
+<span class="lineNum">     188 </span>            :     }
+<span class="lineNum">     189 </span>            : 
+<span class="lineNum">     190 </span>            :     // aveCharWidth is used for the width of text input elements so be
+<span class="lineNum">     191 </span>            :     // liberal rather than conservative in the estimate.
+<span class="lineNum">     192 </span><span class="lineCov">          1 :     if (os2 &amp;&amp; os2-&gt;xAvgCharWidth) {</span>
+<span class="lineNum">     193 </span>            :         // Round to pixels as this is compared with maxAdvance to guess
+<span class="lineNum">     194 </span>            :         // whether this is a fixed width font.
+<span class="lineNum">     195 </span>            :         gfxFloat avgCharWidth =
+<span class="lineNum">     196 </span><span class="lineCov">          1 :             ScaleRoundDesignUnits(os2-&gt;xAvgCharWidth, ftMetrics.x_scale);</span>
+<span class="lineNum">     197 </span>            :         aMetrics-&gt;aveCharWidth =
+<span class="lineNum">     198 </span><span class="lineCov">          1 :             std::max(aMetrics-&gt;aveCharWidth, avgCharWidth);</span>
+<span class="lineNum">     199 </span>            :     }
+<span class="lineNum">     200 </span>            :     aMetrics-&gt;aveCharWidth =
+<span class="lineNum">     201 </span><span class="lineCov">          1 :         std::max(aMetrics-&gt;aveCharWidth, aMetrics-&gt;zeroOrAveCharWidth);</span>
+<span class="lineNum">     202 </span><span class="lineCov">          1 :     if (aMetrics-&gt;aveCharWidth == 0.0) {</span>
+<span class="lineNum">     203 </span><span class="lineNoCov">          0 :         aMetrics-&gt;aveCharWidth = aMetrics-&gt;spaceWidth;</span>
+<span class="lineNum">     204 </span>            :     }
+<span class="lineNum">     205 </span><span class="lineCov">          1 :     if (aMetrics-&gt;zeroOrAveCharWidth == 0.0) {</span>
+<span class="lineNum">     206 </span><span class="lineCov">          1 :         aMetrics-&gt;zeroOrAveCharWidth = aMetrics-&gt;aveCharWidth;</span>
+<span class="lineNum">     207 </span>            :     }
+<span class="lineNum">     208 </span>            :     // Apparently hinting can mean that max_advance is not always accurate.
+<span class="lineNum">     209 </span>            :     aMetrics-&gt;maxAdvance =
+<span class="lineNum">     210 </span><span class="lineCov">          1 :         std::max(aMetrics-&gt;maxAdvance, aMetrics-&gt;aveCharWidth);</span>
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span>            :     // gfxFont::Metrics::underlineOffset is the position of the top of the
+<span class="lineNum">     213 </span>            :     // underline.
+<span class="lineNum">     214 </span>            :     //
+<span class="lineNum">     215 </span>            :     // FT_FaceRec documentation describes underline_position as &quot;the
+<span class="lineNum">     216 </span>            :     // center of the underlining stem&quot;.  This was the original definition
+<span class="lineNum">     217 </span>            :     // of the PostScript metric, but in the PostScript table of OpenType
+<span class="lineNum">     218 </span>            :     // fonts the metric is &quot;the top of the underline&quot;
+<span class="lineNum">     219 </span>            :     // (http://www.microsoft.com/typography/otspec/post.htm), and FreeType
+<span class="lineNum">     220 </span>            :     // (up to version 2.3.7) doesn't make any adjustment.
+<span class="lineNum">     221 </span>            :     //
+<span class="lineNum">     222 </span>            :     // Therefore get the underline position directly from the table
+<span class="lineNum">     223 </span>            :     // ourselves when this table exists.  Use FreeType's metrics for
+<span class="lineNum">     224 </span>            :     // other (including older PostScript) fonts.
+<span class="lineNum">     225 </span><span class="lineCov">          1 :     if (mFace-&gt;underline_position &amp;&amp; mFace-&gt;underline_thickness &amp;&amp; yScale &gt; 0.0) {</span>
+<span class="lineNum">     226 </span><span class="lineCov">          1 :         aMetrics-&gt;underlineSize = mFace-&gt;underline_thickness * yScale;</span>
+<span class="lineNum">     227 </span>            :         TT_Postscript *post = static_cast&lt;TT_Postscript*&gt;
+<span class="lineNum">     228 </span><span class="lineCov">          1 :             (FT_Get_Sfnt_Table(mFace, ft_sfnt_post));</span>
+<span class="lineNum">     229 </span><span class="lineCov">          1 :         if (post &amp;&amp; post-&gt;underlinePosition) {</span>
+<span class="lineNum">     230 </span><span class="lineCov">          1 :             aMetrics-&gt;underlineOffset = post-&gt;underlinePosition * yScale;</span>
+<span class="lineNum">     231 </span>            :         } else {
+<span class="lineNum">     232 </span><span class="lineCov">          1 :             aMetrics-&gt;underlineOffset = mFace-&gt;underline_position * yScale</span>
+<span class="lineNum">     233 </span><span class="lineCov">          1 :                 + 0.5 * aMetrics-&gt;underlineSize;</span>
+<span class="lineNum">     234 </span>            :         }
+<span class="lineNum">     235 </span>            :     } else { // No underline info.
+<span class="lineNum">     236 </span>            :         // Imitate Pango.
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :         aMetrics-&gt;underlineSize = emHeight / 14.0;</span>
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :         aMetrics-&gt;underlineOffset = -aMetrics-&gt;underlineSize;</span>
+<span class="lineNum">     239 </span>            :     }
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span><span class="lineCov">          1 :     if (os2 &amp;&amp; os2-&gt;yStrikeoutSize &amp;&amp; os2-&gt;yStrikeoutPosition &amp;&amp; yScale &gt; 0.0) {</span>
+<span class="lineNum">     242 </span><span class="lineCov">          1 :         aMetrics-&gt;strikeoutSize = os2-&gt;yStrikeoutSize * yScale;</span>
+<span class="lineNum">     243 </span><span class="lineCov">          1 :         aMetrics-&gt;strikeoutOffset = os2-&gt;yStrikeoutPosition * yScale;</span>
+<span class="lineNum">     244 </span>            :     } else { // No strikeout info.
+<span class="lineNum">     245 </span><span class="lineCov">          1 :         aMetrics-&gt;strikeoutSize = aMetrics-&gt;underlineSize;</span>
+<span class="lineNum">     246 </span>            :         // Use OpenType spec's suggested position for Roman font.
+<span class="lineNum">     247 </span><span class="lineCov">          1 :         aMetrics-&gt;strikeoutOffset = emHeight * 409.0 / 2048.0</span>
+<span class="lineNum">     248 </span><span class="lineCov">          1 :             + 0.5 * aMetrics-&gt;strikeoutSize;</span>
+<span class="lineNum">     249 </span>            :     }
+<span class="lineNum">     250 </span><span class="lineCov">          1 :     SnapLineToPixels(aMetrics-&gt;strikeoutOffset, aMetrics-&gt;strikeoutSize);</span>
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span><span class="lineCov">          1 :     aMetrics-&gt;maxHeight = aMetrics-&gt;maxAscent + aMetrics-&gt;maxDescent;</span>
+<span class="lineNum">     253 </span>            : 
+<span class="lineNum">     254 </span>            :     // Make the line height an integer number of pixels so that lines will be
+<span class="lineNum">     255 </span>            :     // equally spaced (rather than just being snapped to pixels, some up and
+<span class="lineNum">     256 </span>            :     // some down).  Layout calculates line height from the emHeight +
+<span class="lineNum">     257 </span>            :     // internalLeading + externalLeading, but first each of these is rounded
+<span class="lineNum">     258 </span>            :     // to layout units.  To ensure that the result is an integer number of
+<span class="lineNum">     259 </span>            :     // pixels, round each of the components to pixels.
+<span class="lineNum">     260 </span><span class="lineCov">          1 :     aMetrics-&gt;emHeight = floor(emHeight + 0.5);</span>
+<span class="lineNum">     261 </span>            : 
+<span class="lineNum">     262 </span>            :     // maxHeight will normally be an integer, but round anyway in case
+<span class="lineNum">     263 </span>            :     // FreeType is configured differently.
+<span class="lineNum">     264 </span>            :     aMetrics-&gt;internalLeading =
+<span class="lineNum">     265 </span><span class="lineCov">          1 :         floor(aMetrics-&gt;maxHeight - aMetrics-&gt;emHeight + 0.5);</span>
+<span class="lineNum">     266 </span>            : 
+<span class="lineNum">     267 </span>            :     // Text input boxes currently don't work well with lineHeight
+<span class="lineNum">     268 </span>            :     // significantly less than maxHeight (with Verdana, for example).
+<span class="lineNum">     269 </span><span class="lineCov">          1 :     lineHeight = floor(std::max(lineHeight, aMetrics-&gt;maxHeight) + 0.5);</span>
+<span class="lineNum">     270 </span>            :     aMetrics-&gt;externalLeading =
+<span class="lineNum">     271 </span><span class="lineCov">          1 :         lineHeight - aMetrics-&gt;internalLeading - aMetrics-&gt;emHeight;</span>
+<span class="lineNum">     272 </span>            : 
+<span class="lineNum">     273 </span>            :     // Ensure emAscent + emDescent == emHeight
+<span class="lineNum">     274 </span><span class="lineCov">          1 :     gfxFloat sum = aMetrics-&gt;emAscent + aMetrics-&gt;emDescent;</span>
+<span class="lineNum">     275 </span>            :     aMetrics-&gt;emAscent = sum &gt; 0.0 ?
+<span class="lineNum">     276 </span><span class="lineCov">          1 :         aMetrics-&gt;emAscent * aMetrics-&gt;emHeight / sum : 0.0;</span>
+<span class="lineNum">     277 </span><span class="lineCov">          1 :     aMetrics-&gt;emDescent = aMetrics-&gt;emHeight - aMetrics-&gt;emAscent;</span>
+<span class="lineNum">     278 </span>            : }
+<a name="279"><span class="lineNum">     279 </span>            : </a>
+<span class="lineNum">     280 </span>            : uint32_t
+<span class="lineNum">     281 </span><span class="lineCov">          1 : gfxFT2LockedFace::GetGlyph(uint32_t aCharCode)</span>
+<span class="lineNum">     282 </span>            : {
+<span class="lineNum">     283 </span><span class="lineCov">          1 :     if (MOZ_UNLIKELY(!mFace))</span>
+<span class="lineNum">     284 </span>            :         return 0;
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span>            : #ifdef HAVE_FONTCONFIG_FCFREETYPE_H
+<span class="lineNum">     287 </span>            :     // FcFreeTypeCharIndex will search starting from the most recently
+<span class="lineNum">     288 </span>            :     // selected charmap.  This can cause non-determistic behavior when more
+<span class="lineNum">     289 </span>            :     // than one charmap supports a character but with different glyphs, as
+<span class="lineNum">     290 </span>            :     // with older versions of MS Gothic, for example.  Always prefer a Unicode
+<span class="lineNum">     291 </span>            :     // charmap, if there is one.  (FcFreeTypeCharIndex usually does the
+<span class="lineNum">     292 </span>            :     // appropriate Unicode conversion, but some fonts have non-Roman glyphs
+<span class="lineNum">     293 </span>            :     // for FT_ENCODING_APPLE_ROMAN characters.)
+<span class="lineNum">     294 </span><span class="lineCov">          1 :     if (!mFace-&gt;charmap || mFace-&gt;charmap-&gt;encoding != FT_ENCODING_UNICODE) {</span>
+<span class="lineNum">     295 </span><span class="lineCov">          1 :         FT_Select_Charmap(mFace, FT_ENCODING_UNICODE);</span>
+<span class="lineNum">     296 </span>            :     }
+<span class="lineNum">     297 </span>            : 
+<span class="lineNum">     298 </span><span class="lineCov">          1 :     return FcFreeTypeCharIndex(mFace, aCharCode);</span>
+<span class="lineNum">     299 </span>            : #else
+<span class="lineNum">     300 </span>            :     return FT_Get_Char_Index(mFace, aCharCode);
+<span class="lineNum">     301 </span>            : #endif
+<span class="lineNum">     302 </span>            : }
+<span class="lineNum">     303 </span>            : 
+<span class="lineNum">     304 </span>            : typedef FT_UInt (*GetCharVariantFunction)(FT_Face  face,
+<span class="lineNum">     305 </span>            :                                           FT_ULong charcode,
+<span class="lineNum">     306 </span>            :                                           FT_ULong variantSelector);
+<a name="307"><span class="lineNum">     307 </span>            : </a>
+<span class="lineNum">     308 </span>            : uint32_t
+<span class="lineNum">     309 </span><span class="lineCov">          1 : gfxFT2LockedFace::GetUVSGlyph(uint32_t aCharCode, uint32_t aVariantSelector)</span>
+<span class="lineNum">     310 </span>            : {
+<span class="lineNum">     311 </span>            :     NS_PRECONDITION(aVariantSelector, &quot;aVariantSelector should not be NULL&quot;);
+<span class="lineNum">     312 </span>            : 
+<span class="lineNum">     313 </span><span class="lineCov">          1 :     if (MOZ_UNLIKELY(!mFace))</span>
+<span class="lineNum">     314 </span>            :         return 0;
+<span class="lineNum">     315 </span>            : 
+<span class="lineNum">     316 </span>            :     // This function is available from FreeType 2.3.6 (June 2008).
+<span class="lineNum">     317 </span><span class="lineCov">          1 :     static CharVariantFunction sGetCharVariantPtr = FindCharVariantFunction();</span>
+<span class="lineNum">     318 </span><span class="lineCov">          1 :     if (!sGetCharVariantPtr)</span>
+<span class="lineNum">     319 </span>            :         return 0;
+<span class="lineNum">     320 </span>            : 
+<span class="lineNum">     321 </span>            : #ifdef HAVE_FONTCONFIG_FCFREETYPE_H
+<span class="lineNum">     322 </span>            :     // FcFreeTypeCharIndex may have changed the selected charmap.
+<span class="lineNum">     323 </span>            :     // FT_Face_GetCharVariantIndex needs a unicode charmap.
+<span class="lineNum">     324 </span><span class="lineCov">          1 :     if (!mFace-&gt;charmap || mFace-&gt;charmap-&gt;encoding != FT_ENCODING_UNICODE) {</span>
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :         FT_Select_Charmap(mFace, FT_ENCODING_UNICODE);</span>
+<span class="lineNum">     326 </span>            :     }
+<span class="lineNum">     327 </span>            : #endif
+<span class="lineNum">     328 </span>            : 
+<span class="lineNum">     329 </span><span class="lineCov">          1 :     return (*sGetCharVariantPtr)(mFace, aCharCode, aVariantSelector);</span>
+<span class="lineNum">     330 </span>            : }
+<a name="331"><span class="lineNum">     331 </span>            : </a>
+<span class="lineNum">     332 </span>            : uint32_t
+<span class="lineNum">     333 </span><span class="lineCov">          1 : gfxFT2LockedFace::GetCharExtents(char aChar, cairo_text_extents_t* aExtents)</span>
+<span class="lineNum">     334 </span>            : {
+<span class="lineNum">     335 </span>            :     NS_PRECONDITION(aExtents != nullptr, &quot;aExtents must not be NULL&quot;);
+<span class="lineNum">     336 </span>            : 
+<span class="lineNum">     337 </span><span class="lineCov">          1 :     if (!mFace)</span>
+<span class="lineNum">     338 </span>            :         return 0;
+<span class="lineNum">     339 </span>            : 
+<span class="lineNum">     340 </span><span class="lineCov">          1 :     FT_UInt gid = mGfxFont-&gt;GetGlyph(aChar);</span>
+<span class="lineNum">     341 </span><span class="lineCov">          1 :     if (gid) {</span>
+<span class="lineNum">     342 </span><span class="lineCov">          1 :         mGfxFont-&gt;GetGlyphExtents(gid, aExtents);</span>
+<span class="lineNum">     343 </span>            :     }
+<span class="lineNum">     344 </span>            : 
+<span class="lineNum">     345 </span><span class="lineCov">          1 :     return gid;</span>
+<span class="lineNum">     346 </span>            : }
+<a name="347"><span class="lineNum">     347 </span>            : </a>
+<span class="lineNum">     348 </span>            : gfxFT2LockedFace::CharVariantFunction
+<span class="lineNum">     349 </span><span class="lineCov">          1 : gfxFT2LockedFace::FindCharVariantFunction()</span>
+<span class="lineNum">     350 </span>            : {
+<span class="lineNum">     351 </span>            :     // This function is available from FreeType 2.3.6 (June 2008).
+<span class="lineNum">     352 </span><span class="lineCov">          1 :     PRLibrary *lib = nullptr;</span>
+<span class="lineNum">     353 </span>            :     CharVariantFunction function =
+<span class="lineNum">     354 </span>            :         reinterpret_cast&lt;CharVariantFunction&gt;
+<span class="lineNum">     355 </span><span class="lineCov">          1 :         (PR_FindFunctionSymbolAndLibrary(&quot;FT_Face_GetCharVariantIndex&quot;, &amp;lib));</span>
+<span class="lineNum">     356 </span><span class="lineCov">          1 :     if (!lib) {</span>
+<span class="lineNum">     357 </span>            :         return nullptr;
+<span class="lineNum">     358 </span>            :     }
+<span class="lineNum">     359 </span>            : 
+<span class="lineNum">     360 </span>            :     FT_Int major;
+<span class="lineNum">     361 </span>            :     FT_Int minor;
+<span class="lineNum">     362 </span>            :     FT_Int patch;
+<span class="lineNum">     363 </span><span class="lineCov">          1 :     FT_Library_Version(mFace-&gt;glyph-&gt;library, &amp;major, &amp;minor, &amp;patch);</span>
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span>            :     // Versions 2.4.0 to 2.4.3 crash if configured with
+<span class="lineNum">     366 </span>            :     // FT_CONFIG_OPTION_OLD_INTERNALS.  Presence of the symbol FT_Alloc
+<span class="lineNum">     367 </span>            :     // indicates FT_CONFIG_OPTION_OLD_INTERNALS.
+<span class="lineNum">     368 </span><span class="lineCov">          1 :     if (major == 2 &amp;&amp; minor == 4 &amp;&amp; patch &lt; 4 &amp;&amp;</span>
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :         PR_FindFunctionSymbol(lib, &quot;FT_Alloc&quot;)) {</span>
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :         function = nullptr;</span>
+<span class="lineNum">     371 </span>            :     }
+<span class="lineNum">     372 </span>            : 
+<span class="lineNum">     373 </span>            :     // Decrement the reference count incremented in
+<span class="lineNum">     374 </span>            :     // PR_FindFunctionSymbolAndLibrary.
+<span class="lineNum">     375 </span><span class="lineCov">          1 :     PR_UnloadLibrary(lib);</span>
+<span class="lineNum">     376 </span>            : 
+<span class="lineNum">     377 </span><span class="lineCov">          1 :     return function;</span>
+<span class="lineNum">     378 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

@@ -1,0 +1,576 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/dom/media/gmp/widevine-adapter/WidevineDecryptor.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">gecko-dev/dom/media/gmp/widevine-adapter</a> - WidevineDecryptor.cpp<span style="font-size: 80%;"> (source / <a href="WidevineDecryptor.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">2</td>
+            <td class="headerCovTableEntry">189</td>
+            <td class="headerCovTableEntryLo">1.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">2</td>
+            <td class="headerCovTableEntry">39</td>
+            <td class="headerCovTableEntryLo">5.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       3 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       4 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       5 </span>            : 
+<span class="lineNum">       6 </span>            : #include &quot;WidevineDecryptor.h&quot;
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #include &quot;WidevineAdapter.h&quot;
+<span class="lineNum">       9 </span>            : #include &quot;WidevineUtils.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;WidevineFileIO.h&quot;
+<span class="lineNum">      11 </span>            : #include &lt;stdarg.h&gt;
+<span class="lineNum">      12 </span>            : 
+<span class="lineNum">      13 </span>            : using namespace cdm;
+<span class="lineNum">      14 </span>            : using namespace std;
+<span class="lineNum">      15 </span>            : 
+<span class="lineNum">      16 </span>            : namespace mozilla {
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span><span class="lineCov">          1 : static map&lt;uint32_t, RefPtr&lt;CDMWrapper&gt;&gt; sDecryptors;</span>
+<span class="lineNum">      19 </span>            : 
+<a name="20"><span class="lineNum">      20 </span>            : /* static */</a>
+<span class="lineNum">      21 </span>            : RefPtr&lt;CDMWrapper&gt;
+<span class="lineNum">      22 </span><span class="lineNoCov">          0 : WidevineDecryptor::GetInstance(uint32_t aInstanceId)</span>
+<span class="lineNum">      23 </span>            : {
+<span class="lineNum">      24 </span><span class="lineNoCov">          0 :   auto itr = sDecryptors.find(aInstanceId);</span>
+<span class="lineNum">      25 </span><span class="lineNoCov">          0 :   if (itr != sDecryptors.end()) {</span>
+<span class="lineNum">      26 </span><span class="lineNoCov">          0 :     return itr-&gt;second;</span>
+<span class="lineNum">      27 </span>            :   }
+<span class="lineNum">      28 </span>            :   return nullptr;
+<span class="lineNum">      29 </span>            : }
+<a name="30"><span class="lineNum">      30 </span>            : </a>
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span><span class="lineNoCov">          0 : WidevineDecryptor::WidevineDecryptor()</span>
+<span class="lineNum">      33 </span><span class="lineNoCov">          0 :   : mCallback(nullptr)</span>
+<span class="lineNum">      34 </span>            : {
+<span class="lineNum">      35 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;WidevineDecryptor created this=%p, instanceId=%u&quot;, this, mInstanceId);</span>
+<span class="lineNum">      36 </span><span class="lineNoCov">          0 :   AddRef(); // Released in DecryptingComplete().</span>
+<a name="37"><span class="lineNum">      37 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span><span class="lineNoCov">          0 : WidevineDecryptor::~WidevineDecryptor()</span>
+<span class="lineNum">      40 </span>            : {
+<span class="lineNum">      41 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;WidevineDecryptor destroyed this=%p, instanceId=%u&quot;, this, mInstanceId);</span>
+<span class="lineNum">      42 </span><span class="lineNoCov">          0 : }</span>
+<a name="43"><span class="lineNum">      43 </span>            : </a>
+<span class="lineNum">      44 </span>            : void
+<span class="lineNum">      45 </span><span class="lineNoCov">          0 : WidevineDecryptor::SetCDM(RefPtr&lt;CDMWrapper&gt; aCDM, uint32_t aInstanceId)</span>
+<span class="lineNum">      46 </span>            : {
+<span class="lineNum">      47 </span><span class="lineNoCov">          0 :   mCDM = aCDM;</span>
+<span class="lineNum">      48 </span><span class="lineNoCov">          0 :   mInstanceId = aInstanceId;</span>
+<span class="lineNum">      49 </span><span class="lineNoCov">          0 :   sDecryptors[mInstanceId] = aCDM.forget();</span>
+<span class="lineNum">      50 </span><span class="lineNoCov">          0 : }</span>
+<a name="51"><span class="lineNum">      51 </span>            : </a>
+<span class="lineNum">      52 </span>            : void
+<span class="lineNum">      53 </span><span class="lineNoCov">          0 : WidevineDecryptor::Init(GMPDecryptorCallback* aCallback,</span>
+<span class="lineNum">      54 </span>            :                         bool aDistinctiveIdentifierRequired,
+<span class="lineNum">      55 </span>            :                         bool aPersistentStateRequired)
+<span class="lineNum">      56 </span>            : {
+<span class="lineNum">      57 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;WidevineDecryptor::Init() this=%p distinctiveId=%d persistentState=%d&quot;,</span>
+<span class="lineNum">      58 </span>            :           this, aDistinctiveIdentifierRequired, aPersistentStateRequired);
+<span class="lineNum">      59 </span>            :   MOZ_ASSERT(aCallback);
+<span class="lineNum">      60 </span><span class="lineNoCov">          0 :   mCallback = aCallback;</span>
+<span class="lineNum">      61 </span>            :   MOZ_ASSERT(mCDM);
+<span class="lineNum">      62 </span><span class="lineNoCov">          0 :   mDistinctiveIdentifierRequired = aDistinctiveIdentifierRequired;</span>
+<span class="lineNum">      63 </span><span class="lineNoCov">          0 :   mPersistentStateRequired = aPersistentStateRequired;</span>
+<span class="lineNum">      64 </span><span class="lineNoCov">          0 :   if (CDM()) {</span>
+<span class="lineNum">      65 </span>            :     CDM()-&gt;Initialize(aDistinctiveIdentifierRequired,
+<span class="lineNum">      66 </span><span class="lineNoCov">          0 :                       aPersistentStateRequired);</span>
+<span class="lineNum">      67 </span>            :   }
+<span class="lineNum">      68 </span><span class="lineNoCov">          0 : }</span>
+<a name="69"><span class="lineNum">      69 </span>            : </a>
+<span class="lineNum">      70 </span>            : static SessionType
+<span class="lineNum">      71 </span><span class="lineNoCov">          0 : ToCDMSessionType(GMPSessionType aSessionType)</span>
+<span class="lineNum">      72 </span>            : {
+<span class="lineNum">      73 </span><span class="lineNoCov">          0 :   switch (aSessionType) {</span>
+<span class="lineNum">      74 </span>            :     case kGMPTemporySession: return kTemporary;
+<span class="lineNum">      75 </span><span class="lineNoCov">          0 :     case kGMPPersistentSession: return kPersistentLicense;</span>
+<span class="lineNum">      76 </span>            :     case kGMPSessionInvalid: return kTemporary;
+<span class="lineNum">      77 </span>            :     // TODO: kPersistentKeyRelease
+<span class="lineNum">      78 </span>            :   }
+<span class="lineNum">      79 </span>            :   MOZ_ASSERT(false); // Not supposed to get here.
+<span class="lineNum">      80 </span>            :   return kTemporary;
+<span class="lineNum">      81 </span>            : }
+<a name="82"><span class="lineNum">      82 </span>            : </a>
+<span class="lineNum">      83 </span>            : void
+<span class="lineNum">      84 </span><span class="lineNoCov">          0 : WidevineDecryptor::CreateSession(uint32_t aCreateSessionToken,</span>
+<span class="lineNum">      85 </span>            :                                  uint32_t aPromiseId,
+<span class="lineNum">      86 </span>            :                                  const char* aInitDataType,
+<span class="lineNum">      87 </span>            :                                  uint32_t aInitDataTypeSize,
+<span class="lineNum">      88 </span>            :                                  const uint8_t* aInitData,
+<span class="lineNum">      89 </span>            :                                  uint32_t aInitDataSize,
+<span class="lineNum">      90 </span>            :                                  GMPSessionType aSessionType)
+<span class="lineNum">      91 </span>            : {
+<span class="lineNum">      92 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::CreateSession(token=%d, pid=%d)&quot;, aCreateSessionToken, aPromiseId);</span>
+<span class="lineNum">      93 </span>            :   InitDataType initDataType;
+<span class="lineNum">      94 </span><span class="lineNoCov">          0 :   if (!strcmp(aInitDataType, &quot;cenc&quot;)) {</span>
+<span class="lineNum">      95 </span>            :     initDataType = kCenc;
+<span class="lineNum">      96 </span><span class="lineNoCov">          0 :   } else if (!strcmp(aInitDataType, &quot;webm&quot;)) {</span>
+<span class="lineNum">      97 </span>            :     initDataType = kWebM;
+<span class="lineNum">      98 </span><span class="lineNoCov">          0 :   } else if (!strcmp(aInitDataType, &quot;keyids&quot;)) {</span>
+<span class="lineNum">      99 </span>            :     initDataType = kKeyIds;
+<span class="lineNum">     100 </span>            :   } else {
+<span class="lineNum">     101 </span>            :     // Invalid init data type
+<span class="lineNum">     102 </span><span class="lineNoCov">          0 :     const char* errorMsg = &quot;Invalid init data type when creating session.&quot;;</span>
+<span class="lineNum">     103 </span><span class="lineNoCov">          0 :     OnRejectPromise(aPromiseId, kNotSupportedError, 0, errorMsg, sizeof(errorMsg));</span>
+<span class="lineNum">     104 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     105 </span>            :   }
+<span class="lineNum">     106 </span><span class="lineNoCov">          0 :   mPromiseIdToNewSessionTokens[aPromiseId] = aCreateSessionToken;</span>
+<span class="lineNum">     107 </span>            :   CDM()-&gt;CreateSessionAndGenerateRequest(aPromiseId,
+<span class="lineNum">     108 </span>            :                                          ToCDMSessionType(aSessionType),
+<span class="lineNum">     109 </span>            :                                          initDataType,
+<span class="lineNum">     110 </span><span class="lineNoCov">          0 :                                          aInitData, aInitDataSize);</span>
+<span class="lineNum">     111 </span>            : }
+<a name="112"><span class="lineNum">     112 </span>            : </a>
+<span class="lineNum">     113 </span>            : void
+<span class="lineNum">     114 </span><span class="lineNoCov">          0 : WidevineDecryptor::LoadSession(uint32_t aPromiseId,</span>
+<span class="lineNum">     115 </span>            :                                const char* aSessionId,
+<span class="lineNum">     116 </span>            :                                uint32_t aSessionIdLength)
+<span class="lineNum">     117 </span>            : {
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::LoadSession(pid=%d, %s)&quot;, aPromiseId, aSessionId);</span>
+<span class="lineNum">     119 </span>            :   // TODO: session type??
+<span class="lineNum">     120 </span><span class="lineNoCov">          0 :   CDM()-&gt;LoadSession(aPromiseId, kPersistentLicense, aSessionId, aSessionIdLength);</span>
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 : }</span>
+<a name="122"><span class="lineNum">     122 </span>            : </a>
+<span class="lineNum">     123 </span>            : void
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 : WidevineDecryptor::UpdateSession(uint32_t aPromiseId,</span>
+<span class="lineNum">     125 </span>            :                                  const char* aSessionId,
+<span class="lineNum">     126 </span>            :                                  uint32_t aSessionIdLength,
+<span class="lineNum">     127 </span>            :                                  const uint8_t* aResponse,
+<span class="lineNum">     128 </span>            :                                  uint32_t aResponseSize)
+<span class="lineNum">     129 </span>            : {
+<span class="lineNum">     130 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::UpdateSession(pid=%d, session=%s)&quot;, aPromiseId, aSessionId);</span>
+<span class="lineNum">     131 </span><span class="lineNoCov">          0 :   CDM()-&gt;UpdateSession(aPromiseId, aSessionId, aSessionIdLength, aResponse, aResponseSize);</span>
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 : }</span>
+<a name="133"><span class="lineNum">     133 </span>            : </a>
+<span class="lineNum">     134 </span>            : void
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 : WidevineDecryptor::CloseSession(uint32_t aPromiseId,</span>
+<span class="lineNum">     136 </span>            :                                 const char* aSessionId,
+<span class="lineNum">     137 </span>            :                                 uint32_t aSessionIdLength)
+<span class="lineNum">     138 </span>            : {
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::CloseSession(pid=%d, session=%s)&quot;, aPromiseId, aSessionId);</span>
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :   CDM()-&gt;CloseSession(aPromiseId, aSessionId, aSessionIdLength);</span>
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 : }</span>
+<a name="142"><span class="lineNum">     142 </span>            : </a>
+<span class="lineNum">     143 </span>            : void
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 : WidevineDecryptor::RemoveSession(uint32_t aPromiseId,</span>
+<span class="lineNum">     145 </span>            :                                  const char* aSessionId,
+<span class="lineNum">     146 </span>            :                                  uint32_t aSessionIdLength)
+<span class="lineNum">     147 </span>            : {
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::RemoveSession(%s)&quot;, aSessionId);</span>
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :   CDM()-&gt;RemoveSession(aPromiseId, aSessionId, aSessionIdLength);</span>
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 : }</span>
+<a name="151"><span class="lineNum">     151 </span>            : </a>
+<span class="lineNum">     152 </span>            : void
+<span class="lineNum">     153 </span><span class="lineNoCov">          0 : WidevineDecryptor::SetServerCertificate(uint32_t aPromiseId,</span>
+<span class="lineNum">     154 </span>            :                                         const uint8_t* aServerCert,
+<span class="lineNum">     155 </span>            :                                         uint32_t aServerCertSize)
+<span class="lineNum">     156 </span>            : {
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::SetServerCertificate()&quot;);</span>
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :   CDM()-&gt;SetServerCertificate(aPromiseId, aServerCert, aServerCertSize);</span>
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 : }</span>
+<a name="160"><span class="lineNum">     160 </span>            : </a>
+<span class="lineNum">     161 </span>            : void
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 : WidevineDecryptor::Decrypt(GMPBuffer* aBuffer,</span>
+<span class="lineNum">     163 </span>            :                            GMPEncryptedBufferMetadata* aMetadata)
+<span class="lineNum">     164 </span>            : {
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 :   if (!mCallback) {</span>
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :     CDM_LOG(&quot;WidevineDecryptor::Decrypt() this=%p FAIL; !mCallback&quot;, this);</span>
+<span class="lineNum">     167 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     168 </span>            :   }
+<span class="lineNum">     169 </span><span class="lineNoCov">          0 :   const GMPEncryptedBufferMetadata* crypto = aMetadata;</span>
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :   InputBuffer sample;</span>
+<span class="lineNum">     171 </span>            :   nsTArray&lt;SubsampleEntry&gt; subsamples;
+<span class="lineNum">     172 </span><span class="lineNoCov">          0 :   InitInputBuffer(crypto, aBuffer-&gt;Id(), aBuffer-&gt;Data(), aBuffer-&gt;Size(), sample, subsamples);</span>
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 :   WidevineDecryptedBlock decrypted;</span>
+<span class="lineNum">     174 </span><span class="lineNoCov">          0 :   Status rv = CDM()-&gt;Decrypt(sample, &amp;decrypted);</span>
+<span class="lineNum">     175 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::Decrypt(timestamp=%&quot; PRId64 &quot;) rv=%d sz=%d&quot;,</span>
+<span class="lineNum">     176 </span>            :           sample.timestamp, rv, decrypted.DecryptedBuffer()-&gt;Size());
+<span class="lineNum">     177 </span><span class="lineNoCov">          0 :   if (rv == kSuccess) {</span>
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :     aBuffer-&gt;Resize(decrypted.DecryptedBuffer()-&gt;Size());</span>
+<span class="lineNum">     179 </span><span class="lineNoCov">          0 :     memcpy(aBuffer-&gt;Data(),</span>
+<span class="lineNum">     180 </span><span class="lineNoCov">          0 :            decrypted.DecryptedBuffer()-&gt;Data(),</span>
+<span class="lineNum">     181 </span><span class="lineNoCov">          0 :            decrypted.DecryptedBuffer()-&gt;Size());</span>
+<span class="lineNum">     182 </span>            :   }
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 :   mCallback-&gt;Decrypted(aBuffer, ToGMPErr(rv));</span>
+<span class="lineNum">     184 </span>            : }
+<a name="185"><span class="lineNum">     185 </span>            : </a>
+<span class="lineNum">     186 </span>            : void
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 : WidevineDecryptor::DecryptingComplete()</span>
+<span class="lineNum">     188 </span>            : {
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;WidevineDecryptor::DecryptingComplete() this=%p, instanceId=%u&quot;,</span>
+<span class="lineNum">     190 </span>            :           this, mInstanceId);
+<span class="lineNum">     191 </span>            :   // Drop our references to the CDMWrapper. When any other references
+<span class="lineNum">     192 </span>            :   // held elsewhere are dropped (for example references held by a
+<span class="lineNum">     193 </span>            :   // WidevineVideoDecoder, or a runnable), the CDMWrapper destroys
+<span class="lineNum">     194 </span>            :   // the CDM.
+<span class="lineNum">     195 </span><span class="lineNoCov">          0 :   mCDM = nullptr;</span>
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :   sDecryptors.erase(mInstanceId);</span>
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :   mCallback = nullptr;</span>
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 :   Release();</span>
+<span class="lineNum">     199 </span><span class="lineNoCov">          0 : }</span>
+<a name="200"><span class="lineNum">     200 </span>            : </a>
+<span class="lineNum">     201 </span>            : Buffer*
+<span class="lineNum">     202 </span><span class="lineNoCov">          0 : WidevineDecryptor::Allocate(uint32_t aCapacity)</span>
+<span class="lineNum">     203 </span>            : {
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::Allocate(capacity=%u)&quot;, aCapacity);</span>
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :   return new WidevineBuffer(aCapacity);</span>
+<span class="lineNum">     206 </span>            : }
+<span class="lineNum">     207 </span>            : 
+<a name="208"><span class="lineNum">     208 </span>            : class TimerTask : public GMPTask {</a>
+<span class="lineNum">     209 </span>            : public:
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :   TimerTask(WidevineDecryptor* aDecryptor,</span>
+<span class="lineNum">     211 </span>            :             RefPtr&lt;CDMWrapper&gt; aCDM,
+<span class="lineNum">     212 </span>            :             void* aContext)
+<span class="lineNum">     213 </span>            :     : mDecryptor(aDecryptor)
+<span class="lineNum">     214 </span>            :     , mCDM(aCDM)
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 :     , mContext(aContext)</span>
+<a name="216"><span class="lineNum">     216 </span>            :   {</a>
+<a name="217"><span class="lineNum">     217 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">     218 </span><span class="lineNoCov">          0 :   ~TimerTask() override = default;</span>
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 :   void Run() override {</span>
+<a name="220"><span class="lineNum">     220 </span><span class="lineNoCov">          0 :     mCDM-&gt;GetCDM()-&gt;TimerExpired(mContext);</span></a>
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :   }</span>
+<span class="lineNum">     222 </span><span class="lineNoCov">          0 :   void Destroy() override { delete this; }</span>
+<span class="lineNum">     223 </span>            : private:
+<span class="lineNum">     224 </span>            :   RefPtr&lt;WidevineDecryptor&gt; mDecryptor;
+<span class="lineNum">     225 </span>            :   RefPtr&lt;CDMWrapper&gt; mCDM;
+<span class="lineNum">     226 </span>            :   void* mContext;
+<span class="lineNum">     227 </span>            : };
+<a name="228"><span class="lineNum">     228 </span>            : </a>
+<span class="lineNum">     229 </span>            : void
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 : WidevineDecryptor::SetTimer(int64_t aDelayMs, void* aContext)</span>
+<span class="lineNum">     231 </span>            : {
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::SetTimer(delay_ms=%&quot; PRId64 &quot;, context=0x%p)&quot;, aDelayMs, aContext);</span>
+<span class="lineNum">     233 </span><span class="lineNoCov">          0 :   if (mCDM) {</span>
+<span class="lineNum">     234 </span><span class="lineNoCov">          0 :     GMPSetTimerOnMainThread(new TimerTask(this, mCDM, aContext), aDelayMs);</span>
+<span class="lineNum">     235 </span>            :   }
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 : }</span>
+<a name="237"><span class="lineNum">     237 </span>            : </a>
+<span class="lineNum">     238 </span>            : Time
+<span class="lineNum">     239 </span><span class="lineNoCov">          0 : WidevineDecryptor::GetCurrentWallTime()</span>
+<span class="lineNum">     240 </span>            : {
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :   GMPTimestamp gmpTime = 0;</span>
+<span class="lineNum">     242 </span><span class="lineNoCov">          0 :   GMPGetCurrentTime(&amp;gmpTime);</span>
+<span class="lineNum">     243 </span><span class="lineNoCov">          0 :   double t = (double)gmpTime / 1e3;</span>
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::GetCurrentWallTime()= %lf&quot;, t);</span>
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :   return t;</span>
+<span class="lineNum">     246 </span>            : }
+<a name="247"><span class="lineNum">     247 </span>            : </a>
+<span class="lineNum">     248 </span>            : void
+<span class="lineNum">     249 </span><span class="lineNoCov">          0 : WidevineDecryptor::OnResolveNewSessionPromise(uint32_t aPromiseId,</span>
+<span class="lineNum">     250 </span>            :                                               const char* aSessionId,
+<span class="lineNum">     251 </span>            :                                               uint32_t aSessionIdSize)
+<span class="lineNum">     252 </span>            : {
+<span class="lineNum">     253 </span><span class="lineNoCov">          0 :   if (!mCallback) {</span>
+<span class="lineNum">     254 </span><span class="lineNoCov">          0 :     CDM_LOG(&quot;Decryptor::OnResolveNewSessionPromise(aPromiseId=0x%d) FAIL; !mCallback&quot;, aPromiseId);</span>
+<span class="lineNum">     255 </span>            :     return;
+<span class="lineNum">     256 </span>            :   }
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span>            :   // This is laid out in the API. If we fail to load a session we should
+<span class="lineNum">     259 </span>            :   // call OnResolveNewSessionPromise with nullptr as the sessionId.
+<span class="lineNum">     260 </span>            :   // We can safely assume this means that we have failed to load a session
+<span class="lineNum">     261 </span>            :   // as the other methods specify calling 'OnRejectPromise' when they fail.
+<span class="lineNum">     262 </span><span class="lineNoCov">          0 :   if (!aSessionId) {</span>
+<span class="lineNum">     263 </span><span class="lineNoCov">          0 :     CDM_LOG(&quot;Decryptor::OnResolveNewSessionPromise(aPromiseId=0x%d) Failed to load session&quot;, aPromiseId);</span>
+<span class="lineNum">     264 </span><span class="lineNoCov">          0 :     mCallback-&gt;ResolveLoadSessionPromise(aPromiseId, false);</span>
+<span class="lineNum">     265 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     266 </span>            :   }
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::OnResolveNewSessionPromise(aPromiseId=0x%d)&quot;, aPromiseId);</span>
+<span class="lineNum">     269 </span><span class="lineNoCov">          0 :   auto iter = mPromiseIdToNewSessionTokens.find(aPromiseId);</span>
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 :   if (iter == mPromiseIdToNewSessionTokens.end()) {</span>
+<span class="lineNum">     271 </span><span class="lineNoCov">          0 :     CDM_LOG(&quot;FAIL: Decryptor::OnResolveNewSessionPromise(aPromiseId=%d) unknown aPromiseId&quot;, aPromiseId);</span>
+<span class="lineNum">     272 </span>            :     return;
+<span class="lineNum">     273 </span>            :   }
+<span class="lineNum">     274 </span><span class="lineNoCov">          0 :   mCallback-&gt;SetSessionId(iter-&gt;second, aSessionId, aSessionIdSize);</span>
+<span class="lineNum">     275 </span><span class="lineNoCov">          0 :   mCallback-&gt;ResolvePromise(aPromiseId);</span>
+<span class="lineNum">     276 </span><span class="lineNoCov">          0 :   mPromiseIdToNewSessionTokens.erase(iter);</span>
+<span class="lineNum">     277 </span>            : }
+<a name="278"><span class="lineNum">     278 </span>            : </a>
+<span class="lineNum">     279 </span>            : void
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 : WidevineDecryptor::OnResolvePromise(uint32_t aPromiseId)</span>
+<span class="lineNum">     281 </span>            : {
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 :   if (!mCallback) {</span>
+<span class="lineNum">     283 </span><span class="lineNoCov">          0 :     CDM_LOG(&quot;Decryptor::OnResolvePromise(aPromiseId=0x%d) FAIL; !mCallback&quot;, aPromiseId);</span>
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     285 </span>            :   }
+<span class="lineNum">     286 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::OnResolvePromise(aPromiseId=%d)&quot;, aPromiseId);</span>
+<span class="lineNum">     287 </span><span class="lineNoCov">          0 :   mCallback-&gt;ResolvePromise(aPromiseId);</span>
+<span class="lineNum">     288 </span>            : }
+<a name="289"><span class="lineNum">     289 </span>            : </a>
+<span class="lineNum">     290 </span>            : static GMPDOMException
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 : ToGMPDOMException(cdm::Error aError)</span>
+<span class="lineNum">     292 </span>            : {
+<span class="lineNum">     293 </span><span class="lineNoCov">          0 :   switch (aError) {</span>
+<span class="lineNum">     294 </span>            :     case kNotSupportedError: return kGMPNotSupportedError;
+<span class="lineNum">     295 </span><span class="lineNoCov">          0 :     case kInvalidStateError: return kGMPInvalidStateError;</span>
+<span class="lineNum">     296 </span>            :     case kInvalidAccessError:
+<span class="lineNum">     297 </span>            :       // Note: Chrome converts kInvalidAccessError to TypeError, since the
+<span class="lineNum">     298 </span>            :       // Chromium CDM API doesn't have a type error enum value. The EME spec
+<span class="lineNum">     299 </span>            :       // requires TypeError in some places, so we do the same conversion.
+<span class="lineNum">     300 </span>            :       // See bug 1313202.
+<span class="lineNum">     301 </span><span class="lineNoCov">          0 :       return kGMPTypeError;</span>
+<span class="lineNum">     302 </span><span class="lineNoCov">          0 :     case kQuotaExceededError: return kGMPQuotaExceededError;</span>
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 :     case kUnknownError: return kGMPInvalidModificationError; // Note: Unique placeholder.</span>
+<span class="lineNum">     304 </span><span class="lineNoCov">          0 :     case kClientError: return kGMPAbortError; // Note: Unique placeholder.</span>
+<span class="lineNum">     305 </span><span class="lineNoCov">          0 :     case kOutputError: return kGMPSecurityError; // Note: Unique placeholder.</span>
+<span class="lineNum">     306 </span>            :   };
+<span class="lineNum">     307 </span><span class="lineNoCov">          0 :   return kGMPTimeoutError; // Note: Unique placeholder.</span>
+<span class="lineNum">     308 </span>            : }
+<a name="309"><span class="lineNum">     309 </span>            : </a>
+<span class="lineNum">     310 </span>            : void
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 : WidevineDecryptor::OnRejectPromise(uint32_t aPromiseId,</span>
+<span class="lineNum">     312 </span>            :                                    Error aError,
+<span class="lineNum">     313 </span>            :                                    uint32_t aSystemCode,
+<span class="lineNum">     314 </span>            :                                    const char* aErrorMessage,
+<span class="lineNum">     315 </span>            :                                    uint32_t aErrorMessageSize)
+<span class="lineNum">     316 </span>            : {
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :   if (!mCallback) {</span>
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :     CDM_LOG(&quot;Decryptor::OnRejectPromise(aPromiseId=%d, err=%d, sysCode=%u, msg=%s) FAIL; !mCallback&quot;,</span>
+<span class="lineNum">     319 </span>            :             aPromiseId, (int)aError, aSystemCode, aErrorMessage);
+<span class="lineNum">     320 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     321 </span>            :   }
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::OnRejectPromise(aPromiseId=%d, err=%d, sysCode=%u, msg=%s)&quot;,</span>
+<span class="lineNum">     323 </span>            :           aPromiseId, (int)aError, aSystemCode, aErrorMessage);
+<span class="lineNum">     324 </span>            :   mCallback-&gt;RejectPromise(aPromiseId,
+<span class="lineNum">     325 </span>            :                            ToGMPDOMException(aError),
+<span class="lineNum">     326 </span>            :                            !aErrorMessageSize ? &quot;&quot; : aErrorMessage,
+<span class="lineNum">     327 </span><span class="lineNoCov">          0 :                            aErrorMessageSize);</span>
+<span class="lineNum">     328 </span>            : }
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span>            : static GMPSessionMessageType
+<span class="lineNum">     331 </span>            : ToGMPMessageType(MessageType message_type)
+<span class="lineNum">     332 </span>            : {
+<span class="lineNum">     333 </span>            :   switch (message_type) {
+<span class="lineNum">     334 </span>            :     case kLicenseRequest: return kGMPLicenseRequest;
+<span class="lineNum">     335 </span>            :     case kLicenseRenewal: return kGMPLicenseRenewal;
+<span class="lineNum">     336 </span>            :     case kLicenseRelease: return kGMPLicenseRelease;
+<span class="lineNum">     337 </span>            :   }
+<span class="lineNum">     338 </span>            :   return kGMPMessageInvalid;
+<span class="lineNum">     339 </span>            : }
+<a name="340"><span class="lineNum">     340 </span>            : </a>
+<span class="lineNum">     341 </span>            : void
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 : WidevineDecryptor::OnSessionMessage(const char* aSessionId,</span>
+<span class="lineNum">     343 </span>            :                                     uint32_t aSessionIdSize,
+<span class="lineNum">     344 </span>            :                                     MessageType aMessageType,
+<span class="lineNum">     345 </span>            :                                     const char* aMessage,
+<span class="lineNum">     346 </span>            :                                     uint32_t aMessageSize,
+<span class="lineNum">     347 </span>            :                                     const char* aLegacyDestinationUrl,
+<span class="lineNum">     348 </span>            :                                     uint32_t aLegacyDestinationUrlLength)
+<span class="lineNum">     349 </span>            : {
+<span class="lineNum">     350 </span><span class="lineNoCov">          0 :   if (!mCallback) {</span>
+<span class="lineNum">     351 </span><span class="lineNoCov">          0 :     CDM_LOG(&quot;Decryptor::OnSessionMessage() FAIL; !mCallback&quot;);</span>
+<span class="lineNum">     352 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     353 </span>            :   }
+<span class="lineNum">     354 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::OnSessionMessage()&quot;);</span>
+<span class="lineNum">     355 </span>            :   mCallback-&gt;SessionMessage(aSessionId,
+<span class="lineNum">     356 </span>            :                             aSessionIdSize,
+<span class="lineNum">     357 </span>            :                             ToGMPMessageType(aMessageType),
+<span class="lineNum">     358 </span>            :                             reinterpret_cast&lt;const uint8_t*&gt;(aMessage),
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 :                             aMessageSize);</span>
+<span class="lineNum">     360 </span>            : }
+<span class="lineNum">     361 </span>            : 
+<span class="lineNum">     362 </span>            : static GMPMediaKeyStatus
+<span class="lineNum">     363 </span>            : ToGMPKeyStatus(KeyStatus aStatus)
+<span class="lineNum">     364 </span>            : {
+<span class="lineNum">     365 </span>            :   switch (aStatus) {
+<span class="lineNum">     366 </span>            :     case kUsable: return kGMPUsable;
+<span class="lineNum">     367 </span>            :     case kInternalError: return kGMPInternalError;
+<span class="lineNum">     368 </span>            :     case kExpired: return kGMPExpired;
+<span class="lineNum">     369 </span>            :     case kOutputRestricted: return kGMPOutputRestricted;
+<span class="lineNum">     370 </span>            :     case kOutputDownscaled: return kGMPOutputDownscaled;
+<span class="lineNum">     371 </span>            :     case kStatusPending: return kGMPStatusPending;
+<span class="lineNum">     372 </span>            :     case kReleased: return kGMPReleased;
+<span class="lineNum">     373 </span>            :   }
+<span class="lineNum">     374 </span>            :   return kGMPUnknown;
+<span class="lineNum">     375 </span>            : }
+<a name="376"><span class="lineNum">     376 </span>            : </a>
+<span class="lineNum">     377 </span>            : void
+<span class="lineNum">     378 </span><span class="lineNoCov">          0 : WidevineDecryptor::OnSessionKeysChange(const char* aSessionId,</span>
+<span class="lineNum">     379 </span>            :                                        uint32_t aSessionIdSize,
+<span class="lineNum">     380 </span>            :                                        bool aHasAdditionalUsableKey,
+<span class="lineNum">     381 </span>            :                                        const KeyInformation* aKeysInfo,
+<span class="lineNum">     382 </span>            :                                        uint32_t aKeysInfoCount)
+<span class="lineNum">     383 </span>            : {
+<span class="lineNum">     384 </span><span class="lineNoCov">          0 :   if (!mCallback) {</span>
+<span class="lineNum">     385 </span><span class="lineNoCov">          0 :     CDM_LOG(&quot;Decryptor::OnSessionKeysChange() FAIL; !mCallback&quot;);</span>
+<span class="lineNum">     386 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     387 </span>            :   }
+<span class="lineNum">     388 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::OnSessionKeysChange()&quot;);</span>
+<span class="lineNum">     389 </span>            : 
+<span class="lineNum">     390 </span>            :   nsTArray&lt;GMPMediaKeyInfo&gt; key_infos;
+<span class="lineNum">     391 </span><span class="lineNoCov">          0 :   for (uint32_t i = 0; i &lt; aKeysInfoCount; i++) {</span>
+<span class="lineNum">     392 </span>            :     key_infos.AppendElement(GMPMediaKeyInfo(aKeysInfo[i].key_id,
+<span class="lineNum">     393 </span>            :                                             aKeysInfo[i].key_id_size,
+<span class="lineNum">     394 </span><span class="lineNoCov">          0 :                                             ToGMPKeyStatus(aKeysInfo[i].status)));</span>
+<span class="lineNum">     395 </span>            :   }
+<span class="lineNum">     396 </span>            :   mCallback-&gt;BatchedKeyStatusChanged(aSessionId, aSessionIdSize,
+<span class="lineNum">     397 </span><span class="lineNoCov">          0 :                                      key_infos.Elements(), key_infos.Length());</span>
+<span class="lineNum">     398 </span>            : }
+<span class="lineNum">     399 </span>            : 
+<span class="lineNum">     400 </span>            : static GMPTimestamp
+<span class="lineNum">     401 </span>            : ToGMPTime(Time aCDMTime)
+<span class="lineNum">     402 </span>            : {
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :   return static_cast&lt;GMPTimestamp&gt;(aCDMTime * 1000);</span>
+<span class="lineNum">     404 </span>            : }
+<a name="405"><span class="lineNum">     405 </span>            : </a>
+<span class="lineNum">     406 </span>            : void
+<span class="lineNum">     407 </span><span class="lineNoCov">          0 : WidevineDecryptor::OnExpirationChange(const char* aSessionId,</span>
+<span class="lineNum">     408 </span>            :                                       uint32_t aSessionIdSize,
+<span class="lineNum">     409 </span>            :                                       Time aNewExpiryTime)
+<span class="lineNum">     410 </span>            : {
+<span class="lineNum">     411 </span><span class="lineNoCov">          0 :   if (!mCallback) {</span>
+<span class="lineNum">     412 </span><span class="lineNoCov">          0 :     CDM_LOG(&quot;Decryptor::OnExpirationChange(sid=%s) t=%lf FAIL; !mCallback&quot;,</span>
+<span class="lineNum">     413 </span>            :             aSessionId, aNewExpiryTime);
+<span class="lineNum">     414 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     415 </span>            :   }
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::OnExpirationChange(sid=%s) t=%lf&quot;, aSessionId, aNewExpiryTime);</span>
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :   mCallback-&gt;ExpirationChange(aSessionId, aSessionIdSize, ToGMPTime(aNewExpiryTime));</span>
+<span class="lineNum">     418 </span>            : }
+<a name="419"><span class="lineNum">     419 </span>            : </a>
+<span class="lineNum">     420 </span>            : void
+<span class="lineNum">     421 </span><span class="lineNoCov">          0 : WidevineDecryptor::OnSessionClosed(const char* aSessionId,</span>
+<span class="lineNum">     422 </span>            :                                    uint32_t aSessionIdSize)
+<span class="lineNum">     423 </span>            : {
+<span class="lineNum">     424 </span><span class="lineNoCov">          0 :   if (!mCallback) {</span>
+<span class="lineNum">     425 </span><span class="lineNoCov">          0 :     CDM_LOG(&quot;Decryptor::OnSessionClosed(sid=%s) FAIL; !mCallback&quot;, aSessionId);</span>
+<span class="lineNum">     426 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     427 </span>            :   }
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::OnSessionClosed(sid=%s)&quot;, aSessionId);</span>
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 :   mCallback-&gt;SessionClosed(aSessionId, aSessionIdSize);</span>
+<span class="lineNum">     430 </span>            : }
+<a name="431"><span class="lineNum">     431 </span>            : </a>
+<span class="lineNum">     432 </span>            : void
+<span class="lineNum">     433 </span><span class="lineNoCov">          0 : WidevineDecryptor::OnLegacySessionError(const char* aSessionId,</span>
+<span class="lineNum">     434 </span>            :                                         uint32_t aSessionIdLength,
+<span class="lineNum">     435 </span>            :                                         Error aError,
+<span class="lineNum">     436 </span>            :                                         uint32_t aSystemCode,
+<span class="lineNum">     437 </span>            :                                         const char* aErrorMessage,
+<span class="lineNum">     438 </span>            :                                         uint32_t aErrorMessageLength)
+<span class="lineNum">     439 </span>            : {
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :   if (!mCallback) {</span>
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :     CDM_LOG(&quot;Decryptor::OnLegacySessionError(sid=%s, error=%d) FAIL; !mCallback&quot;,</span>
+<span class="lineNum">     442 </span>            :             aSessionId, (int)aError);
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     444 </span>            :   }
+<span class="lineNum">     445 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::OnLegacySessionError(sid=%s, error=%d)&quot;, aSessionId, (int)aError);</span>
+<span class="lineNum">     446 </span>            :   mCallback-&gt;SessionError(aSessionId,
+<span class="lineNum">     447 </span>            :                           aSessionIdLength,
+<span class="lineNum">     448 </span>            :                           ToGMPDOMException(aError),
+<span class="lineNum">     449 </span>            :                           aSystemCode,
+<span class="lineNum">     450 </span>            :                           aErrorMessage,
+<span class="lineNum">     451 </span><span class="lineNoCov">          0 :                           aErrorMessageLength);</span>
+<span class="lineNum">     452 </span>            : }
+<a name="453"><span class="lineNum">     453 </span>            : </a>
+<span class="lineNum">     454 </span>            : void
+<span class="lineNum">     455 </span><span class="lineNoCov">          0 : WidevineDecryptor::SendPlatformChallenge(const char* aServiceId,</span>
+<span class="lineNum">     456 </span>            :                                          uint32_t aServiceIdSize,
+<span class="lineNum">     457 </span>            :                                          const char* aChallenge,
+<span class="lineNum">     458 </span>            :                                          uint32_t aChallengeSize)
+<span class="lineNum">     459 </span>            : {
+<span class="lineNum">     460 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::SendPlatformChallenge(service_id=%s)&quot;, aServiceId);</span>
+<span class="lineNum">     461 </span><span class="lineNoCov">          0 : }</span>
+<a name="462"><span class="lineNum">     462 </span>            : </a>
+<span class="lineNum">     463 </span>            : void
+<span class="lineNum">     464 </span><span class="lineNoCov">          0 : WidevineDecryptor::EnableOutputProtection(uint32_t aDesiredProtectionMask)</span>
+<span class="lineNum">     465 </span>            : {
+<span class="lineNum">     466 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::EnableOutputProtection(mask=0x%x)&quot;, aDesiredProtectionMask);</span>
+<span class="lineNum">     467 </span><span class="lineNoCov">          0 : }</span>
+<a name="468"><span class="lineNum">     468 </span>            : </a>
+<span class="lineNum">     469 </span>            : void
+<span class="lineNum">     470 </span><span class="lineNoCov">          0 : WidevineDecryptor::QueryOutputProtectionStatus()</span>
+<span class="lineNum">     471 </span>            : {
+<span class="lineNum">     472 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::QueryOutputProtectionStatus()&quot;);</span>
+<span class="lineNum">     473 </span><span class="lineNoCov">          0 : }</span>
+<a name="474"><span class="lineNum">     474 </span>            : </a>
+<span class="lineNum">     475 </span>            : void
+<span class="lineNum">     476 </span><span class="lineNoCov">          0 : WidevineDecryptor::OnDeferredInitializationDone(StreamType aStreamType,</span>
+<span class="lineNum">     477 </span>            :                                                 Status aDecoderStatus)
+<span class="lineNum">     478 </span>            : {
+<span class="lineNum">     479 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::OnDeferredInitializationDone()&quot;);</span>
+<span class="lineNum">     480 </span><span class="lineNoCov">          0 : }</span>
+<a name="481"><span class="lineNum">     481 </span>            : </a>
+<span class="lineNum">     482 </span>            : FileIO*
+<span class="lineNum">     483 </span><span class="lineNoCov">          0 : WidevineDecryptor::CreateFileIO(FileIOClient* aClient)</span>
+<span class="lineNum">     484 </span>            : {
+<span class="lineNum">     485 </span><span class="lineNoCov">          0 :   CDM_LOG(&quot;Decryptor::CreateFileIO()&quot;);</span>
+<span class="lineNum">     486 </span><span class="lineNoCov">          0 :   if (!mPersistentStateRequired) {</span>
+<span class="lineNum">     487 </span>            :     return nullptr;
+<span class="lineNum">     488 </span>            :   }
+<span class="lineNum">     489 </span><span class="lineNoCov">          0 :   return new WidevineFileIO(aClient);</span>
+<a name="490"><span class="lineNum">     490 </span>            : }</a>
+<span class="lineNum">     491 </span>            : 
+<span class="lineNum">     492 </span><span class="lineCov">          1 : } // namespace mozilla</span>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

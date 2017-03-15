@@ -1,0 +1,675 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/ipc/chromium/src/base/message_loop.cc</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">gecko-dev/ipc/chromium/src/base</a> - message_loop.cc<span style="font-size: 80%;"> (source / <a href="message_loop.cc.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">132</td>
+            <td class="headerCovTableEntry">173</td>
+            <td class="headerCovTableEntryMed">76.3 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">24</td>
+            <td class="headerCovTableEntry">32</td>
+            <td class="headerCovTableEntryMed">75.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* vim: set ts=8 sts=2 et sw=2 tw=80: */
+<span class="lineNum">       3 </span>            : // Copyright (c) 2009 The Chromium Authors. All rights reserved.
+<span class="lineNum">       4 </span>            : // Use of this source code is governed by a BSD-style license that can be
+<span class="lineNum">       5 </span>            : // found in the LICENSE file.
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #include &quot;base/message_loop.h&quot;
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;mozilla/Atomics.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;base/compiler_specific.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;base/logging.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;base/message_pump_default.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;base/string_util.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;base/thread_local.h&quot;
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : #if defined(OS_MACOSX)
+<span class="lineNum">      19 </span>            : #include &quot;base/message_pump_mac.h&quot;
+<span class="lineNum">      20 </span>            : #endif
+<span class="lineNum">      21 </span>            : #if defined(OS_POSIX)
+<span class="lineNum">      22 </span>            : #include &quot;base/message_pump_libevent.h&quot;
+<span class="lineNum">      23 </span>            : #endif
+<span class="lineNum">      24 </span>            : #if defined(OS_LINUX) || defined(OS_BSD)
+<span class="lineNum">      25 </span>            : #if defined(MOZ_WIDGET_GTK)
+<span class="lineNum">      26 </span>            : #include &quot;base/message_pump_glib.h&quot;
+<span class="lineNum">      27 </span>            : #endif
+<span class="lineNum">      28 </span>            : #endif
+<span class="lineNum">      29 </span>            : #ifdef ANDROID
+<span class="lineNum">      30 </span>            : #include &quot;base/message_pump_android.h&quot;
+<span class="lineNum">      31 </span>            : #endif
+<span class="lineNum">      32 </span>            : #ifdef MOZ_TASK_TRACER
+<span class="lineNum">      33 </span>            : #include &quot;GeckoTaskTracer.h&quot;
+<span class="lineNum">      34 </span>            : #include &quot;TracedTaskCommon.h&quot;
+<span class="lineNum">      35 </span>            : #endif
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            : #include &quot;MessagePump.h&quot;
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            : using base::Time;
+<span class="lineNum">      40 </span>            : using base::TimeDelta;
+<span class="lineNum">      41 </span>            : using base::TimeTicks;
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : using mozilla::Move;
+<a name="44"><span class="lineNum">      44 </span>            : using mozilla::Runnable;</a>
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span><span class="lineCov">          1 : static base::ThreadLocalPointer&lt;MessageLoop&gt;&amp; get_tls_ptr() {</span>
+<span class="lineNum">      47 </span><span class="lineCov">          1 :   static base::ThreadLocalPointer&lt;MessageLoop&gt; tls_ptr;</span>
+<span class="lineNum">      48 </span><span class="lineCov">          1 :   return tls_ptr;</span>
+<span class="lineNum">      49 </span>            : }
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            : //------------------------------------------------------------------------------
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span>            : // Logical events for Histogram profiling. Run with -message-loop-histogrammer
+<span class="lineNum">      54 </span>            : // to get an accounting of messages and actions taken on each thread.
+<span class="lineNum">      55 </span>            : static const int kTaskRunEvent = 0x1;
+<span class="lineNum">      56 </span>            : static const int kTimerEvent = 0x2;
+<span class="lineNum">      57 </span>            : 
+<span class="lineNum">      58 </span>            : // Provide range of message IDs for use in histogramming and debug display.
+<span class="lineNum">      59 </span>            : static const int kLeastNonZeroMessageId = 1;
+<span class="lineNum">      60 </span>            : static const int kMaxMessageId = 1099;
+<span class="lineNum">      61 </span>            : static const int kNumberOfDistinctMessagesDisplayed = 1100;
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span>            : //------------------------------------------------------------------------------
+<span class="lineNum">      64 </span>            : 
+<span class="lineNum">      65 </span>            : #if defined(OS_WIN)
+<span class="lineNum">      66 </span>            : 
+<span class="lineNum">      67 </span>            : // Upon a SEH exception in this thread, it restores the original unhandled
+<span class="lineNum">      68 </span>            : // exception filter.
+<span class="lineNum">      69 </span>            : static int SEHFilter(LPTOP_LEVEL_EXCEPTION_FILTER old_filter) {
+<span class="lineNum">      70 </span>            :   ::SetUnhandledExceptionFilter(old_filter);
+<span class="lineNum">      71 </span>            :   return EXCEPTION_CONTINUE_SEARCH;
+<span class="lineNum">      72 </span>            : }
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span>            : // Retrieves a pointer to the current unhandled exception filter. There
+<span class="lineNum">      75 </span>            : // is no standalone getter method.
+<span class="lineNum">      76 </span>            : static LPTOP_LEVEL_EXCEPTION_FILTER GetTopSEHFilter() {
+<span class="lineNum">      77 </span>            :   LPTOP_LEVEL_EXCEPTION_FILTER top_filter = NULL;
+<span class="lineNum">      78 </span>            :   top_filter = ::SetUnhandledExceptionFilter(0);
+<span class="lineNum">      79 </span>            :   ::SetUnhandledExceptionFilter(top_filter);
+<span class="lineNum">      80 </span>            :   return top_filter;
+<span class="lineNum">      81 </span>            : }
+<span class="lineNum">      82 </span>            : 
+<span class="lineNum">      83 </span>            : #endif  // defined(OS_WIN)
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span>            : //------------------------------------------------------------------------------
+<a name="86"><span class="lineNum">      86 </span>            : </a>
+<span class="lineNum">      87 </span>            : // static
+<span class="lineNum">      88 </span><span class="lineCov">          1 : MessageLoop* MessageLoop::current() {</span>
+<span class="lineNum">      89 </span><span class="lineCov">          1 :   return get_tls_ptr().Get();</span>
+<span class="lineNum">      90 </span>            : }
+<span class="lineNum">      91 </span>            : 
+<a name="92"><span class="lineNum">      92 </span>            : static mozilla::Atomic&lt;int32_t&gt; message_loop_id_seq(0);</a>
+<span class="lineNum">      93 </span>            : 
+<span class="lineNum">      94 </span><span class="lineCov">          1 : MessageLoop::MessageLoop(Type type, nsIThread* aThread)</span>
+<span class="lineNum">      95 </span>            :     : type_(type),
+<span class="lineNum">      96 </span><span class="lineCov">          1 :       id_(++message_loop_id_seq),</span>
+<span class="lineNum">      97 </span>            :       nestable_tasks_allowed_(true),
+<span class="lineNum">      98 </span>            :       exception_restoration_(false),
+<span class="lineNum">      99 </span>            :       state_(NULL),
+<span class="lineNum">     100 </span>            :       run_depth_base_(1),
+<span class="lineNum">     101 </span>            : #ifdef OS_WIN
+<span class="lineNum">     102 </span>            :       os_modal_loop_(false),
+<span class="lineNum">     103 </span>            : #endif  // OS_WIN
+<span class="lineNum">     104 </span>            :       transient_hang_timeout_(0),
+<span class="lineNum">     105 </span>            :       permanent_hang_timeout_(0),
+<span class="lineNum">     106 </span><span class="lineCov">          1 :       next_sequence_num_(0) {</span>
+<span class="lineNum">     107 </span>            :   DCHECK(!current()) &lt;&lt; &quot;should only have one message loop per thread&quot;;
+<span class="lineNum">     108 </span><span class="lineCov">          1 :   get_tls_ptr().Set(this);</span>
+<span class="lineNum">     109 </span>            : 
+<span class="lineNum">     110 </span><span class="lineCov">          1 :   switch (type_) {</span>
+<span class="lineNum">     111 </span>            :   case TYPE_MOZILLA_PARENT:
+<span class="lineNum">     112 </span><span class="lineCov">          1 :     MOZ_RELEASE_ASSERT(!aThread);</span>
+<span class="lineNum">     113 </span><span class="lineCov">          1 :     pump_ = new mozilla::ipc::MessagePump(aThread);</span>
+<span class="lineNum">     114 </span>            :     return;
+<span class="lineNum">     115 </span>            :   case TYPE_MOZILLA_CHILD:
+<span class="lineNum">     116 </span><span class="lineNoCov">          0 :     MOZ_RELEASE_ASSERT(!aThread);</span>
+<span class="lineNum">     117 </span><span class="lineNoCov">          0 :     pump_ = new mozilla::ipc::MessagePumpForChildProcess();</span>
+<span class="lineNum">     118 </span>            :     // There is a MessageLoop Run call from XRE_InitChildProcess
+<span class="lineNum">     119 </span>            :     // and another one from MessagePumpForChildProcess. The one
+<span class="lineNum">     120 </span>            :     // from MessagePumpForChildProcess becomes the base, so we need
+<span class="lineNum">     121 </span>            :     // to set run_depth_base_ to 2 or we'll never be able to process
+<span class="lineNum">     122 </span>            :     // Idle tasks.
+<span class="lineNum">     123 </span><span class="lineNoCov">          0 :     run_depth_base_ = 2;</span>
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     125 </span>            :   case TYPE_MOZILLA_NONMAINTHREAD:
+<span class="lineNum">     126 </span><span class="lineCov">          1 :     pump_ = new mozilla::ipc::MessagePumpForNonMainThreads(aThread);</span>
+<span class="lineNum">     127 </span>            :     return;
+<span class="lineNum">     128 </span>            : #if defined(OS_WIN)
+<span class="lineNum">     129 </span>            :   case TYPE_MOZILLA_NONMAINUITHREAD:
+<span class="lineNum">     130 </span>            :     pump_ = new mozilla::ipc::MessagePumpForNonMainUIThreads(aThread);
+<span class="lineNum">     131 </span>            :     return;
+<span class="lineNum">     132 </span>            : #endif
+<span class="lineNum">     133 </span>            : #if defined(MOZ_WIDGET_ANDROID)
+<span class="lineNum">     134 </span>            :   case TYPE_MOZILLA_ANDROID_UI:
+<span class="lineNum">     135 </span>            :     MOZ_RELEASE_ASSERT(aThread);
+<span class="lineNum">     136 </span>            :     pump_ = new mozilla::ipc::MessagePumpForAndroidUI(aThread);
+<span class="lineNum">     137 </span>            :     return;
+<span class="lineNum">     138 </span>            : #endif // defined(MOZ_WIDGET_ANDROID)
+<span class="lineNum">     139 </span>            :   default:
+<span class="lineNum">     140 </span>            :     // Create one of Chromium's standard MessageLoop types below.
+<span class="lineNum">     141 </span>            :     break;
+<span class="lineNum">     142 </span>            :   }
+<span class="lineNum">     143 </span>            : 
+<span class="lineNum">     144 </span>            : #if defined(OS_WIN)
+<span class="lineNum">     145 </span>            :   // TODO(rvargas): Get rid of the OS guards.
+<span class="lineNum">     146 </span>            :   if (type_ == TYPE_DEFAULT) {
+<span class="lineNum">     147 </span>            :     pump_ = new base::MessagePumpDefault();
+<span class="lineNum">     148 </span>            :   } else if (type_ == TYPE_IO) {
+<span class="lineNum">     149 </span>            :     pump_ = new base::MessagePumpForIO();
+<span class="lineNum">     150 </span>            :   } else {
+<span class="lineNum">     151 </span>            :     DCHECK(type_ == TYPE_UI);
+<span class="lineNum">     152 </span>            :     pump_ = new base::MessagePumpForUI();
+<span class="lineNum">     153 </span>            :   }
+<span class="lineNum">     154 </span>            : #elif defined(OS_POSIX)
+<span class="lineNum">     155 </span><span class="lineCov">          1 :   if (type_ == TYPE_UI) {</span>
+<span class="lineNum">     156 </span>            : #if defined(OS_MACOSX)
+<span class="lineNum">     157 </span>            :     pump_ = base::MessagePumpMac::Create();
+<span class="lineNum">     158 </span>            : #elif defined(OS_LINUX) || defined(OS_BSD)
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :     pump_ = new base::MessagePumpForUI();</span>
+<span class="lineNum">     160 </span>            : #endif  // OS_LINUX
+<span class="lineNum">     161 </span><span class="lineCov">          1 :   } else if (type_ == TYPE_IO) {</span>
+<span class="lineNum">     162 </span><span class="lineCov">          1 :     pump_ = new base::MessagePumpLibevent();</span>
+<span class="lineNum">     163 </span>            :   } else {
+<span class="lineNum">     164 </span><span class="lineCov">          1 :     pump_ = new base::MessagePumpDefault();</span>
+<span class="lineNum">     165 </span>            :   }
+<span class="lineNum">     166 </span>            : #endif  // OS_POSIX
+<a name="167"><span class="lineNum">     167 </span>            : }</a>
+<span class="lineNum">     168 </span>            : 
+<span class="lineNum">     169 </span><span class="lineCov">          1 : MessageLoop::~MessageLoop() {</span>
+<span class="lineNum">     170 </span>            :   DCHECK(this == current());
+<span class="lineNum">     171 </span>            : 
+<span class="lineNum">     172 </span>            :   // Let interested parties have one last shot at accessing this.
+<span class="lineNum">     173 </span><span class="lineCov">          1 :   FOR_EACH_OBSERVER(DestructionObserver, destruction_observers_,</span>
+<span class="lineNum">     174 </span>            :                     WillDestroyCurrentMessageLoop());
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span>            :   DCHECK(!state_);
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span>            :   // Clean up any unprocessed tasks, but take care: deleting a task could
+<span class="lineNum">     179 </span>            :   // result in the addition of more tasks (e.g., via DeleteSoon).  We set a
+<span class="lineNum">     180 </span>            :   // limit on the number of times we will allow a deleted task to generate more
+<span class="lineNum">     181 </span>            :   // tasks.  Normally, we should only pass through this loop once or twice.  If
+<span class="lineNum">     182 </span>            :   // we end up hitting the loop limit, then it is probably due to one task that
+<span class="lineNum">     183 </span>            :   // is being stubborn.  Inspect the queues to see who is left.
+<span class="lineNum">     184 </span>            :   bool did_work;
+<span class="lineNum">     185 </span><span class="lineCov">          1 :   for (int i = 0; i &lt; 100; ++i) {</span>
+<span class="lineNum">     186 </span><span class="lineCov">          1 :     DeletePendingTasks();</span>
+<span class="lineNum">     187 </span><span class="lineCov">          1 :     ReloadWorkQueue();</span>
+<span class="lineNum">     188 </span>            :     // If we end up with empty queues, then break out of the loop.
+<span class="lineNum">     189 </span><span class="lineCov">          1 :     did_work = DeletePendingTasks();</span>
+<span class="lineNum">     190 </span><span class="lineCov">          1 :     if (!did_work)</span>
+<span class="lineNum">     191 </span>            :       break;
+<span class="lineNum">     192 </span>            :   }
+<span class="lineNum">     193 </span>            :   DCHECK(!did_work);
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span>            :   // OK, now make it so that no one can find us.
+<span class="lineNum">     196 </span><span class="lineCov">          1 :   get_tls_ptr().Set(NULL);</span>
+<a name="197"><span class="lineNum">     197 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span><span class="lineNoCov">          0 : void MessageLoop::AddDestructionObserver(DestructionObserver *obs) {</span>
+<span class="lineNum">     200 </span>            :   DCHECK(this == current());
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :   destruction_observers_.AddObserver(obs);</span>
+<a name="202"><span class="lineNum">     202 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 : void MessageLoop::RemoveDestructionObserver(DestructionObserver *obs) {</span>
+<span class="lineNum">     205 </span>            :   DCHECK(this == current());
+<span class="lineNum">     206 </span><span class="lineNoCov">          0 :   destruction_observers_.RemoveObserver(obs);</span>
+<a name="207"><span class="lineNum">     207 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span><span class="lineCov">          1 : void MessageLoop::Run() {</span>
+<span class="lineNum">     210 </span><span class="lineCov">          1 :   AutoRunState save_state(this);</span>
+<span class="lineNum">     211 </span>            :   RunHandler();
+<span class="lineNum">     212 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     213 </span>            : 
+<span class="lineNum">     214 </span>            : // Runs the loop in two different SEH modes:
+<span class="lineNum">     215 </span>            : // enable_SEH_restoration_ = false : any unhandled exception goes to the last
+<span class="lineNum">     216 </span>            : // one that calls SetUnhandledExceptionFilter().
+<a name="217"><span class="lineNum">     217 </span>            : // enable_SEH_restoration_ = true : any unhandled exception goes to the filter</a>
+<span class="lineNum">     218 </span>            : // that was existed before the loop was run.
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 : void MessageLoop::RunHandler() {</span>
+<span class="lineNum">     220 </span>            : #if defined(OS_WIN)
+<span class="lineNum">     221 </span>            :   if (exception_restoration_) {
+<span class="lineNum">     222 </span>            :     LPTOP_LEVEL_EXCEPTION_FILTER current_filter = GetTopSEHFilter();
+<span class="lineNum">     223 </span>            :     MOZ_SEH_TRY {
+<span class="lineNum">     224 </span>            :       RunInternal();
+<span class="lineNum">     225 </span>            :     } MOZ_SEH_EXCEPT(SEHFilter(current_filter)) {
+<span class="lineNum">     226 </span>            :     }
+<span class="lineNum">     227 </span>            :     return;
+<span class="lineNum">     228 </span>            :   }
+<span class="lineNum">     229 </span>            : #endif
+<span class="lineNum">     230 </span>            : 
+<span class="lineNum">     231 </span><span class="lineCov">          1 :   RunInternal();</span>
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     233 </span>            : 
+<a name="234"><span class="lineNum">     234 </span>            : //------------------------------------------------------------------------------</a>
+<span class="lineNum">     235 </span>            : 
+<span class="lineNum">     236 </span><span class="lineCov">          1 : void MessageLoop::RunInternal() {</span>
+<span class="lineNum">     237 </span>            :   DCHECK(this == current());
+<span class="lineNum">     238 </span><span class="lineCov">          1 :   pump_-&gt;Run(this);</span>
+<span class="lineNum">     239 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span>            : //------------------------------------------------------------------------------
+<a name="242"><span class="lineNum">     242 </span>            : // Wrapper functions for use in above message loop framework.</a>
+<span class="lineNum">     243 </span>            : 
+<span class="lineNum">     244 </span><span class="lineCov">          1 : bool MessageLoop::ProcessNextDelayedNonNestableTask() {</span>
+<span class="lineNum">     245 </span><span class="lineCov">          1 :   if (state_-&gt;run_depth &gt; run_depth_base_)</span>
+<span class="lineNum">     246 </span>            :     return false;
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span><span class="lineCov">          1 :   if (deferred_non_nestable_work_queue_.empty())</span>
+<span class="lineNum">     249 </span>            :     return false;
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 :   RefPtr&lt;Runnable&gt; task = deferred_non_nestable_work_queue_.front().task.forget();</span>
+<span class="lineNum">     252 </span><span class="lineNoCov">          0 :   deferred_non_nestable_work_queue_.pop();</span>
+<span class="lineNum">     253 </span>            : 
+<span class="lineNum">     254 </span><span class="lineNoCov">          0 :   RunTask(task.forget());</span>
+<span class="lineNum">     255 </span><span class="lineNoCov">          0 :   return true;</span>
+<span class="lineNum">     256 </span>            : }
+<span class="lineNum">     257 </span>            : 
+<a name="258"><span class="lineNum">     258 </span>            : //------------------------------------------------------------------------------</a>
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span><span class="lineCov">          1 : void MessageLoop::Quit() {</span>
+<span class="lineNum">     261 </span>            :   DCHECK(current() == this);
+<span class="lineNum">     262 </span><span class="lineCov">          1 :   if (state_) {</span>
+<span class="lineNum">     263 </span><span class="lineCov">          1 :     state_-&gt;quit_received = true;</span>
+<span class="lineNum">     264 </span>            :   } else {
+<span class="lineNum">     265 </span><span class="lineNoCov">          0 :     NOTREACHED() &lt;&lt; &quot;Must be inside Run to call Quit&quot;;</span>
+<span class="lineNum">     266 </span>            :   }
+<a name="267"><span class="lineNum">     267 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span><span class="lineCov">          1 : void MessageLoop::PostTask(already_AddRefed&lt;Runnable&gt; task) {</span>
+<span class="lineNum">     270 </span><span class="lineCov">          1 :   PostTask_Helper(Move(task), 0);</span>
+<a name="271"><span class="lineNum">     271 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     272 </span>            : 
+<span class="lineNum">     273 </span><span class="lineCov">          1 : void MessageLoop::PostDelayedTask(already_AddRefed&lt;Runnable&gt; task, int delay_ms) {</span>
+<span class="lineNum">     274 </span><span class="lineCov">          1 :   PostTask_Helper(Move(task), delay_ms);</span>
+<a name="275"><span class="lineNum">     275 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span><span class="lineNoCov">          0 : void MessageLoop::PostIdleTask(already_AddRefed&lt;Runnable&gt; task) {</span>
+<span class="lineNum">     278 </span>            :   DCHECK(current() == this);
+<span class="lineNum">     279 </span>            :   MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     280 </span>            : 
+<span class="lineNum">     281 </span><span class="lineNoCov">          0 :   PendingTask pending_task(Move(task), false);</span>
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 :   deferred_non_nestable_work_queue_.push(Move(pending_task));</span>
+<span class="lineNum">     283 </span><span class="lineNoCov">          0 : }</span>
+<a name="284"><span class="lineNum">     284 </span>            : </a>
+<span class="lineNum">     285 </span>            : // Possibly called on a background thread!
+<span class="lineNum">     286 </span><span class="lineCov">          1 : void MessageLoop::PostTask_Helper(already_AddRefed&lt;Runnable&gt; task, int delay_ms) {</span>
+<span class="lineNum">     287 </span><span class="lineCov">          1 :   if (nsIEventTarget* target = pump_-&gt;GetXPCOMThread()) {</span>
+<span class="lineNum">     288 </span>            :     nsresult rv;
+<span class="lineNum">     289 </span><span class="lineCov">          1 :     if (delay_ms) {</span>
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :       rv = target-&gt;DelayedDispatch(Move(task), delay_ms);</span>
+<span class="lineNum">     291 </span>            :     } else {
+<span class="lineNum">     292 </span><span class="lineCov">          1 :       rv = target-&gt;Dispatch(Move(task), 0);</span>
+<span class="lineNum">     293 </span>            :     }
+<span class="lineNum">     294 </span>            :     MOZ_ALWAYS_SUCCEEDS(rv);
+<span class="lineNum">     295 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">     296 </span>            :   }
+<span class="lineNum">     297 </span>            : 
+<span class="lineNum">     298 </span>            : #ifdef MOZ_TASK_TRACER
+<span class="lineNum">     299 </span>            :   RefPtr&lt;Runnable&gt; tracedTask = mozilla::tasktracer::CreateTracedRunnable(Move(task));
+<span class="lineNum">     300 </span>            :   (static_cast&lt;mozilla::tasktracer::TracedRunnable*&gt;(tracedTask.get()))-&gt;DispatchTask();
+<span class="lineNum">     301 </span>            :   PendingTask pending_task(tracedTask.forget(), true);
+<span class="lineNum">     302 </span>            : #else
+<span class="lineNum">     303 </span><span class="lineCov">          1 :   PendingTask pending_task(Move(task), true);</span>
+<span class="lineNum">     304 </span>            : #endif
+<span class="lineNum">     305 </span>            : 
+<span class="lineNum">     306 </span><span class="lineCov">          1 :   if (delay_ms &gt; 0) {</span>
+<span class="lineNum">     307 </span><span class="lineCov">          1 :     pending_task.delayed_run_time =</span>
+<span class="lineNum">     308 </span>            :         TimeTicks::Now() + TimeDelta::FromMilliseconds(delay_ms);
+<span class="lineNum">     309 </span>            :   } else {
+<span class="lineNum">     310 </span>            :     DCHECK(delay_ms == 0) &lt;&lt; &quot;delay should not be negative&quot;;
+<span class="lineNum">     311 </span>            :   }
+<span class="lineNum">     312 </span>            : 
+<span class="lineNum">     313 </span>            :   // Warning: Don't try to short-circuit, and handle this thread's tasks more
+<span class="lineNum">     314 </span>            :   // directly, as it could starve handling of foreign threads.  Put every task
+<span class="lineNum">     315 </span>            :   // into this queue.
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span><span class="lineCov">          1 :   RefPtr&lt;base::MessagePump&gt; pump;</span>
+<span class="lineNum">     318 </span>            :   {
+<span class="lineNum">     319 </span><span class="lineCov">          1 :     AutoLock locked(incoming_queue_lock_);</span>
+<span class="lineNum">     320 </span><span class="lineCov">          1 :     incoming_queue_.push(Move(pending_task));</span>
+<span class="lineNum">     321 </span><span class="lineCov">          1 :     pump = pump_;</span>
+<span class="lineNum">     322 </span>            :   }
+<span class="lineNum">     323 </span>            :   // Since the incoming_queue_ may contain a task that destroys this message
+<span class="lineNum">     324 </span>            :   // loop, we cannot exit incoming_queue_lock_ until we are done with |this|.
+<span class="lineNum">     325 </span>            :   // We use a stack-based reference to the message pump so that we can call
+<span class="lineNum">     326 </span>            :   // ScheduleWork outside of incoming_queue_lock_.
+<span class="lineNum">     327 </span>            : 
+<span class="lineNum">     328 </span><span class="lineCov">          1 :   pump-&gt;ScheduleWork();</span>
+<a name="329"><span class="lineNum">     329 </span>            : }</a>
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span><span class="lineNoCov">          0 : void MessageLoop::SetNestableTasksAllowed(bool allowed) {</span>
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :   if (nestable_tasks_allowed_ != allowed) {</span>
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :     nestable_tasks_allowed_ = allowed;</span>
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :     if (!nestable_tasks_allowed_)</span>
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :       return;</span>
+<span class="lineNum">     336 </span>            :     // Start the native pump if we are not already pumping.
+<span class="lineNum">     337 </span><span class="lineNoCov">          0 :     pump_-&gt;ScheduleWorkForNestedLoop();</span>
+<span class="lineNum">     338 </span>            :   }
+<a name="339"><span class="lineNum">     339 </span>            : }</a>
+<span class="lineNum">     340 </span>            : 
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 : void MessageLoop::ScheduleWork() {</span>
+<span class="lineNum">     342 </span>            :   // Start the native pump if we are not already pumping.
+<span class="lineNum">     343 </span><span class="lineNoCov">          0 :   pump_-&gt;ScheduleWork();</span>
+<a name="344"><span class="lineNum">     344 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     345 </span>            : 
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 : bool MessageLoop::NestableTasksAllowed() const {</span>
+<span class="lineNum">     347 </span><span class="lineNoCov">          0 :   return nestable_tasks_allowed_;</span>
+<span class="lineNum">     348 </span>            : }
+<span class="lineNum">     349 </span>            : 
+<a name="350"><span class="lineNum">     350 </span>            : //------------------------------------------------------------------------------</a>
+<span class="lineNum">     351 </span>            : 
+<span class="lineNum">     352 </span><span class="lineCov">          1 : void MessageLoop::RunTask(already_AddRefed&lt;Runnable&gt; aTask) {</span>
+<span class="lineNum">     353 </span>            :   DCHECK(nestable_tasks_allowed_);
+<span class="lineNum">     354 </span>            :   // Execute the task and assume the worst: It is probably not reentrant.
+<span class="lineNum">     355 </span><span class="lineCov">          1 :   nestable_tasks_allowed_ = false;</span>
+<span class="lineNum">     356 </span>            : 
+<span class="lineNum">     357 </span>            :   RefPtr&lt;Runnable&gt; task = aTask;
+<span class="lineNum">     358 </span><span class="lineCov">          1 :   task-&gt;Run();</span>
+<span class="lineNum">     359 </span><span class="lineCov">          1 :   task = nullptr;</span>
+<span class="lineNum">     360 </span>            : 
+<span class="lineNum">     361 </span><span class="lineCov">          1 :   nestable_tasks_allowed_ = true;</span>
+<a name="362"><span class="lineNum">     362 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     363 </span>            : 
+<span class="lineNum">     364 </span><span class="lineCov">          1 : bool MessageLoop::DeferOrRunPendingTask(PendingTask&amp;&amp; pending_task) {</span>
+<span class="lineNum">     365 </span><span class="lineCov">          1 :   if (pending_task.nestable || state_-&gt;run_depth &lt;= run_depth_base_) {</span>
+<span class="lineNum">     366 </span><span class="lineCov">          1 :     RunTask(pending_task.task.forget());</span>
+<span class="lineNum">     367 </span>            :     // Show that we ran a task (Note: a new one might arrive as a
+<span class="lineNum">     368 </span>            :     // consequence!).
+<span class="lineNum">     369 </span><span class="lineCov">          1 :     return true;</span>
+<span class="lineNum">     370 </span>            :   }
+<span class="lineNum">     371 </span>            : 
+<span class="lineNum">     372 </span>            :   // We couldn't run the task now because we're in a nested message loop
+<span class="lineNum">     373 </span>            :   // and the task isn't nestable.
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :   deferred_non_nestable_work_queue_.push(Move(pending_task));</span>
+<span class="lineNum">     375 </span><span class="lineNoCov">          0 :   return false;</span>
+<a name="376"><span class="lineNum">     376 </span>            : }</a>
+<span class="lineNum">     377 </span>            : 
+<span class="lineNum">     378 </span><span class="lineCov">          1 : void MessageLoop::AddToDelayedWorkQueue(const PendingTask&amp; pending_task) {</span>
+<span class="lineNum">     379 </span>            :   // Move to the delayed work queue.  Initialize the sequence number
+<span class="lineNum">     380 </span>            :   // before inserting into the delayed_work_queue_.  The sequence number
+<span class="lineNum">     381 </span>            :   // is used to faciliate FIFO sorting when two tasks have the same
+<span class="lineNum">     382 </span>            :   // delayed_run_time value.
+<span class="lineNum">     383 </span><span class="lineCov">          1 :   PendingTask new_pending_task(pending_task);</span>
+<span class="lineNum">     384 </span><span class="lineCov">          1 :   new_pending_task.sequence_num = next_sequence_num_++;</span>
+<span class="lineNum">     385 </span><span class="lineCov">          1 :   delayed_work_queue_.push(Move(new_pending_task));</span>
+<a name="386"><span class="lineNum">     386 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     387 </span>            : 
+<span class="lineNum">     388 </span><span class="lineCov">          1 : void MessageLoop::ReloadWorkQueue() {</span>
+<span class="lineNum">     389 </span>            :   // We can improve performance of our loading tasks from incoming_queue_ to
+<span class="lineNum">     390 </span>            :   // work_queue_ by waiting until the last minute (work_queue_ is empty) to
+<span class="lineNum">     391 </span>            :   // load.  That reduces the number of locks-per-task significantly when our
+<span class="lineNum">     392 </span>            :   // queues get large.
+<span class="lineNum">     393 </span><span class="lineCov">          1 :   if (!work_queue_.empty())</span>
+<span class="lineNum">     394 </span>            :     return;  // Wait till we *really* need to lock and load.
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span>            :   // Acquire all we can from the inter-thread queue with one lock acquisition.
+<span class="lineNum">     397 </span>            :   {
+<span class="lineNum">     398 </span><span class="lineCov">          1 :     AutoLock lock(incoming_queue_lock_);</span>
+<span class="lineNum">     399 </span><span class="lineCov">          1 :     if (incoming_queue_.empty())</span>
+<span class="lineNum">     400 </span><span class="lineCov">          1 :       return;</span>
+<span class="lineNum">     401 </span><span class="lineCov">          1 :     std::swap(incoming_queue_, work_queue_);</span>
+<span class="lineNum">     402 </span><span class="lineCov">          1 :     DCHECK(incoming_queue_.empty());</span>
+<span class="lineNum">     403 </span>            :   }
+<a name="404"><span class="lineNum">     404 </span>            : }</a>
+<span class="lineNum">     405 </span>            : 
+<span class="lineNum">     406 </span><span class="lineCov">          1 : bool MessageLoop::DeletePendingTasks() {</span>
+<span class="lineNum">     407 </span>            :   MOZ_ASSERT(work_queue_.empty());
+<span class="lineNum">     408 </span><span class="lineCov">          1 :   bool did_work = !deferred_non_nestable_work_queue_.empty();</span>
+<span class="lineNum">     409 </span><span class="lineCov">          1 :   while (!deferred_non_nestable_work_queue_.empty()) {</span>
+<span class="lineNum">     410 </span><span class="lineNoCov">          0 :     deferred_non_nestable_work_queue_.pop();</span>
+<span class="lineNum">     411 </span>            :   }
+<span class="lineNum">     412 </span><span class="lineCov">          1 :   did_work |= !delayed_work_queue_.empty();</span>
+<span class="lineNum">     413 </span><span class="lineCov">          1 :   while (!delayed_work_queue_.empty()) {</span>
+<span class="lineNum">     414 </span><span class="lineCov">          1 :     delayed_work_queue_.pop();</span>
+<span class="lineNum">     415 </span>            :   }
+<span class="lineNum">     416 </span><span class="lineCov">          1 :   return did_work;</span>
+<a name="417"><span class="lineNum">     417 </span>            : }</a>
+<span class="lineNum">     418 </span>            : 
+<span class="lineNum">     419 </span><span class="lineCov">          1 : bool MessageLoop::DoWork() {</span>
+<span class="lineNum">     420 </span><span class="lineCov">          1 :   if (!nestable_tasks_allowed_) {</span>
+<span class="lineNum">     421 </span>            :     // Task can't be executed right now.
+<span class="lineNum">     422 </span>            :     return false;
+<span class="lineNum">     423 </span>            :   }
+<span class="lineNum">     424 </span>            : 
+<span class="lineNum">     425 </span>            :   for (;;) {
+<span class="lineNum">     426 </span><span class="lineCov">          1 :     ReloadWorkQueue();</span>
+<span class="lineNum">     427 </span><span class="lineCov">          1 :     if (work_queue_.empty())</span>
+<span class="lineNum">     428 </span>            :       break;
+<span class="lineNum">     429 </span>            : 
+<span class="lineNum">     430 </span>            :     // Execute oldest task.
+<span class="lineNum">     431 </span><span class="lineCov">          1 :     do {</span>
+<span class="lineNum">     432 </span><span class="lineCov">          1 :       PendingTask pending_task = Move(work_queue_.front());</span>
+<span class="lineNum">     433 </span><span class="lineCov">          1 :       work_queue_.pop();</span>
+<span class="lineNum">     434 </span><span class="lineCov">          1 :       if (!pending_task.delayed_run_time.is_null()) {</span>
+<span class="lineNum">     435 </span>            :         // NB: Don't move, because we use this later!
+<span class="lineNum">     436 </span><span class="lineCov">          1 :         AddToDelayedWorkQueue(pending_task);</span>
+<span class="lineNum">     437 </span>            :         // If we changed the topmost task, then it is time to re-schedule.
+<span class="lineNum">     438 </span><span class="lineCov">          1 :         if (delayed_work_queue_.top().task == pending_task.task)</span>
+<span class="lineNum">     439 </span><span class="lineCov">          1 :           pump_-&gt;ScheduleDelayedWork(pending_task.delayed_run_time);</span>
+<span class="lineNum">     440 </span>            :       } else {
+<span class="lineNum">     441 </span><span class="lineCov">          1 :         if (DeferOrRunPendingTask(Move(pending_task)))</span>
+<span class="lineNum">     442 </span><span class="lineCov">          1 :           return true;</span>
+<span class="lineNum">     443 </span>            :       }
+<span class="lineNum">     444 </span><span class="lineCov">          1 :     } while (!work_queue_.empty());</span>
+<span class="lineNum">     445 </span>            :   }
+<span class="lineNum">     446 </span>            : 
+<span class="lineNum">     447 </span>            :   // Nothing happened.
+<span class="lineNum">     448 </span>            :   return false;
+<a name="449"><span class="lineNum">     449 </span>            : }</a>
+<span class="lineNum">     450 </span>            : 
+<span class="lineNum">     451 </span><span class="lineCov">          1 : bool MessageLoop::DoDelayedWork(TimeTicks* next_delayed_work_time) {</span>
+<span class="lineNum">     452 </span><span class="lineCov">          1 :   if (!nestable_tasks_allowed_ || delayed_work_queue_.empty()) {</span>
+<span class="lineNum">     453 </span>            :     *next_delayed_work_time = TimeTicks();
+<span class="lineNum">     454 </span><span class="lineCov">          1 :     return false;</span>
+<span class="lineNum">     455 </span>            :   }
+<span class="lineNum">     456 </span>            : 
+<span class="lineNum">     457 </span><span class="lineCov">          1 :   if (delayed_work_queue_.top().delayed_run_time &gt; TimeTicks::Now()) {</span>
+<span class="lineNum">     458 </span><span class="lineCov">          1 :     *next_delayed_work_time = delayed_work_queue_.top().delayed_run_time;</span>
+<span class="lineNum">     459 </span><span class="lineCov">          1 :     return false;</span>
+<span class="lineNum">     460 </span>            :   }
+<span class="lineNum">     461 </span>            : 
+<span class="lineNum">     462 </span><span class="lineCov">          1 :   PendingTask pending_task = delayed_work_queue_.top();</span>
+<span class="lineNum">     463 </span><span class="lineCov">          1 :   delayed_work_queue_.pop();</span>
+<span class="lineNum">     464 </span>            : 
+<span class="lineNum">     465 </span><span class="lineCov">          1 :   if (!delayed_work_queue_.empty())</span>
+<span class="lineNum">     466 </span><span class="lineCov">          1 :     *next_delayed_work_time = delayed_work_queue_.top().delayed_run_time;</span>
+<span class="lineNum">     467 </span>            : 
+<span class="lineNum">     468 </span><span class="lineCov">          1 :   return DeferOrRunPendingTask(Move(pending_task));</span>
+<a name="469"><span class="lineNum">     469 </span>            : }</a>
+<span class="lineNum">     470 </span>            : 
+<span class="lineNum">     471 </span><span class="lineCov">          1 : bool MessageLoop::DoIdleWork() {</span>
+<span class="lineNum">     472 </span><span class="lineCov">          1 :   if (ProcessNextDelayedNonNestableTask())</span>
+<span class="lineNum">     473 </span>            :     return true;
+<span class="lineNum">     474 </span>            : 
+<span class="lineNum">     475 </span><span class="lineCov">          1 :   if (state_-&gt;quit_received)</span>
+<span class="lineNum">     476 </span><span class="lineCov">          1 :     pump_-&gt;Quit();</span>
+<span class="lineNum">     477 </span>            : 
+<span class="lineNum">     478 </span>            :   return false;
+<span class="lineNum">     479 </span>            : }
+<span class="lineNum">     480 </span>            : 
+<span class="lineNum">     481 </span>            : //------------------------------------------------------------------------------
+<a name="482"><span class="lineNum">     482 </span>            : // MessageLoop::AutoRunState</a>
+<span class="lineNum">     483 </span>            : 
+<span class="lineNum">     484 </span><span class="lineCov">          1 : MessageLoop::AutoRunState::AutoRunState(MessageLoop* loop) : loop_(loop) {</span>
+<span class="lineNum">     485 </span>            :   // Make the loop reference us.
+<span class="lineNum">     486 </span><span class="lineCov">          1 :   previous_state_ = loop_-&gt;state_;</span>
+<span class="lineNum">     487 </span><span class="lineCov">          1 :   if (previous_state_) {</span>
+<span class="lineNum">     488 </span><span class="lineNoCov">          0 :     run_depth = previous_state_-&gt;run_depth + 1;</span>
+<span class="lineNum">     489 </span>            :   } else {
+<span class="lineNum">     490 </span><span class="lineCov">          1 :     run_depth = 1;</span>
+<span class="lineNum">     491 </span>            :   }
+<span class="lineNum">     492 </span><span class="lineCov">          1 :   loop_-&gt;state_ = this;</span>
+<span class="lineNum">     493 </span>            : 
+<span class="lineNum">     494 </span>            :   // Initialize the other fields:
+<span class="lineNum">     495 </span><span class="lineCov">          1 :   quit_received = false;</span>
+<span class="lineNum">     496 </span>            : #if defined(OS_WIN)
+<span class="lineNum">     497 </span>            :   dispatcher = NULL;
+<span class="lineNum">     498 </span>            : #endif
+<a name="499"><span class="lineNum">     499 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     500 </span>            : 
+<span class="lineNum">     501 </span><span class="lineNoCov">          0 : MessageLoop::AutoRunState::~AutoRunState() {</span>
+<span class="lineNum">     502 </span><span class="lineCov">          1 :   loop_-&gt;state_ = previous_state_;</span>
+<span class="lineNum">     503 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     504 </span>            : 
+<span class="lineNum">     505 </span>            : //------------------------------------------------------------------------------
+<a name="506"><span class="lineNum">     506 </span>            : // MessageLoop::PendingTask</a>
+<span class="lineNum">     507 </span>            : 
+<span class="lineNum">     508 </span><span class="lineCov">          1 : bool MessageLoop::PendingTask::operator&lt;(const PendingTask&amp; other) const {</span>
+<span class="lineNum">     509 </span>            :   // Since the top of a priority queue is defined as the &quot;greatest&quot; element, we
+<span class="lineNum">     510 </span>            :   // need to invert the comparison here.  We want the smaller time to be at the
+<span class="lineNum">     511 </span>            :   // top of the heap.
+<span class="lineNum">     512 </span>            : 
+<span class="lineNum">     513 </span><span class="lineCov">          1 :   if (delayed_run_time &lt; other.delayed_run_time)</span>
+<span class="lineNum">     514 </span>            :     return false;
+<span class="lineNum">     515 </span>            : 
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :   if (delayed_run_time &gt; other.delayed_run_time)</span>
+<span class="lineNum">     517 </span>            :     return true;
+<span class="lineNum">     518 </span>            : 
+<span class="lineNum">     519 </span>            :   // If the times happen to match, then we use the sequence number to decide.
+<span class="lineNum">     520 </span>            :   // Compare the difference to support integer roll-over.
+<span class="lineNum">     521 </span><span class="lineNoCov">          0 :   return (sequence_num - other.sequence_num) &gt; 0;</span>
+<span class="lineNum">     522 </span>            : }
+<span class="lineNum">     523 </span>            : 
+<span class="lineNum">     524 </span>            : //------------------------------------------------------------------------------
+<span class="lineNum">     525 </span>            : // MessageLoopForUI
+<span class="lineNum">     526 </span>            : 
+<span class="lineNum">     527 </span>            : #if defined(OS_WIN)
+<span class="lineNum">     528 </span>            : 
+<span class="lineNum">     529 </span>            : void MessageLoopForUI::Run(Dispatcher* dispatcher) {
+<span class="lineNum">     530 </span>            :   AutoRunState save_state(this);
+<span class="lineNum">     531 </span>            :   state_-&gt;dispatcher = dispatcher;
+<span class="lineNum">     532 </span>            :   RunHandler();
+<span class="lineNum">     533 </span>            : }
+<span class="lineNum">     534 </span>            : 
+<span class="lineNum">     535 </span>            : void MessageLoopForUI::AddObserver(Observer* observer) {
+<span class="lineNum">     536 </span>            :   pump_win()-&gt;AddObserver(observer);
+<span class="lineNum">     537 </span>            : }
+<span class="lineNum">     538 </span>            : 
+<span class="lineNum">     539 </span>            : void MessageLoopForUI::RemoveObserver(Observer* observer) {
+<span class="lineNum">     540 </span>            :   pump_win()-&gt;RemoveObserver(observer);
+<span class="lineNum">     541 </span>            : }
+<span class="lineNum">     542 </span>            : 
+<span class="lineNum">     543 </span>            : void MessageLoopForUI::WillProcessMessage(const MSG&amp; message) {
+<span class="lineNum">     544 </span>            :   pump_win()-&gt;WillProcessMessage(message);
+<span class="lineNum">     545 </span>            : }
+<span class="lineNum">     546 </span>            : void MessageLoopForUI::DidProcessMessage(const MSG&amp; message) {
+<span class="lineNum">     547 </span>            :   pump_win()-&gt;DidProcessMessage(message);
+<span class="lineNum">     548 </span>            : }
+<span class="lineNum">     549 </span>            : void MessageLoopForUI::PumpOutPendingPaintMessages() {
+<span class="lineNum">     550 </span>            :   pump_ui()-&gt;PumpOutPendingPaintMessages();
+<span class="lineNum">     551 </span>            : }
+<span class="lineNum">     552 </span>            : 
+<span class="lineNum">     553 </span>            : #endif  // defined(OS_WIN)
+<span class="lineNum">     554 </span>            : 
+<span class="lineNum">     555 </span>            : //------------------------------------------------------------------------------
+<span class="lineNum">     556 </span>            : // MessageLoopForIO
+<span class="lineNum">     557 </span>            : 
+<span class="lineNum">     558 </span>            : #if defined(OS_WIN)
+<span class="lineNum">     559 </span>            : 
+<span class="lineNum">     560 </span>            : void MessageLoopForIO::RegisterIOHandler(HANDLE file, IOHandler* handler) {
+<span class="lineNum">     561 </span>            :   pump_io()-&gt;RegisterIOHandler(file, handler);
+<span class="lineNum">     562 </span>            : }
+<span class="lineNum">     563 </span>            : 
+<span class="lineNum">     564 </span>            : bool MessageLoopForIO::WaitForIOCompletion(DWORD timeout, IOHandler* filter) {
+<span class="lineNum">     565 </span>            :   return pump_io()-&gt;WaitForIOCompletion(timeout, filter);
+<span class="lineNum">     566 </span>            : }
+<span class="lineNum">     567 </span>            : 
+<a name="568"><span class="lineNum">     568 </span>            : #elif defined(OS_POSIX)</a>
+<span class="lineNum">     569 </span>            : 
+<span class="lineNum">     570 </span><span class="lineCov">          1 : bool MessageLoopForIO::WatchFileDescriptor(int fd,</span>
+<span class="lineNum">     571 </span>            :                                            bool persistent,
+<span class="lineNum">     572 </span>            :                                            Mode mode,
+<span class="lineNum">     573 </span>            :                                            FileDescriptorWatcher *controller,
+<span class="lineNum">     574 </span>            :                                            Watcher *delegate) {
+<span class="lineNum">     575 </span>            :   return pump_libevent()-&gt;WatchFileDescriptor(
+<span class="lineNum">     576 </span>            :       fd,
+<span class="lineNum">     577 </span>            :       persistent,
+<span class="lineNum">     578 </span>            :       static_cast&lt;base::MessagePumpLibevent::Mode&gt;(mode),
+<span class="lineNum">     579 </span>            :       controller,
+<span class="lineNum">     580 </span><span class="lineCov">          1 :       delegate);</span>
+<span class="lineNum">     581 </span>            : }
+<a name="582"><span class="lineNum">     582 </span>            : </a>
+<span class="lineNum">     583 </span>            : bool
+<span class="lineNum">     584 </span><span class="lineCov">          1 : MessageLoopForIO::CatchSignal(int sig,</span>
+<span class="lineNum">     585 </span>            :                               SignalEvent* sigevent,
+<span class="lineNum">     586 </span>            :                               SignalWatcher* delegate)
+<span class="lineNum">     587 </span>            : {
+<span class="lineNum">     588 </span><span class="lineCov">          1 :   return pump_libevent()-&gt;CatchSignal(sig, sigevent, delegate);</span>
+<span class="lineNum">     589 </span>            : }
+<span class="lineNum">     590 </span>            : 
+<span class="lineNum">     591 </span>            : #endif
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

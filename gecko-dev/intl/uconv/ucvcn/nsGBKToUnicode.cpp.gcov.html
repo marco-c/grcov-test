@@ -1,0 +1,328 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gecko-dev/intl/uconv/ucvcn/nsGBKToUnicode.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">gecko-dev/intl/uconv/ucvcn</a> - nsGBKToUnicode.cpp<span style="font-size: 80%;"> (source / <a href="nsGBKToUnicode.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">82</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 10:15:35</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">4</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C; tab-width: 4; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       3 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       4 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       5 </span>            : /**
+<span class="lineNum">       6 </span>            :  * A character set converter from GBK to Unicode.
+<span class="lineNum">       7 </span>            :  * 
+<span class="lineNum">       8 </span>            :  *
+<span class="lineNum">       9 </span>            :  * @created         07/Sept/1999
+<span class="lineNum">      10 </span>            :  * @author  Yueheng Xu, Yueheng.Xu@intel.com
+<span class="lineNum">      11 </span>            :  */
+<span class="lineNum">      12 </span>            : 
+<span class="lineNum">      13 </span>            : #include &quot;nsGBKToUnicode.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;gbku.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;nsUnicodeDecodeHelper.h&quot;
+<span class="lineNum">      16 </span>            : 
+<span class="lineNum">      17 </span>            : static const uint16_t g_utGB18030Unique2Bytes[] = {
+<span class="lineNum">      18 </span>            : #include &quot;gb18030uniq2b.ut&quot;
+<span class="lineNum">      19 </span>            : };
+<span class="lineNum">      20 </span>            : 
+<span class="lineNum">      21 </span>            : static const uint16_t g_utGB18030Unique4Bytes[] = {
+<span class="lineNum">      22 </span>            : #include &quot;gb180304bytes.ut&quot;
+<span class="lineNum">      23 </span>            : };
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : //----------------------------------------------------------------------
+<span class="lineNum">      26 </span>            : // Class nsGB18030ToUnicode [implementation]
+<span class="lineNum">      27 </span>            : 
+<span class="lineNum">      28 </span>            : //----------------------------------------------------------------------
+<span class="lineNum">      29 </span>            : // Subclassing of nsBufferDecoderSupport class [implementation]
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : #define LEGAL_GBK_MULTIBYTE_FIRST_BYTE(c)  \
+<span class="lineNum">      32 </span>            :       (UINT8_IN_RANGE(0x81, (c), 0xFE))
+<span class="lineNum">      33 </span>            : #define FIRST_BYTE_IS_SURROGATE(c)  \
+<span class="lineNum">      34 </span>            :       (UINT8_IN_RANGE(0x90, (c), 0xFE))
+<span class="lineNum">      35 </span>            : #define LEGAL_GBK_2BYTE_SECOND_BYTE(c) \
+<span class="lineNum">      36 </span>            :       (UINT8_IN_RANGE(0x40, (c), 0x7E)|| UINT8_IN_RANGE(0x80, (c), 0xFE))
+<span class="lineNum">      37 </span>            : #define LEGAL_GBK_4BYTE_SECOND_BYTE(c) \
+<span class="lineNum">      38 </span>            :       (UINT8_IN_RANGE(0x30, (c), 0x39))
+<span class="lineNum">      39 </span>            : #define LEGAL_GBK_4BYTE_THIRD_BYTE(c)  \
+<span class="lineNum">      40 </span>            :       (UINT8_IN_RANGE(0x81, (c), 0xFE))
+<span class="lineNum">      41 </span>            : #define LEGAL_GBK_4BYTE_FORTH_BYTE(c) \
+<a name="42"><span class="lineNum">      42 </span>            :       (UINT8_IN_RANGE(0x30, (c), 0x39))</a>
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span><span class="lineNoCov">          0 : NS_IMETHODIMP nsGB18030ToUnicode::ConvertNoBuff(const char* aSrc,</span>
+<span class="lineNum">      45 </span>            :                                                 int32_t * aSrcLength,
+<span class="lineNum">      46 </span>            :                                                 char16_t *aDest,
+<span class="lineNum">      47 </span>            :                                                 int32_t * aDestLength)
+<span class="lineNum">      48 </span>            : {
+<span class="lineNum">      49 </span><span class="lineNoCov">          0 :   int32_t i=0;</span>
+<span class="lineNum">      50 </span><span class="lineNoCov">          0 :   int32_t iSrcLength = (*aSrcLength);</span>
+<span class="lineNum">      51 </span><span class="lineNoCov">          0 :   int32_t iDestlen = 0;</span>
+<span class="lineNum">      52 </span><span class="lineNoCov">          0 :   nsresult rv=NS_OK;</span>
+<span class="lineNum">      53 </span><span class="lineNoCov">          0 :   *aSrcLength = 0;</span>
+<span class="lineNum">      54 </span>            :   
+<span class="lineNum">      55 </span><span class="lineNoCov">          0 :   for (i=0;i&lt;iSrcLength;i++)</span>
+<span class="lineNum">      56 </span>            :   {
+<span class="lineNum">      57 </span><span class="lineNoCov">          0 :     if ( iDestlen &gt;= (*aDestLength) )</span>
+<span class="lineNum">      58 </span>            :     {
+<span class="lineNum">      59 </span>            :       rv = NS_OK_UDEC_MOREOUTPUT;
+<span class="lineNum">      60 </span>            :       break;
+<span class="lineNum">      61 </span>            :     }
+<span class="lineNum">      62 </span>            :     // The valid range for the 1st byte is [0x81,0xFE] 
+<span class="lineNum">      63 </span><span class="lineNoCov">          0 :     if(LEGAL_GBK_MULTIBYTE_FIRST_BYTE(*aSrc))</span>
+<span class="lineNum">      64 </span>            :     {
+<span class="lineNum">      65 </span><span class="lineNoCov">          0 :       if(i+1 &gt;= iSrcLength) </span>
+<span class="lineNum">      66 </span>            :       {
+<span class="lineNum">      67 </span>            :         rv = NS_OK_UDEC_MOREINPUT;
+<span class="lineNum">      68 </span>            :         break;
+<span class="lineNum">      69 </span>            :       }
+<span class="lineNum">      70 </span>            :       // To make sure, the second byte has to be checked as well.
+<span class="lineNum">      71 </span>            :       // In GBK, the second byte range is [0x40,0x7E] and [0x80,0XFE]
+<span class="lineNum">      72 </span><span class="lineNoCov">          0 :       if(LEGAL_GBK_2BYTE_SECOND_BYTE(aSrc[1]))</span>
+<span class="lineNum">      73 </span>            :       {
+<span class="lineNum">      74 </span>            :         // Valid GBK code
+<span class="lineNum">      75 </span><span class="lineNoCov">          0 :         *aDest = mUtil.GBKCharToUnicode(aSrc[0], aSrc[1]);</span>
+<span class="lineNum">      76 </span><span class="lineNoCov">          0 :         if(UCS2_NO_MAPPING == *aDest)</span>
+<span class="lineNum">      77 </span>            :         { 
+<span class="lineNum">      78 </span>            :           // We cannot map in the common mapping, let's call the
+<span class="lineNum">      79 </span>            :           // delegate 2 byte decoder to decode the gbk or gb18030 unique 
+<span class="lineNum">      80 </span>            :           // 2 byte mapping
+<span class="lineNum">      81 </span><span class="lineNoCov">          0 :           if(! TryExtensionDecoder(aSrc, aDest))</span>
+<span class="lineNum">      82 </span>            :           {
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :             *aDest = UCS2_NO_MAPPING;</span>
+<span class="lineNum">      84 </span>            :           }
+<span class="lineNum">      85 </span>            :         }
+<span class="lineNum">      86 </span><span class="lineNoCov">          0 :         aSrc += 2;</span>
+<span class="lineNum">      87 </span><span class="lineNoCov">          0 :         i++;</span>
+<span class="lineNum">      88 </span>            :       }
+<span class="lineNum">      89 </span><span class="lineNoCov">          0 :       else if (LEGAL_GBK_4BYTE_SECOND_BYTE(aSrc[1]))</span>
+<span class="lineNum">      90 </span>            :       {
+<span class="lineNum">      91 </span>            :         // from the first 2 bytes, it looks like a 4 byte GB18030
+<span class="lineNum">      92 </span><span class="lineNoCov">          0 :         if(i+3 &gt;= iSrcLength)  // make sure we got 4 bytes</span>
+<span class="lineNum">      93 </span>            :         {
+<span class="lineNum">      94 </span>            :           rv = NS_OK_UDEC_MOREINPUT;
+<span class="lineNum">      95 </span>            :           break;
+<span class="lineNum">      96 </span>            :         }
+<span class="lineNum">      97 </span>            :         // 4 bytes patten
+<span class="lineNum">      98 </span>            :         // [0x81-0xfe][0x30-0x39][0x81-0xfe][0x30-0x39]
+<span class="lineNum">      99 </span>            :         // preset the 
+<span class="lineNum">     100 </span>            :  
+<span class="lineNum">     101 </span><span class="lineNoCov">          0 :         if (LEGAL_GBK_4BYTE_THIRD_BYTE(aSrc[2]) &amp;&amp;</span>
+<span class="lineNum">     102 </span><span class="lineNoCov">          0 :             LEGAL_GBK_4BYTE_FORTH_BYTE(aSrc[3]))</span>
+<span class="lineNum">     103 </span>            :         {
+<span class="lineNum">     104 </span><span class="lineNoCov">          0 :            if ( ! FIRST_BYTE_IS_SURROGATE(aSrc[0])) </span>
+<span class="lineNum">     105 </span>            :            {
+<span class="lineNum">     106 </span>            :              // let's call the delegated 4 byte gb18030 converter to convert it
+<span class="lineNum">     107 </span><span class="lineNoCov">          0 :              if (!Try4BytesDecoder(aSrc, aDest)) {</span>
+<span class="lineNum">     108 </span><span class="lineNoCov">          0 :                *aDest = UCS2_NO_MAPPING;</span>
+<span class="lineNum">     109 </span>            :              }
+<span class="lineNum">     110 </span>            :              // Swapped character in GB18030-2005
+<span class="lineNum">     111 </span><span class="lineNoCov">          0 :              if (*aDest == 0x1E3F) {</span>
+<span class="lineNum">     112 </span><span class="lineNoCov">          0 :                *aDest = 0xE7C7;</span>
+<span class="lineNum">     113 </span>            :              }
+<span class="lineNum">     114 </span>            :            } else {
+<span class="lineNum">     115 </span>            :               // let's try supplement mapping
+<span class="lineNum">     116 </span><span class="lineNoCov">          0 :              if ( (iDestlen+1) &lt; (*aDestLength) )</span>
+<span class="lineNum">     117 </span>            :              {
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :                if(DecodeToSurrogate(aSrc, aDest))</span>
+<span class="lineNum">     119 </span>            :                {
+<span class="lineNum">     120 </span>            :                  // surrogte two char16_t
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :                  iDestlen++;</span>
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :                  aDest++;</span>
+<span class="lineNum">     123 </span>            :                }  else {
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :                  *aDest = UCS2_NO_MAPPING;</span>
+<span class="lineNum">     125 </span>            :               }
+<span class="lineNum">     126 </span>            :              } else {
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 :                if (*aDestLength &lt; 2) {</span>
+<span class="lineNum">     128 </span>            :                  NS_ERROR(&quot;insufficient space in output buffer&quot;);
+<span class="lineNum">     129 </span><span class="lineNoCov">          0 :                  *aDest = UCS2_NO_MAPPING;</span>
+<span class="lineNum">     130 </span>            :                } else {
+<span class="lineNum">     131 </span>            :                  rv = NS_OK_UDEC_MOREOUTPUT;
+<span class="lineNum">     132 </span>            :                  break;
+<span class="lineNum">     133 </span>            :                }
+<span class="lineNum">     134 </span>            :              }
+<span class="lineNum">     135 </span>            :            }
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 :            aSrc += 4;</span>
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :            i += 3;</span>
+<span class="lineNum">     138 </span>            :         } else {
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :           *aDest = UCS2_NO_MAPPING; </span>
+<span class="lineNum">     140 </span>            :           // If the third and fourth bytes are not in the legal ranges for
+<span class="lineNum">     141 </span>            :           // a four-byte sequnce, resynchronize on the second byte
+<span class="lineNum">     142 </span>            :           // (which we know is in the range of LEGAL_GBK_4BYTE_SECOND_BYTE,
+<span class="lineNum">     143 </span>            :           //  0x30-0x39)
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :           aSrc++;</span>
+<span class="lineNum">     145 </span>            :         }
+<span class="lineNum">     146 </span>            :       }
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 :       else if ((uint8_t) aSrc[0] == (uint8_t)0xA0 )</span>
+<span class="lineNum">     148 </span>            :       {
+<span class="lineNum">     149 </span>            :         // stand-alone (not followed by a valid second byte) 0xA0 !
+<span class="lineNum">     150 </span>            :         // treat it as valid a la Netscape 4.x
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :         *aDest = CAST_CHAR_TO_UNICHAR(*aSrc);</span>
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :         aSrc++;</span>
+<span class="lineNum">     153 </span>            :       } else {
+<span class="lineNum">     154 </span>            :         // Invalid GBK code point (second byte should be 0x40 or higher)
+<span class="lineNum">     155 </span><span class="lineNoCov">          0 :         *aDest = UCS2_NO_MAPPING;</span>
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :         aSrc++;</span>
+<span class="lineNum">     157 </span>            :       }
+<span class="lineNum">     158 </span>            :     } else {
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :       if(IS_ASCII(*aSrc))</span>
+<span class="lineNum">     160 </span>            :       {
+<span class="lineNum">     161 </span>            :         // The source is an ASCII
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :         *aDest = CAST_CHAR_TO_UNICHAR(*aSrc);</span>
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :         aSrc++;</span>
+<span class="lineNum">     164 </span>            :       } else {
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 :         if(IS_GBK_EURO(*aSrc)) {</span>
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :           *aDest = UCS2_EURO;</span>
+<span class="lineNum">     167 </span>            :         } else {
+<span class="lineNum">     168 </span><span class="lineNoCov">          0 :           *aDest = UCS2_NO_MAPPING;</span>
+<span class="lineNum">     169 </span>            :         }
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :         aSrc++;</span>
+<span class="lineNum">     171 </span>            :       }
+<span class="lineNum">     172 </span>            :     }
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 :     iDestlen++;</span>
+<span class="lineNum">     174 </span><span class="lineNoCov">          0 :     aDest++;</span>
+<span class="lineNum">     175 </span><span class="lineNoCov">          0 :     *aSrcLength = i+1;</span>
+<span class="lineNum">     176 </span>            :   }
+<span class="lineNum">     177 </span><span class="lineNoCov">          0 :   *aDestLength = iDestlen;</span>
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :   return rv;</span>
+<a name="179"><span class="lineNum">     179 </span>            : }</a>
+<span class="lineNum">     180 </span>            : 
+<span class="lineNum">     181 </span><span class="lineNoCov">          0 : bool nsGB18030ToUnicode::DecodeToSurrogate(const char* aSrc, char16_t* aOut)</span>
+<span class="lineNum">     182 </span>            : {
+<span class="lineNum">     183 </span>            :   NS_ASSERTION(FIRST_BYTE_IS_SURROGATE(aSrc[0]),       &quot;illegal first byte&quot;);
+<span class="lineNum">     184 </span>            :   NS_ASSERTION(LEGAL_GBK_4BYTE_SECOND_BYTE(aSrc[1]),   &quot;illegal second byte&quot;);
+<span class="lineNum">     185 </span>            :   NS_ASSERTION(LEGAL_GBK_4BYTE_THIRD_BYTE(aSrc[2]),    &quot;illegal third byte&quot;);
+<span class="lineNum">     186 </span>            :   NS_ASSERTION(LEGAL_GBK_4BYTE_FORTH_BYTE(aSrc[3]),    &quot;illegal forth byte&quot;);
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 :   if(! FIRST_BYTE_IS_SURROGATE(aSrc[0]))</span>
+<span class="lineNum">     188 </span>            :     return false;
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 :   if(! LEGAL_GBK_4BYTE_SECOND_BYTE(aSrc[1]))</span>
+<span class="lineNum">     190 </span>            :     return false;
+<span class="lineNum">     191 </span><span class="lineNoCov">          0 :   if(! LEGAL_GBK_4BYTE_THIRD_BYTE(aSrc[2]))</span>
+<span class="lineNum">     192 </span>            :     return false;
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 :   if(! LEGAL_GBK_4BYTE_FORTH_BYTE(aSrc[3]))</span>
+<span class="lineNum">     194 </span>            :     return false;
+<span class="lineNum">     195 </span>            : 
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :   uint8_t a1 = (uint8_t) aSrc[0];</span>
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :   uint8_t a2 = (uint8_t) aSrc[1];</span>
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 :   uint8_t a3 = (uint8_t) aSrc[2];</span>
+<span class="lineNum">     199 </span><span class="lineNoCov">          0 :   uint8_t a4 = (uint8_t) aSrc[3];</span>
+<span class="lineNum">     200 </span><span class="lineNoCov">          0 :   a1 -= (uint8_t)0x90;</span>
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :   a2 -= (uint8_t)0x30;</span>
+<span class="lineNum">     202 </span><span class="lineNoCov">          0 :   a3 -= (uint8_t)0x81;</span>
+<span class="lineNum">     203 </span><span class="lineNoCov">          0 :   a4 -= (uint8_t)0x30;</span>
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 :   uint32_t idx = (((a1 * 10 + a2 ) * 126 + a3) * 10) + a4;</span>
+<span class="lineNum">     205 </span>            :   // idx == ucs4Codepoint - 0x10000
+<span class="lineNum">     206 </span><span class="lineNoCov">          0 :   if (idx &gt; 0x000FFFFF)</span>
+<span class="lineNum">     207 </span>            :     return false;
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 :   *aOut++ = 0xD800 | (idx &gt;&gt; 10);</span>
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :   *aOut = 0xDC00 | (0x000003FF &amp; idx);</span>
+<span class="lineNum">     211 </span>            : 
+<a name="212"><span class="lineNum">     212 </span><span class="lineNoCov">          0 :   return true;</span></a>
+<span class="lineNum">     213 </span>            : }
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 : bool nsGB18030ToUnicode::TryExtensionDecoder(const char* aSrc, char16_t* aOut)</span>
+<span class="lineNum">     215 </span>            : {
+<span class="lineNum">     216 </span><span class="lineNoCov">          0 :   int32_t len = 2;</span>
+<span class="lineNum">     217 </span><span class="lineNoCov">          0 :   int32_t dstlen = 1;</span>
+<span class="lineNum">     218 </span>            :   nsresult res =
+<span class="lineNum">     219 </span>            :     nsUnicodeDecodeHelper::ConvertByTable(aSrc, &amp;len, aOut, &amp;dstlen,
+<span class="lineNum">     220 </span>            :                                           u2BytesCharset, nullptr,
+<span class="lineNum">     221 </span>            :                                           (uMappingTable*) &amp;g_utGB18030Unique2Bytes,
+<span class="lineNum">     222 </span><span class="lineNoCov">          0 :                                           false);</span>
+<span class="lineNum">     223 </span>            :   NS_ASSERTION(NS_FAILED(res) || ((len==2) &amp;&amp; (dstlen == 1)),
+<span class="lineNum">     224 </span>            :                &quot;some strange conversion result&quot;);
+<span class="lineNum">     225 </span>            :   // if we failed, we then just use the 0xfffd
+<span class="lineNum">     226 </span>            :   // therefore, we ignore the res here.
+<span class="lineNum">     227 </span><span class="lineNoCov">          0 :   return NS_SUCCEEDED(res);</span>
+<a name="228"><span class="lineNum">     228 </span>            : }</a>
+<span class="lineNum">     229 </span>            : 
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 : bool nsGB18030ToUnicode::Try4BytesDecoder(const char* aSrc, char16_t* aOut)</span>
+<span class="lineNum">     231 </span>            : {
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :   int32_t len = 4;</span>
+<span class="lineNum">     233 </span><span class="lineNoCov">          0 :   int32_t dstlen = 1;</span>
+<span class="lineNum">     234 </span>            :   nsresult res =
+<span class="lineNum">     235 </span>            :     nsUnicodeDecodeHelper::ConvertByTable(aSrc, &amp;len, aOut, &amp;dstlen,
+<span class="lineNum">     236 </span>            :                                           u4BytesGB18030Charset, nullptr,
+<span class="lineNum">     237 </span>            :                                           (uMappingTable*) &amp;g_utGB18030Unique4Bytes,
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :                                           false); </span>
+<span class="lineNum">     239 </span>            :   NS_ASSERTION(NS_FAILED(res) || ((len==4) &amp;&amp; (dstlen == 1)),
+<span class="lineNum">     240 </span>            :                &quot;some strange conversion result&quot;);
+<span class="lineNum">     241 </span>            :   // if we failed, we then just use the 0xfffd
+<span class="lineNum">     242 </span>            :   // therefore, we ignore the res here.
+<span class="lineNum">     243 </span><span class="lineNoCov">          0 :   return NS_SUCCEEDED(res);</span>
+<span class="lineNum">     244 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>
