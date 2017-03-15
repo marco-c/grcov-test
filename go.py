@@ -85,7 +85,7 @@ print(len(ordered_files))
 fout = open("output.info", 'w')
 ferr = open("error", 'w')
 cmd = ['grcov', '-z', '-t', 'lcov', '-s', '/home/worker/workspace/build/src/']
-cmd.extend(ordered_files)
+cmd.extend(ordered_files[:7])
 proc = subprocess.Popen(cmd, stdout=fout, stderr=ferr)
 i = 0
 while proc.poll() is None:
