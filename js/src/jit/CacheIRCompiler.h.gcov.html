@@ -31,17 +31,17 @@
             <td class="headerValue">output.info</td>
             <td></td>
             <td class="headerItem">Lines:</td>
-            <td class="headerCovTableEntry">118</td>
-            <td class="headerCovTableEntry">128</td>
-            <td class="headerCovTableEntryHi">92.2 %</td>
+            <td class="headerCovTableEntry">123</td>
+            <td class="headerCovTableEntry">135</td>
+            <td class="headerCovTableEntryHi">91.1 %</td>
           </tr>
           <tr>
             <td class="headerItem">Date:</td>
-            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td class="headerValue">2017-03-15 21:34:37</td>
             <td></td>
             <td class="headerItem">Functions:</td>
-            <td class="headerCovTableEntry">13</td>
-            <td class="headerCovTableEntry">13</td>
+            <td class="headerCovTableEntry">15</td>
+            <td class="headerCovTableEntry">15</td>
             <td class="headerCovTableEntryHi">100.0 %</td>
           </tr>
           <tr>
@@ -652,135 +652,156 @@
 <span class="lineNum">     582 </span>            :     void emitStoreTypedObjectReferenceProp(ValueOperand val, ReferenceTypeDescr::Type type,
 <span class="lineNum">     583 </span>            :                                            const Address&amp; dest, Register scratch);
 <span class="lineNum">     584 </span>            : 
-<span class="lineNum">     585 </span>            : #define DEFINE_SHARED_OP(op) MOZ_MUST_USE bool emit##op();
-<span class="lineNum">     586 </span>            :     CACHE_IR_SHARED_OPS(DEFINE_SHARED_OP)
-<span class="lineNum">     587 </span>            : #undef DEFINE_SHARED_OP
-<span class="lineNum">     588 </span>            : };
-<span class="lineNum">     589 </span>            : 
-<span class="lineNum">     590 </span>            : // Ensures the IC's output register is available for writing.
-<span class="lineNum">     591 </span>            : class MOZ_RAII AutoOutputRegister
-<span class="lineNum">     592 </span>            : {
-<span class="lineNum">     593 </span>            :     TypedOrValueRegister output_;
-<span class="lineNum">     594 </span>            :     CacheRegisterAllocator&amp; alloc_;
-<span class="lineNum">     595 </span>            : 
-<span class="lineNum">     596 </span>            :     AutoOutputRegister(const AutoOutputRegister&amp;) = delete;
-<span class="lineNum">     597 </span>            :     void operator=(const AutoOutputRegister&amp;) = delete;
-<span class="lineNum">     598 </span>            : 
-<span class="lineNum">     599 </span>            :   public:
-<span class="lineNum">     600 </span>            :     explicit AutoOutputRegister(CacheIRCompiler&amp; compiler);
-<span class="lineNum">     601 </span>            :     ~AutoOutputRegister();
-<span class="lineNum">     602 </span>            : 
-<span class="lineNum">     603 </span>            :     Register maybeReg() const {
-<span class="lineNum">     604 </span><span class="lineCov">          1 :         if (output_.hasValue())</span>
-<span class="lineNum">     605 </span><span class="lineCov">          1 :             return output_.valueReg().scratchReg();</span>
-<span class="lineNum">     606 </span><span class="lineCov">          1 :         if (!output_.typedReg().isFloat())</span>
-<span class="lineNum">     607 </span><span class="lineCov">          1 :             return output_.typedReg().gpr();</span>
-<span class="lineNum">     608 </span>            :         return InvalidReg;
-<span class="lineNum">     609 </span>            :     }
+<span class="lineNum">     585 </span>            :   private:
+<span class="lineNum">     586 </span>            :     void emitPostBarrierShared(Register obj, const ConstantOrRegister&amp; val, Register scratch,
+<span class="lineNum">     587 </span>            :                                Register maybeIndex);
+<span class="lineNum">     588 </span>            : 
+<span class="lineNum">     589 </span>            :     void emitPostBarrierShared(Register obj, ValueOperand val, Register scratch,
+<span class="lineNum">     590 </span>            :                                Register maybeIndex) {
+<span class="lineNum">     591 </span><span class="lineCov">          1 :         emitPostBarrierShared(obj, ConstantOrRegister(val), scratch, maybeIndex);</span>
+<span class="lineNum">     592 </span>            :     }
+<span class="lineNum">     593 </span>            : 
+<a name="594"><span class="lineNum">     594 </span>            :   protected:</a>
+<span class="lineNum">     595 </span>            :     template &lt;typename T&gt;
+<span class="lineNum">     596 </span><span class="lineCov">          1 :     void emitPostBarrierSlot(Register obj, const T&amp; val, Register scratch) {</span>
+<span class="lineNum">     597 </span><span class="lineCov">          1 :         emitPostBarrierShared(obj, val, scratch, InvalidReg);</span>
+<span class="lineNum">     598 </span><span class="lineCov">          1 :     }</span>
+<a name="599"><span class="lineNum">     599 </span>            : </a>
+<span class="lineNum">     600 </span>            :     template &lt;typename T&gt;
+<span class="lineNum">     601 </span><span class="lineCov">          1 :     void emitPostBarrierElement(Register obj, const T&amp; val, Register scratch, Register index) {</span>
+<span class="lineNum">     602 </span>            :         MOZ_ASSERT(index != InvalidReg);
+<span class="lineNum">     603 </span><span class="lineCov">          1 :         emitPostBarrierShared(obj, val, scratch, index);</span>
+<span class="lineNum">     604 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     605 </span>            : 
+<span class="lineNum">     606 </span>            : #define DEFINE_SHARED_OP(op) MOZ_MUST_USE bool emit##op();
+<span class="lineNum">     607 </span>            :     CACHE_IR_SHARED_OPS(DEFINE_SHARED_OP)
+<span class="lineNum">     608 </span>            : #undef DEFINE_SHARED_OP
+<span class="lineNum">     609 </span>            : };
 <span class="lineNum">     610 </span>            : 
-<span class="lineNum">     611 </span><span class="lineCov">          1 :     bool hasValue() const { return output_.hasValue(); }</span>
-<span class="lineNum">     612 </span><span class="lineCov">          1 :     ValueOperand valueReg() const { return output_.valueReg(); }</span>
-<span class="lineNum">     613 </span><span class="lineCov">          1 :     AnyRegister typedReg() const { return output_.typedReg(); }</span>
-<span class="lineNum">     614 </span>            : 
-<span class="lineNum">     615 </span>            :     JSValueType type() const {
-<span class="lineNum">     616 </span>            :         MOZ_ASSERT(!hasValue());
-<span class="lineNum">     617 </span><span class="lineCov">          1 :         return ValueTypeFromMIRType(output_.type());</span>
-<span class="lineNum">     618 </span>            :     }
+<span class="lineNum">     611 </span>            : // Ensures the IC's output register is available for writing.
+<span class="lineNum">     612 </span>            : class MOZ_RAII AutoOutputRegister
+<span class="lineNum">     613 </span>            : {
+<span class="lineNum">     614 </span>            :     TypedOrValueRegister output_;
+<span class="lineNum">     615 </span>            :     CacheRegisterAllocator&amp; alloc_;
+<span class="lineNum">     616 </span>            : 
+<span class="lineNum">     617 </span>            :     AutoOutputRegister(const AutoOutputRegister&amp;) = delete;
+<span class="lineNum">     618 </span>            :     void operator=(const AutoOutputRegister&amp;) = delete;
 <span class="lineNum">     619 </span>            : 
-<span class="lineNum">     620 </span><span class="lineCov">          1 :     operator TypedOrValueRegister() const { return output_; }</span>
-<span class="lineNum">     621 </span>            : };
-<span class="lineNum">     622 </span>            : 
-<span class="lineNum">     623 </span>            : // Like AutoScratchRegister, but reuse a register of |output| if possible.
-<span class="lineNum">     624 </span><span class="lineCov">          1 : class MOZ_RAII AutoScratchRegisterMaybeOutput</span>
-<span class="lineNum">     625 </span>            : {
-<span class="lineNum">     626 </span>            :     mozilla::Maybe&lt;AutoScratchRegister&gt; scratch_;
-<span class="lineNum">     627 </span>            :     Register scratchReg_;
-<span class="lineNum">     628 </span>            : 
-<span class="lineNum">     629 </span>            :     AutoScratchRegisterMaybeOutput(const AutoScratchRegisterMaybeOutput&amp;) = delete;
-<span class="lineNum">     630 </span>            :     void operator=(const AutoScratchRegisterMaybeOutput&amp;) = delete;
-<a name="631"><span class="lineNum">     631 </span>            : </a>
-<span class="lineNum">     632 </span>            :   public:
-<span class="lineNum">     633 </span><span class="lineCov">          1 :     AutoScratchRegisterMaybeOutput(CacheRegisterAllocator&amp; alloc, MacroAssembler&amp; masm,</span>
-<span class="lineNum">     634 </span>            :                                    const AutoOutputRegister&amp; output)
-<span class="lineNum">     635 </span><span class="lineCov">          1 :     {</span>
-<span class="lineNum">     636 </span><span class="lineCov">          1 :         scratchReg_ = output.maybeReg();</span>
-<span class="lineNum">     637 </span><span class="lineCov">          1 :         if (scratchReg_ == InvalidReg) {</span>
-<span class="lineNum">     638 </span><span class="lineNoCov">          0 :             scratch_.emplace(alloc, masm);</span>
-<span class="lineNum">     639 </span><span class="lineNoCov">          0 :             scratchReg_ = scratch_.ref();</span>
-<span class="lineNum">     640 </span>            :         }
-<span class="lineNum">     641 </span><span class="lineCov">          1 :     }</span>
-<span class="lineNum">     642 </span>            : 
-<span class="lineNum">     643 </span>            :     operator Register() const { return scratchReg_; }
-<span class="lineNum">     644 </span>            : };
-<span class="lineNum">     645 </span>            : 
-<span class="lineNum">     646 </span>            : // See the 'Sharing Baseline stub code' comment in CacheIR.h for a description
-<span class="lineNum">     647 </span>            : // of this class.
-<span class="lineNum">     648 </span>            : class CacheIRStubInfo
-<span class="lineNum">     649 </span>            : {
-<span class="lineNum">     650 </span>            :     // These fields don't require 8 bits, but GCC complains if these fields are
-<span class="lineNum">     651 </span>            :     // smaller than the size of the enums.
-<span class="lineNum">     652 </span>            :     CacheKind kind_ : 8;
-<span class="lineNum">     653 </span>            :     ICStubEngine engine_ : 8;
-<span class="lineNum">     654 </span>            :     bool makesGCCalls_ : 1;
-<span class="lineNum">     655 </span>            :     uint8_t stubDataOffset_;
-<span class="lineNum">     656 </span>            : 
-<span class="lineNum">     657 </span>            :     const uint8_t* code_;
-<span class="lineNum">     658 </span>            :     uint32_t length_;
-<span class="lineNum">     659 </span>            :     const uint8_t* fieldTypes_;
-<span class="lineNum">     660 </span>            : 
-<span class="lineNum">     661 </span>            :     CacheIRStubInfo(CacheKind kind, ICStubEngine engine, bool makesGCCalls,
-<span class="lineNum">     662 </span>            :                     uint32_t stubDataOffset, const uint8_t* code, uint32_t codeLength,
-<span class="lineNum">     663 </span>            :                     const uint8_t* fieldTypes)
-<span class="lineNum">     664 </span>            :       : kind_(kind),
-<span class="lineNum">     665 </span>            :         engine_(engine),
-<span class="lineNum">     666 </span>            :         makesGCCalls_(makesGCCalls),
-<span class="lineNum">     667 </span>            :         stubDataOffset_(stubDataOffset),
-<span class="lineNum">     668 </span>            :         code_(code),
-<span class="lineNum">     669 </span>            :         length_(codeLength),
-<span class="lineNum">     670 </span><span class="lineCov">          1 :         fieldTypes_(fieldTypes)</span>
-<span class="lineNum">     671 </span>            :     {
-<span class="lineNum">     672 </span>            :         MOZ_ASSERT(kind_ == kind, &quot;Kind must fit in bitfield&quot;);
-<span class="lineNum">     673 </span>            :         MOZ_ASSERT(engine_ == engine, &quot;Engine must fit in bitfield&quot;);
-<span class="lineNum">     674 </span>            :         MOZ_ASSERT(stubDataOffset_ == stubDataOffset, &quot;stubDataOffset must fit in uint8_t&quot;);
-<span class="lineNum">     675 </span>            :     }
-<span class="lineNum">     676 </span>            : 
-<span class="lineNum">     677 </span>            :     CacheIRStubInfo(const CacheIRStubInfo&amp;) = delete;
-<span class="lineNum">     678 </span>            :     CacheIRStubInfo&amp; operator=(const CacheIRStubInfo&amp;) = delete;
-<span class="lineNum">     679 </span>            : 
-<span class="lineNum">     680 </span>            :   public:
-<span class="lineNum">     681 </span><span class="lineCov">          1 :     CacheKind kind() const { return kind_; }</span>
-<span class="lineNum">     682 </span><span class="lineCov">          1 :     ICStubEngine engine() const { return engine_; }</span>
-<span class="lineNum">     683 </span><span class="lineCov">          1 :     bool makesGCCalls() const { return makesGCCalls_; }</span>
-<span class="lineNum">     684 </span>            : 
-<span class="lineNum">     685 </span>            :     const uint8_t* code() const { return code_; }
-<span class="lineNum">     686 </span>            :     uint32_t codeLength() const { return length_; }
-<span class="lineNum">     687 </span><span class="lineCov">          1 :     uint32_t stubDataOffset() const { return stubDataOffset_; }</span>
-<span class="lineNum">     688 </span>            : 
-<span class="lineNum">     689 </span>            :     size_t stubDataSize() const;
-<span class="lineNum">     690 </span>            : 
-<span class="lineNum">     691 </span><span class="lineCov">          1 :     StubField::Type fieldType(uint32_t i) const { return (StubField::Type)fieldTypes_[i]; }</span>
-<span class="lineNum">     692 </span>            : 
-<span class="lineNum">     693 </span>            :     static CacheIRStubInfo* New(CacheKind kind, ICStubEngine engine, bool canMakeCalls,
-<span class="lineNum">     694 </span>            :                                 uint32_t stubDataOffset, const CacheIRWriter&amp; writer);
-<span class="lineNum">     695 </span>            : 
-<span class="lineNum">     696 </span>            :     template &lt;class Stub, class T&gt;
-<span class="lineNum">     697 </span>            :     js::GCPtr&lt;T&gt;&amp; getStubField(Stub* stub, uint32_t field) const;
-<span class="lineNum">     698 </span>            : 
-<span class="lineNum">     699 </span>            :     template &lt;class T&gt;
-<span class="lineNum">     700 </span>            :     js::GCPtr&lt;T&gt;&amp; getStubField(ICStub* stub, uint32_t field) const {
-<span class="lineNum">     701 </span><span class="lineCov">          1 :         return getStubField&lt;ICStub, T&gt;(stub, field);</span>
-<span class="lineNum">     702 </span>            :     }
-<span class="lineNum">     703 </span>            : 
-<span class="lineNum">     704 </span>            :     void copyStubData(ICStub* src, ICStub* dest) const;
-<span class="lineNum">     705 </span>            : };
-<span class="lineNum">     706 </span>            : 
-<span class="lineNum">     707 </span>            : template &lt;typename T&gt;
-<span class="lineNum">     708 </span>            : void TraceCacheIRStub(JSTracer* trc, T* stub, const CacheIRStubInfo* stubInfo);
+<span class="lineNum">     620 </span>            :   public:
+<span class="lineNum">     621 </span>            :     explicit AutoOutputRegister(CacheIRCompiler&amp; compiler);
+<span class="lineNum">     622 </span>            :     ~AutoOutputRegister();
+<span class="lineNum">     623 </span>            : 
+<span class="lineNum">     624 </span>            :     Register maybeReg() const {
+<span class="lineNum">     625 </span><span class="lineCov">          1 :         if (output_.hasValue())</span>
+<span class="lineNum">     626 </span><span class="lineCov">          1 :             return output_.valueReg().scratchReg();</span>
+<span class="lineNum">     627 </span><span class="lineCov">          1 :         if (!output_.typedReg().isFloat())</span>
+<span class="lineNum">     628 </span><span class="lineCov">          1 :             return output_.typedReg().gpr();</span>
+<span class="lineNum">     629 </span>            :         return InvalidReg;
+<span class="lineNum">     630 </span>            :     }
+<span class="lineNum">     631 </span>            : 
+<span class="lineNum">     632 </span><span class="lineCov">          1 :     bool hasValue() const { return output_.hasValue(); }</span>
+<span class="lineNum">     633 </span><span class="lineCov">          1 :     ValueOperand valueReg() const { return output_.valueReg(); }</span>
+<span class="lineNum">     634 </span><span class="lineNoCov">          0 :     AnyRegister typedReg() const { return output_.typedReg(); }</span>
+<span class="lineNum">     635 </span>            : 
+<span class="lineNum">     636 </span>            :     JSValueType type() const {
+<span class="lineNum">     637 </span>            :         MOZ_ASSERT(!hasValue());
+<span class="lineNum">     638 </span><span class="lineNoCov">          0 :         return ValueTypeFromMIRType(output_.type());</span>
+<span class="lineNum">     639 </span>            :     }
+<span class="lineNum">     640 </span>            : 
+<span class="lineNum">     641 </span><span class="lineCov">          1 :     operator TypedOrValueRegister() const { return output_; }</span>
+<span class="lineNum">     642 </span>            : };
+<span class="lineNum">     643 </span>            : 
+<span class="lineNum">     644 </span>            : // Like AutoScratchRegister, but reuse a register of |output| if possible.
+<span class="lineNum">     645 </span><span class="lineCov">          1 : class MOZ_RAII AutoScratchRegisterMaybeOutput</span>
+<span class="lineNum">     646 </span>            : {
+<span class="lineNum">     647 </span>            :     mozilla::Maybe&lt;AutoScratchRegister&gt; scratch_;
+<span class="lineNum">     648 </span>            :     Register scratchReg_;
+<span class="lineNum">     649 </span>            : 
+<span class="lineNum">     650 </span>            :     AutoScratchRegisterMaybeOutput(const AutoScratchRegisterMaybeOutput&amp;) = delete;
+<span class="lineNum">     651 </span>            :     void operator=(const AutoScratchRegisterMaybeOutput&amp;) = delete;
+<a name="652"><span class="lineNum">     652 </span>            : </a>
+<span class="lineNum">     653 </span>            :   public:
+<span class="lineNum">     654 </span><span class="lineCov">          1 :     AutoScratchRegisterMaybeOutput(CacheRegisterAllocator&amp; alloc, MacroAssembler&amp; masm,</span>
+<span class="lineNum">     655 </span>            :                                    const AutoOutputRegister&amp; output)
+<span class="lineNum">     656 </span><span class="lineCov">          1 :     {</span>
+<span class="lineNum">     657 </span><span class="lineCov">          1 :         scratchReg_ = output.maybeReg();</span>
+<span class="lineNum">     658 </span><span class="lineCov">          1 :         if (scratchReg_ == InvalidReg) {</span>
+<span class="lineNum">     659 </span><span class="lineNoCov">          0 :             scratch_.emplace(alloc, masm);</span>
+<span class="lineNum">     660 </span><span class="lineNoCov">          0 :             scratchReg_ = scratch_.ref();</span>
+<span class="lineNum">     661 </span>            :         }
+<span class="lineNum">     662 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     663 </span>            : 
+<span class="lineNum">     664 </span>            :     operator Register() const { return scratchReg_; }
+<span class="lineNum">     665 </span>            : };
+<span class="lineNum">     666 </span>            : 
+<span class="lineNum">     667 </span>            : // See the 'Sharing Baseline stub code' comment in CacheIR.h for a description
+<span class="lineNum">     668 </span>            : // of this class.
+<span class="lineNum">     669 </span>            : class CacheIRStubInfo
+<span class="lineNum">     670 </span>            : {
+<span class="lineNum">     671 </span>            :     // These fields don't require 8 bits, but GCC complains if these fields are
+<span class="lineNum">     672 </span>            :     // smaller than the size of the enums.
+<span class="lineNum">     673 </span>            :     CacheKind kind_ : 8;
+<span class="lineNum">     674 </span>            :     ICStubEngine engine_ : 8;
+<span class="lineNum">     675 </span>            :     bool makesGCCalls_ : 1;
+<span class="lineNum">     676 </span>            :     uint8_t stubDataOffset_;
+<span class="lineNum">     677 </span>            : 
+<span class="lineNum">     678 </span>            :     const uint8_t* code_;
+<span class="lineNum">     679 </span>            :     uint32_t length_;
+<span class="lineNum">     680 </span>            :     const uint8_t* fieldTypes_;
+<span class="lineNum">     681 </span>            : 
+<span class="lineNum">     682 </span>            :     CacheIRStubInfo(CacheKind kind, ICStubEngine engine, bool makesGCCalls,
+<span class="lineNum">     683 </span>            :                     uint32_t stubDataOffset, const uint8_t* code, uint32_t codeLength,
+<span class="lineNum">     684 </span>            :                     const uint8_t* fieldTypes)
+<span class="lineNum">     685 </span>            :       : kind_(kind),
+<span class="lineNum">     686 </span>            :         engine_(engine),
+<span class="lineNum">     687 </span>            :         makesGCCalls_(makesGCCalls),
+<span class="lineNum">     688 </span>            :         stubDataOffset_(stubDataOffset),
+<span class="lineNum">     689 </span>            :         code_(code),
+<span class="lineNum">     690 </span>            :         length_(codeLength),
+<span class="lineNum">     691 </span><span class="lineCov">          1 :         fieldTypes_(fieldTypes)</span>
+<span class="lineNum">     692 </span>            :     {
+<span class="lineNum">     693 </span>            :         MOZ_ASSERT(kind_ == kind, &quot;Kind must fit in bitfield&quot;);
+<span class="lineNum">     694 </span>            :         MOZ_ASSERT(engine_ == engine, &quot;Engine must fit in bitfield&quot;);
+<span class="lineNum">     695 </span>            :         MOZ_ASSERT(stubDataOffset_ == stubDataOffset, &quot;stubDataOffset must fit in uint8_t&quot;);
+<span class="lineNum">     696 </span>            :     }
+<span class="lineNum">     697 </span>            : 
+<span class="lineNum">     698 </span>            :     CacheIRStubInfo(const CacheIRStubInfo&amp;) = delete;
+<span class="lineNum">     699 </span>            :     CacheIRStubInfo&amp; operator=(const CacheIRStubInfo&amp;) = delete;
+<span class="lineNum">     700 </span>            : 
+<span class="lineNum">     701 </span>            :   public:
+<span class="lineNum">     702 </span><span class="lineCov">          1 :     CacheKind kind() const { return kind_; }</span>
+<span class="lineNum">     703 </span><span class="lineCov">          1 :     ICStubEngine engine() const { return engine_; }</span>
+<span class="lineNum">     704 </span><span class="lineCov">          1 :     bool makesGCCalls() const { return makesGCCalls_; }</span>
+<span class="lineNum">     705 </span>            : 
+<span class="lineNum">     706 </span>            :     const uint8_t* code() const { return code_; }
+<span class="lineNum">     707 </span>            :     uint32_t codeLength() const { return length_; }
+<span class="lineNum">     708 </span><span class="lineCov">          1 :     uint32_t stubDataOffset() const { return stubDataOffset_; }</span>
 <span class="lineNum">     709 </span>            : 
-<span class="lineNum">     710 </span>            : } // namespace jit
-<span class="lineNum">     711 </span>            : } // namespace js
-<span class="lineNum">     712 </span>            : 
-<span class="lineNum">     713 </span>            : #endif /* jit_CacheIRCompiler_h */
+<span class="lineNum">     710 </span>            :     size_t stubDataSize() const;
+<span class="lineNum">     711 </span>            : 
+<span class="lineNum">     712 </span><span class="lineCov">          1 :     StubField::Type fieldType(uint32_t i) const { return (StubField::Type)fieldTypes_[i]; }</span>
+<span class="lineNum">     713 </span>            : 
+<span class="lineNum">     714 </span>            :     static CacheIRStubInfo* New(CacheKind kind, ICStubEngine engine, bool canMakeCalls,
+<span class="lineNum">     715 </span>            :                                 uint32_t stubDataOffset, const CacheIRWriter&amp; writer);
+<span class="lineNum">     716 </span>            : 
+<span class="lineNum">     717 </span>            :     template &lt;class Stub, class T&gt;
+<span class="lineNum">     718 </span>            :     js::GCPtr&lt;T&gt;&amp; getStubField(Stub* stub, uint32_t field) const;
+<span class="lineNum">     719 </span>            : 
+<span class="lineNum">     720 </span>            :     template &lt;class T&gt;
+<span class="lineNum">     721 </span>            :     js::GCPtr&lt;T&gt;&amp; getStubField(ICStub* stub, uint32_t field) const {
+<span class="lineNum">     722 </span><span class="lineCov">          1 :         return getStubField&lt;ICStub, T&gt;(stub, field);</span>
+<span class="lineNum">     723 </span>            :     }
+<span class="lineNum">     724 </span>            : 
+<span class="lineNum">     725 </span>            :     void copyStubData(ICStub* src, ICStub* dest) const;
+<span class="lineNum">     726 </span>            : };
+<span class="lineNum">     727 </span>            : 
+<span class="lineNum">     728 </span>            : template &lt;typename T&gt;
+<span class="lineNum">     729 </span>            : void TraceCacheIRStub(JSTracer* trc, T* stub, const CacheIRStubInfo* stubInfo);
+<span class="lineNum">     730 </span>            : 
+<span class="lineNum">     731 </span>            : } // namespace jit
+<span class="lineNum">     732 </span>            : } // namespace js
+<span class="lineNum">     733 </span>            : 
+<span class="lineNum">     734 </span>            : #endif /* jit_CacheIRCompiler_h */
 </pre>
       </td>
     </tr>
