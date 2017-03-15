@@ -1,6 +1,7 @@
 import os
 import shutil
 import subprocess
+import time
 import requests
 
 
@@ -86,7 +87,11 @@ ferr = open("error", 'w')
 cmd = ['grcov', '-z', '-t', 'lcov', '-s', '/home/worker/workspace/build/src/']
 cmd.extend(ordered_files)
 proc = subprocess.Popen(cmd, stdout=fout, stderr=ferr)
-proc.wait()
+i = 0
+while proc.poll() is None:
+    print('Running grcov... ' + str(i))
+    i += 1
+    time.sleep(60)
 
 if not os.path.isdir("gecko-dev"):
     subprocess.call(["git", "clone", "https://github.com/mozilla/gecko-dev.git"])
