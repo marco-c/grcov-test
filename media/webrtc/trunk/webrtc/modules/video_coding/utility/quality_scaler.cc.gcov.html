@@ -1,0 +1,234 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - media/webrtc/trunk/webrtc/modules/video_coding/utility/quality_scaler.cc</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../../../index.html">top level</a> - <a href="index.html">media/webrtc/trunk/webrtc/modules/video_coding/utility</a> - quality_scaler.cc<span style="font-size: 80%;"> (source / <a href="quality_scaler.cc.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">73</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  *  Copyright (c) 2014 The WebRTC project authors. All Rights Reserved.
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  *  Use of this source code is governed by a BSD-style license
+<span class="lineNum">       5 </span>            :  *  that can be found in the LICENSE file in the root of the source
+<span class="lineNum">       6 </span>            :  *  tree. An additional intellectual property rights grant can be found
+<span class="lineNum">       7 </span>            :  *  in the file PATENTS.  All contributing project authors may
+<span class="lineNum">       8 </span>            :  *  be found in the AUTHORS file in the root of the source tree.
+<span class="lineNum">       9 </span>            :  */
+<span class="lineNum">      10 </span>            : #include &quot;webrtc/modules/video_coding/utility/quality_scaler.h&quot;
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : namespace webrtc {
+<span class="lineNum">      13 </span>            : 
+<span class="lineNum">      14 </span>            : static const int kMinFps = 10;
+<span class="lineNum">      15 </span>            : static const int kMeasureSeconds = 5;
+<span class="lineNum">      16 </span>            : static const int kFramedropPercentThreshold = 60;
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : const int QualityScaler::kDefaultLowQpDenominator = 3;
+<span class="lineNum">      19 </span>            : // Note that this is the same for width and height to permit 120x90 in both
+<span class="lineNum">      20 </span>            : // portrait and landscape mode.
+<a name="21"><span class="lineNum">      21 </span>            : const int QualityScaler::kDefaultMinDownscaleDimension = 90;</a>
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span><span class="lineNoCov">          0 : QualityScaler::QualityScaler()</span>
+<span class="lineNum">      24 </span>            :     : num_samples_(0),
+<span class="lineNum">      25 </span>            :       low_qp_threshold_(-1),
+<span class="lineNum">      26 </span>            :       downscale_shift_(0),
+<span class="lineNum">      27 </span>            :       framerate_down_(false),
+<span class="lineNum">      28 </span>            :       min_width_(kDefaultMinDownscaleDimension),
+<a name="29"><span class="lineNum">      29 </span><span class="lineNoCov">          0 :       min_height_(kDefaultMinDownscaleDimension) {}</span></a>
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span><span class="lineNoCov">          0 : void QualityScaler::Init(int low_qp_threshold,</span>
+<span class="lineNum">      32 </span>            :                          int high_qp_threshold,
+<span class="lineNum">      33 </span>            :                          bool use_framerate_reduction) {
+<span class="lineNum">      34 </span><span class="lineNoCov">          0 :   ClearSamples();</span>
+<span class="lineNum">      35 </span><span class="lineNoCov">          0 :   low_qp_threshold_ = low_qp_threshold;</span>
+<span class="lineNum">      36 </span><span class="lineNoCov">          0 :   high_qp_threshold_ = high_qp_threshold;</span>
+<span class="lineNum">      37 </span><span class="lineNoCov">          0 :   use_framerate_reduction_ = use_framerate_reduction;</span>
+<span class="lineNum">      38 </span><span class="lineNoCov">          0 :   target_framerate_ = -1;</span>
+<a name="39"><span class="lineNum">      39 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span><span class="lineNoCov">          0 : void QualityScaler::SetMinResolution(int min_width, int min_height) {</span>
+<span class="lineNum">      42 </span><span class="lineNoCov">          0 :   min_width_ = min_width;</span>
+<span class="lineNum">      43 </span><span class="lineNoCov">          0 :   min_height_ = min_height;</span>
+<span class="lineNum">      44 </span><span class="lineNoCov">          0 : }</span>
+<a name="45"><span class="lineNum">      45 </span>            : </a>
+<span class="lineNum">      46 </span>            : // Report framerate(fps) to estimate # of samples.
+<span class="lineNum">      47 </span><span class="lineNoCov">          0 : void QualityScaler::ReportFramerate(int framerate) {</span>
+<span class="lineNum">      48 </span>            :   num_samples_ = static_cast&lt;size_t&gt;(
+<span class="lineNum">      49 </span><span class="lineNoCov">          0 :       kMeasureSeconds * (framerate &lt; kMinFps ? kMinFps : framerate));</span>
+<span class="lineNum">      50 </span><span class="lineNoCov">          0 :   framerate_ = framerate;</span>
+<a name="51"><span class="lineNum">      51 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span><span class="lineNoCov">          0 : void QualityScaler::ReportQP(int qp) {</span>
+<span class="lineNum">      54 </span><span class="lineNoCov">          0 :   framedrop_percent_.AddSample(0);</span>
+<span class="lineNum">      55 </span><span class="lineNoCov">          0 :   average_qp_.AddSample(qp);</span>
+<a name="56"><span class="lineNum">      56 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">      57 </span>            : 
+<span class="lineNum">      58 </span><span class="lineNoCov">          0 : void QualityScaler::ReportDroppedFrame() {</span>
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 :   framedrop_percent_.AddSample(100);</span>
+<a name="60"><span class="lineNum">      60 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">      61 </span>            : 
+<span class="lineNum">      62 </span><span class="lineNoCov">          0 : void QualityScaler::OnEncodeFrame(const VideoFrame&amp; frame) {</span>
+<span class="lineNum">      63 </span>            :   // Should be set through InitEncode -&gt; Should be set by now.
+<span class="lineNum">      64 </span>            :   assert(low_qp_threshold_ &gt;= 0);
+<span class="lineNum">      65 </span>            :   assert(num_samples_ &gt; 0);
+<span class="lineNum">      66 </span><span class="lineNoCov">          0 :   res_.width = frame.width();</span>
+<span class="lineNum">      67 </span><span class="lineNoCov">          0 :   res_.height = frame.height();</span>
+<span class="lineNum">      68 </span>            : 
+<span class="lineNum">      69 </span>            :   // Update scale factor.
+<span class="lineNum">      70 </span><span class="lineNoCov">          0 :   int avg_drop = 0;</span>
+<span class="lineNum">      71 </span><span class="lineNoCov">          0 :   int avg_qp = 0;</span>
+<span class="lineNum">      72 </span>            : 
+<span class="lineNum">      73 </span>            :   // When encoder consistently overshoots, framerate reduction and spatial
+<span class="lineNum">      74 </span>            :   // resizing will be triggered to get a smoother video.
+<span class="lineNum">      75 </span><span class="lineNoCov">          0 :   if ((framedrop_percent_.GetAverage(num_samples_, &amp;avg_drop) &amp;&amp;</span>
+<span class="lineNum">      76 </span><span class="lineNoCov">          0 :        avg_drop &gt;= kFramedropPercentThreshold) ||</span>
+<span class="lineNum">      77 </span><span class="lineNoCov">          0 :       (average_qp_.GetAverage(num_samples_, &amp;avg_qp) &amp;&amp;</span>
+<span class="lineNum">      78 </span><span class="lineNoCov">          0 :        avg_qp &gt; high_qp_threshold_)) {</span>
+<span class="lineNum">      79 </span>            :     // Reducing frame rate before spatial resolution change.
+<span class="lineNum">      80 </span>            :     // Reduce frame rate only when it is above a certain number.
+<span class="lineNum">      81 </span>            :     // Only one reduction is allowed for now.
+<span class="lineNum">      82 </span>            :     // TODO(jackychen): Allow more than one framerate reduction.
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :     if (use_framerate_reduction_ &amp;&amp; !framerate_down_ &amp;&amp; framerate_ &gt;= 20) {</span>
+<span class="lineNum">      84 </span><span class="lineNoCov">          0 :       target_framerate_ = framerate_ / 2;</span>
+<span class="lineNum">      85 </span><span class="lineNoCov">          0 :       framerate_down_ = true;</span>
+<span class="lineNum">      86 </span>            :       // If frame rate has been updated, clear the buffer. We don't want
+<span class="lineNum">      87 </span>            :       // spatial resolution to change right after frame rate change.
+<span class="lineNum">      88 </span><span class="lineNoCov">          0 :       ClearSamples();</span>
+<span class="lineNum">      89 </span>            :     } else {
+<span class="lineNum">      90 </span><span class="lineNoCov">          0 :       AdjustScale(false);</span>
+<span class="lineNum">      91 </span>            :     }
+<span class="lineNum">      92 </span><span class="lineNoCov">          0 :   } else if (average_qp_.GetAverage(num_samples_, &amp;avg_qp) &amp;&amp;</span>
+<span class="lineNum">      93 </span><span class="lineNoCov">          0 :              avg_qp &lt;= low_qp_threshold_) {</span>
+<span class="lineNum">      94 </span><span class="lineNoCov">          0 :     if (use_framerate_reduction_ &amp;&amp; framerate_down_) {</span>
+<span class="lineNum">      95 </span><span class="lineNoCov">          0 :       target_framerate_ = -1;</span>
+<span class="lineNum">      96 </span><span class="lineNoCov">          0 :       framerate_down_ = false;</span>
+<span class="lineNum">      97 </span><span class="lineNoCov">          0 :       ClearSamples();</span>
+<span class="lineNum">      98 </span>            :     } else {
+<span class="lineNum">      99 </span><span class="lineNoCov">          0 :       AdjustScale(true);</span>
+<span class="lineNum">     100 </span>            :     }
+<span class="lineNum">     101 </span>            :   }
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span>            :   assert(downscale_shift_ &gt;= 0);
+<span class="lineNum">     104 </span><span class="lineNoCov">          0 :   for (int shift = downscale_shift_;</span>
+<span class="lineNum">     105 </span><span class="lineNoCov">          0 :        shift &gt; 0 &amp;&amp; (res_.width / 2 &gt;= min_width_) &amp;&amp;</span>
+<span class="lineNum">     106 </span><span class="lineNoCov">          0 :        (res_.height / 2 &gt;= min_height_);</span>
+<span class="lineNum">     107 </span>            :        --shift) {
+<span class="lineNum">     108 </span><span class="lineNoCov">          0 :     res_.width /= 2;</span>
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 :     res_.height /= 2;</span>
+<span class="lineNum">     110 </span>            :   }
+<a name="111"><span class="lineNum">     111 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     112 </span>            : 
+<span class="lineNum">     113 </span><span class="lineNoCov">          0 : QualityScaler::Resolution QualityScaler::GetScaledResolution() const {</span>
+<span class="lineNum">     114 </span><span class="lineNoCov">          0 :   return res_;</span>
+<a name="115"><span class="lineNum">     115 </span>            : }</a>
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span><span class="lineNoCov">          0 : int QualityScaler::GetTargetFramerate() const {</span>
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :   return target_framerate_;</span>
+<a name="119"><span class="lineNum">     119 </span>            : }</a>
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 : const VideoFrame&amp; QualityScaler::GetScaledFrame(const VideoFrame&amp; frame) {</span>
+<span class="lineNum">     122 </span>            :   Resolution res = GetScaledResolution();
+<span class="lineNum">     123 </span><span class="lineNoCov">          0 :   if (res.width == frame.width())</span>
+<span class="lineNum">     124 </span>            :     return frame;
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span>            :   scaler_.Set(frame.width(), frame.height(), res.width, res.height, kI420,
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 :               kI420, kScaleBox);</span>
+<span class="lineNum">     128 </span><span class="lineNoCov">          0 :   if (scaler_.Scale(frame, &amp;scaled_frame_) != 0)</span>
+<span class="lineNum">     129 </span>            :     return frame;
+<span class="lineNum">     130 </span>            : 
+<span class="lineNum">     131 </span><span class="lineNoCov">          0 :   scaled_frame_.set_ntp_time_ms(frame.ntp_time_ms());</span>
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :   scaled_frame_.set_timestamp(frame.timestamp());</span>
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :   scaled_frame_.set_render_time_ms(frame.render_time_ms());</span>
+<span class="lineNum">     134 </span>            : 
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 :   return scaled_frame_;</span>
+<a name="136"><span class="lineNum">     136 </span>            : }</a>
+<span class="lineNum">     137 </span>            : 
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 : void QualityScaler::ClearSamples() {</span>
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :   framedrop_percent_.Reset();</span>
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :   average_qp_.Reset();</span>
+<a name="141"><span class="lineNum">     141 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 : void QualityScaler::AdjustScale(bool up) {</span>
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :   downscale_shift_ += up ? -1 : 1;</span>
+<span class="lineNum">     145 </span><span class="lineNoCov">          0 :   if (downscale_shift_ &lt; 0)</span>
+<span class="lineNum">     146 </span><span class="lineNoCov">          0 :     downscale_shift_ = 0;</span>
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 :   ClearSamples();</span>
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     149 </span>            : 
+<span class="lineNum">     150 </span>            : }  // namespace webrtc
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

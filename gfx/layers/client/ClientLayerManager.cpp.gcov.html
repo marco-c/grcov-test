@@ -1,0 +1,987 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gfx/layers/client/ClientLayerManager.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">gfx/layers/client</a> - ClientLayerManager.cpp<span style="font-size: 80%;"> (source / <a href="ClientLayerManager.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">277</td>
+            <td class="headerCovTableEntry">351</td>
+            <td class="headerCovTableEntryMed">78.9 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">47</td>
+            <td class="headerCovTableEntry">57</td>
+            <td class="headerCovTableEntryMed">82.5 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-</a>
+<span class="lineNum">       2 </span>            :  * This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       3 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       4 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       5 </span>            : 
+<span class="lineNum">       6 </span>            : #include &quot;ClientLayerManager.h&quot;
+<span class="lineNum">       7 </span>            : #include &quot;GeckoProfiler.h&quot;              // for PROFILER_LABEL
+<span class="lineNum">       8 </span>            : #include &quot;gfxPrefs.h&quot;                   // for gfxPrefs::LayersTile...
+<span class="lineNum">       9 </span>            : #include &quot;mozilla/Assertions.h&quot;         // for MOZ_ASSERT, etc
+<span class="lineNum">      10 </span>            : #include &quot;mozilla/Hal.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;mozilla/dom/ScreenOrientation.h&quot;  // for ScreenOrientation
+<span class="lineNum">      12 </span>            : #include &quot;mozilla/dom/TabChild.h&quot;       // for TabChild
+<span class="lineNum">      13 </span>            : #include &quot;mozilla/hal_sandbox/PHal.h&quot;   // for ScreenConfiguration
+<span class="lineNum">      14 </span>            : #include &quot;mozilla/layers/CompositableClient.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;mozilla/layers/CompositorBridgeChild.h&quot; // for CompositorBridgeChild
+<span class="lineNum">      16 </span>            : #include &quot;mozilla/layers/FrameUniformityData.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;mozilla/layers/ISurfaceAllocator.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;mozilla/layers/LayersMessages.h&quot;  // for EditReply, etc
+<span class="lineNum">      19 </span>            : #include &quot;mozilla/layers/LayersSurfaces.h&quot;  // for SurfaceDescriptor
+<span class="lineNum">      20 </span>            : #include &quot;mozilla/layers/LayerTransactionChild.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;mozilla/layers/PersistentBufferProvider.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;ClientReadbackLayer.h&quot;        // for ClientReadbackLayer
+<span class="lineNum">      23 </span>            : #include &quot;nsAString.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;nsDisplayList.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;nsIWidgetListener.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;nsTArray.h&quot;                   // for AutoTArray
+<span class="lineNum">      27 </span>            : #include &quot;nsXULAppAPI.h&quot;                // for XRE_GetProcessType, etc
+<span class="lineNum">      28 </span>            : #include &quot;TiledLayerBuffer.h&quot;
+<span class="lineNum">      29 </span>            : #include &quot;FrameLayerBuilder.h&quot;          // for FrameLayerbuilder
+<span class="lineNum">      30 </span>            : #ifdef MOZ_WIDGET_ANDROID
+<span class="lineNum">      31 </span>            : #include &quot;AndroidBridge.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;LayerMetricsWrapper.h&quot;
+<span class="lineNum">      33 </span>            : #endif
+<span class="lineNum">      34 </span>            : #ifdef XP_WIN
+<span class="lineNum">      35 </span>            : #include &quot;mozilla/gfx/DeviceManagerDx.h&quot;
+<span class="lineNum">      36 </span>            : #include &quot;gfxDWriteFonts.h&quot;
+<span class="lineNum">      37 </span>            : #endif
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            : namespace mozilla {
+<span class="lineNum">      40 </span>            : namespace layers {
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : using namespace mozilla::gfx;
+<a name="43"><span class="lineNum">      43 </span>            : </a>
+<span class="lineNum">      44 </span>            : void
+<span class="lineNum">      45 </span><span class="lineCov">          1 : ClientLayerManager::MemoryPressureObserver::Destroy()</span>
+<span class="lineNum">      46 </span>            : {
+<span class="lineNum">      47 </span><span class="lineCov">          1 :   UnregisterMemoryPressureEvent();</span>
+<span class="lineNum">      48 </span><span class="lineCov">          1 :   mClientLayerManager = nullptr;</span>
+<span class="lineNum">      49 </span><span class="lineCov">          1 : }</span>
+<a name="50"><span class="lineNum">      50 </span>            : </a>
+<span class="lineNum">      51 </span>            : NS_IMETHODIMP
+<span class="lineNum">      52 </span><span class="lineCov">          1 : ClientLayerManager::MemoryPressureObserver::Observe(nsISupports* aSubject,</span>
+<span class="lineNum">      53 </span>            :                                                     const char* aTopic,
+<span class="lineNum">      54 </span>            :                                                     const char16_t* aSomeData)
+<span class="lineNum">      55 </span>            : {
+<span class="lineNum">      56 </span><span class="lineCov">          1 :   if (!mClientLayerManager || strcmp(aTopic, &quot;memory-pressure&quot;)) {</span>
+<span class="lineNum">      57 </span>            :     return NS_OK;
+<span class="lineNum">      58 </span>            :   }
+<span class="lineNum">      59 </span>            : 
+<span class="lineNum">      60 </span><span class="lineCov">          1 :   mClientLayerManager-&gt;HandleMemoryPressure();</span>
+<span class="lineNum">      61 </span><span class="lineCov">          1 :   return NS_OK;</span>
+<span class="lineNum">      62 </span>            : }
+<a name="63"><span class="lineNum">      63 </span>            : </a>
+<span class="lineNum">      64 </span>            : void
+<span class="lineNum">      65 </span><span class="lineCov">          1 : ClientLayerManager::MemoryPressureObserver::RegisterMemoryPressureEvent()</span>
+<span class="lineNum">      66 </span>            : {
+<span class="lineNum">      67 </span>            :   nsCOMPtr&lt;nsIObserverService&gt; observerService =
+<span class="lineNum">      68 </span><span class="lineCov">          1 :     mozilla::services::GetObserverService();</span>
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            :   MOZ_ASSERT(observerService);
+<span class="lineNum">      71 </span>            : 
+<span class="lineNum">      72 </span><span class="lineCov">          1 :   if (observerService) {</span>
+<span class="lineNum">      73 </span><span class="lineCov">          1 :     observerService-&gt;AddObserver(this, &quot;memory-pressure&quot;, false);</span>
+<span class="lineNum">      74 </span>            :   }
+<span class="lineNum">      75 </span><span class="lineCov">          1 : }</span>
+<a name="76"><span class="lineNum">      76 </span>            : </a>
+<span class="lineNum">      77 </span>            : void
+<span class="lineNum">      78 </span><span class="lineCov">          1 : ClientLayerManager::MemoryPressureObserver::UnregisterMemoryPressureEvent()</span>
+<span class="lineNum">      79 </span>            : {
+<span class="lineNum">      80 </span>            :   nsCOMPtr&lt;nsIObserverService&gt; observerService =
+<span class="lineNum">      81 </span><span class="lineCov">          1 :       mozilla::services::GetObserverService();</span>
+<span class="lineNum">      82 </span>            : 
+<span class="lineNum">      83 </span><span class="lineCov">          1 :   if (observerService) {</span>
+<span class="lineNum">      84 </span><span class="lineCov">          1 :       observerService-&gt;RemoveObserver(this, &quot;memory-pressure&quot;);</span>
+<span class="lineNum">      85 </span>            :   }
+<a name="86"><span class="lineNum">      86 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">      87 </span>            : 
+<a name="88"><span class="lineNum">      88 </span><span class="lineCov">          1 : NS_IMPL_ISUPPORTS(ClientLayerManager::MemoryPressureObserver, nsIObserver)</span></a>
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span><span class="lineCov">          1 : ClientLayerManager::ClientLayerManager(nsIWidget* aWidget)</span>
+<span class="lineNum">      91 </span>            :   : mPhase(PHASE_NONE)
+<span class="lineNum">      92 </span>            :   , mWidget(aWidget)
+<span class="lineNum">      93 </span>            :   , mLatestTransactionId(0)
+<span class="lineNum">      94 </span>            :   , mLastPaintTime(TimeDuration::Forever())
+<span class="lineNum">      95 </span>            :   , mTargetRotation(ROTATION_0)
+<span class="lineNum">      96 </span>            :   , mRepeatTransaction(false)
+<span class="lineNum">      97 </span>            :   , mIsRepeatTransaction(false)
+<span class="lineNum">      98 </span>            :   , mTransactionIncomplete(false)
+<span class="lineNum">      99 </span>            :   , mCompositorMightResample(false)
+<span class="lineNum">     100 </span>            :   , mNeedsComposite(false)
+<span class="lineNum">     101 </span>            :   , mPaintSequenceNumber(0)
+<span class="lineNum">     102 </span>            :   , mDeviceResetSequenceNumber(0)
+<span class="lineNum">     103 </span><span class="lineCov">          1 :   , mForwarder(new ShadowLayerForwarder(this))</span>
+<span class="lineNum">     104 </span>            : {
+<span class="lineNum">     105 </span>            :   MOZ_COUNT_CTOR(ClientLayerManager);
+<span class="lineNum">     106 </span><span class="lineCov">          1 :   mMemoryPressureObserver = new MemoryPressureObserver(this);</span>
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span><span class="lineCov">          1 :   if (XRE_IsContentProcess()) {</span>
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 :     mDeviceResetSequenceNumber = CompositorBridgeChild::Get()-&gt;DeviceResetSequenceNumber();</span>
+<span class="lineNum">     110 </span>            :   }
+<span class="lineNum">     111 </span><span class="lineCov">          1 : }</span>
+<a name="112"><span class="lineNum">     112 </span>            : </a>
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span><span class="lineCov">          1 : ClientLayerManager::~ClientLayerManager()</span>
+<span class="lineNum">     115 </span>            : {
+<span class="lineNum">     116 </span><span class="lineCov">          1 :   mMemoryPressureObserver-&gt;Destroy();</span>
+<span class="lineNum">     117 </span><span class="lineCov">          1 :   ClearCachedResources();</span>
+<span class="lineNum">     118 </span>            :   // Stop receiveing AsyncParentMessage at Forwarder.
+<span class="lineNum">     119 </span>            :   // After the call, the message is directly handled by LayerTransactionChild. 
+<span class="lineNum">     120 </span>            :   // Basically this function should be called in ShadowLayerForwarder's
+<span class="lineNum">     121 </span>            :   // destructor. But when the destructor is triggered by 
+<span class="lineNum">     122 </span>            :   // CompositorBridgeChild::Destroy(), the destructor can not handle it correctly.
+<span class="lineNum">     123 </span>            :   // See Bug 1000525.
+<span class="lineNum">     124 </span><span class="lineCov">          1 :   mForwarder-&gt;StopReceiveAsyncParentMessge();</span>
+<span class="lineNum">     125 </span><span class="lineCov">          1 :   mRoot = nullptr;</span>
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span>            :   MOZ_COUNT_DTOR(ClientLayerManager);
+<span class="lineNum">     128 </span><span class="lineCov">          1 : }</span>
+<a name="129"><span class="lineNum">     129 </span>            : </a>
+<span class="lineNum">     130 </span>            : void
+<span class="lineNum">     131 </span><span class="lineCov">          1 : ClientLayerManager::Destroy()</span>
+<span class="lineNum">     132 </span>            : {
+<span class="lineNum">     133 </span>            :   // It's important to call ClearCachedResource before Destroy because the
+<span class="lineNum">     134 </span>            :   // former will early-return if the later has already run.
+<span class="lineNum">     135 </span><span class="lineCov">          1 :   ClearCachedResources();</span>
+<span class="lineNum">     136 </span><span class="lineCov">          1 :   LayerManager::Destroy();</span>
+<span class="lineNum">     137 </span>            : 
+<span class="lineNum">     138 </span><span class="lineCov">          1 :   if (mTransactionIdAllocator) {</span>
+<span class="lineNum">     139 </span>            :     // Make sure to notify the refresh driver just in case it's waiting on a
+<span class="lineNum">     140 </span>            :     // pending transaction. Do this at the top of the event loop so we don't
+<span class="lineNum">     141 </span>            :     // cause a paint to occur during compositor shutdown.
+<span class="lineNum">     142 </span><span class="lineCov">          1 :     RefPtr&lt;TransactionIdAllocator&gt; allocator = mTransactionIdAllocator;</span>
+<span class="lineNum">     143 </span><span class="lineCov">          1 :     uint64_t id = mLatestTransactionId;</span>
+<span class="lineNum">     144 </span>            : 
+<a name="145"><span class="lineNum">     145 </span>            :     RefPtr&lt;Runnable&gt; task = NS_NewRunnableFunction(</a>
+<span class="lineNum">     146 </span>            :       &quot;TransactionIdAllocator::NotifyTransactionCompleted&quot;,
+<span class="lineNum">     147 </span><span class="lineCov">          1 :       [allocator, id] () -&gt; void {</span>
+<span class="lineNum">     148 </span><span class="lineCov">          1 :       allocator-&gt;NotifyTransactionCompleted(id);</span>
+<span class="lineNum">     149 </span><span class="lineCov">          1 :     });</span>
+<span class="lineNum">     150 </span><span class="lineCov">          1 :     NS_DispatchToMainThread(task.forget());</span>
+<span class="lineNum">     151 </span>            :   }
+<span class="lineNum">     152 </span>            : 
+<span class="lineNum">     153 </span>            :   // Forget the widget pointer in case we outlive our owning widget.
+<span class="lineNum">     154 </span><span class="lineCov">          1 :   mWidget = nullptr;</span>
+<span class="lineNum">     155 </span><span class="lineCov">          1 : }</span>
+<a name="156"><span class="lineNum">     156 </span>            : </a>
+<span class="lineNum">     157 </span>            : int32_t
+<span class="lineNum">     158 </span><span class="lineCov">          1 : ClientLayerManager::GetMaxTextureSize() const</span>
+<span class="lineNum">     159 </span>            : {
+<span class="lineNum">     160 </span><span class="lineCov">          1 :   return mForwarder-&gt;GetMaxTextureSize();</span>
+<span class="lineNum">     161 </span>            : }
+<a name="162"><span class="lineNum">     162 </span>            : </a>
+<span class="lineNum">     163 </span>            : void
+<span class="lineNum">     164 </span><span class="lineNoCov">          0 : ClientLayerManager::SetDefaultTargetConfiguration(BufferMode aDoubleBuffering,</span>
+<span class="lineNum">     165 </span>            :                                                   ScreenRotation aRotation)
+<span class="lineNum">     166 </span>            : {
+<span class="lineNum">     167 </span><span class="lineNoCov">          0 :   mTargetRotation = aRotation;</span>
+<span class="lineNum">     168 </span><span class="lineNoCov">          0 :  }</span>
+<a name="169"><span class="lineNum">     169 </span>            : </a>
+<span class="lineNum">     170 </span>            : void
+<span class="lineNum">     171 </span><span class="lineCov">          1 : ClientLayerManager::SetRoot(Layer* aLayer)</span>
+<span class="lineNum">     172 </span>            : {
+<span class="lineNum">     173 </span><span class="lineCov">          1 :   if (mRoot != aLayer) {</span>
+<span class="lineNum">     174 </span>            :     // Have to hold the old root and its children in order to
+<span class="lineNum">     175 </span>            :     // maintain the same view of the layer tree in this process as
+<span class="lineNum">     176 </span>            :     // the parent sees.  Otherwise layers can be destroyed
+<span class="lineNum">     177 </span>            :     // mid-transaction and bad things can happen (v. bug 612573)
+<span class="lineNum">     178 </span><span class="lineCov">          1 :     if (mRoot) {</span>
+<span class="lineNum">     179 </span><span class="lineCov">          1 :       Hold(mRoot);</span>
+<span class="lineNum">     180 </span>            :     }
+<span class="lineNum">     181 </span><span class="lineCov">          1 :     mForwarder-&gt;SetRoot(Hold(aLayer));</span>
+<span class="lineNum">     182 </span>            :     NS_ASSERTION(aLayer, &quot;Root can't be null&quot;);
+<span class="lineNum">     183 </span>            :     NS_ASSERTION(aLayer-&gt;Manager() == this, &quot;Wrong manager&quot;);
+<span class="lineNum">     184 </span>            :     NS_ASSERTION(InConstruction(), &quot;Only allowed in construction phase&quot;);
+<span class="lineNum">     185 </span><span class="lineCov">          1 :     mRoot = aLayer;</span>
+<span class="lineNum">     186 </span>            :   }
+<span class="lineNum">     187 </span><span class="lineCov">          1 : }</span>
+<a name="188"><span class="lineNum">     188 </span>            : </a>
+<span class="lineNum">     189 </span>            : void
+<span class="lineNum">     190 </span><span class="lineCov">          1 : ClientLayerManager::Mutated(Layer* aLayer)</span>
+<span class="lineNum">     191 </span>            : {
+<span class="lineNum">     192 </span><span class="lineCov">          1 :   LayerManager::Mutated(aLayer);</span>
+<span class="lineNum">     193 </span>            : 
+<span class="lineNum">     194 </span>            :   NS_ASSERTION(InConstruction() || InDrawing(), &quot;wrong phase&quot;);
+<span class="lineNum">     195 </span><span class="lineCov">          1 :   mForwarder-&gt;Mutated(Hold(aLayer));</span>
+<span class="lineNum">     196 </span><span class="lineCov">          1 : }</span>
+<a name="197"><span class="lineNum">     197 </span>            : </a>
+<span class="lineNum">     198 </span>            : void
+<span class="lineNum">     199 </span><span class="lineCov">          1 : ClientLayerManager::MutatedSimple(Layer* aLayer)</span>
+<span class="lineNum">     200 </span>            : {
+<span class="lineNum">     201 </span><span class="lineCov">          1 :   LayerManager::MutatedSimple(aLayer);</span>
+<span class="lineNum">     202 </span>            : 
+<span class="lineNum">     203 </span>            :   NS_ASSERTION(InConstruction() || InDrawing(), &quot;wrong phase&quot;);
+<span class="lineNum">     204 </span><span class="lineCov">          1 :   mForwarder-&gt;MutatedSimple(Hold(aLayer));</span>
+<span class="lineNum">     205 </span><span class="lineCov">          1 : }</span>
+<a name="206"><span class="lineNum">     206 </span>            : </a>
+<span class="lineNum">     207 </span>            : already_AddRefed&lt;ReadbackLayer&gt;
+<span class="lineNum">     208 </span><span class="lineNoCov">          0 : ClientLayerManager::CreateReadbackLayer()</span>
+<span class="lineNum">     209 </span>            : {
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :   RefPtr&lt;ReadbackLayer&gt; layer = new ClientReadbackLayer(this);</span>
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 :   return layer.forget();</span>
+<span class="lineNum">     212 </span>            : }
+<a name="213"><span class="lineNum">     213 </span>            : </a>
+<span class="lineNum">     214 </span>            : bool
+<span class="lineNum">     215 </span><span class="lineCov">          1 : ClientLayerManager::BeginTransactionWithTarget(gfxContext* aTarget)</span>
+<span class="lineNum">     216 </span>            : {
+<span class="lineNum">     217 </span>            :   MOZ_ASSERT(mForwarder, &quot;ClientLayerManager::BeginTransaction without forwarder&quot;);
+<span class="lineNum">     218 </span><span class="lineCov">          1 :   if (!mForwarder-&gt;IPCOpen()) {</span>
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 :     gfxCriticalNote &lt;&lt; &quot;ClientLayerManager::BeginTransaction with IPC channel down. GPU process may have died.&quot;;</span>
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 :     return false;</span>
+<span class="lineNum">     221 </span>            :   }
+<span class="lineNum">     222 </span>            : 
+<span class="lineNum">     223 </span><span class="lineCov">          1 :   if (XRE_IsContentProcess() &amp;&amp;</span>
+<span class="lineNum">     224 </span><span class="lineCov">          1 :       mForwarder-&gt;DeviceCanReset() &amp;&amp;</span>
+<span class="lineNum">     225 </span><span class="lineNoCov">          0 :       mDeviceResetSequenceNumber != CompositorBridgeChild::Get()-&gt;DeviceResetSequenceNumber())</span>
+<span class="lineNum">     226 </span>            :   {
+<span class="lineNum">     227 </span>            :     // The compositor has informed this process that a device reset occurred,
+<span class="lineNum">     228 </span>            :     // but it has not finished informing each TabChild of its new
+<span class="lineNum">     229 </span>            :     // TextureFactoryIdentifier. Until then, it's illegal to paint. Note that
+<span class="lineNum">     230 </span>            :     // it is also illegal to request a new TIF synchronously, because we're
+<span class="lineNum">     231 </span>            :     // not guaranteed the UI process has finished acquiring new compositors
+<span class="lineNum">     232 </span>            :     // for each widget.
+<span class="lineNum">     233 </span>            :     //
+<span class="lineNum">     234 </span>            :     // Note that we only do this for accelerated backends, since we do not
+<span class="lineNum">     235 </span>            :     // perform resets on basic compositors.
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :     gfxCriticalNote &lt;&lt; &quot;Discarding a paint since a device reset has not yet been acknowledged.&quot;;</span>
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :     return false;</span>
+<span class="lineNum">     238 </span>            :   }
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span><span class="lineCov">          1 :   mInTransaction = true;</span>
+<span class="lineNum">     241 </span><span class="lineCov">          1 :   mTransactionStart = TimeStamp::Now();</span>
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span>            : #ifdef MOZ_LAYERS_HAVE_LOG
+<span class="lineNum">     244 </span><span class="lineCov">          1 :   MOZ_LAYERS_LOG((&quot;[----- BeginTransaction&quot;));</span>
+<span class="lineNum">     245 </span><span class="lineCov">          1 :   Log();</span>
+<span class="lineNum">     246 </span>            : #endif
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span>            :   NS_ASSERTION(!InTransaction(), &quot;Nested transactions not allowed&quot;);
+<span class="lineNum">     249 </span><span class="lineCov">          1 :   mPhase = PHASE_CONSTRUCTION;</span>
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span>            :   MOZ_ASSERT(mKeepAlive.IsEmpty(), &quot;uncommitted txn?&quot;);
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span>            :   // If the last transaction was incomplete (a failed DoEmptyTransaction),
+<span class="lineNum">     254 </span>            :   // don't signal a new transaction to ShadowLayerForwarder. Carry on adding
+<span class="lineNum">     255 </span>            :   // to the previous transaction.
+<span class="lineNum">     256 </span>            :   dom::ScreenOrientationInternal orientation;
+<span class="lineNum">     257 </span><span class="lineCov">          1 :   if (dom::TabChild* window = mWidget-&gt;GetOwningTabChild()) {</span>
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 :     orientation = window-&gt;GetOrientation();</span>
+<span class="lineNum">     259 </span>            :   } else {
+<span class="lineNum">     260 </span><span class="lineCov">          1 :     hal::ScreenConfiguration currentConfig;</span>
+<span class="lineNum">     261 </span><span class="lineCov">          1 :     hal::GetCurrentScreenConfiguration(&amp;currentConfig);</span>
+<span class="lineNum">     262 </span><span class="lineCov">          1 :     orientation = currentConfig.orientation();</span>
+<span class="lineNum">     263 </span>            :   }
+<span class="lineNum">     264 </span><span class="lineCov">          1 :   LayoutDeviceIntRect targetBounds = mWidget-&gt;GetNaturalBounds();</span>
+<span class="lineNum">     265 </span><span class="lineCov">          1 :   targetBounds.x = targetBounds.y = 0;</span>
+<span class="lineNum">     266 </span>            :   mForwarder-&gt;BeginTransaction(targetBounds.ToUnknownRect(), mTargetRotation,
+<span class="lineNum">     267 </span><span class="lineCov">          1 :                                orientation);</span>
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span>            :   // If we're drawing on behalf of a context with async pan/zoom
+<span class="lineNum">     270 </span>            :   // enabled, then the entire buffer of painted layers might be
+<span class="lineNum">     271 </span>            :   // composited (including resampling) asynchronously before we get
+<span class="lineNum">     272 </span>            :   // a chance to repaint, so we have to ensure that it's all valid
+<span class="lineNum">     273 </span>            :   // and not rotated.
+<span class="lineNum">     274 </span>            :   //
+<span class="lineNum">     275 </span>            :   // Desktop does not support async zoom yet, so we ignore this for those
+<span class="lineNum">     276 </span>            :   // platforms.
+<span class="lineNum">     277 </span>            : #if defined(MOZ_WIDGET_ANDROID) || defined(MOZ_WIDGET_UIKIT)
+<span class="lineNum">     278 </span>            :   if (mWidget &amp;&amp; mWidget-&gt;GetOwningTabChild()) {
+<span class="lineNum">     279 </span>            :     mCompositorMightResample = AsyncPanZoomEnabled();
+<span class="lineNum">     280 </span>            :   }
+<span class="lineNum">     281 </span>            : #endif
+<span class="lineNum">     282 </span>            : 
+<span class="lineNum">     283 </span>            :   // If we have a non-default target, we need to let our shadow manager draw
+<span class="lineNum">     284 </span>            :   // to it. This will happen at the end of the transaction.
+<span class="lineNum">     285 </span><span class="lineCov">          1 :   if (aTarget &amp;&amp; XRE_IsParentProcess()) {</span>
+<span class="lineNum">     286 </span><span class="lineCov">          1 :     mShadowTarget = aTarget;</span>
+<span class="lineNum">     287 </span>            :   } else {
+<span class="lineNum">     288 </span>            :     NS_ASSERTION(!aTarget,
+<span class="lineNum">     289 </span>            :                  &quot;Content-process ClientLayerManager::BeginTransactionWithTarget not supported&quot;);
+<span class="lineNum">     290 </span>            :   }
+<span class="lineNum">     291 </span>            : 
+<span class="lineNum">     292 </span>            :   // If this is a new paint, increment the paint sequence number.
+<span class="lineNum">     293 </span><span class="lineCov">          1 :   if (!mIsRepeatTransaction) {</span>
+<span class="lineNum">     294 </span>            :     // Increment the paint sequence number even if test logging isn't
+<span class="lineNum">     295 </span>            :     // enabled in this process; it may be enabled in the parent process,
+<span class="lineNum">     296 </span>            :     // and the parent process expects unique sequence numbers.
+<span class="lineNum">     297 </span><span class="lineCov">          1 :     ++mPaintSequenceNumber;</span>
+<span class="lineNum">     298 </span><span class="lineCov">          1 :     if (gfxPrefs::APZTestLoggingEnabled()) {</span>
+<span class="lineNum">     299 </span><span class="lineNoCov">          0 :       mApzTestData.StartNewPaint(mPaintSequenceNumber);</span>
+<span class="lineNum">     300 </span>            :     }
+<span class="lineNum">     301 </span>            :   }
+<span class="lineNum">     302 </span>            :   return true;
+<span class="lineNum">     303 </span>            : }
+<a name="304"><span class="lineNum">     304 </span>            : </a>
+<span class="lineNum">     305 </span>            : bool
+<span class="lineNum">     306 </span><span class="lineCov">          1 : ClientLayerManager::BeginTransaction()</span>
+<span class="lineNum">     307 </span>            : {
+<span class="lineNum">     308 </span><span class="lineCov">          1 :   return BeginTransactionWithTarget(nullptr);</span>
+<span class="lineNum">     309 </span>            : }
+<a name="310"><span class="lineNum">     310 </span>            : </a>
+<span class="lineNum">     311 </span>            : bool
+<span class="lineNum">     312 </span><span class="lineCov">          1 : ClientLayerManager::EndTransactionInternal(DrawPaintedLayerCallback aCallback,</span>
+<span class="lineNum">     313 </span>            :                                            void* aCallbackData,
+<span class="lineNum">     314 </span>            :                                            EndTransactionFlags)
+<span class="lineNum">     315 </span>            : {
+<span class="lineNum">     316 </span><span class="lineCov">          1 :   PaintTelemetry::AutoRecord record(PaintTelemetry::Metric::Rasterization);</span>
+<span class="lineNum">     317 </span><span class="lineCov">          1 :   GeckoProfilerTracingRAII tracer(&quot;Paint&quot;, &quot;Rasterize&quot;);</span>
+<span class="lineNum">     318 </span>            : 
+<span class="lineNum">     319 </span>            : #ifdef WIN32
+<span class="lineNum">     320 </span>            :   if (aCallbackData) {
+<span class="lineNum">     321 </span>            :     // Content processes don't get OnPaint called. So update here whenever we
+<span class="lineNum">     322 </span>            :     // may do Thebes drawing.
+<span class="lineNum">     323 </span>            :     gfxDWriteFont::UpdateClearTypeUsage();
+<span class="lineNum">     324 </span>            :   }
+<span class="lineNum">     325 </span>            : #endif
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span><span class="lineCov">          1 :   PROFILER_LABEL(&quot;ClientLayerManager&quot;, &quot;EndTransactionInternal&quot;,</span>
+<span class="lineNum">     328 </span>            :     js::ProfileEntry::Category::GRAPHICS);
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span>            : #ifdef MOZ_LAYERS_HAVE_LOG
+<span class="lineNum">     331 </span><span class="lineCov">          1 :   MOZ_LAYERS_LOG((&quot;  ----- (beginning paint)&quot;));</span>
+<span class="lineNum">     332 </span><span class="lineCov">          1 :   Log();</span>
+<span class="lineNum">     333 </span>            : #endif
+<span class="lineNum">     334 </span>            : 
+<span class="lineNum">     335 </span>            :   NS_ASSERTION(InConstruction(), &quot;Should be in construction phase&quot;);
+<span class="lineNum">     336 </span><span class="lineCov">          1 :   mPhase = PHASE_DRAWING;</span>
+<span class="lineNum">     337 </span>            : 
+<span class="lineNum">     338 </span><span class="lineCov">          1 :   ClientLayer* root = ClientLayer::ToClientLayer(GetRoot());</span>
+<span class="lineNum">     339 </span>            : 
+<span class="lineNum">     340 </span><span class="lineCov">          1 :   mTransactionIncomplete = false;</span>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span>            :   // Apply pending tree updates before recomputing effective
+<span class="lineNum">     343 </span>            :   // properties.
+<span class="lineNum">     344 </span><span class="lineCov">          1 :   GetRoot()-&gt;ApplyPendingUpdatesToSubtree();</span>
+<span class="lineNum">     345 </span>            : 
+<span class="lineNum">     346 </span><span class="lineCov">          1 :   mPaintedLayerCallback = aCallback;</span>
+<span class="lineNum">     347 </span><span class="lineCov">          1 :   mPaintedLayerCallbackData = aCallbackData;</span>
+<span class="lineNum">     348 </span>            : 
+<span class="lineNum">     349 </span><span class="lineCov">          1 :   GetRoot()-&gt;ComputeEffectiveTransforms(Matrix4x4());</span>
+<span class="lineNum">     350 </span>            : 
+<span class="lineNum">     351 </span>            :   // Skip the painting if the device is in device-reset status.
+<span class="lineNum">     352 </span><span class="lineCov">          1 :   if (!gfxPlatform::GetPlatform()-&gt;DidRenderingDeviceReset()) {</span>
+<span class="lineNum">     353 </span><span class="lineCov">          1 :     if (gfxPrefs::AlwaysPaint() &amp;&amp; XRE_IsContentProcess()) {</span>
+<span class="lineNum">     354 </span><span class="lineNoCov">          0 :       TimeStamp start = TimeStamp::Now();</span>
+<span class="lineNum">     355 </span><span class="lineNoCov">          0 :       root-&gt;RenderLayer();</span>
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :       mLastPaintTime = TimeStamp::Now() - start;</span>
+<span class="lineNum">     357 </span>            :     } else {
+<span class="lineNum">     358 </span><span class="lineCov">          1 :       root-&gt;RenderLayer();</span>
+<span class="lineNum">     359 </span>            :     }
+<span class="lineNum">     360 </span>            :   } else {
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 :     gfxCriticalNote &lt;&lt; &quot;LayerManager::EndTransaction skip RenderLayer().&quot;;</span>
+<span class="lineNum">     362 </span>            :   }
+<span class="lineNum">     363 </span>            : 
+<span class="lineNum">     364 </span><span class="lineCov">          1 :   if (!mRepeatTransaction &amp;&amp; !GetRoot()-&gt;GetInvalidRegion().IsEmpty()) {</span>
+<span class="lineNum">     365 </span><span class="lineNoCov">          0 :     GetRoot()-&gt;Mutated();</span>
+<span class="lineNum">     366 </span>            :   }
+<span class="lineNum">     367 </span>            : 
+<span class="lineNum">     368 </span><span class="lineCov">          1 :   if (!mIsRepeatTransaction) {</span>
+<span class="lineNum">     369 </span><span class="lineCov">          1 :     mAnimationReadyTime = TimeStamp::Now();</span>
+<span class="lineNum">     370 </span><span class="lineCov">          1 :     GetRoot()-&gt;StartPendingAnimations(mAnimationReadyTime);</span>
+<span class="lineNum">     371 </span>            :   }
+<span class="lineNum">     372 </span>            : 
+<span class="lineNum">     373 </span><span class="lineCov">          1 :   mPaintedLayerCallback = nullptr;</span>
+<span class="lineNum">     374 </span><span class="lineCov">          1 :   mPaintedLayerCallbackData = nullptr;</span>
+<span class="lineNum">     375 </span>            : 
+<span class="lineNum">     376 </span>            :   // Go back to the construction phase if the transaction isn't complete.
+<span class="lineNum">     377 </span>            :   // Layout will update the layer tree and call EndTransaction().
+<span class="lineNum">     378 </span><span class="lineCov">          1 :   mPhase = mTransactionIncomplete ? PHASE_CONSTRUCTION : PHASE_NONE;</span>
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span>            :   NS_ASSERTION(!aCallback || !mTransactionIncomplete,
+<span class="lineNum">     381 </span>            :                &quot;If callback is not null, transaction must be complete&quot;);
+<span class="lineNum">     382 </span>            : 
+<span class="lineNum">     383 </span><span class="lineCov">          1 :   if (gfxPlatform::GetPlatform()-&gt;DidRenderingDeviceReset()) {</span>
+<span class="lineNum">     384 </span><span class="lineNoCov">          0 :     FrameLayerBuilder::InvalidateAllLayers(this);</span>
+<span class="lineNum">     385 </span>            :   }
+<span class="lineNum">     386 </span>            : 
+<span class="lineNum">     387 </span><span class="lineCov">          1 :   return !mTransactionIncomplete;</span>
+<span class="lineNum">     388 </span>            : }
+<a name="389"><span class="lineNum">     389 </span>            : </a>
+<span class="lineNum">     390 </span>            : void
+<span class="lineNum">     391 </span><span class="lineNoCov">          0 : ClientLayerManager::StorePluginWidgetConfigurations(const nsTArray&lt;nsIWidget::Configuration&gt;&amp; aConfigurations)</span>
+<span class="lineNum">     392 </span>            : {
+<span class="lineNum">     393 </span><span class="lineNoCov">          0 :   if (mForwarder) {</span>
+<span class="lineNum">     394 </span><span class="lineNoCov">          0 :     mForwarder-&gt;StorePluginWidgetConfigurations(aConfigurations);</span>
+<span class="lineNum">     395 </span>            :   }
+<span class="lineNum">     396 </span><span class="lineNoCov">          0 : }</span>
+<a name="397"><span class="lineNum">     397 </span>            : </a>
+<span class="lineNum">     398 </span>            : void
+<span class="lineNum">     399 </span><span class="lineCov">          1 : ClientLayerManager::EndTransaction(DrawPaintedLayerCallback aCallback,</span>
+<span class="lineNum">     400 </span>            :                                    void* aCallbackData,
+<span class="lineNum">     401 </span>            :                                    EndTransactionFlags aFlags)
+<span class="lineNum">     402 </span>            : {
+<span class="lineNum">     403 </span><span class="lineCov">          1 :   if (!mForwarder-&gt;IPCOpen()) {</span>
+<span class="lineNum">     404 </span><span class="lineNoCov">          0 :     mInTransaction = false;</span>
+<span class="lineNum">     405 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">     406 </span>            :   }
+<span class="lineNum">     407 </span>            : 
+<span class="lineNum">     408 </span><span class="lineCov">          1 :   if (mWidget) {</span>
+<span class="lineNum">     409 </span><span class="lineCov">          1 :     mWidget-&gt;PrepareWindowEffects();</span>
+<span class="lineNum">     410 </span>            :   }
+<span class="lineNum">     411 </span><span class="lineCov">          1 :   EndTransactionInternal(aCallback, aCallbackData, aFlags);</span>
+<span class="lineNum">     412 </span><span class="lineCov">          1 :   ForwardTransaction(!(aFlags &amp; END_NO_REMOTE_COMPOSITE));</span>
+<span class="lineNum">     413 </span>            : 
+<span class="lineNum">     414 </span><span class="lineCov">          1 :   if (mRepeatTransaction) {</span>
+<span class="lineNum">     415 </span><span class="lineNoCov">          0 :     mRepeatTransaction = false;</span>
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :     mIsRepeatTransaction = true;</span>
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :     if (BeginTransaction()) {</span>
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 :       ClientLayerManager::EndTransaction(aCallback, aCallbackData, aFlags);</span>
+<span class="lineNum">     419 </span>            :     }
+<span class="lineNum">     420 </span><span class="lineNoCov">          0 :     mIsRepeatTransaction = false;</span>
+<span class="lineNum">     421 </span>            :   } else {
+<span class="lineNum">     422 </span><span class="lineCov">          1 :     MakeSnapshotIfRequired();</span>
+<span class="lineNum">     423 </span>            :   }
+<span class="lineNum">     424 </span>            : 
+<span class="lineNum">     425 </span><span class="lineCov">          1 :   mInTransaction = false;</span>
+<span class="lineNum">     426 </span><span class="lineCov">          1 :   mTransactionStart = TimeStamp();</span>
+<span class="lineNum">     427 </span>            : }
+<a name="428"><span class="lineNum">     428 </span>            : </a>
+<span class="lineNum">     429 </span>            : bool
+<span class="lineNum">     430 </span><span class="lineCov">          1 : ClientLayerManager::EndEmptyTransaction(EndTransactionFlags aFlags)</span>
+<span class="lineNum">     431 </span>            : {
+<span class="lineNum">     432 </span><span class="lineCov">          1 :   mInTransaction = false;</span>
+<span class="lineNum">     433 </span>            : 
+<span class="lineNum">     434 </span><span class="lineCov">          1 :   if (!mRoot || !mForwarder-&gt;IPCOpen()) {</span>
+<span class="lineNum">     435 </span>            :     return false;
+<span class="lineNum">     436 </span>            :   }
+<span class="lineNum">     437 </span>            : 
+<span class="lineNum">     438 </span><span class="lineCov">          1 :   if (!EndTransactionInternal(nullptr, nullptr, aFlags)) {</span>
+<span class="lineNum">     439 </span>            :     // Return without calling ForwardTransaction. This leaves the
+<span class="lineNum">     440 </span>            :     // ShadowLayerForwarder transaction open; the following
+<span class="lineNum">     441 </span>            :     // EndTransaction will complete it.
+<span class="lineNum">     442 </span>            :     return false;
+<span class="lineNum">     443 </span>            :   }
+<span class="lineNum">     444 </span><span class="lineCov">          1 :   if (mWidget) {</span>
+<span class="lineNum">     445 </span><span class="lineCov">          1 :     mWidget-&gt;PrepareWindowEffects();</span>
+<span class="lineNum">     446 </span>            :   }
+<span class="lineNum">     447 </span><span class="lineCov">          1 :   ForwardTransaction(!(aFlags &amp; END_NO_REMOTE_COMPOSITE));</span>
+<span class="lineNum">     448 </span><span class="lineCov">          1 :   MakeSnapshotIfRequired();</span>
+<span class="lineNum">     449 </span><span class="lineCov">          1 :   return true;</span>
+<span class="lineNum">     450 </span>            : }
+<a name="451"><span class="lineNum">     451 </span>            : </a>
+<span class="lineNum">     452 </span>            : CompositorBridgeChild *
+<span class="lineNum">     453 </span><span class="lineCov">          1 : ClientLayerManager::GetRemoteRenderer()</span>
+<span class="lineNum">     454 </span>            : {
+<span class="lineNum">     455 </span><span class="lineCov">          1 :   if (!mWidget) {</span>
+<span class="lineNum">     456 </span>            :     return nullptr;
+<span class="lineNum">     457 </span>            :   }
+<span class="lineNum">     458 </span>            : 
+<span class="lineNum">     459 </span><span class="lineCov">          1 :   return mWidget-&gt;GetRemoteRenderer();</span>
+<span class="lineNum">     460 </span>            : }
+<a name="461"><span class="lineNum">     461 </span>            : </a>
+<span class="lineNum">     462 </span>            : CompositorBridgeChild*
+<span class="lineNum">     463 </span><span class="lineCov">          1 : ClientLayerManager::GetCompositorBridgeChild()</span>
+<span class="lineNum">     464 </span>            : {
+<span class="lineNum">     465 </span><span class="lineCov">          1 :   if (!XRE_IsParentProcess()) {</span>
+<span class="lineNum">     466 </span><span class="lineNoCov">          0 :     return CompositorBridgeChild::Get();</span>
+<span class="lineNum">     467 </span>            :   }
+<span class="lineNum">     468 </span><span class="lineCov">          1 :   return GetRemoteRenderer();</span>
+<span class="lineNum">     469 </span>            : }
+<a name="470"><span class="lineNum">     470 </span>            : </a>
+<span class="lineNum">     471 </span>            : void
+<span class="lineNum">     472 </span><span class="lineCov">          1 : ClientLayerManager::Composite()</span>
+<span class="lineNum">     473 </span>            : {
+<span class="lineNum">     474 </span><span class="lineCov">          1 :   mForwarder-&gt;Composite();</span>
+<span class="lineNum">     475 </span><span class="lineCov">          1 : }</span>
+<a name="476"><span class="lineNum">     476 </span>            : </a>
+<span class="lineNum">     477 </span>            : void
+<span class="lineNum">     478 </span><span class="lineCov">          1 : ClientLayerManager::DidComposite(uint64_t aTransactionId,</span>
+<span class="lineNum">     479 </span>            :                                  const TimeStamp&amp; aCompositeStart,
+<span class="lineNum">     480 </span>            :                                  const TimeStamp&amp; aCompositeEnd)
+<span class="lineNum">     481 </span>            : {
+<span class="lineNum">     482 </span>            :   MOZ_ASSERT(mWidget);
+<span class="lineNum">     483 </span>            : 
+<span class="lineNum">     484 </span>            :   // |aTransactionId| will be &gt; 0 if the compositor is acknowledging a shadow
+<span class="lineNum">     485 </span>            :   // layers transaction.
+<span class="lineNum">     486 </span><span class="lineCov">          1 :   if (aTransactionId) {</span>
+<span class="lineNum">     487 </span><span class="lineCov">          1 :     nsIWidgetListener *listener = mWidget-&gt;GetWidgetListener();</span>
+<span class="lineNum">     488 </span><span class="lineCov">          1 :     if (listener) {</span>
+<span class="lineNum">     489 </span><span class="lineCov">          1 :       listener-&gt;DidCompositeWindow(aTransactionId, aCompositeStart, aCompositeEnd);</span>
+<span class="lineNum">     490 </span>            :     }
+<span class="lineNum">     491 </span><span class="lineCov">          1 :     listener = mWidget-&gt;GetAttachedWidgetListener();</span>
+<span class="lineNum">     492 </span><span class="lineCov">          1 :     if (listener) {</span>
+<span class="lineNum">     493 </span><span class="lineCov">          1 :       listener-&gt;DidCompositeWindow(aTransactionId, aCompositeStart, aCompositeEnd);</span>
+<span class="lineNum">     494 </span>            :     }
+<span class="lineNum">     495 </span><span class="lineCov">          1 :     mTransactionIdAllocator-&gt;NotifyTransactionCompleted(aTransactionId);</span>
+<span class="lineNum">     496 </span>            :   }
+<span class="lineNum">     497 </span>            : 
+<span class="lineNum">     498 </span>            :   // These observers fire whether or not we were in a transaction.
+<span class="lineNum">     499 </span><span class="lineCov">          1 :   for (size_t i = 0; i &lt; mDidCompositeObservers.Length(); i++) {</span>
+<span class="lineNum">     500 </span><span class="lineCov">          1 :     mDidCompositeObservers[i]-&gt;DidComposite();</span>
+<span class="lineNum">     501 </span>            :   }
+<span class="lineNum">     502 </span><span class="lineCov">          1 : }</span>
+<a name="503"><span class="lineNum">     503 </span>            : </a>
+<span class="lineNum">     504 </span>            : void
+<span class="lineNum">     505 </span><span class="lineNoCov">          0 : ClientLayerManager::GetCompositorSideAPZTestData(APZTestData* aData) const</span>
+<span class="lineNum">     506 </span>            : {
+<span class="lineNum">     507 </span><span class="lineNoCov">          0 :   if (mForwarder-&gt;HasShadowManager()) {</span>
+<span class="lineNum">     508 </span><span class="lineNoCov">          0 :     if (!mForwarder-&gt;GetShadowManager()-&gt;SendGetAPZTestData(aData)) {</span>
+<span class="lineNum">     509 </span>            :       NS_WARNING(&quot;Call to PLayerTransactionChild::SendGetAPZTestData() failed&quot;);
+<span class="lineNum">     510 </span>            :     }
+<span class="lineNum">     511 </span>            :   }
+<span class="lineNum">     512 </span><span class="lineNoCov">          0 : }</span>
+<a name="513"><span class="lineNum">     513 </span>            : </a>
+<span class="lineNum">     514 </span>            : void
+<span class="lineNum">     515 </span><span class="lineCov">          1 : ClientLayerManager::SetTransactionIdAllocator(TransactionIdAllocator* aAllocator)</span>
+<span class="lineNum">     516 </span>            : {
+<span class="lineNum">     517 </span>            :   // When changing the refresh driver, the previous refresh driver may never
+<span class="lineNum">     518 </span>            :   // receive updates of pending transactions it's waiting for. So clear the
+<span class="lineNum">     519 </span>            :   // waiting state before assigning another refresh driver.
+<span class="lineNum">     520 </span><span class="lineCov">          1 :   if (mTransactionIdAllocator &amp;&amp; (aAllocator != mTransactionIdAllocator)) {</span>
+<span class="lineNum">     521 </span><span class="lineNoCov">          0 :     mTransactionIdAllocator-&gt;ClearPendingTransactions();</span>
+<span class="lineNum">     522 </span>            : 
+<span class="lineNum">     523 </span>            :     // We should also reset the transaction id of the new allocator to previous
+<span class="lineNum">     524 </span>            :     // allocator's last transaction id, so that completed transactions for
+<span class="lineNum">     525 </span>            :     // previous allocator will be ignored and won't confuse the new allocator.
+<span class="lineNum">     526 </span><span class="lineNoCov">          0 :     if (aAllocator) {</span>
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :       aAllocator-&gt;ResetInitialTransactionId(mTransactionIdAllocator-&gt;LastTransactionId());</span>
+<span class="lineNum">     528 </span>            :     }
+<span class="lineNum">     529 </span>            :   }
+<span class="lineNum">     530 </span>            : 
+<span class="lineNum">     531 </span><span class="lineCov">          1 :   mTransactionIdAllocator = aAllocator;</span>
+<span class="lineNum">     532 </span><span class="lineCov">          1 : }</span>
+<a name="533"><span class="lineNum">     533 </span>            : </a>
+<span class="lineNum">     534 </span>            : float
+<span class="lineNum">     535 </span><span class="lineNoCov">          0 : ClientLayerManager::RequestProperty(const nsAString&amp; aProperty)</span>
+<span class="lineNum">     536 </span>            : {
+<span class="lineNum">     537 </span><span class="lineNoCov">          0 :   if (mForwarder-&gt;HasShadowManager()) {</span>
+<span class="lineNum">     538 </span>            :     float value;
+<span class="lineNum">     539 </span><span class="lineNoCov">          0 :     if (!mForwarder-&gt;GetShadowManager()-&gt;SendRequestProperty(nsString(aProperty), &amp;value)) {</span>
+<span class="lineNum">     540 </span>            :       NS_WARNING(&quot;Call to PLayerTransactionChild::SendGetAPZTestData() failed&quot;);
+<span class="lineNum">     541 </span>            :     }
+<span class="lineNum">     542 </span><span class="lineNoCov">          0 :     return value;</span>
+<span class="lineNum">     543 </span>            :   }
+<span class="lineNum">     544 </span>            :   return -1;
+<span class="lineNum">     545 </span>            : }
+<a name="546"><span class="lineNum">     546 </span>            : </a>
+<span class="lineNum">     547 </span>            : void
+<span class="lineNum">     548 </span><span class="lineNoCov">          0 : ClientLayerManager::StartNewRepaintRequest(SequenceNumber aSequenceNumber)</span>
+<span class="lineNum">     549 </span>            : {
+<span class="lineNum">     550 </span><span class="lineNoCov">          0 :   if (gfxPrefs::APZTestLoggingEnabled()) {</span>
+<span class="lineNum">     551 </span><span class="lineNoCov">          0 :     mApzTestData.StartNewRepaintRequest(aSequenceNumber);</span>
+<span class="lineNum">     552 </span>            :   }
+<span class="lineNum">     553 </span><span class="lineNoCov">          0 : }</span>
+<a name="554"><span class="lineNum">     554 </span>            : </a>
+<span class="lineNum">     555 </span>            : void
+<span class="lineNum">     556 </span><span class="lineNoCov">          0 : ClientLayerManager::GetFrameUniformity(FrameUniformityData* aOutData)</span>
+<span class="lineNum">     557 </span>            : {
+<span class="lineNum">     558 </span>            :   MOZ_ASSERT(XRE_IsParentProcess(), &quot;Frame Uniformity only supported in parent process&quot;);
+<span class="lineNum">     559 </span>            : 
+<span class="lineNum">     560 </span><span class="lineNoCov">          0 :   if (HasShadowManager()) {</span>
+<span class="lineNum">     561 </span><span class="lineNoCov">          0 :     CompositorBridgeChild* child = GetRemoteRenderer();</span>
+<span class="lineNum">     562 </span><span class="lineNoCov">          0 :     child-&gt;SendGetFrameUniformity(aOutData);</span>
+<span class="lineNum">     563 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     564 </span>            :   }
+<span class="lineNum">     565 </span>            : 
+<span class="lineNum">     566 </span>            :   return LayerManager::GetFrameUniformity(aOutData);
+<span class="lineNum">     567 </span>            : }
+<a name="568"><span class="lineNum">     568 </span>            : </a>
+<span class="lineNum">     569 </span>            : void
+<span class="lineNum">     570 </span><span class="lineCov">          1 : ClientLayerManager::MakeSnapshotIfRequired()</span>
+<span class="lineNum">     571 </span>            : {
+<span class="lineNum">     572 </span><span class="lineCov">          1 :   if (!mShadowTarget) {</span>
+<span class="lineNum">     573 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">     574 </span>            :   }
+<span class="lineNum">     575 </span><span class="lineCov">          1 :   if (mWidget) {</span>
+<span class="lineNum">     576 </span><span class="lineCov">          1 :     if (CompositorBridgeChild* remoteRenderer = GetRemoteRenderer()) {</span>
+<span class="lineNum">     577 </span>            :       // The compositor doesn't draw to a different sized surface
+<span class="lineNum">     578 </span>            :       // when there's a rotation. Instead we rotate the result
+<span class="lineNum">     579 </span>            :       // when drawing into dt
+<span class="lineNum">     580 </span><span class="lineCov">          1 :       LayoutDeviceIntRect outerBounds = mWidget-&gt;GetBounds();</span>
+<span class="lineNum">     581 </span>            : 
+<span class="lineNum">     582 </span><span class="lineCov">          1 :       IntRect bounds = ToOutsideIntRect(mShadowTarget-&gt;GetClipExtents());</span>
+<span class="lineNum">     583 </span><span class="lineCov">          1 :       if (mTargetRotation) {</span>
+<span class="lineNum">     584 </span>            :         bounds =
+<span class="lineNum">     585 </span><span class="lineNoCov">          0 :           RotateRect(bounds, outerBounds.ToUnknownRect(), mTargetRotation);</span>
+<span class="lineNum">     586 </span>            :       }
+<span class="lineNum">     587 </span>            : 
+<span class="lineNum">     588 </span>            :       SurfaceDescriptor inSnapshot;
+<span class="lineNum">     589 </span><span class="lineCov">          1 :       if (!bounds.IsEmpty() &amp;&amp;</span>
+<span class="lineNum">     590 </span>            :           mForwarder-&gt;AllocSurfaceDescriptor(bounds.Size(),
+<span class="lineNum">     591 </span>            :                                              gfxContentType::COLOR_ALPHA,
+<span class="lineNum">     592 </span><span class="lineCov">          1 :                                              &amp;inSnapshot)) {</span>
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span>            :         // Make a copy of |inSnapshot| because the call to send it over IPC
+<span class="lineNum">     595 </span>            :         // will call forget() on the Shmem inside, and zero it out.
+<span class="lineNum">     596 </span><span class="lineCov">          1 :         SurfaceDescriptor outSnapshot = inSnapshot;</span>
+<span class="lineNum">     597 </span>            : 
+<span class="lineNum">     598 </span><span class="lineCov">          1 :         if (remoteRenderer-&gt;SendMakeSnapshot(inSnapshot, bounds)) {</span>
+<span class="lineNum">     599 </span><span class="lineCov">          1 :           RefPtr&lt;DataSourceSurface&gt; surf = GetSurfaceForDescriptor(outSnapshot);</span>
+<span class="lineNum">     600 </span><span class="lineCov">          1 :           DrawTarget* dt = mShadowTarget-&gt;GetDrawTarget();</span>
+<span class="lineNum">     601 </span>            : 
+<span class="lineNum">     602 </span><span class="lineCov">          1 :           Rect dstRect(bounds.x, bounds.y, bounds.width, bounds.height);</span>
+<span class="lineNum">     603 </span><span class="lineCov">          1 :           Rect srcRect(0, 0, bounds.width, bounds.height);</span>
+<span class="lineNum">     604 </span>            : 
+<span class="lineNum">     605 </span>            :           gfx::Matrix rotate =
+<span class="lineNum">     606 </span>            :             ComputeTransformForUnRotation(outerBounds.ToUnknownRect(),
+<span class="lineNum">     607 </span><span class="lineCov">          1 :                                           mTargetRotation);</span>
+<span class="lineNum">     608 </span>            : 
+<span class="lineNum">     609 </span>            :           gfx::Matrix oldMatrix = dt-&gt;GetTransform();
+<span class="lineNum">     610 </span><span class="lineCov">          1 :           dt-&gt;SetTransform(rotate * oldMatrix);</span>
+<span class="lineNum">     611 </span>            :           dt-&gt;DrawSurface(surf, dstRect, srcRect,
+<span class="lineNum">     612 </span>            :                           DrawSurfaceOptions(),
+<span class="lineNum">     613 </span><span class="lineCov">          1 :                           DrawOptions(1.0f, CompositionOp::OP_OVER));</span>
+<span class="lineNum">     614 </span><span class="lineCov">          1 :           dt-&gt;SetTransform(oldMatrix);</span>
+<span class="lineNum">     615 </span>            :         }
+<span class="lineNum">     616 </span><span class="lineCov">          1 :         mForwarder-&gt;DestroySurfaceDescriptor(&amp;outSnapshot);</span>
+<span class="lineNum">     617 </span><span class="lineCov">          1 :       }</span>
+<span class="lineNum">     618 </span>            :     }
+<span class="lineNum">     619 </span>            :   }
+<span class="lineNum">     620 </span><span class="lineCov">          1 :   mShadowTarget = nullptr;</span>
+<span class="lineNum">     621 </span>            : }
+<a name="622"><span class="lineNum">     622 </span>            : </a>
+<span class="lineNum">     623 </span>            : void
+<span class="lineNum">     624 </span><span class="lineCov">          1 : ClientLayerManager::FlushRendering()</span>
+<span class="lineNum">     625 </span>            : {
+<span class="lineNum">     626 </span><span class="lineCov">          1 :   if (mWidget) {</span>
+<span class="lineNum">     627 </span><span class="lineCov">          1 :     if (CompositorBridgeChild* remoteRenderer = mWidget-&gt;GetRemoteRenderer()) {</span>
+<span class="lineNum">     628 </span><span class="lineCov">          1 :       remoteRenderer-&gt;SendFlushRendering();</span>
+<span class="lineNum">     629 </span>            :     }
+<span class="lineNum">     630 </span>            :   }
+<span class="lineNum">     631 </span><span class="lineCov">          1 : }</span>
+<a name="632"><span class="lineNum">     632 </span>            : </a>
+<span class="lineNum">     633 </span>            : void
+<span class="lineNum">     634 </span><span class="lineCov">          1 : ClientLayerManager::UpdateTextureFactoryIdentifier(const TextureFactoryIdentifier&amp; aNewIdentifier,</span>
+<span class="lineNum">     635 </span>            :                                                    uint64_t aDeviceResetSeqNo)
+<span class="lineNum">     636 </span>            : {
+<span class="lineNum">     637 </span>            :   MOZ_ASSERT_IF(XRE_IsContentProcess(),
+<span class="lineNum">     638 </span>            :                 aDeviceResetSeqNo == CompositorBridgeChild::Get()-&gt;DeviceResetSequenceNumber());
+<span class="lineNum">     639 </span>            : 
+<span class="lineNum">     640 </span><span class="lineCov">          1 :   mForwarder-&gt;IdentifyTextureHost(aNewIdentifier);</span>
+<span class="lineNum">     641 </span><span class="lineCov">          1 :   mDeviceResetSequenceNumber = aDeviceResetSeqNo;</span>
+<span class="lineNum">     642 </span><span class="lineCov">          1 : }</span>
+<a name="643"><span class="lineNum">     643 </span>            : </a>
+<span class="lineNum">     644 </span>            : void
+<span class="lineNum">     645 </span><span class="lineCov">          1 : ClientLayerManager::SendInvalidRegion(const nsIntRegion&amp; aRegion)</span>
+<span class="lineNum">     646 </span>            : {
+<span class="lineNum">     647 </span><span class="lineCov">          1 :   if (mWidget) {</span>
+<span class="lineNum">     648 </span><span class="lineCov">          1 :     if (CompositorBridgeChild* remoteRenderer = mWidget-&gt;GetRemoteRenderer()) {</span>
+<span class="lineNum">     649 </span><span class="lineCov">          1 :       remoteRenderer-&gt;SendNotifyRegionInvalidated(aRegion);</span>
+<span class="lineNum">     650 </span>            :     }
+<span class="lineNum">     651 </span>            :   }
+<span class="lineNum">     652 </span><span class="lineCov">          1 : }</span>
+<a name="653"><span class="lineNum">     653 </span>            : </a>
+<span class="lineNum">     654 </span>            : uint32_t
+<span class="lineNum">     655 </span><span class="lineCov">          1 : ClientLayerManager::StartFrameTimeRecording(int32_t aBufferSize)</span>
+<span class="lineNum">     656 </span>            : {
+<span class="lineNum">     657 </span><span class="lineCov">          1 :   CompositorBridgeChild* renderer = GetRemoteRenderer();</span>
+<span class="lineNum">     658 </span><span class="lineCov">          1 :   if (renderer) {</span>
+<span class="lineNum">     659 </span>            :     uint32_t startIndex;
+<span class="lineNum">     660 </span><span class="lineCov">          1 :     renderer-&gt;SendStartFrameTimeRecording(aBufferSize, &amp;startIndex);</span>
+<span class="lineNum">     661 </span><span class="lineCov">          1 :     return startIndex;</span>
+<span class="lineNum">     662 </span>            :   }
+<span class="lineNum">     663 </span>            :   return -1;
+<span class="lineNum">     664 </span>            : }
+<a name="665"><span class="lineNum">     665 </span>            : </a>
+<span class="lineNum">     666 </span>            : void
+<span class="lineNum">     667 </span><span class="lineCov">          1 : ClientLayerManager::StopFrameTimeRecording(uint32_t         aStartIndex,</span>
+<span class="lineNum">     668 </span>            :                                            nsTArray&lt;float&gt;&amp; aFrameIntervals)
+<span class="lineNum">     669 </span>            : {
+<span class="lineNum">     670 </span><span class="lineCov">          1 :   CompositorBridgeChild* renderer = GetRemoteRenderer();</span>
+<span class="lineNum">     671 </span><span class="lineCov">          1 :   if (renderer) {</span>
+<span class="lineNum">     672 </span><span class="lineCov">          1 :     renderer-&gt;SendStopFrameTimeRecording(aStartIndex, &amp;aFrameIntervals);</span>
+<span class="lineNum">     673 </span>            :   }
+<span class="lineNum">     674 </span><span class="lineCov">          1 : }</span>
+<a name="675"><span class="lineNum">     675 </span>            : </a>
+<span class="lineNum">     676 </span>            : void
+<span class="lineNum">     677 </span><span class="lineCov">          1 : ClientLayerManager::ForwardTransaction(bool aScheduleComposite)</span>
+<span class="lineNum">     678 </span>            : {
+<span class="lineNum">     679 </span><span class="lineCov">          1 :   GeckoProfilerTracingRAII tracer(&quot;Paint&quot;, &quot;ForwardTransaction&quot;);</span>
+<span class="lineNum">     680 </span><span class="lineCov">          1 :   TimeStamp start = TimeStamp::Now();</span>
+<span class="lineNum">     681 </span>            : 
+<span class="lineNum">     682 </span>            :   // Skip the synchronization for buffer since we also skip the painting during
+<span class="lineNum">     683 </span>            :   // device-reset status.
+<span class="lineNum">     684 </span><span class="lineCov">          1 :   if (!gfxPlatform::GetPlatform()-&gt;DidRenderingDeviceReset()) {</span>
+<span class="lineNum">     685 </span><span class="lineCov">          1 :     if (mForwarder-&gt;GetSyncObject() &amp;&amp;</span>
+<span class="lineNum">     686 </span><span class="lineNoCov">          0 :         mForwarder-&gt;GetSyncObject()-&gt;IsSyncObjectValid()) {</span>
+<span class="lineNum">     687 </span><span class="lineNoCov">          0 :       mForwarder-&gt;GetSyncObject()-&gt;FinalizeFrame();</span>
+<span class="lineNum">     688 </span>            :     }
+<span class="lineNum">     689 </span>            :   }
+<span class="lineNum">     690 </span>            : 
+<span class="lineNum">     691 </span><span class="lineCov">          1 :   mPhase = PHASE_FORWARD;</span>
+<span class="lineNum">     692 </span>            : 
+<span class="lineNum">     693 </span><span class="lineCov">          1 :   mLatestTransactionId = mTransactionIdAllocator-&gt;GetTransactionId();</span>
+<span class="lineNum">     694 </span><span class="lineCov">          1 :   TimeStamp transactionStart;</span>
+<span class="lineNum">     695 </span><span class="lineCov">          1 :   if (!mTransactionIdAllocator-&gt;GetTransactionStart().IsNull()) {</span>
+<span class="lineNum">     696 </span><span class="lineCov">          1 :     transactionStart = mTransactionIdAllocator-&gt;GetTransactionStart();</span>
+<span class="lineNum">     697 </span>            :   } else {
+<span class="lineNum">     698 </span><span class="lineCov">          1 :     transactionStart = mTransactionStart;</span>
+<span class="lineNum">     699 </span>            :   }
+<span class="lineNum">     700 </span>            : 
+<span class="lineNum">     701 </span><span class="lineCov">          1 :   if (gfxPrefs::AlwaysPaint() &amp;&amp; XRE_IsContentProcess()) {</span>
+<span class="lineNum">     702 </span><span class="lineNoCov">          0 :     mForwarder-&gt;SendPaintTime(mLatestTransactionId, mLastPaintTime);</span>
+<span class="lineNum">     703 </span>            :   }
+<span class="lineNum">     704 </span>            : 
+<span class="lineNum">     705 </span>            :   // forward this transaction's changeset to our LayerManagerComposite
+<span class="lineNum">     706 </span><span class="lineCov">          1 :   bool sent = false;</span>
+<span class="lineNum">     707 </span>            :   bool ok = mForwarder-&gt;EndTransaction(
+<span class="lineNum">     708 </span>            :     mRegionToClear, mLatestTransactionId, aScheduleComposite,
+<span class="lineNum">     709 </span>            :     mPaintSequenceNumber, mIsRepeatTransaction, transactionStart,
+<span class="lineNum">     710 </span><span class="lineCov">          1 :     &amp;sent);</span>
+<span class="lineNum">     711 </span><span class="lineCov">          1 :   if (ok) {</span>
+<span class="lineNum">     712 </span><span class="lineCov">          1 :     if (sent) {</span>
+<span class="lineNum">     713 </span><span class="lineCov">          1 :       mNeedsComposite = false;</span>
+<span class="lineNum">     714 </span>            :     }
+<span class="lineNum">     715 </span>            :   } else if (HasShadowManager()) {
+<span class="lineNum">     716 </span>            :     NS_WARNING(&quot;failed to forward Layers transaction&quot;);
+<span class="lineNum">     717 </span>            :   }
+<span class="lineNum">     718 </span>            : 
+<span class="lineNum">     719 </span><span class="lineCov">          1 :   if (!sent) {</span>
+<span class="lineNum">     720 </span>            :     // Clear the transaction id so that it doesn't get returned
+<span class="lineNum">     721 </span>            :     // unless we forwarded to somewhere that doesn't actually
+<span class="lineNum">     722 </span>            :     // have a compositor.
+<span class="lineNum">     723 </span><span class="lineCov">          1 :     mTransactionIdAllocator-&gt;RevokeTransactionId(mLatestTransactionId);</span>
+<span class="lineNum">     724 </span>            :   }
+<span class="lineNum">     725 </span>            : 
+<span class="lineNum">     726 </span><span class="lineCov">          1 :   mPhase = PHASE_NONE;</span>
+<span class="lineNum">     727 </span>            : 
+<span class="lineNum">     728 </span>            :   // this may result in Layers being deleted, which results in
+<span class="lineNum">     729 </span>            :   // PLayer::Send__delete__() and DeallocShmem()
+<span class="lineNum">     730 </span><span class="lineCov">          1 :   mKeepAlive.Clear();</span>
+<span class="lineNum">     731 </span>            : 
+<span class="lineNum">     732 </span><span class="lineCov">          1 :   TabChild* window = mWidget ? mWidget-&gt;GetOwningTabChild() : nullptr;</span>
+<span class="lineNum">     733 </span><span class="lineCov">          1 :   if (window) {</span>
+<span class="lineNum">     734 </span><span class="lineNoCov">          0 :     TimeStamp end = TimeStamp::Now();</span>
+<span class="lineNum">     735 </span><span class="lineNoCov">          0 :     window-&gt;DidRequestComposite(start, end);</span>
+<span class="lineNum">     736 </span><span class="lineCov">          1 :   }</span>
+<span class="lineNum">     737 </span><span class="lineCov">          1 : }</span>
+<a name="738"><span class="lineNum">     738 </span>            : </a>
+<span class="lineNum">     739 </span>            : ShadowableLayer*
+<span class="lineNum">     740 </span><span class="lineCov">          1 : ClientLayerManager::Hold(Layer* aLayer)</span>
+<span class="lineNum">     741 </span>            : {
+<span class="lineNum">     742 </span>            :   MOZ_ASSERT(HasShadowManager(),
+<span class="lineNum">     743 </span>            :              &quot;top-level tree, no shadow tree to remote to&quot;);
+<span class="lineNum">     744 </span>            : 
+<span class="lineNum">     745 </span><span class="lineCov">          1 :   ShadowableLayer* shadowable = ClientLayer::ToClientLayer(aLayer);</span>
+<span class="lineNum">     746 </span>            :   MOZ_ASSERT(shadowable, &quot;trying to remote an unshadowable layer&quot;);
+<span class="lineNum">     747 </span>            : 
+<span class="lineNum">     748 </span><span class="lineCov">          1 :   mKeepAlive.AppendElement(aLayer);</span>
+<span class="lineNum">     749 </span><span class="lineCov">          1 :   return shadowable;</span>
+<span class="lineNum">     750 </span>            : }
+<a name="751"><span class="lineNum">     751 </span>            : </a>
+<span class="lineNum">     752 </span>            : bool
+<span class="lineNum">     753 </span><span class="lineCov">          1 : ClientLayerManager::IsCompositingCheap()</span>
+<span class="lineNum">     754 </span>            : {
+<span class="lineNum">     755 </span>            :   // Whether compositing is cheap depends on the parent backend.
+<span class="lineNum">     756 </span><span class="lineCov">          1 :   return mForwarder-&gt;mShadowManager &amp;&amp;</span>
+<span class="lineNum">     757 </span><span class="lineCov">          1 :          LayerManager::IsCompositingCheap(mForwarder-&gt;GetCompositorBackendType());</span>
+<span class="lineNum">     758 </span>            : }
+<a name="759"><span class="lineNum">     759 </span>            : </a>
+<span class="lineNum">     760 </span>            : bool
+<span class="lineNum">     761 </span><span class="lineCov">          1 : ClientLayerManager::AreComponentAlphaLayersEnabled()</span>
+<span class="lineNum">     762 </span>            : {
+<span class="lineNum">     763 </span><span class="lineNoCov">          0 :   return GetCompositorBackendType() != LayersBackend::LAYERS_BASIC &amp;&amp;</span>
+<span class="lineNum">     764 </span><span class="lineCov">          1 :          AsShadowForwarder()-&gt;SupportsComponentAlpha() &amp;&amp;</span>
+<span class="lineNum">     765 </span><span class="lineCov">          1 :          LayerManager::AreComponentAlphaLayersEnabled();</span>
+<span class="lineNum">     766 </span>            : }
+<a name="767"><span class="lineNum">     767 </span>            : </a>
+<span class="lineNum">     768 </span>            : void
+<span class="lineNum">     769 </span><span class="lineCov">          1 : ClientLayerManager::SetIsFirstPaint()</span>
+<span class="lineNum">     770 </span>            : {
+<span class="lineNum">     771 </span><span class="lineCov">          1 :   mForwarder-&gt;SetIsFirstPaint();</span>
+<span class="lineNum">     772 </span><span class="lineCov">          1 : }</span>
+<a name="773"><span class="lineNum">     773 </span>            : </a>
+<span class="lineNum">     774 </span>            : void
+<span class="lineNum">     775 </span><span class="lineCov">          1 : ClientLayerManager::ClearCachedResources(Layer* aSubtree)</span>
+<span class="lineNum">     776 </span>            : {
+<span class="lineNum">     777 </span><span class="lineCov">          1 :   if (mDestroyed) {</span>
+<span class="lineNum">     778 </span>            :     // ClearCachedResource was already called by ClientLayerManager::Destroy
+<span class="lineNum">     779 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">     780 </span>            :   }
+<span class="lineNum">     781 </span>            :   MOZ_ASSERT(!HasShadowManager() || !aSubtree);
+<span class="lineNum">     782 </span><span class="lineCov">          1 :   mForwarder-&gt;ClearCachedResources();</span>
+<span class="lineNum">     783 </span><span class="lineCov">          1 :   if (aSubtree) {</span>
+<span class="lineNum">     784 </span><span class="lineNoCov">          0 :     ClearLayer(aSubtree);</span>
+<span class="lineNum">     785 </span><span class="lineCov">          1 :   } else if (mRoot) {</span>
+<span class="lineNum">     786 </span><span class="lineCov">          1 :     ClearLayer(mRoot);</span>
+<span class="lineNum">     787 </span>            :   }
+<span class="lineNum">     788 </span>            : }
+<a name="789"><span class="lineNum">     789 </span>            : </a>
+<span class="lineNum">     790 </span>            : void
+<span class="lineNum">     791 </span><span class="lineCov">          1 : ClientLayerManager::HandleMemoryPressure()</span>
+<span class="lineNum">     792 </span>            : {
+<span class="lineNum">     793 </span><span class="lineCov">          1 :   if (mRoot) {</span>
+<span class="lineNum">     794 </span><span class="lineCov">          1 :     HandleMemoryPressureLayer(mRoot);</span>
+<span class="lineNum">     795 </span>            :   }
+<span class="lineNum">     796 </span>            : 
+<span class="lineNum">     797 </span><span class="lineCov">          1 :   if (GetCompositorBridgeChild()) {</span>
+<span class="lineNum">     798 </span><span class="lineCov">          1 :     GetCompositorBridgeChild()-&gt;HandleMemoryPressure();</span>
+<span class="lineNum">     799 </span>            :   }
+<span class="lineNum">     800 </span><span class="lineCov">          1 : }</span>
+<a name="801"><span class="lineNum">     801 </span>            : </a>
+<span class="lineNum">     802 </span>            : void
+<span class="lineNum">     803 </span><span class="lineCov">          1 : ClientLayerManager::ClearLayer(Layer* aLayer)</span>
+<span class="lineNum">     804 </span>            : {
+<span class="lineNum">     805 </span><span class="lineCov">          1 :   aLayer-&gt;ClearCachedResources();</span>
+<span class="lineNum">     806 </span><span class="lineCov">          1 :   for (Layer* child = aLayer-&gt;GetFirstChild(); child;</span>
+<span class="lineNum">     807 </span>            :        child = child-&gt;GetNextSibling()) {
+<span class="lineNum">     808 </span><span class="lineCov">          1 :     ClearLayer(child);</span>
+<span class="lineNum">     809 </span>            :   }
+<span class="lineNum">     810 </span><span class="lineCov">          1 : }</span>
+<a name="811"><span class="lineNum">     811 </span>            : </a>
+<span class="lineNum">     812 </span>            : void
+<span class="lineNum">     813 </span><span class="lineCov">          1 : ClientLayerManager::HandleMemoryPressureLayer(Layer* aLayer)</span>
+<span class="lineNum">     814 </span>            : {
+<span class="lineNum">     815 </span><span class="lineCov">          1 :   ClientLayer::ToClientLayer(aLayer)-&gt;HandleMemoryPressure();</span>
+<span class="lineNum">     816 </span><span class="lineCov">          1 :   for (Layer* child = aLayer-&gt;GetFirstChild(); child;</span>
+<span class="lineNum">     817 </span>            :        child = child-&gt;GetNextSibling()) {
+<span class="lineNum">     818 </span><span class="lineCov">          1 :     HandleMemoryPressureLayer(child);</span>
+<span class="lineNum">     819 </span>            :   }
+<span class="lineNum">     820 </span><span class="lineCov">          1 : }</span>
+<a name="821"><span class="lineNum">     821 </span>            : </a>
+<span class="lineNum">     822 </span>            : void
+<span class="lineNum">     823 </span><span class="lineCov">          1 : ClientLayerManager::GetBackendName(nsAString&amp; aName)</span>
+<span class="lineNum">     824 </span>            : {
+<span class="lineNum">     825 </span><span class="lineCov">          1 :   switch (mForwarder-&gt;GetCompositorBackendType()) {</span>
+<span class="lineNum">     826 </span><span class="lineNoCov">          0 :     case LayersBackend::LAYERS_NONE: aName.AssignLiteral(&quot;None&quot;); return;</span>
+<span class="lineNum">     827 </span><span class="lineCov">          1 :     case LayersBackend::LAYERS_BASIC: aName.AssignLiteral(&quot;Basic&quot;); return;</span>
+<span class="lineNum">     828 </span><span class="lineNoCov">          0 :     case LayersBackend::LAYERS_OPENGL: aName.AssignLiteral(&quot;OpenGL&quot;); return;</span>
+<span class="lineNum">     829 </span><span class="lineNoCov">          0 :     case LayersBackend::LAYERS_D3D9: aName.AssignLiteral(&quot;Direct3D 9&quot;); return;</span>
+<span class="lineNum">     830 </span>            :     case LayersBackend::LAYERS_D3D11: {
+<span class="lineNum">     831 </span>            : #ifdef XP_WIN
+<span class="lineNum">     832 </span>            :       if (DeviceManagerDx::Get()-&gt;IsWARP()) {
+<span class="lineNum">     833 </span>            :         aName.AssignLiteral(&quot;Direct3D 11 WARP&quot;);
+<span class="lineNum">     834 </span>            :       } else {
+<span class="lineNum">     835 </span>            :         aName.AssignLiteral(&quot;Direct3D 11&quot;);
+<span class="lineNum">     836 </span>            :       }
+<span class="lineNum">     837 </span>            : #endif
+<span class="lineNum">     838 </span>            :       return;
+<span class="lineNum">     839 </span>            :     }
+<span class="lineNum">     840 </span><span class="lineNoCov">          0 :     default: MOZ_CRASH(&quot;Invalid backend&quot;);</span>
+<span class="lineNum">     841 </span>            :   }
+<span class="lineNum">     842 </span>            : }
+<a name="843"><span class="lineNum">     843 </span>            : </a>
+<span class="lineNum">     844 </span>            : bool
+<span class="lineNum">     845 </span><span class="lineCov">          1 : ClientLayerManager::AsyncPanZoomEnabled() const</span>
+<span class="lineNum">     846 </span>            : {
+<span class="lineNum">     847 </span><span class="lineCov">          1 :   return mWidget &amp;&amp; mWidget-&gt;AsyncPanZoomEnabled();</span>
+<span class="lineNum">     848 </span>            : }
+<a name="849"><span class="lineNum">     849 </span>            : </a>
+<span class="lineNum">     850 </span>            : void
+<span class="lineNum">     851 </span><span class="lineNoCov">          0 : ClientLayerManager::SetNextPaintSyncId(int32_t aSyncId)</span>
+<span class="lineNum">     852 </span>            : {
+<span class="lineNum">     853 </span><span class="lineNoCov">          0 :   mForwarder-&gt;SetPaintSyncId(aSyncId);</span>
+<span class="lineNum">     854 </span><span class="lineNoCov">          0 : }</span>
+<a name="855"><span class="lineNum">     855 </span>            : </a>
+<span class="lineNum">     856 </span>            : void
+<span class="lineNum">     857 </span><span class="lineNoCov">          0 : ClientLayerManager::SetLayerObserverEpoch(uint64_t aLayerObserverEpoch)</span>
+<span class="lineNum">     858 </span>            : {
+<span class="lineNum">     859 </span><span class="lineNoCov">          0 :   mForwarder-&gt;SetLayerObserverEpoch(aLayerObserverEpoch);</span>
+<span class="lineNum">     860 </span><span class="lineNoCov">          0 : }</span>
+<a name="861"><span class="lineNum">     861 </span>            : </a>
+<span class="lineNum">     862 </span>            : void
+<span class="lineNum">     863 </span><span class="lineCov">          1 : ClientLayerManager::AddDidCompositeObserver(DidCompositeObserver* aObserver)</span>
+<span class="lineNum">     864 </span>            : {
+<span class="lineNum">     865 </span><span class="lineCov">          1 :   if (!mDidCompositeObservers.Contains(aObserver)) {</span>
+<span class="lineNum">     866 </span><span class="lineCov">          1 :     mDidCompositeObservers.AppendElement(aObserver);</span>
+<span class="lineNum">     867 </span>            :   }
+<span class="lineNum">     868 </span><span class="lineCov">          1 : }</span>
+<a name="869"><span class="lineNum">     869 </span>            : </a>
+<span class="lineNum">     870 </span>            : void
+<span class="lineNum">     871 </span><span class="lineCov">          1 : ClientLayerManager::RemoveDidCompositeObserver(DidCompositeObserver* aObserver)</span>
+<span class="lineNum">     872 </span>            : {
+<span class="lineNum">     873 </span><span class="lineCov">          1 :   mDidCompositeObservers.RemoveElement(aObserver);</span>
+<span class="lineNum">     874 </span><span class="lineCov">          1 : }</span>
+<a name="875"><span class="lineNum">     875 </span>            : </a>
+<span class="lineNum">     876 </span>            : already_AddRefed&lt;PersistentBufferProvider&gt;
+<span class="lineNum">     877 </span><span class="lineCov">          1 : ClientLayerManager::CreatePersistentBufferProvider(const gfx::IntSize&amp; aSize,</span>
+<span class="lineNum">     878 </span>            :                                                    gfx::SurfaceFormat aFormat)
+<span class="lineNum">     879 </span>            : {
+<span class="lineNum">     880 </span>            :   // Don't use a shared buffer provider if compositing is considered &quot;not cheap&quot;
+<span class="lineNum">     881 </span>            :   // because the canvas will most likely be flattened into a thebes layer instead
+<span class="lineNum">     882 </span>            :   // of being sent to the compositor, in which case rendering into shared memory
+<span class="lineNum">     883 </span>            :   // is wasteful.
+<span class="lineNum">     884 </span><span class="lineCov">          1 :   if (IsCompositingCheap() &amp;&amp;</span>
+<span class="lineNum">     885 </span><span class="lineNoCov">          0 :       gfxPrefs::PersistentBufferProviderSharedEnabled()) {</span>
+<span class="lineNum">     886 </span>            :     RefPtr&lt;PersistentBufferProvider&gt; provider
+<span class="lineNum">     887 </span><span class="lineNoCov">          0 :       = PersistentBufferProviderShared::Create(aSize, aFormat, AsShadowForwarder());</span>
+<span class="lineNum">     888 </span><span class="lineNoCov">          0 :     if (provider) {</span>
+<span class="lineNum">     889 </span><span class="lineNoCov">          0 :       return provider.forget();</span>
+<span class="lineNum">     890 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     891 </span>            :   }
+<span class="lineNum">     892 </span>            : 
+<span class="lineNum">     893 </span><span class="lineCov">          1 :   return LayerManager::CreatePersistentBufferProvider(aSize, aFormat);</span>
+<span class="lineNum">     894 </span>            : }
+<a name="895"><span class="lineNum">     895 </span>            : </a>
+<span class="lineNum">     896 </span>            : 
+<span class="lineNum">     897 </span><span class="lineCov">          1 : ClientLayer::~ClientLayer()</span>
+<span class="lineNum">     898 </span>            : {
+<span class="lineNum">     899 </span>            :   MOZ_COUNT_DTOR(ClientLayer);
+<span class="lineNum">     900 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     901 </span>            : 
+<span class="lineNum">     902 </span>            : } // namespace layers
+<span class="lineNum">     903 </span>            : } // namespace mozilla
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

@@ -1,0 +1,614 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/nss/lib/ssl/ssl3ext.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">security/nss/lib/ssl</a> - ssl3ext.c<span style="font-size: 80%;"> (source / <a href="ssl3ext.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">115</td>
+            <td class="headerCovTableEntry">150</td>
+            <td class="headerCovTableEntryMed">76.7 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">17</td>
+            <td class="headerCovTableEntry">20</td>
+            <td class="headerCovTableEntryMed">85.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*- */</a>
+<span class="lineNum">       2 </span>            : /*
+<span class="lineNum">       3 </span>            :  * SSL3 Protocol
+<span class="lineNum">       4 </span>            :  *
+<span class="lineNum">       5 </span>            :  * This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       6 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       7 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : /* TLS extension code moved here from ssl3ecc.c */
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;nssrenam.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;nss.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;ssl.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;sslimpl.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;sslproto.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;ssl3exthandle.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;tls13exthandle.h&quot;
+<span class="lineNum">      18 </span>            : 
+<span class="lineNum">      19 </span>            : /* Table of handlers for received TLS hello extensions, one per extension.
+<span class="lineNum">      20 </span>            :  * In the second generation, this table will be dynamic, and functions
+<span class="lineNum">      21 </span>            :  * will be registered here.
+<span class="lineNum">      22 </span>            :  */
+<span class="lineNum">      23 </span>            : /* This table is used by the server, to handle client hello extensions. */
+<span class="lineNum">      24 </span>            : static const ssl3ExtensionHandler clientHelloHandlers[] = {
+<span class="lineNum">      25 </span>            :     { ssl_server_name_xtn, &amp;ssl3_HandleServerNameXtn },
+<span class="lineNum">      26 </span>            :     { ssl_supported_groups_xtn, &amp;ssl_HandleSupportedGroupsXtn },
+<span class="lineNum">      27 </span>            :     { ssl_ec_point_formats_xtn, &amp;ssl3_HandleSupportedPointFormatsXtn },
+<span class="lineNum">      28 </span>            :     { ssl_session_ticket_xtn, &amp;ssl3_ServerHandleSessionTicketXtn },
+<span class="lineNum">      29 </span>            :     { ssl_renegotiation_info_xtn, &amp;ssl3_HandleRenegotiationInfoXtn },
+<span class="lineNum">      30 </span>            :     { ssl_next_proto_nego_xtn, &amp;ssl3_ServerHandleNextProtoNegoXtn },
+<span class="lineNum">      31 </span>            :     { ssl_app_layer_protocol_xtn, &amp;ssl3_ServerHandleAppProtoXtn },
+<span class="lineNum">      32 </span>            :     { ssl_use_srtp_xtn, &amp;ssl3_ServerHandleUseSRTPXtn },
+<span class="lineNum">      33 </span>            :     { ssl_cert_status_xtn, &amp;ssl3_ServerHandleStatusRequestXtn },
+<span class="lineNum">      34 </span>            :     { ssl_signature_algorithms_xtn, &amp;ssl3_ServerHandleSigAlgsXtn },
+<span class="lineNum">      35 </span>            :     { ssl_extended_master_secret_xtn, &amp;ssl3_HandleExtendedMasterSecretXtn },
+<span class="lineNum">      36 </span>            :     { ssl_signed_cert_timestamp_xtn, &amp;ssl3_ServerHandleSignedCertTimestampXtn },
+<span class="lineNum">      37 </span>            :     { ssl_tls13_key_share_xtn, &amp;tls13_ServerHandleKeyShareXtn },
+<span class="lineNum">      38 </span>            :     { ssl_tls13_pre_shared_key_xtn, &amp;tls13_ServerHandlePreSharedKeyXtn },
+<span class="lineNum">      39 </span>            :     { ssl_tls13_early_data_xtn, &amp;tls13_ServerHandleEarlyDataXtn },
+<span class="lineNum">      40 </span>            :     { ssl_tls13_psk_key_exchange_modes_xtn,
+<span class="lineNum">      41 </span>            :       &amp;tls13_ServerHandlePskKeyExchangeModesXtn },
+<span class="lineNum">      42 </span>            :     { ssl_tls13_short_header_xtn, &amp;tls13_HandleShortHeaderXtn },
+<span class="lineNum">      43 </span>            :     { -1, NULL }
+<span class="lineNum">      44 </span>            : };
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span>            : /* These two tables are used by the client, to handle server hello
+<span class="lineNum">      47 </span>            :  * extensions. */
+<span class="lineNum">      48 </span>            : static const ssl3ExtensionHandler serverHelloHandlersTLS[] = {
+<span class="lineNum">      49 </span>            :     { ssl_server_name_xtn, &amp;ssl3_HandleServerNameXtn },
+<span class="lineNum">      50 </span>            :     /* TODO: add a handler for ssl_ec_point_formats_xtn */
+<span class="lineNum">      51 </span>            :     { ssl_session_ticket_xtn, &amp;ssl3_ClientHandleSessionTicketXtn },
+<span class="lineNum">      52 </span>            :     { ssl_renegotiation_info_xtn, &amp;ssl3_HandleRenegotiationInfoXtn },
+<span class="lineNum">      53 </span>            :     { ssl_next_proto_nego_xtn, &amp;ssl3_ClientHandleNextProtoNegoXtn },
+<span class="lineNum">      54 </span>            :     { ssl_app_layer_protocol_xtn, &amp;ssl3_ClientHandleAppProtoXtn },
+<span class="lineNum">      55 </span>            :     { ssl_use_srtp_xtn, &amp;ssl3_ClientHandleUseSRTPXtn },
+<span class="lineNum">      56 </span>            :     { ssl_cert_status_xtn, &amp;ssl3_ClientHandleStatusRequestXtn },
+<span class="lineNum">      57 </span>            :     { ssl_extended_master_secret_xtn, &amp;ssl3_HandleExtendedMasterSecretXtn },
+<span class="lineNum">      58 </span>            :     { ssl_signed_cert_timestamp_xtn, &amp;ssl3_ClientHandleSignedCertTimestampXtn },
+<span class="lineNum">      59 </span>            :     { ssl_tls13_key_share_xtn, &amp;tls13_ClientHandleKeyShareXtn },
+<span class="lineNum">      60 </span>            :     { ssl_tls13_pre_shared_key_xtn, &amp;tls13_ClientHandlePreSharedKeyXtn },
+<span class="lineNum">      61 </span>            :     { ssl_tls13_early_data_xtn, &amp;tls13_ClientHandleEarlyDataXtn },
+<span class="lineNum">      62 </span>            :     { ssl_tls13_short_header_xtn, &amp;tls13_HandleShortHeaderXtn },
+<span class="lineNum">      63 </span>            :     { -1, NULL }
+<span class="lineNum">      64 </span>            : };
+<span class="lineNum">      65 </span>            : 
+<span class="lineNum">      66 </span>            : static const ssl3ExtensionHandler helloRetryRequestHandlers[] = {
+<span class="lineNum">      67 </span>            :     { ssl_tls13_key_share_xtn, tls13_ClientHandleKeyShareXtnHrr },
+<span class="lineNum">      68 </span>            :     { ssl_tls13_cookie_xtn, tls13_ClientHandleHrrCookie },
+<span class="lineNum">      69 </span>            :     { -1, NULL }
+<span class="lineNum">      70 </span>            : };
+<span class="lineNum">      71 </span>            : 
+<span class="lineNum">      72 </span>            : static const ssl3ExtensionHandler serverHelloHandlersSSL3[] = {
+<span class="lineNum">      73 </span>            :     { ssl_renegotiation_info_xtn, &amp;ssl3_HandleRenegotiationInfoXtn },
+<span class="lineNum">      74 </span>            :     { -1, NULL }
+<span class="lineNum">      75 </span>            : };
+<span class="lineNum">      76 </span>            : 
+<span class="lineNum">      77 </span>            : static const ssl3ExtensionHandler newSessionTicketHandlers[] = {
+<span class="lineNum">      78 </span>            :     { ssl_tls13_ticket_early_data_info_xtn,
+<span class="lineNum">      79 </span>            :       &amp;tls13_ClientHandleTicketEarlyDataInfoXtn },
+<span class="lineNum">      80 </span>            :     { -1, NULL }
+<span class="lineNum">      81 </span>            : };
+<span class="lineNum">      82 </span>            : 
+<span class="lineNum">      83 </span>            : /* This table is used by the client to handle server certificates in TLS 1.3 */
+<span class="lineNum">      84 </span>            : static const ssl3ExtensionHandler serverCertificateHandlers[] = {
+<span class="lineNum">      85 </span>            :     { ssl_signed_cert_timestamp_xtn, &amp;ssl3_ClientHandleSignedCertTimestampXtn },
+<span class="lineNum">      86 </span>            :     { ssl_cert_status_xtn, &amp;ssl3_ClientHandleStatusRequestXtn },
+<span class="lineNum">      87 </span>            :     { -1, NULL }
+<span class="lineNum">      88 </span>            : };
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span>            : /* Tables of functions to format TLS hello extensions, one function per
+<span class="lineNum">      91 </span>            :  * extension.
+<span class="lineNum">      92 </span>            :  * These static tables are for the formatting of client hello extensions.
+<span class="lineNum">      93 </span>            :  * The server's table of hello senders is dynamic, in the socket struct,
+<span class="lineNum">      94 </span>            :  * and sender functions are registered there.
+<span class="lineNum">      95 </span>            :  * NB: the order of these extensions can have an impact on compatibility. Some
+<span class="lineNum">      96 </span>            :  * servers (e.g. Tomcat) will terminate the connection if the last extension in
+<span class="lineNum">      97 </span>            :  * the client hello is empty (for example, the extended master secret
+<span class="lineNum">      98 </span>            :  * extension, if it were listed last). See bug 1243641.
+<span class="lineNum">      99 </span>            :  */
+<span class="lineNum">     100 </span>            : static const ssl3HelloExtensionSender clientHelloSendersTLS[SSL_MAX_EXTENSIONS] =
+<span class="lineNum">     101 </span>            :     {
+<span class="lineNum">     102 </span>            :       { ssl_server_name_xtn, &amp;ssl3_SendServerNameXtn },
+<span class="lineNum">     103 </span>            :       { ssl_extended_master_secret_xtn, &amp;ssl3_SendExtendedMasterSecretXtn },
+<span class="lineNum">     104 </span>            :       { ssl_renegotiation_info_xtn, &amp;ssl3_SendRenegotiationInfoXtn },
+<span class="lineNum">     105 </span>            :       { ssl_supported_groups_xtn, &amp;ssl_SendSupportedGroupsXtn },
+<span class="lineNum">     106 </span>            :       { ssl_ec_point_formats_xtn, &amp;ssl3_SendSupportedPointFormatsXtn },
+<span class="lineNum">     107 </span>            :       { ssl_session_ticket_xtn, &amp;ssl3_SendSessionTicketXtn },
+<span class="lineNum">     108 </span>            :       { ssl_next_proto_nego_xtn, &amp;ssl3_ClientSendNextProtoNegoXtn },
+<span class="lineNum">     109 </span>            :       { ssl_app_layer_protocol_xtn, &amp;ssl3_ClientSendAppProtoXtn },
+<span class="lineNum">     110 </span>            :       { ssl_use_srtp_xtn, &amp;ssl3_ClientSendUseSRTPXtn },
+<span class="lineNum">     111 </span>            :       { ssl_cert_status_xtn, &amp;ssl3_ClientSendStatusRequestXtn },
+<span class="lineNum">     112 </span>            :       { ssl_signed_cert_timestamp_xtn, &amp;ssl3_ClientSendSignedCertTimestampXtn },
+<span class="lineNum">     113 </span>            :       { ssl_tls13_key_share_xtn, &amp;tls13_ClientSendKeyShareXtn },
+<span class="lineNum">     114 </span>            :       { ssl_tls13_early_data_xtn, &amp;tls13_ClientSendEarlyDataXtn },
+<span class="lineNum">     115 </span>            :       /* Some servers (e.g. WebSphere Application Server 7.0 and Tomcat) will
+<span class="lineNum">     116 </span>            :        * time out or terminate the connection if the last extension in the
+<span class="lineNum">     117 </span>            :        * client hello is empty. They are not intolerant of TLS 1.2, so list
+<span class="lineNum">     118 </span>            :        * signature_algorithms at the end. See bug 1243641. */
+<span class="lineNum">     119 </span>            :       { ssl_tls13_supported_versions_xtn, &amp;tls13_ClientSendSupportedVersionsXtn },
+<span class="lineNum">     120 </span>            :       { ssl_tls13_short_header_xtn, &amp;tls13_SendShortHeaderXtn },
+<span class="lineNum">     121 </span>            :       { ssl_signature_algorithms_xtn, &amp;ssl3_ClientSendSigAlgsXtn },
+<span class="lineNum">     122 </span>            :       { ssl_tls13_cookie_xtn, &amp;tls13_ClientSendHrrCookieXtn },
+<span class="lineNum">     123 </span>            :       { ssl_tls13_psk_key_exchange_modes_xtn,
+<span class="lineNum">     124 </span>            :         &amp;tls13_ClientSendPskKeyExchangeModesXtn },
+<span class="lineNum">     125 </span>            :       /* The pre_shared_key extension MUST be last. */
+<span class="lineNum">     126 </span>            :       { ssl_tls13_pre_shared_key_xtn, &amp;tls13_ClientSendPreSharedKeyXtn },
+<span class="lineNum">     127 </span>            :       /* any extra entries will appear as { 0, NULL }    */
+<span class="lineNum">     128 </span>            :     };
+<span class="lineNum">     129 </span>            : 
+<span class="lineNum">     130 </span>            : static const ssl3HelloExtensionSender clientHelloSendersSSL3[SSL_MAX_EXTENSIONS] = {
+<span class="lineNum">     131 </span>            :     { ssl_renegotiation_info_xtn, &amp;ssl3_SendRenegotiationInfoXtn }
+<span class="lineNum">     132 </span>            :     /* any extra entries will appear as { 0, NULL }    */
+<span class="lineNum">     133 </span>            : };
+<a name="134"><span class="lineNum">     134 </span>            : </a>
+<span class="lineNum">     135 </span>            : static PRBool
+<span class="lineNum">     136 </span><span class="lineCov">          1 : arrayContainsExtension(const PRUint16 *array, PRUint32 len, PRUint16 ex_type)</span>
+<span class="lineNum">     137 </span>            : {
+<span class="lineNum">     138 </span>            :     unsigned int i;
+<span class="lineNum">     139 </span><span class="lineCov">          1 :     for (i = 0; i &lt; len; i++) {</span>
+<span class="lineNum">     140 </span><span class="lineCov">          1 :         if (ex_type == array[i])</span>
+<span class="lineNum">     141 </span>            :             return PR_TRUE;
+<span class="lineNum">     142 </span>            :     }
+<span class="lineNum">     143 </span>            :     return PR_FALSE;
+<span class="lineNum">     144 </span>            : }
+<a name="145"><span class="lineNum">     145 </span>            : </a>
+<span class="lineNum">     146 </span>            : PRBool
+<span class="lineNum">     147 </span><span class="lineCov">          1 : ssl3_ExtensionNegotiated(const sslSocket *ss, PRUint16 ex_type)</span>
+<span class="lineNum">     148 </span>            : {
+<span class="lineNum">     149 </span><span class="lineCov">          1 :     const TLSExtensionData *xtnData = &amp;ss-&gt;xtnData;</span>
+<span class="lineNum">     150 </span><span class="lineCov">          1 :     return arrayContainsExtension(xtnData-&gt;negotiated,</span>
+<span class="lineNum">     151 </span><span class="lineCov">          1 :                                   xtnData-&gt;numNegotiated, ex_type);</span>
+<span class="lineNum">     152 </span>            : }
+<a name="153"><span class="lineNum">     153 </span>            : </a>
+<span class="lineNum">     154 </span>            : PRBool
+<span class="lineNum">     155 </span><span class="lineCov">          1 : ssl3_ClientExtensionAdvertised(const sslSocket *ss, PRUint16 ex_type)</span>
+<span class="lineNum">     156 </span>            : {
+<span class="lineNum">     157 </span><span class="lineCov">          1 :     const TLSExtensionData *xtnData = &amp;ss-&gt;xtnData;</span>
+<span class="lineNum">     158 </span><span class="lineCov">          1 :     return arrayContainsExtension(xtnData-&gt;advertised,</span>
+<span class="lineNum">     159 </span><span class="lineCov">          1 :                                   xtnData-&gt;numAdvertised, ex_type);</span>
+<span class="lineNum">     160 </span>            : }
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span>            : /* Go through hello extensions in |b| and deserialize
+<span class="lineNum">     163 </span>            :  * them into the list in |ss-&gt;ssl3.hs.remoteExtensions|.
+<span class="lineNum">     164 </span>            :  * The only checking we do in this point is for duplicates.
+<span class="lineNum">     165 </span>            :  *
+<span class="lineNum">     166 </span>            :  * IMPORTANT: This list just contains pointers to the incoming
+<span class="lineNum">     167 </span>            :  * buffer so they can only be used during ClientHello processing.
+<a name="168"><span class="lineNum">     168 </span>            :  */</a>
+<span class="lineNum">     169 </span>            : SECStatus
+<span class="lineNum">     170 </span><span class="lineCov">          1 : ssl3_ParseExtensions(sslSocket *ss, SSL3Opaque **b, PRUint32 *length)</span>
+<span class="lineNum">     171 </span>            : {
+<span class="lineNum">     172 </span>            :     /* Clean out the extensions list. */
+<span class="lineNum">     173 </span><span class="lineCov">          1 :     ssl3_DestroyRemoteExtensions(&amp;ss-&gt;ssl3.hs.remoteExtensions);</span>
+<span class="lineNum">     174 </span>            : 
+<span class="lineNum">     175 </span><span class="lineCov">          1 :     while (*length) {</span>
+<span class="lineNum">     176 </span>            :         SECStatus rv;
+<span class="lineNum">     177 </span>            :         PRUint32 extension_type;
+<span class="lineNum">     178 </span><span class="lineCov">          1 :         SECItem extension_data = { siBuffer, NULL, 0 };</span>
+<span class="lineNum">     179 </span>            :         TLSExtension *extension;
+<span class="lineNum">     180 </span>            :         PRCList *cursor;
+<span class="lineNum">     181 </span>            : 
+<span class="lineNum">     182 </span>            :         /* Get the extension's type field */
+<span class="lineNum">     183 </span><span class="lineCov">          1 :         rv = ssl3_ConsumeHandshakeNumber(ss, &amp;extension_type, 2, b, length);</span>
+<span class="lineNum">     184 </span><span class="lineCov">          1 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :             return SECFailure; /* alert already sent */</span>
+<span class="lineNum">     186 </span>            :         }
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span>            :         SSL_TRC(10, (&quot;%d: SSL3[%d]: parsing extension %d&quot;,
+<span class="lineNum">     189 </span>            :                      SSL_GETPID(), ss-&gt;fd, extension_type));
+<span class="lineNum">     190 </span>            :         /* Check whether an extension has been sent multiple times. */
+<span class="lineNum">     191 </span><span class="lineCov">          1 :         for (cursor = PR_NEXT_LINK(&amp;ss-&gt;ssl3.hs.remoteExtensions);</span>
+<span class="lineNum">     192 </span>            :              cursor != &amp;ss-&gt;ssl3.hs.remoteExtensions;
+<span class="lineNum">     193 </span><span class="lineCov">          1 :              cursor = PR_NEXT_LINK(cursor)) {</span>
+<span class="lineNum">     194 </span><span class="lineCov">          1 :             if (((TLSExtension *)cursor)-&gt;type == extension_type) {</span>
+<span class="lineNum">     195 </span><span class="lineNoCov">          0 :                 (void)SSL3_SendAlert(ss, alert_fatal, illegal_parameter);</span>
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :                 PORT_SetError(SSL_ERROR_RX_UNEXPECTED_EXTENSION);</span>
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :                 return SECFailure;</span>
+<span class="lineNum">     198 </span>            :             }
+<span class="lineNum">     199 </span>            :         }
+<span class="lineNum">     200 </span>            : 
+<span class="lineNum">     201 </span>            :         /* Get the data for this extension, so we can pass it or skip it. */
+<span class="lineNum">     202 </span><span class="lineCov">          1 :         rv = ssl3_ConsumeHandshakeVariable(ss, &amp;extension_data, 2, b, length);</span>
+<span class="lineNum">     203 </span><span class="lineCov">          1 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 :             return rv; /* alert already sent */</span>
+<span class="lineNum">     205 </span>            :         }
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span><span class="lineCov">          1 :         extension = PORT_ZNew(TLSExtension);</span>
+<span class="lineNum">     208 </span><span class="lineCov">          1 :         if (!extension) {</span>
+<span class="lineNum">     209 </span>            :             return SECFailure;
+<span class="lineNum">     210 </span>            :         }
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span><span class="lineCov">          1 :         extension-&gt;type = (PRUint16)extension_type;</span>
+<span class="lineNum">     213 </span><span class="lineCov">          1 :         extension-&gt;data = extension_data;</span>
+<span class="lineNum">     214 </span><span class="lineCov">          1 :         PR_APPEND_LINK(&amp;extension-&gt;link, &amp;ss-&gt;ssl3.hs.remoteExtensions);</span>
+<span class="lineNum">     215 </span>            :     }
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span>            :     return SECSuccess;
+<span class="lineNum">     218 </span>            : }
+<a name="219"><span class="lineNum">     219 </span>            : </a>
+<span class="lineNum">     220 </span>            : TLSExtension *
+<span class="lineNum">     221 </span><span class="lineCov">          1 : ssl3_FindExtension(sslSocket *ss, SSLExtensionType extension_type)</span>
+<span class="lineNum">     222 </span>            : {
+<span class="lineNum">     223 </span>            :     PRCList *cursor;
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span><span class="lineCov">          1 :     for (cursor = PR_NEXT_LINK(&amp;ss-&gt;ssl3.hs.remoteExtensions);</span>
+<span class="lineNum">     226 </span><span class="lineCov">          1 :          cursor != &amp;ss-&gt;ssl3.hs.remoteExtensions;</span>
+<span class="lineNum">     227 </span><span class="lineCov">          1 :          cursor = PR_NEXT_LINK(cursor)) {</span>
+<span class="lineNum">     228 </span><span class="lineCov">          1 :         TLSExtension *extension = (TLSExtension *)cursor;</span>
+<span class="lineNum">     229 </span>            : 
+<span class="lineNum">     230 </span><span class="lineCov">          1 :         if (extension-&gt;type == extension_type) {</span>
+<span class="lineNum">     231 </span><span class="lineCov">          1 :             return extension;</span>
+<span class="lineNum">     232 </span>            :         }
+<span class="lineNum">     233 </span>            :     }
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span>            :     return NULL;
+<span class="lineNum">     236 </span>            : }
+<span class="lineNum">     237 </span>            : 
+<span class="lineNum">     238 </span>            : /* Go through the hello extensions in |ss-&gt;ssl3.hs.remoteExtensions|.
+<span class="lineNum">     239 </span>            :  * For each one, find the extension handler in the table, and
+<span class="lineNum">     240 </span>            :  * if present, invoke that handler.
+<span class="lineNum">     241 </span>            :  * Servers ignore any extensions with unknown extension types.
+<span class="lineNum">     242 </span>            :  * Clients reject any extensions with unadvertised extension types
+<span class="lineNum">     243 </span>            :  *
+<span class="lineNum">     244 </span>            :  * In TLS &gt;= 1.3, the client checks that extensions appear in the
+<span class="lineNum">     245 </span>            :  * right phase.
+<a name="246"><span class="lineNum">     246 </span>            :  */</a>
+<span class="lineNum">     247 </span>            : SECStatus
+<span class="lineNum">     248 </span><span class="lineCov">          1 : ssl3_HandleParsedExtensions(sslSocket *ss,</span>
+<span class="lineNum">     249 </span>            :                             SSL3HandshakeType handshakeMessage)
+<span class="lineNum">     250 </span>            : {
+<span class="lineNum">     251 </span>            :     const ssl3ExtensionHandler *handlers;
+<span class="lineNum">     252 </span><span class="lineCov">          1 :     PRBool isTLS13 = ss-&gt;version &gt;= SSL_LIBRARY_VERSION_TLS_1_3;</span>
+<span class="lineNum">     253 </span>            :     PRCList *cursor;
+<span class="lineNum">     254 </span>            : 
+<span class="lineNum">     255 </span><span class="lineCov">          1 :     switch (handshakeMessage) {</span>
+<span class="lineNum">     256 </span>            :         case client_hello:
+<span class="lineNum">     257 </span>            :             handlers = clientHelloHandlers;
+<span class="lineNum">     258 </span>            :             break;
+<span class="lineNum">     259 </span>            :         case new_session_ticket:
+<span class="lineNum">     260 </span>            :             PORT_Assert(ss-&gt;version &gt;= SSL_LIBRARY_VERSION_TLS_1_3);
+<span class="lineNum">     261 </span><span class="lineNoCov">          0 :             handlers = newSessionTicketHandlers;</span>
+<span class="lineNum">     262 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     263 </span>            :         case hello_retry_request:
+<span class="lineNum">     264 </span><span class="lineNoCov">          0 :             handlers = helloRetryRequestHandlers;</span>
+<span class="lineNum">     265 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     266 </span>            :         case encrypted_extensions:
+<span class="lineNum">     267 </span>            :             PORT_Assert(ss-&gt;version &gt;= SSL_LIBRARY_VERSION_TLS_1_3);
+<span class="lineNum">     268 </span>            :         /* fall through */
+<span class="lineNum">     269 </span>            :         case server_hello:
+<span class="lineNum">     270 </span><span class="lineCov">          1 :             if (ss-&gt;version &gt; SSL_LIBRARY_VERSION_3_0) {</span>
+<span class="lineNum">     271 </span>            :                 handlers = serverHelloHandlersTLS;
+<span class="lineNum">     272 </span>            :             } else {
+<span class="lineNum">     273 </span><span class="lineNoCov">          0 :                 handlers = serverHelloHandlersSSL3;</span>
+<span class="lineNum">     274 </span>            :             }
+<span class="lineNum">     275 </span>            :             break;
+<span class="lineNum">     276 </span>            :         case certificate:
+<span class="lineNum">     277 </span>            :             PORT_Assert(!ss-&gt;sec.isServer);
+<span class="lineNum">     278 </span><span class="lineCov">          1 :             handlers = serverCertificateHandlers;</span>
+<span class="lineNum">     279 </span><span class="lineCov">          1 :             break;</span>
+<span class="lineNum">     280 </span>            :         default:
+<span class="lineNum">     281 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);</span>
+<span class="lineNum">     282 </span>            :             PORT_Assert(0);
+<span class="lineNum">     283 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">     284 </span>            :     }
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span><span class="lineCov">          1 :     for (cursor = PR_NEXT_LINK(&amp;ss-&gt;ssl3.hs.remoteExtensions);</span>
+<span class="lineNum">     287 </span><span class="lineCov">          1 :          cursor != &amp;ss-&gt;ssl3.hs.remoteExtensions;</span>
+<span class="lineNum">     288 </span><span class="lineCov">          1 :          cursor = PR_NEXT_LINK(cursor)) {</span>
+<span class="lineNum">     289 </span><span class="lineCov">          1 :         TLSExtension *extension = (TLSExtension *)cursor;</span>
+<span class="lineNum">     290 </span>            :         const ssl3ExtensionHandler *handler;
+<span class="lineNum">     291 </span>            : 
+<span class="lineNum">     292 </span>            :         /* Check whether the server sent an extension which was not advertised
+<span class="lineNum">     293 </span>            :          * in the ClientHello */
+<span class="lineNum">     294 </span><span class="lineCov">          1 :         if (!ss-&gt;sec.isServer &amp;&amp;</span>
+<span class="lineNum">     295 </span><span class="lineCov">          1 :             !ssl3_ClientExtensionAdvertised(ss, extension-&gt;type) &amp;&amp;</span>
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :             (handshakeMessage != new_session_ticket) &amp;&amp;</span>
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :             (extension-&gt;type != ssl_tls13_cookie_xtn)) {</span>
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 :             (void)SSL3_SendAlert(ss, alert_fatal, unsupported_extension);</span>
+<span class="lineNum">     299 </span><span class="lineNoCov">          0 :             PORT_SetError(SSL_ERROR_RX_UNEXPECTED_EXTENSION);</span>
+<span class="lineNum">     300 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">     301 </span>            :         }
+<span class="lineNum">     302 </span>            : 
+<span class="lineNum">     303 </span>            :         /* Check that this is a legal extension in TLS 1.3 */
+<span class="lineNum">     304 </span><span class="lineCov">          1 :         if (isTLS13 &amp;&amp; !tls13_ExtensionAllowed(extension-&gt;type, handshakeMessage)) {</span>
+<span class="lineNum">     305 </span><span class="lineCov">          1 :             if (handshakeMessage == client_hello) {</span>
+<span class="lineNum">     306 </span>            :                 /* Skip extensions not used in TLS 1.3 */
+<span class="lineNum">     307 </span><span class="lineCov">          1 :                 continue;</span>
+<span class="lineNum">     308 </span>            :             }
+<span class="lineNum">     309 </span><span class="lineNoCov">          0 :             tls13_FatalError(ss, SSL_ERROR_EXTENSION_DISALLOWED_FOR_VERSION,</span>
+<span class="lineNum">     310 </span>            :                              unsupported_extension);
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">     312 </span>            :         }
+<span class="lineNum">     313 </span>            : 
+<span class="lineNum">     314 </span>            :         /* Special check for this being the last extension if it's
+<span class="lineNum">     315 </span>            :          * PreSharedKey */
+<span class="lineNum">     316 </span><span class="lineCov">          1 :         if (ss-&gt;sec.isServer &amp;&amp; isTLS13 &amp;&amp;</span>
+<span class="lineNum">     317 </span><span class="lineCov">          1 :             (extension-&gt;type == ssl_tls13_pre_shared_key_xtn) &amp;&amp;</span>
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :             (PR_NEXT_LINK(cursor) != &amp;ss-&gt;ssl3.hs.remoteExtensions)) {</span>
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :             tls13_FatalError(ss,</span>
+<span class="lineNum">     320 </span>            :                              SSL_ERROR_RX_MALFORMED_CLIENT_HELLO,
+<span class="lineNum">     321 </span>            :                              illegal_parameter);
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">     323 </span>            :         }
+<span class="lineNum">     324 </span>            : 
+<span class="lineNum">     325 </span>            :         /* find extension_type in table of Hello Extension Handlers */
+<span class="lineNum">     326 </span><span class="lineCov">          1 :         for (handler = handlers; handler-&gt;ex_type &gt;= 0; handler++) {</span>
+<span class="lineNum">     327 </span>            :             /* if found, call this handler */
+<span class="lineNum">     328 </span><span class="lineCov">          1 :             if (handler-&gt;ex_type == extension-&gt;type) {</span>
+<span class="lineNum">     329 </span>            :                 SECStatus rv;
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span><span class="lineCov">          1 :                 rv = (*handler-&gt;ex_handler)(ss, &amp;ss-&gt;xtnData,</span>
+<span class="lineNum">     332 </span>            :                                             (PRUint16)extension-&gt;type,
+<span class="lineNum">     333 </span>            :                                             &amp;extension-&gt;data);
+<span class="lineNum">     334 </span><span class="lineCov">          1 :                 if (rv != SECSuccess) {</span>
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :                     if (!ss-&gt;ssl3.fatalAlertSent) {</span>
+<span class="lineNum">     336 </span>            :                         /* send a generic alert if the handler didn't already */
+<span class="lineNum">     337 </span><span class="lineNoCov">          0 :                         (void)SSL3_SendAlert(ss, alert_fatal, handshake_failure);</span>
+<span class="lineNum">     338 </span>            :                     }
+<span class="lineNum">     339 </span>            :                     return SECFailure;
+<span class="lineNum">     340 </span>            :                 }
+<span class="lineNum">     341 </span>            :             }
+<span class="lineNum">     342 </span>            :         }
+<span class="lineNum">     343 </span>            :     }
+<span class="lineNum">     344 </span>            :     return SECSuccess;
+<span class="lineNum">     345 </span>            : }
+<span class="lineNum">     346 </span>            : 
+<span class="lineNum">     347 </span>            : /* Syntactic sugar around ssl3_ParseExtensions and
+<a name="348"><span class="lineNum">     348 </span>            :  * ssl3_HandleParsedExtensions. */</a>
+<span class="lineNum">     349 </span>            : SECStatus
+<span class="lineNum">     350 </span><span class="lineCov">          1 : ssl3_HandleExtensions(sslSocket *ss,</span>
+<span class="lineNum">     351 </span>            :                       SSL3Opaque **b, PRUint32 *length,
+<span class="lineNum">     352 </span>            :                       SSL3HandshakeType handshakeMessage)
+<span class="lineNum">     353 </span>            : {
+<span class="lineNum">     354 </span>            :     SECStatus rv;
+<span class="lineNum">     355 </span>            : 
+<span class="lineNum">     356 </span><span class="lineCov">          1 :     rv = ssl3_ParseExtensions(ss, b, length);</span>
+<span class="lineNum">     357 </span><span class="lineCov">          1 :     if (rv != SECSuccess)</span>
+<span class="lineNum">     358 </span>            :         return rv;
+<span class="lineNum">     359 </span>            : 
+<span class="lineNum">     360 </span><span class="lineCov">          1 :     rv = ssl3_HandleParsedExtensions(ss, handshakeMessage);</span>
+<span class="lineNum">     361 </span><span class="lineCov">          1 :     if (rv != SECSuccess)</span>
+<span class="lineNum">     362 </span>            :         return rv;
+<span class="lineNum">     363 </span>            : 
+<span class="lineNum">     364 </span><span class="lineCov">          1 :     ssl3_DestroyRemoteExtensions(&amp;ss-&gt;ssl3.hs.remoteExtensions);</span>
+<span class="lineNum">     365 </span><span class="lineCov">          1 :     return SECSuccess;</span>
+<span class="lineNum">     366 </span>            : }
+<span class="lineNum">     367 </span>            : 
+<span class="lineNum">     368 </span>            : /* Add a callback function to the table of senders of server hello extensions.
+<a name="369"><span class="lineNum">     369 </span>            :  */</a>
+<span class="lineNum">     370 </span>            : SECStatus
+<span class="lineNum">     371 </span><span class="lineCov">          1 : ssl3_RegisterExtensionSender(const sslSocket *ss,</span>
+<span class="lineNum">     372 </span>            :                              TLSExtensionData *xtnData,
+<span class="lineNum">     373 </span>            :                              PRUint16 ex_type,
+<span class="lineNum">     374 </span>            :                              ssl3HelloExtensionSenderFunc cb)
+<span class="lineNum">     375 </span>            : {
+<span class="lineNum">     376 </span>            :     int i;
+<span class="lineNum">     377 </span>            :     ssl3HelloExtensionSender *sender;
+<span class="lineNum">     378 </span><span class="lineCov">          1 :     if (ss-&gt;version &lt; SSL_LIBRARY_VERSION_TLS_1_3) {</span>
+<span class="lineNum">     379 </span><span class="lineCov">          1 :         sender = &amp;xtnData-&gt;serverHelloSenders[0];</span>
+<span class="lineNum">     380 </span>            :     } else {
+<span class="lineNum">     381 </span><span class="lineCov">          1 :         if (tls13_ExtensionAllowed(ex_type, server_hello)) {</span>
+<span class="lineNum">     382 </span>            :             PORT_Assert(!tls13_ExtensionAllowed(ex_type, encrypted_extensions));
+<span class="lineNum">     383 </span><span class="lineCov">          1 :             sender = &amp;xtnData-&gt;serverHelloSenders[0];</span>
+<span class="lineNum">     384 </span><span class="lineCov">          1 :         } else if (tls13_ExtensionAllowed(ex_type, certificate)) {</span>
+<span class="lineNum">     385 </span><span class="lineCov">          1 :             sender = &amp;xtnData-&gt;certificateSenders[0];</span>
+<span class="lineNum">     386 </span>            :         } else {
+<span class="lineNum">     387 </span>            :             PORT_Assert(tls13_ExtensionAllowed(ex_type, encrypted_extensions));
+<span class="lineNum">     388 </span><span class="lineCov">          1 :             sender = &amp;xtnData-&gt;encryptedExtensionsSenders[0];</span>
+<span class="lineNum">     389 </span>            :         }
+<span class="lineNum">     390 </span>            :     }
+<span class="lineNum">     391 </span><span class="lineCov">          1 :     for (i = 0; i &lt; SSL_MAX_EXTENSIONS; ++i, ++sender) {</span>
+<span class="lineNum">     392 </span><span class="lineCov">          1 :         if (!sender-&gt;ex_sender) {</span>
+<span class="lineNum">     393 </span><span class="lineCov">          1 :             sender-&gt;ex_type = ex_type;</span>
+<span class="lineNum">     394 </span><span class="lineCov">          1 :             sender-&gt;ex_sender = cb;</span>
+<span class="lineNum">     395 </span><span class="lineCov">          1 :             return SECSuccess;</span>
+<span class="lineNum">     396 </span>            :         }
+<span class="lineNum">     397 </span>            :         /* detect duplicate senders */
+<span class="lineNum">     398 </span>            :         PORT_Assert(sender-&gt;ex_type != ex_type);
+<span class="lineNum">     399 </span><span class="lineCov">          1 :         if (sender-&gt;ex_type == ex_type) {</span>
+<span class="lineNum">     400 </span>            :             /* duplicate */
+<span class="lineNum">     401 </span>            :             break;
+<span class="lineNum">     402 </span>            :         }
+<span class="lineNum">     403 </span>            :     }
+<span class="lineNum">     404 </span>            :     PORT_Assert(i &lt; SSL_MAX_EXTENSIONS); /* table needs to grow */
+<span class="lineNum">     405 </span><span class="lineNoCov">          0 :     PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);</span>
+<span class="lineNum">     406 </span><span class="lineNoCov">          0 :     return SECFailure;</span>
+<span class="lineNum">     407 </span>            : }
+<span class="lineNum">     408 </span>            : 
+<a name="409"><span class="lineNum">     409 </span>            : /* call each of the extension senders and return the accumulated length */</a>
+<span class="lineNum">     410 </span>            : PRInt32
+<span class="lineNum">     411 </span><span class="lineCov">          1 : ssl3_CallHelloExtensionSenders(sslSocket *ss, PRBool append, PRUint32 maxBytes,</span>
+<span class="lineNum">     412 </span>            :                                const ssl3HelloExtensionSender *sender)
+<span class="lineNum">     413 </span>            : {
+<span class="lineNum">     414 </span><span class="lineCov">          1 :     PRInt32 total_exten_len = 0;</span>
+<span class="lineNum">     415 </span>            :     int i;
+<span class="lineNum">     416 </span>            : 
+<span class="lineNum">     417 </span><span class="lineCov">          1 :     if (!sender) {</span>
+<span class="lineNum">     418 </span><span class="lineCov">          1 :         if (ss-&gt;vrange.max &gt; SSL_LIBRARY_VERSION_3_0) {</span>
+<span class="lineNum">     419 </span>            :             sender = &amp;clientHelloSendersTLS[0];
+<span class="lineNum">     420 </span>            :         } else {
+<span class="lineNum">     421 </span><span class="lineNoCov">          0 :             sender = &amp;clientHelloSendersSSL3[0];</span>
+<span class="lineNum">     422 </span>            :         }
+<span class="lineNum">     423 </span>            :     }
+<span class="lineNum">     424 </span>            : 
+<span class="lineNum">     425 </span><span class="lineCov">          1 :     for (i = 0; i &lt; SSL_MAX_EXTENSIONS; ++i, ++sender) {</span>
+<span class="lineNum">     426 </span><span class="lineCov">          1 :         if (sender-&gt;ex_sender) {</span>
+<span class="lineNum">     427 </span><span class="lineCov">          1 :             PRInt32 extLen = (*sender-&gt;ex_sender)(ss, &amp;ss-&gt;xtnData, append, maxBytes);</span>
+<span class="lineNum">     428 </span><span class="lineCov">          1 :             if (extLen &lt; 0)</span>
+<span class="lineNum">     429 </span>            :                 return -1;
+<span class="lineNum">     430 </span><span class="lineCov">          1 :             maxBytes -= extLen;</span>
+<span class="lineNum">     431 </span><span class="lineCov">          1 :             total_exten_len += extLen;</span>
+<span class="lineNum">     432 </span>            :         }
+<span class="lineNum">     433 </span>            :     }
+<span class="lineNum">     434 </span><span class="lineCov">          1 :     return total_exten_len;</span>
+<span class="lineNum">     435 </span>            : }
+<a name="436"><span class="lineNum">     436 </span>            : </a>
+<span class="lineNum">     437 </span>            : void
+<span class="lineNum">     438 </span><span class="lineCov">          1 : ssl3_DestroyRemoteExtensions(PRCList *list)</span>
+<span class="lineNum">     439 </span>            : {
+<span class="lineNum">     440 </span>            :     PRCList *cur_p;
+<span class="lineNum">     441 </span>            : 
+<span class="lineNum">     442 </span><span class="lineCov">          1 :     while (!PR_CLIST_IS_EMPTY(list)) {</span>
+<span class="lineNum">     443 </span><span class="lineCov">          1 :         cur_p = PR_LIST_TAIL(list);</span>
+<span class="lineNum">     444 </span><span class="lineCov">          1 :         PR_REMOVE_LINK(cur_p);</span>
+<span class="lineNum">     445 </span><span class="lineCov">          1 :         PORT_Free(cur_p);</span>
+<span class="lineNum">     446 </span>            :     }
+<span class="lineNum">     447 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     448 </span>            : 
+<a name="449"><span class="lineNum">     449 </span>            : /* Initialize the extension data block. */</a>
+<span class="lineNum">     450 </span>            : void
+<span class="lineNum">     451 </span><span class="lineCov">          1 : ssl3_InitExtensionData(TLSExtensionData *xtnData)</span>
+<span class="lineNum">     452 </span>            : {
+<span class="lineNum">     453 </span>            :     /* Set things up to the right starting state. */
+<span class="lineNum">     454 </span><span class="lineCov">          1 :     PORT_Memset(xtnData, 0, sizeof(*xtnData));</span>
+<span class="lineNum">     455 </span><span class="lineCov">          1 :     xtnData-&gt;peerSupportsFfdheGroups = PR_FALSE;</span>
+<span class="lineNum">     456 </span><span class="lineCov">          1 :     PR_INIT_CLIST(&amp;xtnData-&gt;remoteKeyShares);</span>
+<span class="lineNum">     457 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     458 </span>            : 
+<span class="lineNum">     459 </span>            : /* Free everything that has been allocated and then reset back to
+<a name="460"><span class="lineNum">     460 </span>            :  * the starting state. */</a>
+<span class="lineNum">     461 </span>            : void
+<span class="lineNum">     462 </span><span class="lineCov">          1 : ssl3_ResetExtensionData(TLSExtensionData *xtnData)</span>
+<span class="lineNum">     463 </span>            : {
+<span class="lineNum">     464 </span>            :     /* Clean up. */
+<span class="lineNum">     465 </span><span class="lineCov">          1 :     ssl3_FreeSniNameArray(xtnData);</span>
+<span class="lineNum">     466 </span><span class="lineCov">          1 :     PORT_Free(xtnData-&gt;clientSigSchemes);</span>
+<span class="lineNum">     467 </span><span class="lineCov">          1 :     SECITEM_FreeItem(&amp;xtnData-&gt;nextProto, PR_FALSE);</span>
+<span class="lineNum">     468 </span><span class="lineCov">          1 :     tls13_DestroyKeyShares(&amp;xtnData-&gt;remoteKeyShares);</span>
+<span class="lineNum">     469 </span>            : 
+<span class="lineNum">     470 </span>            :     /* Now reinit. */
+<span class="lineNum">     471 </span><span class="lineCov">          1 :     ssl3_InitExtensionData(xtnData);</span>
+<span class="lineNum">     472 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     473 </span>            : 
+<a name="474"><span class="lineNum">     474 </span>            : /* Thunks to let extension handlers operate on const sslSocket* objects. */</a>
+<span class="lineNum">     475 </span>            : SECStatus
+<span class="lineNum">     476 </span><span class="lineCov">          1 : ssl3_ExtAppendHandshake(const sslSocket *ss, const void *void_src,</span>
+<span class="lineNum">     477 </span>            :                         PRInt32 bytes)
+<span class="lineNum">     478 </span>            : {
+<span class="lineNum">     479 </span><span class="lineCov">          1 :     return ssl3_AppendHandshake((sslSocket *)ss, void_src, bytes);</span>
+<span class="lineNum">     480 </span>            : }
+<a name="481"><span class="lineNum">     481 </span>            : </a>
+<span class="lineNum">     482 </span>            : SECStatus
+<span class="lineNum">     483 </span><span class="lineCov">          1 : ssl3_ExtAppendHandshakeNumber(const sslSocket *ss, PRInt32 num,</span>
+<span class="lineNum">     484 </span>            :                               PRInt32 lenSize)
+<span class="lineNum">     485 </span>            : {
+<span class="lineNum">     486 </span><span class="lineCov">          1 :     return ssl3_AppendHandshakeNumber((sslSocket *)ss, num, lenSize);</span>
+<span class="lineNum">     487 </span>            : }
+<a name="488"><span class="lineNum">     488 </span>            : </a>
+<span class="lineNum">     489 </span>            : SECStatus
+<span class="lineNum">     490 </span><span class="lineCov">          1 : ssl3_ExtAppendHandshakeVariable(const sslSocket *ss,</span>
+<span class="lineNum">     491 </span>            :                                 const SSL3Opaque *src, PRInt32 bytes,
+<span class="lineNum">     492 </span>            :                                 PRInt32 lenSize)
+<span class="lineNum">     493 </span>            : {
+<span class="lineNum">     494 </span><span class="lineCov">          1 :     return ssl3_AppendHandshakeVariable((sslSocket *)ss, src, bytes, lenSize);</span>
+<span class="lineNum">     495 </span>            : }
+<a name="496"><span class="lineNum">     496 </span>            : </a>
+<span class="lineNum">     497 </span>            : void
+<span class="lineNum">     498 </span><span class="lineNoCov">          0 : ssl3_ExtSendAlert(const sslSocket *ss, SSL3AlertLevel level,</span>
+<span class="lineNum">     499 </span>            :                   SSL3AlertDescription desc)
+<span class="lineNum">     500 </span>            : {
+<span class="lineNum">     501 </span><span class="lineNoCov">          0 :     (void)SSL3_SendAlert((sslSocket *)ss, level, desc);</span>
+<span class="lineNum">     502 </span><span class="lineNoCov">          0 : }</span>
+<a name="503"><span class="lineNum">     503 </span>            : </a>
+<span class="lineNum">     504 </span>            : void
+<span class="lineNum">     505 </span><span class="lineNoCov">          0 : ssl3_ExtDecodeError(const sslSocket *ss)</span>
+<span class="lineNum">     506 </span>            : {
+<span class="lineNum">     507 </span><span class="lineNoCov">          0 :     (void)ssl3_DecodeError((sslSocket *)ss);</span>
+<span class="lineNum">     508 </span><span class="lineNoCov">          0 : }</span>
+<a name="509"><span class="lineNum">     509 </span>            : </a>
+<span class="lineNum">     510 </span>            : SECStatus
+<span class="lineNum">     511 </span><span class="lineNoCov">          0 : ssl3_ExtConsumeHandshake(const sslSocket *ss, void *v, PRUint32 bytes,</span>
+<span class="lineNum">     512 </span>            :                          SSL3Opaque **b, PRUint32 *length)
+<span class="lineNum">     513 </span>            : {
+<span class="lineNum">     514 </span><span class="lineNoCov">          0 :     return ssl3_ConsumeHandshake((sslSocket *)ss, v, bytes, b, length);</span>
+<span class="lineNum">     515 </span>            : }
+<a name="516"><span class="lineNum">     516 </span>            : </a>
+<span class="lineNum">     517 </span>            : SECStatus
+<span class="lineNum">     518 </span><span class="lineCov">          1 : ssl3_ExtConsumeHandshakeNumber(const sslSocket *ss, PRUint32 *num,</span>
+<span class="lineNum">     519 </span>            :                                PRUint32 bytes, SSL3Opaque **b, PRUint32 *length)
+<span class="lineNum">     520 </span>            : {
+<span class="lineNum">     521 </span><span class="lineCov">          1 :     return ssl3_ConsumeHandshakeNumber((sslSocket *)ss, num, bytes, b, length);</span>
+<span class="lineNum">     522 </span>            : }
+<a name="523"><span class="lineNum">     523 </span>            : </a>
+<span class="lineNum">     524 </span>            : SECStatus
+<span class="lineNum">     525 </span><span class="lineCov">          1 : ssl3_ExtConsumeHandshakeVariable(const sslSocket *ss, SECItem *i,</span>
+<span class="lineNum">     526 </span>            :                                  PRUint32 bytes, SSL3Opaque **b,
+<span class="lineNum">     527 </span>            :                                  PRUint32 *length)
+<span class="lineNum">     528 </span>            : {
+<span class="lineNum">     529 </span><span class="lineCov">          1 :     return ssl3_ConsumeHandshakeVariable((sslSocket *)ss, i, bytes, b, length);</span>
+<span class="lineNum">     530 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

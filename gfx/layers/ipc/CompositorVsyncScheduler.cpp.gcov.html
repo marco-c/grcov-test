@@ -1,0 +1,437 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gfx/layers/ipc/CompositorVsyncScheduler.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">gfx/layers/ipc</a> - CompositorVsyncScheduler.cpp<span style="font-size: 80%;"> (source / <a href="CompositorVsyncScheduler.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">103</td>
+            <td class="headerCovTableEntry">123</td>
+            <td class="headerCovTableEntryMed">83.7 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">21</td>
+            <td class="headerCovTableEntry">26</td>
+            <td class="headerCovTableEntryMed">80.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* vim: set sw=2 ts=2 et tw=80 : */
+<span class="lineNum">       3 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #include &quot;mozilla/layers/CompositorVsyncScheduler.h&quot;
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &lt;stdio.h&gt;                      // for fprintf, stdout
+<span class="lineNum">      10 </span>            : #include &lt;stdint.h&gt;                     // for uint64_t
+<span class="lineNum">      11 </span>            : #include &quot;base/task.h&quot;                  // for CancelableTask, etc
+<span class="lineNum">      12 </span>            : #include &quot;base/thread.h&quot;                // for Thread
+<span class="lineNum">      13 </span>            : #include &quot;gfxPlatform.h&quot;                // for gfxPlatform
+<span class="lineNum">      14 </span>            : #ifdef MOZ_WIDGET_GTK
+<span class="lineNum">      15 </span>            : #include &quot;gfxPlatformGtk.h&quot;             // for gfxPlatform
+<span class="lineNum">      16 </span>            : #endif
+<span class="lineNum">      17 </span>            : #include &quot;gfxPrefs.h&quot;                   // for gfxPrefs
+<span class="lineNum">      18 </span>            : #include &quot;mozilla/AutoRestore.h&quot;        // for AutoRestore
+<span class="lineNum">      19 </span>            : #include &quot;mozilla/DebugOnly.h&quot;          // for DebugOnly
+<span class="lineNum">      20 </span>            : #include &quot;mozilla/gfx/2D.h&quot;             // for DrawTarget
+<span class="lineNum">      21 </span>            : #include &quot;mozilla/gfx/Point.h&quot;          // for IntSize
+<span class="lineNum">      22 </span>            : #include &quot;mozilla/gfx/Rect.h&quot;           // for IntSize
+<span class="lineNum">      23 </span>            : #include &quot;mozilla/layers/CompositorThread.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;mozilla/layers/CompositorVsyncSchedulerOwner.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;mozilla/mozalloc.h&quot;           // for operator new, etc
+<span class="lineNum">      26 </span>            : #include &quot;nsCOMPtr.h&quot;                   // for already_AddRefed
+<span class="lineNum">      27 </span>            : #include &quot;nsDebug.h&quot;                    // for NS_ASSERTION, etc
+<span class="lineNum">      28 </span>            : #include &quot;nsISupportsImpl.h&quot;            // for MOZ_COUNT_CTOR, etc
+<span class="lineNum">      29 </span>            : #include &quot;nsIWidget.h&quot;                  // for nsIWidget
+<span class="lineNum">      30 </span>            : #include &quot;nsThreadUtils.h&quot;              // for NS_IsMainThread
+<span class="lineNum">      31 </span>            : #include &quot;mozilla/Telemetry.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;mozilla/VsyncDispatcher.h&quot;
+<span class="lineNum">      33 </span>            : #if defined(XP_WIN) || defined(MOZ_WIDGET_GTK)
+<span class="lineNum">      34 </span>            : #include &quot;VsyncSource.h&quot;
+<span class="lineNum">      35 </span>            : #endif
+<span class="lineNum">      36 </span>            : #include &quot;mozilla/widget/CompositorWidget.h&quot;
+<span class="lineNum">      37 </span>            : #include &quot;VRManager.h&quot;
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            : namespace mozilla {
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span>            : namespace layers {
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : using namespace mozilla::gfx;
+<a name="44"><span class="lineNum">      44 </span>            : using namespace std;</a>
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span><span class="lineCov">          1 : CompositorVsyncScheduler::Observer::Observer(CompositorVsyncScheduler* aOwner)</span>
+<span class="lineNum">      47 </span>            :   : mMutex(&quot;CompositorVsyncScheduler.Observer.Mutex&quot;)
+<span class="lineNum">      48 </span><span class="lineCov">          1 :   , mOwner(aOwner)</span>
+<span class="lineNum">      49 </span>            : {
+<a name="50"><span class="lineNum">      50 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span><span class="lineCov">          1 : CompositorVsyncScheduler::Observer::~Observer()</span>
+<span class="lineNum">      53 </span>            : {
+<span class="lineNum">      54 </span>            :   MOZ_ASSERT(!mOwner);
+<span class="lineNum">      55 </span><span class="lineCov">          1 : }</span>
+<a name="56"><span class="lineNum">      56 </span>            : </a>
+<span class="lineNum">      57 </span>            : bool
+<span class="lineNum">      58 </span><span class="lineCov">          1 : CompositorVsyncScheduler::Observer::NotifyVsync(TimeStamp aVsyncTimestamp)</span>
+<span class="lineNum">      59 </span>            : {
+<span class="lineNum">      60 </span><span class="lineCov">          1 :   MutexAutoLock lock(mMutex);</span>
+<span class="lineNum">      61 </span><span class="lineCov">          1 :   if (!mOwner) {</span>
+<span class="lineNum">      62 </span>            :     return false;
+<span class="lineNum">      63 </span>            :   }
+<span class="lineNum">      64 </span><span class="lineCov">          1 :   return mOwner-&gt;NotifyVsync(aVsyncTimestamp);</span>
+<span class="lineNum">      65 </span>            : }
+<a name="66"><span class="lineNum">      66 </span>            : </a>
+<span class="lineNum">      67 </span>            : void
+<span class="lineNum">      68 </span><span class="lineCov">          1 : CompositorVsyncScheduler::Observer::Destroy()</span>
+<span class="lineNum">      69 </span>            : {
+<span class="lineNum">      70 </span><span class="lineCov">          1 :   MutexAutoLock lock(mMutex);</span>
+<span class="lineNum">      71 </span><span class="lineCov">          1 :   mOwner = nullptr;</span>
+<a name="72"><span class="lineNum">      72 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span><span class="lineCov">          1 : CompositorVsyncScheduler::CompositorVsyncScheduler(CompositorVsyncSchedulerOwner* aVsyncSchedulerOwner,</span>
+<span class="lineNum">      75 </span>            :                                                    widget::CompositorWidget* aWidget)
+<span class="lineNum">      76 </span>            :   : mVsyncSchedulerOwner(aVsyncSchedulerOwner)
+<span class="lineNum">      77 </span>            :   , mLastCompose(TimeStamp::Now())
+<span class="lineNum">      78 </span>            :   , mIsObservingVsync(false)
+<span class="lineNum">      79 </span>            :   , mNeedsComposite(0)
+<span class="lineNum">      80 </span>            :   , mVsyncNotificationsSkipped(0)
+<span class="lineNum">      81 </span>            :   , mWidget(aWidget)
+<span class="lineNum">      82 </span>            :   , mCurrentCompositeTaskMonitor(&quot;CurrentCompositeTaskMonitor&quot;)
+<span class="lineNum">      83 </span>            :   , mCurrentCompositeTask(nullptr)
+<span class="lineNum">      84 </span>            :   , mSetNeedsCompositeMonitor(&quot;SetNeedsCompositeMonitor&quot;)
+<span class="lineNum">      85 </span><span class="lineCov">          1 :   , mSetNeedsCompositeTask(nullptr)</span>
+<span class="lineNum">      86 </span>            : {
+<span class="lineNum">      87 </span><span class="lineCov">          1 :   mVsyncObserver = new Observer(this);</span>
+<span class="lineNum">      88 </span>            : 
+<span class="lineNum">      89 </span>            :   // mAsapScheduling is set on the main thread during init,
+<span class="lineNum">      90 </span>            :   // but is only accessed after on the compositor thread.
+<span class="lineNum">      91 </span><span class="lineCov">          1 :   mAsapScheduling = gfxPrefs::LayersCompositionFrameRate() == 0 ||</span>
+<span class="lineNum">      92 </span><span class="lineCov">          1 :                     gfxPlatform::IsInLayoutAsapMode();</span>
+<a name="93"><span class="lineNum">      93 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">      94 </span>            : 
+<span class="lineNum">      95 </span><span class="lineCov">          1 : CompositorVsyncScheduler::~CompositorVsyncScheduler()</span>
+<span class="lineNum">      96 </span>            : {
+<span class="lineNum">      97 </span>            :   MOZ_ASSERT(!mIsObservingVsync);
+<span class="lineNum">      98 </span>            :   MOZ_ASSERT(!mVsyncObserver);
+<span class="lineNum">      99 </span>            :   // The CompositorVsyncDispatcher is cleaned up before this in the nsBaseWidget, which stops vsync listeners
+<span class="lineNum">     100 </span><span class="lineCov">          1 :   mVsyncSchedulerOwner = nullptr;</span>
+<span class="lineNum">     101 </span><span class="lineCov">          1 : }</span>
+<a name="102"><span class="lineNum">     102 </span>            : </a>
+<span class="lineNum">     103 </span>            : void
+<span class="lineNum">     104 </span><span class="lineCov">          1 : CompositorVsyncScheduler::Destroy()</span>
+<span class="lineNum">     105 </span>            : {
+<span class="lineNum">     106 </span><span class="lineCov">          1 :   if (!mVsyncObserver) {</span>
+<span class="lineNum">     107 </span>            :     // Destroy was already called on this object.
+<span class="lineNum">     108 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">     109 </span>            :   }
+<span class="lineNum">     110 </span>            :   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+<span class="lineNum">     111 </span><span class="lineCov">          1 :   UnobserveVsync();</span>
+<span class="lineNum">     112 </span><span class="lineCov">          1 :   mVsyncObserver-&gt;Destroy();</span>
+<span class="lineNum">     113 </span><span class="lineCov">          1 :   mVsyncObserver = nullptr;</span>
+<span class="lineNum">     114 </span>            : 
+<span class="lineNum">     115 </span><span class="lineCov">          1 :   CancelCurrentSetNeedsCompositeTask();</span>
+<span class="lineNum">     116 </span><span class="lineCov">          1 :   CancelCurrentCompositeTask();</span>
+<span class="lineNum">     117 </span>            : }
+<a name="118"><span class="lineNum">     118 </span>            : </a>
+<span class="lineNum">     119 </span>            : void
+<span class="lineNum">     120 </span><span class="lineCov">          1 : CompositorVsyncScheduler::PostCompositeTask(TimeStamp aCompositeTimestamp)</span>
+<span class="lineNum">     121 </span>            : {
+<span class="lineNum">     122 </span>            :   // can be called from the compositor or vsync thread
+<span class="lineNum">     123 </span><span class="lineCov">          1 :   MonitorAutoLock lock(mCurrentCompositeTaskMonitor);</span>
+<span class="lineNum">     124 </span><span class="lineCov">          1 :   if (mCurrentCompositeTask == nullptr &amp;&amp; CompositorThreadHolder::Loop()) {</span>
+<span class="lineNum">     125 </span>            :     RefPtr&lt;CancelableRunnable&gt; task =
+<span class="lineNum">     126 </span>            :       NewCancelableRunnableMethod&lt;TimeStamp&gt;(this, &amp;CompositorVsyncScheduler::Composite,
+<span class="lineNum">     127 </span><span class="lineCov">          1 :                                              aCompositeTimestamp);</span>
+<span class="lineNum">     128 </span><span class="lineCov">          1 :     mCurrentCompositeTask = task;</span>
+<span class="lineNum">     129 </span><span class="lineCov">          1 :     ScheduleTask(task.forget(), 0);</span>
+<span class="lineNum">     130 </span><span class="lineCov">          1 :   }</span>
+<span class="lineNum">     131 </span><span class="lineCov">          1 : }</span>
+<a name="132"><span class="lineNum">     132 </span>            : </a>
+<span class="lineNum">     133 </span>            : void
+<span class="lineNum">     134 </span><span class="lineCov">          1 : CompositorVsyncScheduler::ScheduleComposition()</span>
+<span class="lineNum">     135 </span>            : {
+<span class="lineNum">     136 </span>            :   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+<span class="lineNum">     137 </span><span class="lineCov">          1 :   if (mAsapScheduling) {</span>
+<span class="lineNum">     138 </span>            :     // Used only for performance testing purposes
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :     PostCompositeTask(TimeStamp::Now());</span>
+<span class="lineNum">     140 </span>            : #ifdef MOZ_WIDGET_ANDROID
+<span class="lineNum">     141 </span>            :   } else if (mNeedsComposite &gt;= 2 &amp;&amp; mIsObservingVsync) {
+<span class="lineNum">     142 </span>            :     // uh-oh, we already requested a composite at least twice so far, and a
+<span class="lineNum">     143 </span>            :     // composite hasn't happened yet. It is possible that the vsync observation
+<span class="lineNum">     144 </span>            :     // is blocked on the main thread, so let's just composite ASAP and not
+<span class="lineNum">     145 </span>            :     // wait for the vsync. Note that this should only ever happen on Fennec
+<span class="lineNum">     146 </span>            :     // because there content runs in the same process as the compositor, and so
+<span class="lineNum">     147 </span>            :     // content can actually block the main thread in this process.
+<span class="lineNum">     148 </span>            :     PostCompositeTask(TimeStamp::Now());
+<span class="lineNum">     149 </span>            : #endif
+<span class="lineNum">     150 </span>            :   } else {
+<span class="lineNum">     151 </span><span class="lineCov">          1 :     SetNeedsComposite();</span>
+<span class="lineNum">     152 </span>            :   }
+<span class="lineNum">     153 </span><span class="lineCov">          1 : }</span>
+<a name="154"><span class="lineNum">     154 </span>            : </a>
+<span class="lineNum">     155 </span>            : void
+<span class="lineNum">     156 </span><span class="lineCov">          1 : CompositorVsyncScheduler::CancelCurrentSetNeedsCompositeTask()</span>
+<span class="lineNum">     157 </span>            : {
+<span class="lineNum">     158 </span>            :   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+<span class="lineNum">     159 </span><span class="lineCov">          1 :   MonitorAutoLock lock(mSetNeedsCompositeMonitor);</span>
+<span class="lineNum">     160 </span><span class="lineCov">          1 :   if (mSetNeedsCompositeTask) {</span>
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :     mSetNeedsCompositeTask-&gt;Cancel();</span>
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :     mSetNeedsCompositeTask = nullptr;</span>
+<span class="lineNum">     163 </span>            :   }
+<span class="lineNum">     164 </span><span class="lineCov">          1 :   mNeedsComposite = 0;</span>
+<span class="lineNum">     165 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     166 </span>            : 
+<span class="lineNum">     167 </span>            : /**
+<span class="lineNum">     168 </span>            :  * TODO Potential performance heuristics:
+<span class="lineNum">     169 </span>            :  * If a composite takes 17 ms, do we composite ASAP or wait until next vsync?
+<span class="lineNum">     170 </span>            :  * If a layer transaction comes after vsync, do we composite ASAP or wait until
+<span class="lineNum">     171 </span>            :  * next vsync?
+<span class="lineNum">     172 </span>            :  * How many skipped vsync events until we stop listening to vsync events?
+<a name="173"><span class="lineNum">     173 </span>            :  */</a>
+<span class="lineNum">     174 </span>            : void
+<span class="lineNum">     175 </span><span class="lineCov">          1 : CompositorVsyncScheduler::SetNeedsComposite()</span>
+<span class="lineNum">     176 </span>            : {
+<span class="lineNum">     177 </span><span class="lineCov">          1 :   if (!CompositorThreadHolder::IsInCompositorThread()) {</span>
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :     MonitorAutoLock lock(mSetNeedsCompositeMonitor);</span>
+<span class="lineNum">     179 </span>            :     RefPtr&lt;CancelableRunnable&gt; task =
+<span class="lineNum">     180 </span><span class="lineNoCov">          0 :       NewCancelableRunnableMethod(this, &amp;CompositorVsyncScheduler::SetNeedsComposite);</span>
+<span class="lineNum">     181 </span><span class="lineNoCov">          0 :     mSetNeedsCompositeTask = task;</span>
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :     ScheduleTask(task.forget(), 0);</span>
+<span class="lineNum">     183 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">     184 </span>            :   } else {
+<span class="lineNum">     185 </span><span class="lineCov">          1 :     MonitorAutoLock lock(mSetNeedsCompositeMonitor);</span>
+<span class="lineNum">     186 </span><span class="lineCov">          1 :     mSetNeedsCompositeTask = nullptr;</span>
+<span class="lineNum">     187 </span>            :   }
+<span class="lineNum">     188 </span>            : 
+<span class="lineNum">     189 </span><span class="lineCov">          1 :   mNeedsComposite++;</span>
+<span class="lineNum">     190 </span><span class="lineCov">          1 :   if (!mIsObservingVsync &amp;&amp; mNeedsComposite) {</span>
+<span class="lineNum">     191 </span><span class="lineCov">          1 :     ObserveVsync();</span>
+<span class="lineNum">     192 </span>            :     // Starting to observe vsync is an async operation that goes
+<span class="lineNum">     193 </span>            :     // through the main thread of the UI process. It's possible that
+<span class="lineNum">     194 </span>            :     // we're blocking there waiting on a composite, so schedule an initial
+<span class="lineNum">     195 </span>            :     // one now to get things started.
+<span class="lineNum">     196 </span><span class="lineCov">          1 :     PostCompositeTask(TimeStamp::Now());</span>
+<span class="lineNum">     197 </span>            :   }
+<span class="lineNum">     198 </span>            : }
+<a name="199"><span class="lineNum">     199 </span>            : </a>
+<span class="lineNum">     200 </span>            : bool
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 : CompositorVsyncScheduler::NotifyVsync(TimeStamp aVsyncTimestamp)</span>
+<span class="lineNum">     202 </span>            : {
+<span class="lineNum">     203 </span>            :   // Called from the vsync dispatch thread. When in the GPU Process, that's
+<span class="lineNum">     204 </span>            :   // the same as the compositor thread.
+<span class="lineNum">     205 </span>            :   MOZ_ASSERT_IF(XRE_IsParentProcess(), !CompositorThreadHolder::IsInCompositorThread());
+<span class="lineNum">     206 </span>            :   MOZ_ASSERT_IF(XRE_GetProcessType() == GeckoProcessType_GPU, CompositorThreadHolder::IsInCompositorThread());
+<span class="lineNum">     207 </span>            :   MOZ_ASSERT(!NS_IsMainThread());
+<span class="lineNum">     208 </span><span class="lineCov">          1 :   PostCompositeTask(aVsyncTimestamp);</span>
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 :   return true;</span>
+<span class="lineNum">     210 </span>            : }
+<a name="211"><span class="lineNum">     211 </span>            : </a>
+<span class="lineNum">     212 </span>            : void
+<span class="lineNum">     213 </span><span class="lineCov">          1 : CompositorVsyncScheduler::CancelCurrentCompositeTask()</span>
+<span class="lineNum">     214 </span>            : {
+<span class="lineNum">     215 </span>            :   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread() || NS_IsMainThread());
+<span class="lineNum">     216 </span><span class="lineCov">          1 :   MonitorAutoLock lock(mCurrentCompositeTaskMonitor);</span>
+<span class="lineNum">     217 </span><span class="lineCov">          1 :   if (mCurrentCompositeTask) {</span>
+<span class="lineNum">     218 </span><span class="lineCov">          1 :     mCurrentCompositeTask-&gt;Cancel();</span>
+<span class="lineNum">     219 </span><span class="lineCov">          1 :     mCurrentCompositeTask = nullptr;</span>
+<span class="lineNum">     220 </span><span class="lineCov">          1 :   }</span>
+<span class="lineNum">     221 </span><span class="lineCov">          1 : }</span>
+<a name="222"><span class="lineNum">     222 </span>            : </a>
+<span class="lineNum">     223 </span>            : void
+<span class="lineNum">     224 </span><span class="lineCov">          1 : CompositorVsyncScheduler::Composite(TimeStamp aVsyncTimestamp)</span>
+<span class="lineNum">     225 </span>            : {
+<span class="lineNum">     226 </span>            :   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+<span class="lineNum">     227 </span>            :   {
+<span class="lineNum">     228 </span><span class="lineCov">          1 :     MonitorAutoLock lock(mCurrentCompositeTaskMonitor);</span>
+<span class="lineNum">     229 </span><span class="lineCov">          1 :     mCurrentCompositeTask = nullptr;</span>
+<span class="lineNum">     230 </span>            :   }
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span><span class="lineCov">          1 :   if ((aVsyncTimestamp &lt; mLastCompose) &amp;&amp; !mAsapScheduling) {</span>
+<span class="lineNum">     233 </span>            :     // We can sometimes get vsync timestamps that are in the past
+<span class="lineNum">     234 </span>            :     // compared to the last compose with force composites.
+<span class="lineNum">     235 </span>            :     // In those cases, wait until the next vsync;
+<span class="lineNum">     236 </span>            :     return;
+<span class="lineNum">     237 </span>            :   }
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span>            :   MOZ_ASSERT(mVsyncSchedulerOwner);
+<span class="lineNum">     240 </span><span class="lineCov">          1 :   if (!mAsapScheduling &amp;&amp; mVsyncSchedulerOwner-&gt;IsPendingComposite()) {</span>
+<span class="lineNum">     241 </span>            :     // If previous composite is still on going, finish it and does a next
+<span class="lineNum">     242 </span>            :     // composite in a next vsync.
+<span class="lineNum">     243 </span><span class="lineNoCov">          0 :     mVsyncSchedulerOwner-&gt;FinishPendingComposite();</span>
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     245 </span>            :   }
+<span class="lineNum">     246 </span>            : 
+<span class="lineNum">     247 </span>            :   DispatchTouchEvents(aVsyncTimestamp);
+<span class="lineNum">     248 </span><span class="lineCov">          1 :   DispatchVREvents(aVsyncTimestamp);</span>
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span><span class="lineCov">          1 :   if (mNeedsComposite || mAsapScheduling) {</span>
+<span class="lineNum">     251 </span><span class="lineCov">          1 :     mNeedsComposite = 0;</span>
+<span class="lineNum">     252 </span><span class="lineCov">          1 :     mLastCompose = aVsyncTimestamp;</span>
+<span class="lineNum">     253 </span><span class="lineCov">          1 :     ComposeToTarget(nullptr);</span>
+<span class="lineNum">     254 </span><span class="lineCov">          1 :     mVsyncNotificationsSkipped = 0;</span>
+<span class="lineNum">     255 </span>            : 
+<span class="lineNum">     256 </span><span class="lineCov">          1 :     TimeDuration compositeFrameTotal = TimeStamp::Now() - aVsyncTimestamp;</span>
+<span class="lineNum">     257 </span>            :     mozilla::Telemetry::Accumulate(mozilla::Telemetry::COMPOSITE_FRAME_ROUNDTRIP_TIME,
+<span class="lineNum">     258 </span><span class="lineCov">          1 :                                    compositeFrameTotal.ToMilliseconds());</span>
+<span class="lineNum">     259 </span><span class="lineCov">          1 :   } else if (mVsyncNotificationsSkipped++ &gt; gfxPrefs::CompositorUnobserveCount()) {</span>
+<span class="lineNum">     260 </span><span class="lineCov">          1 :     UnobserveVsync();</span>
+<span class="lineNum">     261 </span>            :   }
+<span class="lineNum">     262 </span>            : }
+<a name="263"><span class="lineNum">     263 </span>            : </a>
+<span class="lineNum">     264 </span>            : void
+<span class="lineNum">     265 </span><span class="lineNoCov">          0 : CompositorVsyncScheduler::OnForceComposeToTarget()</span>
+<span class="lineNum">     266 </span>            : {
+<span class="lineNum">     267 </span>            :   /**
+<span class="lineNum">     268 </span>            :    * bug 1138502 - There are cases such as during long-running window resizing events
+<span class="lineNum">     269 </span>            :    * where we receive many sync RecvFlushComposites. We also get vsync notifications which
+<span class="lineNum">     270 </span>            :    * will increment mVsyncNotificationsSkipped because a composite just occurred. After
+<span class="lineNum">     271 </span>            :    * enough vsyncs and RecvFlushComposites occurred, we will disable vsync. Then at the next
+<span class="lineNum">     272 </span>            :    * ScheduleComposite, we will enable vsync, then get a RecvFlushComposite, which will
+<span class="lineNum">     273 </span>            :    * force us to unobserve vsync again. On some platforms, enabling/disabling vsync is not
+<span class="lineNum">     274 </span>            :    * free and this oscillating behavior causes a performance hit. In order to avoid this problem,
+<span class="lineNum">     275 </span>            :    * we reset the mVsyncNotificationsSkipped counter to keep vsync enabled.
+<span class="lineNum">     276 </span>            :    */
+<span class="lineNum">     277 </span>            :   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+<span class="lineNum">     278 </span><span class="lineCov">          1 :   mVsyncNotificationsSkipped = 0;</span>
+<span class="lineNum">     279 </span><span class="lineNoCov">          0 : }</span>
+<a name="280"><span class="lineNum">     280 </span>            : </a>
+<span class="lineNum">     281 </span>            : void
+<span class="lineNum">     282 </span><span class="lineCov">          1 : CompositorVsyncScheduler::ForceComposeToTarget(gfx::DrawTarget* aTarget, const IntRect* aRect)</span>
+<span class="lineNum">     283 </span>            : {
+<span class="lineNum">     284 </span>            :   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+<span class="lineNum">     285 </span>            :   OnForceComposeToTarget();
+<span class="lineNum">     286 </span><span class="lineCov">          1 :   mLastCompose = TimeStamp::Now();</span>
+<span class="lineNum">     287 </span><span class="lineCov">          1 :   ComposeToTarget(aTarget, aRect);</span>
+<span class="lineNum">     288 </span><span class="lineCov">          1 : }</span>
+<a name="289"><span class="lineNum">     289 </span>            : </a>
+<span class="lineNum">     290 </span>            : bool
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 : CompositorVsyncScheduler::NeedsComposite()</span>
+<span class="lineNum">     292 </span>            : {
+<span class="lineNum">     293 </span>            :   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+<span class="lineNum">     294 </span><span class="lineCov">          1 :   return mNeedsComposite;</span>
+<span class="lineNum">     295 </span>            : }
+<a name="296"><span class="lineNum">     296 </span>            : </a>
+<span class="lineNum">     297 </span>            : void
+<span class="lineNum">     298 </span><span class="lineCov">          1 : CompositorVsyncScheduler::ObserveVsync()</span>
+<span class="lineNum">     299 </span>            : {
+<span class="lineNum">     300 </span>            :   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+<span class="lineNum">     301 </span><span class="lineCov">          1 :   mWidget-&gt;ObserveVsync(mVsyncObserver);</span>
+<span class="lineNum">     302 </span><span class="lineCov">          1 :   mIsObservingVsync = true;</span>
+<span class="lineNum">     303 </span><span class="lineCov">          1 : }</span>
+<a name="304"><span class="lineNum">     304 </span>            : </a>
+<span class="lineNum">     305 </span>            : void
+<span class="lineNum">     306 </span><span class="lineCov">          1 : CompositorVsyncScheduler::UnobserveVsync()</span>
+<span class="lineNum">     307 </span>            : {
+<span class="lineNum">     308 </span>            :   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+<span class="lineNum">     309 </span><span class="lineCov">          1 :   mWidget-&gt;ObserveVsync(nullptr);</span>
+<span class="lineNum">     310 </span><span class="lineCov">          1 :   mIsObservingVsync = false;</span>
+<span class="lineNum">     311 </span><span class="lineCov">          1 : }</span>
+<a name="312"><span class="lineNum">     312 </span>            : </a>
+<span class="lineNum">     313 </span>            : void
+<span class="lineNum">     314 </span><span class="lineNoCov">          0 : CompositorVsyncScheduler::DispatchTouchEvents(TimeStamp aVsyncTimestamp)</span>
+<span class="lineNum">     315 </span>            : {
+<span class="lineNum">     316 </span><span class="lineNoCov">          0 : }</span>
+<a name="317"><span class="lineNum">     317 </span>            : </a>
+<span class="lineNum">     318 </span>            : void
+<span class="lineNum">     319 </span><span class="lineCov">          1 : CompositorVsyncScheduler::DispatchVREvents(TimeStamp aVsyncTimestamp)</span>
+<span class="lineNum">     320 </span>            : {
+<span class="lineNum">     321 </span>            :   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span><span class="lineCov">          1 :   VRManager* vm = VRManager::Get();</span>
+<span class="lineNum">     324 </span><span class="lineCov">          1 :   vm-&gt;NotifyVsync(aVsyncTimestamp);</span>
+<span class="lineNum">     325 </span><span class="lineCov">          1 : }</span>
+<a name="326"><span class="lineNum">     326 </span>            : </a>
+<span class="lineNum">     327 </span>            : void
+<span class="lineNum">     328 </span><span class="lineCov">          1 : CompositorVsyncScheduler::ScheduleTask(already_AddRefed&lt;CancelableRunnable&gt; aTask,</span>
+<span class="lineNum">     329 </span>            :                                        int aTime)
+<span class="lineNum">     330 </span>            : {
+<span class="lineNum">     331 </span>            :   MOZ_ASSERT(CompositorThreadHolder::Loop());
+<span class="lineNum">     332 </span>            :   MOZ_ASSERT(aTime &gt;= 0);
+<span class="lineNum">     333 </span><span class="lineCov">          1 :   CompositorThreadHolder::Loop()-&gt;PostDelayedTask(Move(aTask), aTime);</span>
+<span class="lineNum">     334 </span><span class="lineCov">          1 : }</span>
+<a name="335"><span class="lineNum">     335 </span>            : </a>
+<span class="lineNum">     336 </span>            : void
+<span class="lineNum">     337 </span><span class="lineNoCov">          0 : CompositorVsyncScheduler::ResumeComposition()</span>
+<span class="lineNum">     338 </span>            : {
+<span class="lineNum">     339 </span>            :   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :   mLastCompose = TimeStamp::Now();</span>
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :   ComposeToTarget(nullptr);</span>
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 : }</span>
+<a name="343"><span class="lineNum">     343 </span>            : </a>
+<span class="lineNum">     344 </span>            : void
+<span class="lineNum">     345 </span><span class="lineCov">          1 : CompositorVsyncScheduler::ComposeToTarget(gfx::DrawTarget* aTarget, const IntRect* aRect)</span>
+<span class="lineNum">     346 </span>            : {
+<span class="lineNum">     347 </span>            :   MOZ_ASSERT(CompositorThreadHolder::IsInCompositorThread());
+<span class="lineNum">     348 </span>            :   MOZ_ASSERT(mVsyncSchedulerOwner);
+<span class="lineNum">     349 </span><span class="lineCov">          1 :   mVsyncSchedulerOwner-&gt;CompositeToTarget(aTarget, aRect);</span>
+<span class="lineNum">     350 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     351 </span>            : 
+<span class="lineNum">     352 </span>            : } // namespace layers
+<span class="lineNum">     353 </span>            : } // namespace mozilla
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

@@ -1,0 +1,467 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gfx/skia/skia/src/core/SkGpuBlurUtils.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">gfx/skia/skia/src/core</a> - SkGpuBlurUtils.cpp<span style="font-size: 80%;"> (source / <a href="SkGpuBlurUtils.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">180</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">8</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  * Copyright 2013 Google Inc.
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  * Use of this source code is governed by a BSD-style license that can be
+<span class="lineNum">       5 </span>            :  * found in the LICENSE file.
+<span class="lineNum">       6 </span>            :  */
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #include &quot;SkGpuBlurUtils.h&quot;
+<span class="lineNum">       9 </span>            : 
+<span class="lineNum">      10 </span>            : #include &quot;SkRect.h&quot;
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : #if SK_SUPPORT_GPU
+<span class="lineNum">      13 </span>            : #include &quot;effects/GrConvolutionEffect.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;effects/GrMatrixConvolutionEffect.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;GrContext.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;GrCaps.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;GrDrawContext.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;GrFixedClip.h&quot;
+<span class="lineNum">      19 </span>            : 
+<a name="20"><span class="lineNum">      20 </span>            : #define MAX_BLUR_SIGMA 4.0f</a>
+<span class="lineNum">      21 </span>            : 
+<span class="lineNum">      22 </span><span class="lineNoCov">          0 : static void scale_irect_roundout(SkIRect* rect, float xScale, float yScale) {</span>
+<span class="lineNum">      23 </span><span class="lineNoCov">          0 :     rect-&gt;fLeft   = SkScalarFloorToInt(SkScalarMul(rect-&gt;fLeft,  xScale));</span>
+<span class="lineNum">      24 </span><span class="lineNoCov">          0 :     rect-&gt;fTop    = SkScalarFloorToInt(SkScalarMul(rect-&gt;fTop,   yScale));</span>
+<span class="lineNum">      25 </span><span class="lineNoCov">          0 :     rect-&gt;fRight  = SkScalarCeilToInt(SkScalarMul(rect-&gt;fRight,  xScale));</span>
+<span class="lineNum">      26 </span><span class="lineNoCov">          0 :     rect-&gt;fBottom = SkScalarCeilToInt(SkScalarMul(rect-&gt;fBottom, yScale));</span>
+<a name="27"><span class="lineNum">      27 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span><span class="lineNoCov">          0 : static void scale_irect(SkIRect* rect, int xScale, int yScale) {</span>
+<span class="lineNum">      30 </span><span class="lineNoCov">          0 :     rect-&gt;fLeft   *= xScale;</span>
+<span class="lineNum">      31 </span><span class="lineNoCov">          0 :     rect-&gt;fTop    *= yScale;</span>
+<span class="lineNum">      32 </span><span class="lineNoCov">          0 :     rect-&gt;fRight  *= xScale;</span>
+<span class="lineNum">      33 </span><span class="lineNoCov">          0 :     rect-&gt;fBottom *= yScale;</span>
+<span class="lineNum">      34 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : #ifdef SK_DEBUG
+<span class="lineNum">      37 </span>            : static inline int is_even(int x) { return !(x &amp; 1); }
+<a name="38"><span class="lineNum">      38 </span>            : #endif</a>
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span><span class="lineNoCov">          0 : static void shrink_irect_by_2(SkIRect* rect, bool xAxis, bool yAxis) {</span>
+<span class="lineNum">      41 </span><span class="lineNoCov">          0 :     if (xAxis) {</span>
+<span class="lineNum">      42 </span>            :         SkASSERT(is_even(rect-&gt;fLeft) &amp;&amp; is_even(rect-&gt;fRight));
+<span class="lineNum">      43 </span><span class="lineNoCov">          0 :         rect-&gt;fLeft /= 2;</span>
+<span class="lineNum">      44 </span><span class="lineNoCov">          0 :         rect-&gt;fRight /= 2;</span>
+<span class="lineNum">      45 </span>            :     }
+<span class="lineNum">      46 </span><span class="lineNoCov">          0 :     if (yAxis) {</span>
+<span class="lineNum">      47 </span>            :         SkASSERT(is_even(rect-&gt;fTop) &amp;&amp; is_even(rect-&gt;fBottom));
+<span class="lineNum">      48 </span><span class="lineNoCov">          0 :         rect-&gt;fTop /= 2;</span>
+<span class="lineNum">      49 </span><span class="lineNoCov">          0 :         rect-&gt;fBottom /= 2;</span>
+<span class="lineNum">      50 </span>            :     }
+<a name="51"><span class="lineNum">      51 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span><span class="lineNoCov">          0 : static float adjust_sigma(float sigma, int maxTextureSize, int *scaleFactor, int *radius) {</span>
+<span class="lineNum">      54 </span><span class="lineNoCov">          0 :     *scaleFactor = 1;</span>
+<span class="lineNum">      55 </span><span class="lineNoCov">          0 :     while (sigma &gt; MAX_BLUR_SIGMA) {</span>
+<span class="lineNum">      56 </span><span class="lineNoCov">          0 :         *scaleFactor *= 2;</span>
+<span class="lineNum">      57 </span><span class="lineNoCov">          0 :         sigma *= 0.5f;</span>
+<span class="lineNum">      58 </span><span class="lineNoCov">          0 :         if (*scaleFactor &gt; maxTextureSize) {</span>
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 :             *scaleFactor = maxTextureSize;</span>
+<span class="lineNum">      60 </span><span class="lineNoCov">          0 :             sigma = MAX_BLUR_SIGMA;</span>
+<span class="lineNum">      61 </span>            :         }
+<span class="lineNum">      62 </span>            :     }
+<span class="lineNum">      63 </span><span class="lineNoCov">          0 :     *radius = static_cast&lt;int&gt;(ceilf(sigma * 3.0f));</span>
+<span class="lineNum">      64 </span>            :     SkASSERT(*radius &lt;= GrConvolutionEffect::kMaxKernelRadius);
+<span class="lineNum">      65 </span><span class="lineNoCov">          0 :     return sigma;</span>
+<a name="66"><span class="lineNum">      66 </span>            : }</a>
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span><span class="lineNoCov">          0 : static void convolve_gaussian_1d(GrDrawContext* drawContext,</span>
+<span class="lineNum">      69 </span>            :                                  const GrClip&amp; clip,
+<span class="lineNum">      70 </span>            :                                  const SkIRect&amp; dstRect,
+<span class="lineNum">      71 </span>            :                                  const SkIPoint&amp; srcOffset,
+<span class="lineNum">      72 </span>            :                                  GrTexture* texture,
+<span class="lineNum">      73 </span>            :                                  Gr1DKernelEffect::Direction direction,
+<span class="lineNum">      74 </span>            :                                  int radius,
+<span class="lineNum">      75 </span>            :                                  float sigma,
+<span class="lineNum">      76 </span>            :                                  bool useBounds,
+<span class="lineNum">      77 </span>            :                                  float bounds[2]) {
+<span class="lineNum">      78 </span><span class="lineNoCov">          0 :     GrPaint paint;</span>
+<span class="lineNum">      79 </span><span class="lineNoCov">          0 :     paint.setGammaCorrect(drawContext-&gt;isGammaCorrect());</span>
+<span class="lineNum">      80 </span>            :     sk_sp&lt;GrFragmentProcessor&gt; conv(GrConvolutionEffect::MakeGaussian(
+<span class="lineNum">      81 </span><span class="lineNoCov">          0 :         texture, direction, radius, sigma, useBounds, bounds));</span>
+<span class="lineNum">      82 </span><span class="lineNoCov">          0 :     paint.addColorFragmentProcessor(std::move(conv));</span>
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :     paint.setPorterDuffXPFactory(SkBlendMode::kSrc);</span>
+<span class="lineNum">      84 </span><span class="lineNoCov">          0 :     SkMatrix localMatrix = SkMatrix::MakeTrans(-SkIntToScalar(srcOffset.x()),</span>
+<span class="lineNum">      85 </span><span class="lineNoCov">          0 :                                                -SkIntToScalar(srcOffset.y()));</span>
+<span class="lineNum">      86 </span><span class="lineNoCov">          0 :     drawContext-&gt;fillRectWithLocalMatrix(clip, paint, SkMatrix::I(),</span>
+<span class="lineNum">      87 </span><span class="lineNoCov">          0 :                                          SkRect::Make(dstRect), localMatrix);</span>
+<a name="88"><span class="lineNum">      88 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span><span class="lineNoCov">          0 : static void convolve_gaussian_2d(GrDrawContext* drawContext,</span>
+<span class="lineNum">      91 </span>            :                                  const GrClip&amp; clip,
+<span class="lineNum">      92 </span>            :                                  const SkIRect&amp; dstRect,
+<span class="lineNum">      93 </span>            :                                  const SkIPoint&amp; srcOffset,
+<span class="lineNum">      94 </span>            :                                  GrTexture* texture,
+<span class="lineNum">      95 </span>            :                                  int radiusX,
+<span class="lineNum">      96 </span>            :                                  int radiusY,
+<span class="lineNum">      97 </span>            :                                  SkScalar sigmaX,
+<span class="lineNum">      98 </span>            :                                  SkScalar sigmaY,
+<span class="lineNum">      99 </span>            :                                  const SkIRect* srcBounds) {
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :     SkMatrix localMatrix = SkMatrix::MakeTrans(-SkIntToScalar(srcOffset.x()),</span>
+<span class="lineNum">     101 </span><span class="lineNoCov">          0 :                                                -SkIntToScalar(srcOffset.y()));</span>
+<span class="lineNum">     102 </span><span class="lineNoCov">          0 :     SkISize size = SkISize::Make(2 * radiusX + 1,  2 * radiusY + 1);</span>
+<span class="lineNum">     103 </span><span class="lineNoCov">          0 :     SkIPoint kernelOffset = SkIPoint::Make(radiusX, radiusY);</span>
+<span class="lineNum">     104 </span><span class="lineNoCov">          0 :     GrPaint paint;</span>
+<span class="lineNum">     105 </span><span class="lineNoCov">          0 :     paint.setGammaCorrect(drawContext-&gt;isGammaCorrect());</span>
+<span class="lineNum">     106 </span><span class="lineNoCov">          0 :     SkIRect bounds = srcBounds ? *srcBounds : SkIRect::EmptyIRect();</span>
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span>            :     sk_sp&lt;GrFragmentProcessor&gt; conv(GrMatrixConvolutionEffect::MakeGaussian(
+<span class="lineNum">     109 </span>            :             texture, bounds, size, 1.0, 0.0, kernelOffset,
+<span class="lineNum">     110 </span>            :             srcBounds ? GrTextureDomain::kDecal_Mode : GrTextureDomain::kIgnore_Mode,
+<span class="lineNum">     111 </span><span class="lineNoCov">          0 :             true, sigmaX, sigmaY));</span>
+<span class="lineNum">     112 </span><span class="lineNoCov">          0 :     paint.addColorFragmentProcessor(std::move(conv));</span>
+<span class="lineNum">     113 </span><span class="lineNoCov">          0 :     paint.setPorterDuffXPFactory(SkBlendMode::kSrc);</span>
+<span class="lineNum">     114 </span><span class="lineNoCov">          0 :     drawContext-&gt;fillRectWithLocalMatrix(clip, paint, SkMatrix::I(), </span>
+<span class="lineNum">     115 </span><span class="lineNoCov">          0 :                                          SkRect::Make(dstRect), localMatrix);</span>
+<a name="116"><span class="lineNum">     116 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     117 </span>            : 
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 : static void convolve_gaussian(GrDrawContext* drawContext,</span>
+<span class="lineNum">     119 </span>            :                               const GrClip&amp; clip,
+<span class="lineNum">     120 </span>            :                               const SkIRect&amp; srcRect,
+<span class="lineNum">     121 </span>            :                               GrTexture* texture,
+<span class="lineNum">     122 </span>            :                               Gr1DKernelEffect::Direction direction,
+<span class="lineNum">     123 </span>            :                               int radius,
+<span class="lineNum">     124 </span>            :                               float sigma,
+<span class="lineNum">     125 </span>            :                               const SkIRect* srcBounds,
+<span class="lineNum">     126 </span>            :                               const SkIPoint&amp; srcOffset) {
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 :     float bounds[2] = { 0.0f, 1.0f };</span>
+<span class="lineNum">     128 </span><span class="lineNoCov">          0 :     SkIRect dstRect = SkIRect::MakeWH(srcRect.width(), srcRect.height());</span>
+<span class="lineNum">     129 </span><span class="lineNoCov">          0 :     if (!srcBounds) {</span>
+<span class="lineNum">     130 </span>            :         convolve_gaussian_1d(drawContext, clip, dstRect, srcOffset, texture,
+<span class="lineNum">     131 </span><span class="lineNoCov">          0 :                              direction, radius, sigma, false, bounds);</span>
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     133 </span>            :     }
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :     SkIRect midRect = *srcBounds, leftRect, rightRect;</span>
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 :     midRect.offset(srcOffset);</span>
+<span class="lineNum">     136 </span>            :     SkIRect topRect, bottomRect;
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :     if (direction == Gr1DKernelEffect::kX_Direction) {</span>
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 :         bounds[0] = SkIntToFloat(srcBounds-&gt;left()) / texture-&gt;width();</span>
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :         bounds[1] = SkIntToFloat(srcBounds-&gt;right()) / texture-&gt;width();</span>
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :         topRect = SkIRect::MakeLTRB(0, 0, dstRect.right(), midRect.top());</span>
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :         bottomRect = SkIRect::MakeLTRB(0, midRect.bottom(), dstRect.right(), dstRect.bottom());</span>
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :         midRect.inset(radius, 0);</span>
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :         leftRect = SkIRect::MakeLTRB(0, midRect.top(), midRect.left(), midRect.bottom());</span>
+<span class="lineNum">     144 </span>            :         rightRect =
+<span class="lineNum">     145 </span><span class="lineNoCov">          0 :             SkIRect::MakeLTRB(midRect.right(), midRect.top(), dstRect.width(), midRect.bottom());</span>
+<span class="lineNum">     146 </span><span class="lineNoCov">          0 :         dstRect.fTop = midRect.top();</span>
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 :         dstRect.fBottom = midRect.bottom();</span>
+<span class="lineNum">     148 </span>            :     } else {
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :         bounds[0] = SkIntToFloat(srcBounds-&gt;top()) / texture-&gt;height();</span>
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :         bounds[1] = SkIntToFloat(srcBounds-&gt;bottom()) / texture-&gt;height();</span>
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :         topRect = SkIRect::MakeLTRB(0, 0, midRect.left(), dstRect.bottom());</span>
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :         bottomRect = SkIRect::MakeLTRB(midRect.right(), 0, dstRect.right(), dstRect.bottom());</span>
+<span class="lineNum">     153 </span><span class="lineNoCov">          0 :         midRect.inset(0, radius);</span>
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :         leftRect = SkIRect::MakeLTRB(midRect.left(), 0, midRect.right(), midRect.top());</span>
+<span class="lineNum">     155 </span>            :         rightRect =
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :             SkIRect::MakeLTRB(midRect.left(), midRect.bottom(), midRect.right(), dstRect.height());</span>
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :         dstRect.fLeft = midRect.left();</span>
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :         dstRect.fRight = midRect.right();</span>
+<span class="lineNum">     159 </span>            :     }
+<span class="lineNum">     160 </span><span class="lineNoCov">          0 :     if (!topRect.isEmpty()) {</span>
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :         drawContext-&gt;clear(&amp;topRect, 0, false);</span>
+<span class="lineNum">     162 </span>            :     }
+<span class="lineNum">     163 </span>            : 
+<span class="lineNum">     164 </span><span class="lineNoCov">          0 :     if (!bottomRect.isEmpty()) {</span>
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 :         drawContext-&gt;clear(&amp;bottomRect, 0, false);</span>
+<span class="lineNum">     166 </span>            :     }
+<span class="lineNum">     167 </span><span class="lineNoCov">          0 :     if (midRect.isEmpty()) {</span>
+<span class="lineNum">     168 </span>            :         // Blur radius covers srcBounds; use bounds over entire draw
+<span class="lineNum">     169 </span>            :         convolve_gaussian_1d(drawContext, clip, dstRect, srcOffset, texture,
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :                              direction, radius, sigma, true, bounds);</span>
+<span class="lineNum">     171 </span>            :     } else {
+<span class="lineNum">     172 </span>            :         // Draw right and left margins with bounds; middle without.
+<span class="lineNum">     173 </span>            :         convolve_gaussian_1d(drawContext, clip, leftRect, srcOffset, texture,
+<span class="lineNum">     174 </span><span class="lineNoCov">          0 :                              direction, radius, sigma, true, bounds);</span>
+<span class="lineNum">     175 </span>            :         convolve_gaussian_1d(drawContext, clip, rightRect, srcOffset, texture,
+<span class="lineNum">     176 </span><span class="lineNoCov">          0 :                              direction, radius, sigma, true, bounds);</span>
+<span class="lineNum">     177 </span>            :         convolve_gaussian_1d(drawContext, clip, midRect, srcOffset, texture,
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :                              direction, radius, sigma, false, bounds);</span>
+<span class="lineNum">     179 </span>            :     }
+<span class="lineNum">     180 </span>            : }
+<span class="lineNum">     181 </span>            : 
+<a name="182"><span class="lineNum">     182 </span>            : namespace SkGpuBlurUtils {</a>
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 : sk_sp&lt;GrDrawContext&gt; GaussianBlur(GrContext* context,</span>
+<span class="lineNum">     185 </span>            :                                   GrTexture* origSrc,
+<span class="lineNum">     186 </span>            :                                   sk_sp&lt;SkColorSpace&gt; colorSpace,
+<span class="lineNum">     187 </span>            :                                   const SkIRect&amp; dstBounds,
+<span class="lineNum">     188 </span>            :                                   const SkIRect* srcBounds,
+<span class="lineNum">     189 </span>            :                                   float sigmaX,
+<span class="lineNum">     190 </span>            :                                   float sigmaY,
+<span class="lineNum">     191 </span>            :                                   SkBackingFit fit) {
+<span class="lineNum">     192 </span>            :     SkASSERT(context);
+<span class="lineNum">     193 </span>            :     SkIRect clearRect;
+<span class="lineNum">     194 </span>            :     int scaleFactorX, radiusX;
+<span class="lineNum">     195 </span>            :     int scaleFactorY, radiusY;
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :     int maxTextureSize = context-&gt;caps()-&gt;maxTextureSize();</span>
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :     sigmaX = adjust_sigma(sigmaX, maxTextureSize, &amp;scaleFactorX, &amp;radiusX);</span>
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 :     sigmaY = adjust_sigma(sigmaY, maxTextureSize, &amp;scaleFactorY, &amp;radiusY);</span>
+<span class="lineNum">     199 </span>            :     SkASSERT(sigmaX || sigmaY);
+<span class="lineNum">     200 </span>            : 
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :     SkIPoint srcOffset = SkIPoint::Make(-dstBounds.x(), -dstBounds.y());</span>
+<span class="lineNum">     202 </span><span class="lineNoCov">          0 :     SkIRect localDstBounds = SkIRect::MakeWH(dstBounds.width(), dstBounds.height());</span>
+<span class="lineNum">     203 </span>            :     SkIRect localSrcBounds;
+<span class="lineNum">     204 </span>            :     SkIRect srcRect;
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :     if (srcBounds) {</span>
+<span class="lineNum">     206 </span><span class="lineNoCov">          0 :         srcRect = localSrcBounds = *srcBounds;</span>
+<span class="lineNum">     207 </span><span class="lineNoCov">          0 :         srcRect.offset(srcOffset);</span>
+<span class="lineNum">     208 </span><span class="lineNoCov">          0 :         srcBounds = &amp;localSrcBounds;</span>
+<span class="lineNum">     209 </span>            :     } else {
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :         srcRect = localDstBounds;</span>
+<span class="lineNum">     211 </span>            :     }
+<span class="lineNum">     212 </span>            : 
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :     scale_irect_roundout(&amp;srcRect, 1.0f / scaleFactorX, 1.0f / scaleFactorY);</span>
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 :     scale_irect(&amp;srcRect, scaleFactorX, scaleFactorY);</span>
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span>            :     // setup new clip
+<span class="lineNum">     217 </span><span class="lineNoCov">          0 :     GrFixedClip clip(localDstBounds);</span>
+<span class="lineNum">     218 </span>            : 
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 :     sk_sp&lt;GrTexture&gt; srcTexture(sk_ref_sp(origSrc));</span>
+<span class="lineNum">     220 </span>            : 
+<span class="lineNum">     221 </span>            :     SkASSERT(kBGRA_8888_GrPixelConfig == srcTexture-&gt;config() ||
+<span class="lineNum">     222 </span>            :              kRGBA_8888_GrPixelConfig == srcTexture-&gt;config() ||
+<span class="lineNum">     223 </span>            :              kSRGBA_8888_GrPixelConfig == srcTexture-&gt;config() ||
+<span class="lineNum">     224 </span>            :              kSBGRA_8888_GrPixelConfig == srcTexture-&gt;config() ||
+<span class="lineNum">     225 </span>            :              kRGBA_half_GrPixelConfig == srcTexture-&gt;config() ||
+<span class="lineNum">     226 </span>            :              kAlpha_8_GrPixelConfig == srcTexture-&gt;config());
+<span class="lineNum">     227 </span>            : 
+<span class="lineNum">     228 </span><span class="lineNoCov">          0 :     const int width = dstBounds.width();</span>
+<span class="lineNum">     229 </span><span class="lineNoCov">          0 :     const int height = dstBounds.height();</span>
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :     const GrPixelConfig config = srcTexture-&gt;config();</span>
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span>            :     sk_sp&lt;GrDrawContext&gt; dstDrawContext(context-&gt;makeDrawContext(fit,
+<span class="lineNum">     233 </span>            :                                                                  width, height, config, colorSpace,
+<span class="lineNum">     234 </span><span class="lineNoCov">          0 :                                                                  0, kDefault_GrSurfaceOrigin));</span>
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :     if (!dstDrawContext) {</span>
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     237 </span>            :     }
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span>            :     // For really small blurs (certainly no wider than 5x5 on desktop gpus) it is faster to just
+<span class="lineNum">     240 </span>            :     // launch a single non separable kernel vs two launches
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :     if (sigmaX &gt; 0.0f &amp;&amp; sigmaY &gt; 0.0f &amp;&amp;</span>
+<span class="lineNum">     242 </span><span class="lineNoCov">          0 :             (2 * radiusX + 1) * (2 * radiusY + 1) &lt;= MAX_KERNEL_SIZE) {</span>
+<span class="lineNum">     243 </span>            :         // We shouldn't be scaling because this is a small size blur
+<span class="lineNum">     244 </span>            :         SkASSERT((1 == scaleFactorX) &amp;&amp; (1 == scaleFactorY));
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span>            :         convolve_gaussian_2d(dstDrawContext.get(), clip, localDstBounds, srcOffset,
+<span class="lineNum">     247 </span><span class="lineNoCov">          0 :                              srcTexture.get(), radiusX, radiusY, sigmaX, sigmaY, srcBounds);</span>
+<span class="lineNum">     248 </span>            : 
+<span class="lineNum">     249 </span>            :         return dstDrawContext;
+<span class="lineNum">     250 </span>            :     } 
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span>            :     sk_sp&lt;GrDrawContext&gt; tmpDrawContext(context-&gt;makeDrawContext(fit,
+<span class="lineNum">     253 </span>            :                                                                  width, height, config, colorSpace,
+<span class="lineNum">     254 </span><span class="lineNoCov">          0 :                                                                  0, kDefault_GrSurfaceOrigin));</span>
+<span class="lineNum">     255 </span><span class="lineNoCov">          0 :     if (!tmpDrawContext) {</span>
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     257 </span>            :     }
+<span class="lineNum">     258 </span>            : 
+<span class="lineNum">     259 </span><span class="lineNoCov">          0 :     sk_sp&lt;GrDrawContext&gt; srcDrawContext;</span>
+<span class="lineNum">     260 </span>            : 
+<span class="lineNum">     261 </span>            :     SkASSERT(SkIsPow2(scaleFactorX) &amp;&amp; SkIsPow2(scaleFactorY));
+<span class="lineNum">     262 </span>            : 
+<span class="lineNum">     263 </span><span class="lineNoCov">          0 :     for (int i = 1; i &lt; scaleFactorX || i &lt; scaleFactorY; i *= 2) {</span>
+<span class="lineNum">     264 </span><span class="lineNoCov">          0 :         GrPaint paint;</span>
+<span class="lineNum">     265 </span><span class="lineNoCov">          0 :         paint.setGammaCorrect(dstDrawContext-&gt;isGammaCorrect());</span>
+<span class="lineNum">     266 </span>            :         SkMatrix matrix;
+<span class="lineNum">     267 </span><span class="lineNoCov">          0 :         matrix.setIDiv(srcTexture-&gt;width(), srcTexture-&gt;height());</span>
+<span class="lineNum">     268 </span><span class="lineNoCov">          0 :         SkIRect dstRect(srcRect);</span>
+<span class="lineNum">     269 </span><span class="lineNoCov">          0 :         if (srcBounds &amp;&amp; i == 1) {</span>
+<span class="lineNum">     270 </span>            :             SkRect domain;
+<span class="lineNum">     271 </span><span class="lineNoCov">          0 :             matrix.mapRect(&amp;domain, SkRect::Make(*srcBounds));</span>
+<span class="lineNum">     272 </span><span class="lineNoCov">          0 :             domain.inset((i &lt; scaleFactorX) ? SK_ScalarHalf / srcTexture-&gt;width() : 0.0f,</span>
+<span class="lineNum">     273 </span><span class="lineNoCov">          0 :                          (i &lt; scaleFactorY) ? SK_ScalarHalf / srcTexture-&gt;height() : 0.0f);</span>
+<span class="lineNum">     274 </span>            :             sk_sp&lt;GrFragmentProcessor&gt; fp(GrTextureDomainEffect::Make(
+<span class="lineNum">     275 </span>            :                                                         srcTexture.get(),
+<span class="lineNum">     276 </span>            :                                                         nullptr,
+<span class="lineNum">     277 </span>            :                                                         matrix,
+<span class="lineNum">     278 </span>            :                                                         domain,
+<span class="lineNum">     279 </span>            :                                                         GrTextureDomain::kDecal_Mode,
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 :                                                         GrTextureParams::kBilerp_FilterMode));</span>
+<span class="lineNum">     281 </span><span class="lineNoCov">          0 :             paint.addColorFragmentProcessor(std::move(fp));</span>
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 :             srcRect.offset(-srcOffset);</span>
+<span class="lineNum">     283 </span><span class="lineNoCov">          0 :             srcOffset.set(0, 0);</span>
+<span class="lineNum">     284 </span>            :         } else {
+<span class="lineNum">     285 </span>            :             GrTextureParams params(SkShader::kClamp_TileMode, GrTextureParams::kBilerp_FilterMode);
+<span class="lineNum">     286 </span><span class="lineNoCov">          0 :             paint.addColorTextureProcessor(srcTexture.get(), nullptr, matrix, params);</span>
+<span class="lineNum">     287 </span>            :         }
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :         paint.setPorterDuffXPFactory(SkBlendMode::kSrc);</span>
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :         shrink_irect_by_2(&amp;dstRect, i &lt; scaleFactorX, i &lt; scaleFactorY);</span>
+<span class="lineNum">     290 </span>            : 
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :         dstDrawContext-&gt;fillRectToRect(clip, paint, SkMatrix::I(),</span>
+<span class="lineNum">     292 </span><span class="lineNoCov">          0 :                                        SkRect::Make(dstRect), SkRect::Make(srcRect));</span>
+<span class="lineNum">     293 </span>            : 
+<span class="lineNum">     294 </span><span class="lineNoCov">          0 :         srcDrawContext = dstDrawContext;</span>
+<span class="lineNum">     295 </span><span class="lineNoCov">          0 :         srcRect = dstRect;</span>
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :         srcTexture = srcDrawContext-&gt;asTexture();</span>
+<span class="lineNum">     297 </span>            :         dstDrawContext.swap(tmpDrawContext);
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 :         localSrcBounds = srcRect;</span>
+<span class="lineNum">     299 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     300 </span>            : 
+<span class="lineNum">     301 </span><span class="lineNoCov">          0 :     srcRect = localDstBounds;</span>
+<span class="lineNum">     302 </span><span class="lineNoCov">          0 :     scale_irect_roundout(&amp;srcRect, 1.0f / scaleFactorX, 1.0f / scaleFactorY);</span>
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 :     if (sigmaX &gt; 0.0f) {</span>
+<span class="lineNum">     304 </span><span class="lineNoCov">          0 :         if (scaleFactorX &gt; 1) {</span>
+<span class="lineNum">     305 </span>            :             SkASSERT(srcDrawContext);
+<span class="lineNum">     306 </span>            : 
+<span class="lineNum">     307 </span>            :             // Clear out a radius to the right of the srcRect to prevent the
+<span class="lineNum">     308 </span>            :             // X convolution from reading garbage.
+<span class="lineNum">     309 </span>            :             clearRect = SkIRect::MakeXYWH(srcRect.fRight, srcRect.fTop,
+<span class="lineNum">     310 </span><span class="lineNoCov">          0 :                                           radiusX, srcRect.height());</span>
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :             srcDrawContext-&gt;clear(&amp;clearRect, 0x0, false);</span>
+<span class="lineNum">     312 </span>            :         }
+<span class="lineNum">     313 </span>            : 
+<span class="lineNum">     314 </span>            :         convolve_gaussian(dstDrawContext.get(), clip, srcRect,
+<span class="lineNum">     315 </span>            :                           srcTexture.get(), Gr1DKernelEffect::kX_Direction, radiusX, sigmaX,
+<span class="lineNum">     316 </span><span class="lineNoCov">          0 :                           srcBounds, srcOffset);</span>
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :         srcDrawContext = dstDrawContext;</span>
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :         srcTexture = srcDrawContext-&gt;asTexture();</span>
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :         srcRect.offsetTo(0, 0);</span>
+<span class="lineNum">     320 </span>            :         dstDrawContext.swap(tmpDrawContext);
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :         localSrcBounds = srcRect;</span>
+<span class="lineNum">     322 </span>            :         srcOffset.set(0, 0);
+<span class="lineNum">     323 </span>            :     }
+<span class="lineNum">     324 </span>            : 
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :     if (sigmaY &gt; 0.0f) {</span>
+<span class="lineNum">     326 </span><span class="lineNoCov">          0 :         if (scaleFactorY &gt; 1 || sigmaX &gt; 0.0f) {</span>
+<span class="lineNum">     327 </span>            :             SkASSERT(srcDrawContext);
+<span class="lineNum">     328 </span>            : 
+<span class="lineNum">     329 </span>            :             // Clear out a radius below the srcRect to prevent the Y
+<span class="lineNum">     330 </span>            :             // convolution from reading garbage.
+<span class="lineNum">     331 </span>            :             clearRect = SkIRect::MakeXYWH(srcRect.fLeft, srcRect.fBottom,
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :                                           srcRect.width(), radiusY);</span>
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :             srcDrawContext-&gt;clear(&amp;clearRect, 0x0, false);</span>
+<span class="lineNum">     334 </span>            :         }
+<span class="lineNum">     335 </span>            : 
+<span class="lineNum">     336 </span>            :         convolve_gaussian(dstDrawContext.get(), clip, srcRect,
+<span class="lineNum">     337 </span>            :                           srcTexture.get(), Gr1DKernelEffect::kY_Direction, radiusY, sigmaY,
+<span class="lineNum">     338 </span><span class="lineNoCov">          0 :                           srcBounds, srcOffset);</span>
+<span class="lineNum">     339 </span>            : 
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :         srcDrawContext = dstDrawContext;</span>
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :         srcRect.offsetTo(0, 0);</span>
+<span class="lineNum">     342 </span>            :         dstDrawContext.swap(tmpDrawContext);
+<span class="lineNum">     343 </span>            :     }
+<span class="lineNum">     344 </span>            : 
+<span class="lineNum">     345 </span>            :     SkASSERT(srcDrawContext);
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :     srcTexture = nullptr;     // we don't use this from here on out</span>
+<span class="lineNum">     347 </span>            : 
+<span class="lineNum">     348 </span><span class="lineNoCov">          0 :     if (scaleFactorX &gt; 1 || scaleFactorY &gt; 1) {</span>
+<span class="lineNum">     349 </span>            :         // Clear one pixel to the right and below, to accommodate bilinear upsampling.
+<span class="lineNum">     350 </span><span class="lineNoCov">          0 :         clearRect = SkIRect::MakeXYWH(srcRect.fLeft, srcRect.fBottom, srcRect.width() + 1, 1);</span>
+<span class="lineNum">     351 </span><span class="lineNoCov">          0 :         srcDrawContext-&gt;clear(&amp;clearRect, 0x0, false);</span>
+<span class="lineNum">     352 </span><span class="lineNoCov">          0 :         clearRect = SkIRect::MakeXYWH(srcRect.fRight, srcRect.fTop, 1, srcRect.height());</span>
+<span class="lineNum">     353 </span><span class="lineNoCov">          0 :         srcDrawContext-&gt;clear(&amp;clearRect, 0x0, false);</span>
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span>            :         SkMatrix matrix;
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :         matrix.setIDiv(srcDrawContext-&gt;width(), srcDrawContext-&gt;height());</span>
+<span class="lineNum">     357 </span>            : 
+<span class="lineNum">     358 </span><span class="lineNoCov">          0 :         GrPaint paint;</span>
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 :         paint.setGammaCorrect(dstDrawContext-&gt;isGammaCorrect());</span>
+<span class="lineNum">     360 </span>            :         // FIXME:  this should be mitchell, not bilinear.
+<span class="lineNum">     361 </span>            :         GrTextureParams params(SkShader::kClamp_TileMode, GrTextureParams::kBilerp_FilterMode);
+<span class="lineNum">     362 </span><span class="lineNoCov">          0 :         sk_sp&lt;GrTexture&gt; tex(srcDrawContext-&gt;asTexture());</span>
+<span class="lineNum">     363 </span><span class="lineNoCov">          0 :         paint.addColorTextureProcessor(tex.get(), nullptr, matrix, params);</span>
+<span class="lineNum">     364 </span><span class="lineNoCov">          0 :         paint.setPorterDuffXPFactory(SkBlendMode::kSrc);</span>
+<span class="lineNum">     365 </span>            : 
+<span class="lineNum">     366 </span><span class="lineNoCov">          0 :         SkIRect dstRect(srcRect);</span>
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 :         scale_irect(&amp;dstRect, scaleFactorX, scaleFactorY);</span>
+<span class="lineNum">     368 </span>            : 
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :         dstDrawContext-&gt;fillRectToRect(clip, paint, SkMatrix::I(),</span>
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :                                        SkRect::Make(dstRect), SkRect::Make(srcRect));</span>
+<span class="lineNum">     371 </span>            : 
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :         srcDrawContext = dstDrawContext;</span>
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :         srcRect = dstRect;</span>
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :         dstDrawContext.swap(tmpDrawContext);</span>
+<span class="lineNum">     375 </span>            :     }
+<span class="lineNum">     376 </span>            : 
+<span class="lineNum">     377 </span><span class="lineNoCov">          0 :     return srcDrawContext;</span>
+<span class="lineNum">     378 </span>            : }
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span>            : }
+<span class="lineNum">     381 </span>            : 
+<span class="lineNum">     382 </span>            : #endif
+<span class="lineNum">     383 </span>            : 
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

@@ -1,0 +1,801 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/nss/lib/util/nssb64e.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">security/nss/lib/util</a> - nssb64e.c<span style="font-size: 80%;"> (source / <a href="nssb64e.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">121</td>
+            <td class="headerCovTableEntry">217</td>
+            <td class="headerCovTableEntryLo">55.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">8</td>
+            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntryLo">57.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public</a>
+<span class="lineNum">       2 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       3 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : /*
+<span class="lineNum">       6 </span>            :  * Base64 encoding (binary to ascii).
+<span class="lineNum">       7 </span>            :  */
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &quot;nssb64.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;nspr.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;secitem.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;secerr.h&quot;
+<span class="lineNum">      13 </span>            : 
+<span class="lineNum">      14 </span>            : /*
+<span class="lineNum">      15 </span>            :  * XXX See the big comment at the top of nssb64d.c about moving the
+<span class="lineNum">      16 </span>            :  * bulk of this code over into NSPR (the PL part).  It all applies
+<span class="lineNum">      17 </span>            :  * here but I didn't want to duplicate it, to avoid divergence problems.
+<span class="lineNum">      18 </span>            :  */
+<span class="lineNum">      19 </span>            : 
+<span class="lineNum">      20 </span>            : /*
+<span class="lineNum">      21 </span>            :  **************************************************************
+<span class="lineNum">      22 </span>            :  * XXX Beginning of base64 encoding code to be moved into NSPR.
+<span class="lineNum">      23 </span>            :  */
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : struct PLBase64EncodeStateStr {
+<span class="lineNum">      26 </span>            :     unsigned chunks;
+<span class="lineNum">      27 </span>            :     unsigned saved;
+<span class="lineNum">      28 </span>            :     unsigned char buf[3];
+<span class="lineNum">      29 </span>            : };
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : /*
+<span class="lineNum">      32 </span>            :  * This typedef would belong in the NSPR header file (i.e. plbase64.h).
+<span class="lineNum">      33 </span>            :  */
+<span class="lineNum">      34 </span>            : typedef struct PLBase64EncoderStr PLBase64Encoder;
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : /*
+<span class="lineNum">      37 </span>            :  * The following implementation of base64 encoding was based on code
+<span class="lineNum">      38 </span>            :  * found in libmime (specifically, in mimeenc.c).  It has been adapted to
+<span class="lineNum">      39 </span>            :  * use PR types and naming as well as to provide other necessary semantics
+<span class="lineNum">      40 </span>            :  * (like buffer-in/buffer-out in addition to &quot;streaming&quot; without undue
+<span class="lineNum">      41 </span>            :  * performance hit of extra copying if you made the buffer versions
+<span class="lineNum">      42 </span>            :  * use the output_fn).  It also incorporates some aspects of the current
+<span class="lineNum">      43 </span>            :  * NSPR base64 encoding code.  As such, you may find similarities to
+<span class="lineNum">      44 </span>            :  * both of those implementations.  I tried to use names that reflected
+<span class="lineNum">      45 </span>            :  * the original code when possible.  For this reason you may find some
+<span class="lineNum">      46 </span>            :  * inconsistencies -- libmime used lots of &quot;in&quot; and &quot;out&quot; whereas the
+<span class="lineNum">      47 </span>            :  * NSPR version uses &quot;src&quot; and &quot;dest&quot;; sometimes I changed one to the other
+<span class="lineNum">      48 </span>            :  * and sometimes I left them when I thought the subroutines were at least
+<span class="lineNum">      49 </span>            :  * self-consistent.
+<span class="lineNum">      50 </span>            :  */
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span>            : PR_BEGIN_EXTERN_C
+<span class="lineNum">      53 </span>            : 
+<span class="lineNum">      54 </span>            : /*
+<span class="lineNum">      55 </span>            :  * Opaque object used by the encoder to store state.
+<span class="lineNum">      56 </span>            :  */
+<span class="lineNum">      57 </span>            : struct PLBase64EncoderStr {
+<span class="lineNum">      58 </span>            :     /*
+<span class="lineNum">      59 </span>            :      * The one or two bytes pending.  (We need 3 to create a &quot;token&quot;,
+<span class="lineNum">      60 </span>            :      * and hold the leftovers here.  in_buffer_count is *only* ever
+<span class="lineNum">      61 </span>            :      * 0, 1, or 2.
+<span class="lineNum">      62 </span>            :      */
+<span class="lineNum">      63 </span>            :     unsigned char in_buffer[2];
+<span class="lineNum">      64 </span>            :     int in_buffer_count;
+<span class="lineNum">      65 </span>            : 
+<span class="lineNum">      66 </span>            :     /*
+<span class="lineNum">      67 </span>            :      * If the caller wants linebreaks added, line_length specifies
+<span class="lineNum">      68 </span>            :      * where they come out.  It must be a multiple of 4; if the caller
+<span class="lineNum">      69 </span>            :      * provides one that isn't, we round it down to the nearest
+<span class="lineNum">      70 </span>            :      * multiple of 4.
+<span class="lineNum">      71 </span>            :      *
+<span class="lineNum">      72 </span>            :      * The value of current_column counts how many characters have been
+<span class="lineNum">      73 </span>            :      * added since the last linebreaks (or since the beginning, on the
+<span class="lineNum">      74 </span>            :      * first line).  It is also always a multiple of 4; it is unused when
+<span class="lineNum">      75 </span>            :      * line_length is 0.
+<span class="lineNum">      76 </span>            :      */
+<span class="lineNum">      77 </span>            :     PRUint32 line_length;
+<span class="lineNum">      78 </span>            :     PRUint32 current_column;
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span>            :     /*
+<span class="lineNum">      81 </span>            :      * Where to write the encoded data (used when streaming, not when
+<span class="lineNum">      82 </span>            :      * doing all in-memory (buffer) operations).
+<span class="lineNum">      83 </span>            :      *
+<span class="lineNum">      84 </span>            :      * Note that this definition is chosen to be compatible with PR_Write.
+<span class="lineNum">      85 </span>            :      */
+<span class="lineNum">      86 </span>            :     PRInt32 (*output_fn)(void *output_arg, const char *buf, PRInt32 size);
+<span class="lineNum">      87 </span>            :     void *output_arg;
+<span class="lineNum">      88 </span>            : 
+<span class="lineNum">      89 </span>            :     /*
+<span class="lineNum">      90 </span>            :      * Where the encoded output goes -- either temporarily (in the streaming
+<span class="lineNum">      91 </span>            :      * case, staged here before it goes to the output function) or what will
+<span class="lineNum">      92 </span>            :      * be the entire buffered result for users of the buffer version.
+<span class="lineNum">      93 </span>            :      */
+<span class="lineNum">      94 </span>            :     char *output_buffer;
+<span class="lineNum">      95 </span>            :     PRUint32 output_buflen; /* the total length of allocated buffer */
+<span class="lineNum">      96 </span>            :     PRUint32 output_length; /* the length that is currently populated */
+<span class="lineNum">      97 </span>            : };
+<span class="lineNum">      98 </span>            : 
+<span class="lineNum">      99 </span>            : PR_END_EXTERN_C
+<span class="lineNum">     100 </span>            : 
+<span class="lineNum">     101 </span>            : /*
+<span class="lineNum">     102 </span>            :  * Table to convert a binary value to its corresponding ascii &quot;code&quot;.
+<span class="lineNum">     103 </span>            :  */
+<span class="lineNum">     104 </span>            : static unsigned char base64_valuetocode[64] =
+<span class="lineNum">     105 </span>            :     &quot;ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/&quot;;
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span>            : #define B64_PAD '='
+<span class="lineNum">     108 </span>            : #define B64_CR '\r'
+<span class="lineNum">     109 </span>            : #define B64_LF '\n'
+<a name="110"><span class="lineNum">     110 </span>            : </a>
+<span class="lineNum">     111 </span>            : static PRStatus
+<span class="lineNum">     112 </span><span class="lineCov">          1 : pl_base64_encode_buffer(PLBase64Encoder *data, const unsigned char *in,</span>
+<span class="lineNum">     113 </span>            :                         PRUint32 size)
+<span class="lineNum">     114 </span>            : {
+<span class="lineNum">     115 </span><span class="lineCov">          1 :     const unsigned char *end = in + size;</span>
+<span class="lineNum">     116 </span><span class="lineCov">          1 :     char *out = data-&gt;output_buffer + data-&gt;output_length;</span>
+<span class="lineNum">     117 </span><span class="lineCov">          1 :     unsigned int i = data-&gt;in_buffer_count;</span>
+<span class="lineNum">     118 </span><span class="lineCov">          1 :     PRUint32 n = 0;</span>
+<span class="lineNum">     119 </span>            :     int off;
+<span class="lineNum">     120 </span>            :     PRUint32 output_threshold;
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span>            :     /* If this input buffer is too small, wait until next time. */
+<span class="lineNum">     123 </span><span class="lineCov">          1 :     if (size &lt; (3 - i)) {</span>
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :         data-&gt;in_buffer[i++] = in[0];</span>
+<span class="lineNum">     125 </span><span class="lineNoCov">          0 :         if (size &gt; 1)</span>
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :             data-&gt;in_buffer[i++] = in[1];</span>
+<span class="lineNum">     127 </span>            :         PR_ASSERT(i &lt; 3);
+<span class="lineNum">     128 </span><span class="lineNoCov">          0 :         data-&gt;in_buffer_count = i;</span>
+<span class="lineNum">     129 </span><span class="lineNoCov">          0 :         return PR_SUCCESS;</span>
+<span class="lineNum">     130 </span>            :     }
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span>            :     /* If there are bytes that were put back last time, take them now. */
+<span class="lineNum">     133 </span><span class="lineCov">          1 :     if (i &gt; 0) {</span>
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :         n = data-&gt;in_buffer[0];</span>
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 :         if (i &gt; 1)</span>
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 :             n = (n &lt;&lt; 8) | data-&gt;in_buffer[1];</span>
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :         data-&gt;in_buffer_count = 0;</span>
+<span class="lineNum">     138 </span>            :     }
+<span class="lineNum">     139 </span>            : 
+<span class="lineNum">     140 </span>            :     /* If our total is not a multiple of three, put one or two bytes back. */
+<span class="lineNum">     141 </span><span class="lineCov">          1 :     off = (size + i) % 3;</span>
+<span class="lineNum">     142 </span><span class="lineCov">          1 :     if (off &gt; 0) {</span>
+<span class="lineNum">     143 </span><span class="lineCov">          1 :         size -= off;</span>
+<span class="lineNum">     144 </span><span class="lineCov">          1 :         data-&gt;in_buffer[0] = in[size];</span>
+<span class="lineNum">     145 </span><span class="lineCov">          1 :         if (off &gt; 1)</span>
+<span class="lineNum">     146 </span><span class="lineCov">          1 :             data-&gt;in_buffer[1] = in[size + 1];</span>
+<span class="lineNum">     147 </span><span class="lineCov">          1 :         data-&gt;in_buffer_count = off;</span>
+<span class="lineNum">     148 </span><span class="lineCov">          1 :         end -= off;</span>
+<span class="lineNum">     149 </span>            :     }
+<span class="lineNum">     150 </span>            : 
+<span class="lineNum">     151 </span><span class="lineCov">          1 :     output_threshold = data-&gt;output_buflen - 3;</span>
+<span class="lineNum">     152 </span>            : 
+<span class="lineNum">     153 </span>            :     /*
+<span class="lineNum">     154 </span>            :      * Populate the output buffer with base64 data, one line (or buffer)
+<span class="lineNum">     155 </span>            :      * at a time.
+<span class="lineNum">     156 </span>            :      */
+<span class="lineNum">     157 </span><span class="lineCov">          1 :     while (in &lt; end) {</span>
+<span class="lineNum">     158 </span>            :         int j, k;
+<span class="lineNum">     159 </span>            : 
+<span class="lineNum">     160 </span><span class="lineCov">          1 :         while (i &lt; 3) {</span>
+<span class="lineNum">     161 </span><span class="lineCov">          1 :             n = (n &lt;&lt; 8) | *in++;</span>
+<span class="lineNum">     162 </span><span class="lineCov">          1 :             i++;</span>
+<span class="lineNum">     163 </span>            :         }
+<span class="lineNum">     164 </span><span class="lineCov">          1 :         i = 0;</span>
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span><span class="lineCov">          1 :         if (data-&gt;line_length &gt; 0) {</span>
+<span class="lineNum">     167 </span><span class="lineCov">          1 :             if (data-&gt;current_column &gt;= data-&gt;line_length) {</span>
+<span class="lineNum">     168 </span><span class="lineCov">          1 :                 data-&gt;current_column = 0;</span>
+<span class="lineNum">     169 </span><span class="lineCov">          1 :                 *out++ = B64_CR;</span>
+<span class="lineNum">     170 </span><span class="lineCov">          1 :                 *out++ = B64_LF;</span>
+<span class="lineNum">     171 </span><span class="lineCov">          1 :                 data-&gt;output_length += 2;</span>
+<span class="lineNum">     172 </span>            :             }
+<span class="lineNum">     173 </span><span class="lineCov">          1 :             data-&gt;current_column += 4; /* the bytes we are about to add */</span>
+<span class="lineNum">     174 </span>            :         }
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span><span class="lineCov">          1 :         for (j = 18; j &gt;= 0; j -= 6) {</span>
+<span class="lineNum">     177 </span><span class="lineCov">          1 :             k = (n &gt;&gt; j) &amp; 0x3F;</span>
+<span class="lineNum">     178 </span><span class="lineCov">          1 :             *out++ = base64_valuetocode[k];</span>
+<span class="lineNum">     179 </span>            :         }
+<span class="lineNum">     180 </span><span class="lineCov">          1 :         n = 0;</span>
+<span class="lineNum">     181 </span><span class="lineCov">          1 :         data-&gt;output_length += 4;</span>
+<span class="lineNum">     182 </span>            : 
+<span class="lineNum">     183 </span><span class="lineCov">          1 :         if (data-&gt;output_length &gt;= output_threshold) {</span>
+<span class="lineNum">     184 </span>            :             PR_ASSERT(data-&gt;output_length &lt;= data-&gt;output_buflen);
+<span class="lineNum">     185 </span><span class="lineCov">          1 :             if (data-&gt;output_fn != NULL) {</span>
+<span class="lineNum">     186 </span>            :                 PRInt32 output_result;
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :                 output_result = data-&gt;output_fn(data-&gt;output_arg,</span>
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 :                                                 data-&gt;output_buffer,</span>
+<span class="lineNum">     190 </span>            :                                                 (PRInt32)data-&gt;output_length);
+<span class="lineNum">     191 </span><span class="lineNoCov">          0 :                 if (output_result &lt; 0)</span>
+<span class="lineNum">     192 </span>            :                     return PR_FAILURE;
+<span class="lineNum">     193 </span>            : 
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 :                 out = data-&gt;output_buffer;</span>
+<span class="lineNum">     195 </span><span class="lineNoCov">          0 :                 data-&gt;output_length = 0;</span>
+<span class="lineNum">     196 </span>            :             } else {
+<span class="lineNum">     197 </span>            :                 /*
+<span class="lineNum">     198 </span>            :                  * Check that we are about to exit the loop.  (Since we
+<span class="lineNum">     199 </span>            :                  * are over the threshold, there isn't enough room in the
+<span class="lineNum">     200 </span>            :                  * output buffer for another trip around.)
+<span class="lineNum">     201 </span>            :                  */
+<span class="lineNum">     202 </span>            :                 PR_ASSERT(in == end);
+<span class="lineNum">     203 </span><span class="lineCov">          1 :                 if (in &lt; end) {</span>
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 :                     PR_SetError(PR_BUFFER_OVERFLOW_ERROR, 0);</span>
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :                     return PR_FAILURE;</span>
+<span class="lineNum">     206 </span>            :                 }
+<span class="lineNum">     207 </span>            :             }
+<span class="lineNum">     208 </span>            :         }
+<span class="lineNum">     209 </span>            :     }
+<span class="lineNum">     210 </span>            : 
+<span class="lineNum">     211 </span>            :     return PR_SUCCESS;
+<span class="lineNum">     212 </span>            : }
+<a name="213"><span class="lineNum">     213 </span>            : </a>
+<span class="lineNum">     214 </span>            : static PRStatus
+<span class="lineNum">     215 </span><span class="lineCov">          1 : pl_base64_encode_flush(PLBase64Encoder *data)</span>
+<span class="lineNum">     216 </span>            : {
+<span class="lineNum">     217 </span><span class="lineCov">          1 :     int i = data-&gt;in_buffer_count;</span>
+<span class="lineNum">     218 </span>            : 
+<span class="lineNum">     219 </span><span class="lineCov">          1 :     if (i == 0 &amp;&amp; data-&gt;output_length == 0)</span>
+<span class="lineNum">     220 </span>            :         return PR_SUCCESS;
+<span class="lineNum">     221 </span>            : 
+<span class="lineNum">     222 </span><span class="lineCov">          1 :     if (i &gt; 0) {</span>
+<span class="lineNum">     223 </span><span class="lineCov">          1 :         char *out = data-&gt;output_buffer + data-&gt;output_length;</span>
+<span class="lineNum">     224 </span>            :         PRUint32 n;
+<span class="lineNum">     225 </span>            :         int j, k;
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span><span class="lineCov">          1 :         n = ((PRUint32)data-&gt;in_buffer[0]) &lt;&lt; 16;</span>
+<span class="lineNum">     228 </span><span class="lineCov">          1 :         if (i &gt; 1)</span>
+<span class="lineNum">     229 </span><span class="lineCov">          1 :             n |= ((PRUint32)data-&gt;in_buffer[1] &lt;&lt; 8);</span>
+<span class="lineNum">     230 </span>            : 
+<span class="lineNum">     231 </span><span class="lineCov">          1 :         data-&gt;in_buffer_count = 0;</span>
+<span class="lineNum">     232 </span>            : 
+<span class="lineNum">     233 </span><span class="lineCov">          1 :         if (data-&gt;line_length &gt; 0) {</span>
+<span class="lineNum">     234 </span><span class="lineCov">          1 :             if (data-&gt;current_column &gt;= data-&gt;line_length) {</span>
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :                 data-&gt;current_column = 0;</span>
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :                 *out++ = B64_CR;</span>
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :                 *out++ = B64_LF;</span>
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :                 data-&gt;output_length += 2;</span>
+<span class="lineNum">     239 </span>            :             }
+<span class="lineNum">     240 </span>            :         }
+<span class="lineNum">     241 </span>            : 
+<span class="lineNum">     242 </span>            :         /*
+<span class="lineNum">     243 </span>            :          * This will fill in more than we really have data for, but the
+<span class="lineNum">     244 </span>            :          * valid parts will end up in the correct position and the extras
+<span class="lineNum">     245 </span>            :          * will be over-written with pad characters below.
+<span class="lineNum">     246 </span>            :          */
+<span class="lineNum">     247 </span><span class="lineCov">          1 :         for (j = 18; j &gt;= 0; j -= 6) {</span>
+<span class="lineNum">     248 </span><span class="lineCov">          1 :             k = (n &gt;&gt; j) &amp; 0x3F;</span>
+<span class="lineNum">     249 </span><span class="lineCov">          1 :             *out++ = base64_valuetocode[k];</span>
+<span class="lineNum">     250 </span>            :         }
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span>            :         /* Pad with equal-signs. */
+<span class="lineNum">     253 </span><span class="lineCov">          1 :         if (i == 1)</span>
+<span class="lineNum">     254 </span><span class="lineCov">          1 :             out[-2] = B64_PAD;</span>
+<span class="lineNum">     255 </span><span class="lineCov">          1 :         out[-1] = B64_PAD;</span>
+<span class="lineNum">     256 </span>            : 
+<span class="lineNum">     257 </span><span class="lineCov">          1 :         data-&gt;output_length += 4;</span>
+<span class="lineNum">     258 </span>            :     }
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span><span class="lineCov">          1 :     if (data-&gt;output_fn != NULL) {</span>
+<span class="lineNum">     261 </span>            :         PRInt32 output_result;
+<span class="lineNum">     262 </span>            : 
+<span class="lineNum">     263 </span><span class="lineNoCov">          0 :         output_result = data-&gt;output_fn(data-&gt;output_arg, data-&gt;output_buffer,</span>
+<span class="lineNum">     264 </span><span class="lineNoCov">          0 :                                         (PRInt32)data-&gt;output_length);</span>
+<span class="lineNum">     265 </span><span class="lineNoCov">          0 :         data-&gt;output_length = 0;</span>
+<span class="lineNum">     266 </span>            : 
+<span class="lineNum">     267 </span><span class="lineNoCov">          0 :         if (output_result &lt; 0)</span>
+<span class="lineNum">     268 </span>            :             return PR_FAILURE;
+<span class="lineNum">     269 </span>            :     }
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span>            :     return PR_SUCCESS;
+<span class="lineNum">     272 </span>            : }
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span>            : /*
+<span class="lineNum">     275 </span>            :  * The maximum space needed to hold the output of the encoder given input
+<span class="lineNum">     276 </span>            :  * data of length &quot;size&quot;, and allowing for CRLF added at least every
+<span class="lineNum">     277 </span>            :  * line_length bytes (we will add it at nearest lower multiple of 4).
+<span class="lineNum">     278 </span>            :  * There is no trailing CRLF.
+<a name="279"><span class="lineNum">     279 </span>            :  */</a>
+<span class="lineNum">     280 </span>            : static PRUint32
+<span class="lineNum">     281 </span><span class="lineCov">          1 : PL_Base64MaxEncodedLength(PRUint32 size, PRUint32 line_length)</span>
+<span class="lineNum">     282 </span>            : {
+<span class="lineNum">     283 </span>            :     PRUint32 tokens, tokens_per_line, full_lines, line_break_chars, remainder;
+<span class="lineNum">     284 </span>            : 
+<span class="lineNum">     285 </span><span class="lineCov">          1 :     tokens = (size + 2) / 3;</span>
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span><span class="lineCov">          1 :     if (line_length == 0)</span>
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :         return tokens * 4;</span>
+<span class="lineNum">     289 </span>            : 
+<span class="lineNum">     290 </span><span class="lineCov">          1 :     if (line_length &lt; 4) /* too small! */</span>
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :         line_length = 4;</span>
+<span class="lineNum">     292 </span>            : 
+<span class="lineNum">     293 </span><span class="lineCov">          1 :     tokens_per_line = line_length / 4;</span>
+<span class="lineNum">     294 </span><span class="lineCov">          1 :     full_lines = tokens / tokens_per_line;</span>
+<span class="lineNum">     295 </span><span class="lineCov">          1 :     remainder = (tokens - (full_lines * tokens_per_line)) * 4;</span>
+<span class="lineNum">     296 </span><span class="lineCov">          1 :     line_break_chars = full_lines * 2;</span>
+<span class="lineNum">     297 </span><span class="lineCov">          1 :     if (remainder == 0)</span>
+<span class="lineNum">     298 </span><span class="lineCov">          1 :         line_break_chars -= 2;</span>
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span><span class="lineCov">          1 :     return (full_lines * tokens_per_line * 4) + line_break_chars + remainder;</span>
+<span class="lineNum">     301 </span>            : }
+<span class="lineNum">     302 </span>            : 
+<span class="lineNum">     303 </span>            : /*
+<span class="lineNum">     304 </span>            :  * A distinct internal creation function for the buffer version to use.
+<span class="lineNum">     305 </span>            :  * (It does not want to specify an output_fn, and we want the normal
+<span class="lineNum">     306 </span>            :  * Create function to require that.)  All common initialization of the
+<span class="lineNum">     307 </span>            :  * encoding context should be done *here*.
+<span class="lineNum">     308 </span>            :  *
+<span class="lineNum">     309 </span>            :  * Save &quot;line_length&quot;, rounded down to nearest multiple of 4 (if not
+<span class="lineNum">     310 </span>            :  * already even multiple).  Allocate output_buffer, if not provided --
+<span class="lineNum">     311 </span>            :  * based on given size if specified, otherwise based on line_length.
+<a name="312"><span class="lineNum">     312 </span>            :  */</a>
+<span class="lineNum">     313 </span>            : static PLBase64Encoder *
+<span class="lineNum">     314 </span><span class="lineCov">          1 : pl_base64_create_encoder(PRUint32 line_length, char *output_buffer,</span>
+<span class="lineNum">     315 </span>            :                          PRUint32 output_buflen)
+<span class="lineNum">     316 </span>            : {
+<span class="lineNum">     317 </span>            :     PLBase64Encoder *data;
+<span class="lineNum">     318 </span>            :     PRUint32 line_tokens;
+<span class="lineNum">     319 </span>            : 
+<span class="lineNum">     320 </span><span class="lineCov">          1 :     data = PR_NEWZAP(PLBase64Encoder);</span>
+<span class="lineNum">     321 </span><span class="lineCov">          1 :     if (data == NULL)</span>
+<span class="lineNum">     322 </span>            :         return NULL;
+<span class="lineNum">     323 </span>            : 
+<span class="lineNum">     324 </span><span class="lineCov">          1 :     if (line_length &gt; 0 &amp;&amp; line_length &lt; 4) /* too small! */</span>
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :         line_length = 4;</span>
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span><span class="lineCov">          1 :     line_tokens = line_length / 4;</span>
+<span class="lineNum">     328 </span><span class="lineCov">          1 :     data-&gt;line_length = line_tokens * 4;</span>
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span><span class="lineCov">          1 :     if (output_buffer == NULL) {</span>
+<span class="lineNum">     331 </span><span class="lineNoCov">          0 :         if (output_buflen == 0) {</span>
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :             if (data-&gt;line_length &gt; 0) /* need to include room for CRLF */</span>
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :                 output_buflen = data-&gt;line_length + 2;</span>
+<span class="lineNum">     334 </span>            :             else
+<span class="lineNum">     335 </span>            :                 output_buflen = 64; /* XXX what is a good size? */
+<span class="lineNum">     336 </span>            :         }
+<span class="lineNum">     337 </span>            : 
+<span class="lineNum">     338 </span><span class="lineNoCov">          0 :         output_buffer = (char *)PR_Malloc(output_buflen);</span>
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 :         if (output_buffer == NULL) {</span>
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :             PR_Free(data);</span>
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :             return NULL;</span>
+<span class="lineNum">     342 </span>            :         }
+<span class="lineNum">     343 </span>            :     }
+<span class="lineNum">     344 </span>            : 
+<span class="lineNum">     345 </span><span class="lineCov">          1 :     data-&gt;output_buffer = output_buffer;</span>
+<span class="lineNum">     346 </span><span class="lineCov">          1 :     data-&gt;output_buflen = output_buflen;</span>
+<span class="lineNum">     347 </span><span class="lineCov">          1 :     return data;</span>
+<span class="lineNum">     348 </span>            : }
+<span class="lineNum">     349 </span>            : 
+<span class="lineNum">     350 </span>            : /*
+<span class="lineNum">     351 </span>            :  * Function to start a base64 encoding context.
+<span class="lineNum">     352 </span>            :  * An &quot;output_fn&quot; is required; the &quot;output_arg&quot; parameter to that is optional.
+<span class="lineNum">     353 </span>            :  * If linebreaks in the encoded output are desired, &quot;line_length&quot; specifies
+<span class="lineNum">     354 </span>            :  * where to place them -- it will be rounded down to the nearest multiple of 4
+<span class="lineNum">     355 </span>            :  * (if it is not already an even multiple of 4).  If it is zero, no linebreaks
+<span class="lineNum">     356 </span>            :  * will be added.  (FYI, a linebreak is CRLF -- two characters.)
+<a name="357"><span class="lineNum">     357 </span>            :  */</a>
+<span class="lineNum">     358 </span>            : static PLBase64Encoder *
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 : PL_CreateBase64Encoder(PRInt32 (*output_fn)(void *, const char *, PRInt32),</span>
+<span class="lineNum">     360 </span>            :                        void *output_arg, PRUint32 line_length)
+<span class="lineNum">     361 </span>            : {
+<span class="lineNum">     362 </span>            :     PLBase64Encoder *data;
+<span class="lineNum">     363 </span>            : 
+<span class="lineNum">     364 </span><span class="lineNoCov">          0 :     if (output_fn == NULL) {</span>
+<span class="lineNum">     365 </span><span class="lineNoCov">          0 :         PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);</span>
+<span class="lineNum">     366 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     367 </span>            :     }
+<span class="lineNum">     368 </span>            : 
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :     data = pl_base64_create_encoder(line_length, NULL, 0);</span>
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :     if (data == NULL)</span>
+<span class="lineNum">     371 </span>            :         return NULL;
+<span class="lineNum">     372 </span>            : 
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :     data-&gt;output_fn = output_fn;</span>
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :     data-&gt;output_arg = output_arg;</span>
+<span class="lineNum">     375 </span>            : 
+<span class="lineNum">     376 </span><span class="lineNoCov">          0 :     return data;</span>
+<span class="lineNum">     377 </span>            : }
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span>            : /*
+<span class="lineNum">     380 </span>            :  * Push data through the encoder, causing the output_fn (provided to Create)
+<span class="lineNum">     381 </span>            :  * to be called with the encoded data.
+<a name="382"><span class="lineNum">     382 </span>            :  */</a>
+<span class="lineNum">     383 </span>            : static PRStatus
+<span class="lineNum">     384 </span><span class="lineNoCov">          0 : PL_UpdateBase64Encoder(PLBase64Encoder *data, const unsigned char *buffer,</span>
+<span class="lineNum">     385 </span>            :                        PRUint32 size)
+<span class="lineNum">     386 </span>            : {
+<span class="lineNum">     387 </span>            :     /* XXX Should we do argument checking only in debug build? */
+<span class="lineNum">     388 </span><span class="lineNoCov">          0 :     if (data == NULL || buffer == NULL || size == 0) {</span>
+<span class="lineNum">     389 </span><span class="lineNoCov">          0 :         PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);</span>
+<span class="lineNum">     390 </span><span class="lineNoCov">          0 :         return PR_FAILURE;</span>
+<span class="lineNum">     391 </span>            :     }
+<span class="lineNum">     392 </span>            : 
+<span class="lineNum">     393 </span><span class="lineNoCov">          0 :     return pl_base64_encode_buffer(data, buffer, size);</span>
+<span class="lineNum">     394 </span>            : }
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span>            : /*
+<span class="lineNum">     397 </span>            :  * When you're done encoding, call this to free the data.  If &quot;abort_p&quot;
+<span class="lineNum">     398 </span>            :  * is false, then calling this may cause the output_fn to be called
+<span class="lineNum">     399 </span>            :  * one last time (as the last buffered data is flushed out).
+<a name="400"><span class="lineNum">     400 </span>            :  */</a>
+<span class="lineNum">     401 </span>            : static PRStatus
+<span class="lineNum">     402 </span><span class="lineCov">          1 : PL_DestroyBase64Encoder(PLBase64Encoder *data, PRBool abort_p)</span>
+<span class="lineNum">     403 </span>            : {
+<span class="lineNum">     404 </span><span class="lineCov">          1 :     PRStatus status = PR_SUCCESS;</span>
+<span class="lineNum">     405 </span>            : 
+<span class="lineNum">     406 </span>            :     /* XXX Should we do argument checking only in debug build? */
+<span class="lineNum">     407 </span><span class="lineCov">          1 :     if (data == NULL) {</span>
+<span class="lineNum">     408 </span><span class="lineNoCov">          0 :         PR_SetError(PR_INVALID_ARGUMENT_ERROR, 0);</span>
+<span class="lineNum">     409 </span><span class="lineNoCov">          0 :         return PR_FAILURE;</span>
+<span class="lineNum">     410 </span>            :     }
+<span class="lineNum">     411 </span>            : 
+<span class="lineNum">     412 </span>            :     /* Flush out the last few buffered characters. */
+<span class="lineNum">     413 </span><span class="lineCov">          1 :     if (!abort_p)</span>
+<span class="lineNum">     414 </span><span class="lineCov">          1 :         status = pl_base64_encode_flush(data);</span>
+<span class="lineNum">     415 </span>            : 
+<span class="lineNum">     416 </span><span class="lineCov">          1 :     if (data-&gt;output_buffer != NULL)</span>
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :         PR_Free(data-&gt;output_buffer);</span>
+<span class="lineNum">     418 </span><span class="lineCov">          1 :     PR_Free(data);</span>
+<span class="lineNum">     419 </span>            : 
+<span class="lineNum">     420 </span><span class="lineCov">          1 :     return status;</span>
+<span class="lineNum">     421 </span>            : }
+<span class="lineNum">     422 </span>            : 
+<span class="lineNum">     423 </span>            : /*
+<span class="lineNum">     424 </span>            :  * Perform base64 encoding from an input buffer to an output buffer.
+<span class="lineNum">     425 </span>            :  * The output buffer can be provided (as &quot;dest&quot;); you can also pass in
+<span class="lineNum">     426 </span>            :  * a NULL and this function will allocate a buffer large enough for you,
+<span class="lineNum">     427 </span>            :  * and return it.  If you do provide the output buffer, you must also
+<span class="lineNum">     428 </span>            :  * provide the maximum length of that buffer (as &quot;maxdestlen&quot;).
+<span class="lineNum">     429 </span>            :  * The actual encoded length of output will be returned to you in
+<span class="lineNum">     430 </span>            :  * &quot;output_destlen&quot;.
+<span class="lineNum">     431 </span>            :  *
+<span class="lineNum">     432 </span>            :  * If linebreaks in the encoded output are desired, &quot;line_length&quot; specifies
+<span class="lineNum">     433 </span>            :  * where to place them -- it will be rounded down to the nearest multiple of 4
+<span class="lineNum">     434 </span>            :  * (if it is not already an even multiple of 4).  If it is zero, no linebreaks
+<span class="lineNum">     435 </span>            :  * will be added.  (FYI, a linebreak is CRLF -- two characters.)
+<span class="lineNum">     436 </span>            :  *
+<span class="lineNum">     437 </span>            :  * Return value is NULL on error, the output buffer (allocated or provided)
+<span class="lineNum">     438 </span>            :  * otherwise.
+<a name="439"><span class="lineNum">     439 </span>            :  */</a>
+<span class="lineNum">     440 </span>            : static char *
+<span class="lineNum">     441 </span><span class="lineCov">          1 : PL_Base64EncodeBuffer(const unsigned char *src, PRUint32 srclen,</span>
+<span class="lineNum">     442 </span>            :                       PRUint32 line_length, char *dest, PRUint32 maxdestlen,
+<span class="lineNum">     443 </span>            :                       PRUint32 *output_destlen)
+<span class="lineNum">     444 </span>            : {
+<span class="lineNum">     445 </span>            :     PRUint32 need_length;
+<span class="lineNum">     446 </span><span class="lineCov">          1 :     PLBase64Encoder *data = NULL;</span>
+<span class="lineNum">     447 </span>            :     PRStatus status;
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span>            :     PR_ASSERT(srclen &gt; 0);
+<span class="lineNum">     450 </span><span class="lineCov">          1 :     if (srclen == 0)</span>
+<span class="lineNum">     451 </span>            :         return dest;
+<span class="lineNum">     452 </span>            : 
+<span class="lineNum">     453 </span>            :     /*
+<span class="lineNum">     454 </span>            :      * How much space could we possibly need for encoding this input?
+<span class="lineNum">     455 </span>            :      */
+<span class="lineNum">     456 </span><span class="lineCov">          1 :     need_length = PL_Base64MaxEncodedLength(srclen, line_length);</span>
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span>            :     /*
+<span class="lineNum">     459 </span>            :      * Make sure we have at least that much, if output buffer provided.
+<span class="lineNum">     460 </span>            :      */
+<span class="lineNum">     461 </span><span class="lineCov">          1 :     if (dest != NULL) {</span>
+<span class="lineNum">     462 </span>            :         PR_ASSERT(maxdestlen &gt;= need_length);
+<span class="lineNum">     463 </span><span class="lineCov">          1 :         if (maxdestlen &lt; need_length) {</span>
+<span class="lineNum">     464 </span><span class="lineNoCov">          0 :             PR_SetError(PR_BUFFER_OVERFLOW_ERROR, 0);</span>
+<span class="lineNum">     465 </span><span class="lineNoCov">          0 :             return NULL;</span>
+<span class="lineNum">     466 </span>            :         }
+<span class="lineNum">     467 </span>            :     } else {
+<span class="lineNum">     468 </span>            :         maxdestlen = need_length;
+<span class="lineNum">     469 </span>            :     }
+<span class="lineNum">     470 </span>            : 
+<span class="lineNum">     471 </span><span class="lineCov">          1 :     data = pl_base64_create_encoder(line_length, dest, maxdestlen);</span>
+<span class="lineNum">     472 </span><span class="lineCov">          1 :     if (data == NULL)</span>
+<span class="lineNum">     473 </span>            :         return NULL;
+<span class="lineNum">     474 </span>            : 
+<span class="lineNum">     475 </span><span class="lineCov">          1 :     status = pl_base64_encode_buffer(data, src, srclen);</span>
+<span class="lineNum">     476 </span>            : 
+<span class="lineNum">     477 </span>            :     /*
+<span class="lineNum">     478 </span>            :      * We do not wait for Destroy to flush, because Destroy will also
+<span class="lineNum">     479 </span>            :      * get rid of our encoder context, which we need to look at first!
+<span class="lineNum">     480 </span>            :      */
+<span class="lineNum">     481 </span><span class="lineCov">          1 :     if (status == PR_SUCCESS)</span>
+<span class="lineNum">     482 </span><span class="lineCov">          1 :         status = pl_base64_encode_flush(data);</span>
+<span class="lineNum">     483 </span>            : 
+<span class="lineNum">     484 </span><span class="lineCov">          1 :     if (status != PR_SUCCESS) {</span>
+<span class="lineNum">     485 </span><span class="lineNoCov">          0 :         (void)PL_DestroyBase64Encoder(data, PR_TRUE);</span>
+<span class="lineNum">     486 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     487 </span>            :     }
+<span class="lineNum">     488 </span>            : 
+<span class="lineNum">     489 </span><span class="lineCov">          1 :     dest = data-&gt;output_buffer;</span>
+<span class="lineNum">     490 </span>            : 
+<span class="lineNum">     491 </span>            :     /* Must clear this or Destroy will free it. */
+<span class="lineNum">     492 </span><span class="lineCov">          1 :     data-&gt;output_buffer = NULL;</span>
+<span class="lineNum">     493 </span>            : 
+<span class="lineNum">     494 </span><span class="lineCov">          1 :     *output_destlen = data-&gt;output_length;</span>
+<span class="lineNum">     495 </span><span class="lineCov">          1 :     status = PL_DestroyBase64Encoder(data, PR_FALSE);</span>
+<span class="lineNum">     496 </span><span class="lineCov">          1 :     if (status == PR_FAILURE) {</span>
+<span class="lineNum">     497 </span><span class="lineNoCov">          0 :         PR_Free(dest);</span>
+<span class="lineNum">     498 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     499 </span>            :     }
+<span class="lineNum">     500 </span>            : 
+<span class="lineNum">     501 </span>            :     return dest;
+<span class="lineNum">     502 </span>            : }
+<span class="lineNum">     503 </span>            : 
+<span class="lineNum">     504 </span>            : /*
+<span class="lineNum">     505 </span>            :  * XXX End of base64 encoding code to be moved into NSPR.
+<span class="lineNum">     506 </span>            :  ********************************************************
+<span class="lineNum">     507 </span>            :  */
+<span class="lineNum">     508 </span>            : 
+<span class="lineNum">     509 </span>            : /*
+<span class="lineNum">     510 </span>            :  * This is the beginning of the NSS cover functions.  These will
+<span class="lineNum">     511 </span>            :  * provide the interface we want to expose as NSS-ish.  For example,
+<span class="lineNum">     512 </span>            :  * they will operate on our Items, do any special handling or checking
+<span class="lineNum">     513 </span>            :  * we want to do, etc.
+<span class="lineNum">     514 </span>            :  */
+<span class="lineNum">     515 </span>            : 
+<span class="lineNum">     516 </span>            : PR_BEGIN_EXTERN_C
+<span class="lineNum">     517 </span>            : 
+<span class="lineNum">     518 </span>            : /*
+<span class="lineNum">     519 </span>            :  * A boring cover structure for now.  Perhaps someday it will include
+<span class="lineNum">     520 </span>            :  * some more interesting fields.
+<span class="lineNum">     521 </span>            :  */
+<span class="lineNum">     522 </span>            : struct NSSBase64EncoderStr {
+<span class="lineNum">     523 </span>            :     PLBase64Encoder *pl_data;
+<span class="lineNum">     524 </span>            : };
+<span class="lineNum">     525 </span>            : 
+<span class="lineNum">     526 </span>            : PR_END_EXTERN_C
+<span class="lineNum">     527 </span>            : 
+<span class="lineNum">     528 </span>            : /*
+<span class="lineNum">     529 </span>            :  * Function to start a base64 encoding context.
+<a name="530"><span class="lineNum">     530 </span>            :  */</a>
+<span class="lineNum">     531 </span>            : NSSBase64Encoder *
+<span class="lineNum">     532 </span><span class="lineNoCov">          0 : NSSBase64Encoder_Create(PRInt32 (*output_fn)(void *, const char *, PRInt32),</span>
+<span class="lineNum">     533 </span>            :                         void *output_arg)
+<span class="lineNum">     534 </span>            : {
+<span class="lineNum">     535 </span>            :     PLBase64Encoder *pl_data;
+<span class="lineNum">     536 </span>            :     NSSBase64Encoder *nss_data;
+<span class="lineNum">     537 </span>            : 
+<span class="lineNum">     538 </span><span class="lineNoCov">          0 :     nss_data = PORT_ZNew(NSSBase64Encoder);</span>
+<span class="lineNum">     539 </span><span class="lineNoCov">          0 :     if (nss_data == NULL)</span>
+<span class="lineNum">     540 </span>            :         return NULL;
+<span class="lineNum">     541 </span>            : 
+<span class="lineNum">     542 </span><span class="lineNoCov">          0 :     pl_data = PL_CreateBase64Encoder(output_fn, output_arg, 64);</span>
+<span class="lineNum">     543 </span><span class="lineNoCov">          0 :     if (pl_data == NULL) {</span>
+<span class="lineNum">     544 </span><span class="lineNoCov">          0 :         PORT_Free(nss_data);</span>
+<span class="lineNum">     545 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     546 </span>            :     }
+<span class="lineNum">     547 </span>            : 
+<span class="lineNum">     548 </span><span class="lineNoCov">          0 :     nss_data-&gt;pl_data = pl_data;</span>
+<span class="lineNum">     549 </span><span class="lineNoCov">          0 :     return nss_data;</span>
+<span class="lineNum">     550 </span>            : }
+<span class="lineNum">     551 </span>            : 
+<span class="lineNum">     552 </span>            : /*
+<span class="lineNum">     553 </span>            :  * Push data through the encoder, causing the output_fn (provided to Create)
+<span class="lineNum">     554 </span>            :  * to be called with the encoded data.
+<a name="555"><span class="lineNum">     555 </span>            :  */</a>
+<span class="lineNum">     556 </span>            : SECStatus
+<span class="lineNum">     557 </span><span class="lineNoCov">          0 : NSSBase64Encoder_Update(NSSBase64Encoder *data, const unsigned char *buffer,</span>
+<span class="lineNum">     558 </span>            :                         PRUint32 size)
+<span class="lineNum">     559 </span>            : {
+<span class="lineNum">     560 </span>            :     PRStatus pr_status;
+<span class="lineNum">     561 </span>            : 
+<span class="lineNum">     562 </span>            :     /* XXX Should we do argument checking only in debug build? */
+<span class="lineNum">     563 </span><span class="lineNoCov">          0 :     if (data == NULL) {</span>
+<span class="lineNum">     564 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     565 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     566 </span>            :     }
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span><span class="lineNoCov">          0 :     pr_status = PL_UpdateBase64Encoder(data-&gt;pl_data, buffer, size);</span>
+<span class="lineNum">     569 </span><span class="lineNoCov">          0 :     if (pr_status == PR_FAILURE)</span>
+<span class="lineNum">     570 </span>            :         return SECFailure;
+<span class="lineNum">     571 </span>            : 
+<span class="lineNum">     572 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     573 </span>            : }
+<span class="lineNum">     574 </span>            : 
+<span class="lineNum">     575 </span>            : /*
+<span class="lineNum">     576 </span>            :  * When you're done encoding, call this to free the data.  If &quot;abort_p&quot;
+<span class="lineNum">     577 </span>            :  * is false, then calling this may cause the output_fn to be called
+<span class="lineNum">     578 </span>            :  * one last time (as the last buffered data is flushed out).
+<a name="579"><span class="lineNum">     579 </span>            :  */</a>
+<span class="lineNum">     580 </span>            : SECStatus
+<span class="lineNum">     581 </span><span class="lineNoCov">          0 : NSSBase64Encoder_Destroy(NSSBase64Encoder *data, PRBool abort_p)</span>
+<span class="lineNum">     582 </span>            : {
+<span class="lineNum">     583 </span>            :     PRStatus pr_status;
+<span class="lineNum">     584 </span>            : 
+<span class="lineNum">     585 </span>            :     /* XXX Should we do argument checking only in debug build? */
+<span class="lineNum">     586 </span><span class="lineNoCov">          0 :     if (data == NULL) {</span>
+<span class="lineNum">     587 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     588 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     589 </span>            :     }
+<span class="lineNum">     590 </span>            : 
+<span class="lineNum">     591 </span><span class="lineNoCov">          0 :     pr_status = PL_DestroyBase64Encoder(data-&gt;pl_data, abort_p);</span>
+<span class="lineNum">     592 </span>            : 
+<span class="lineNum">     593 </span><span class="lineNoCov">          0 :     PORT_Free(data);</span>
+<span class="lineNum">     594 </span>            : 
+<span class="lineNum">     595 </span><span class="lineNoCov">          0 :     if (pr_status == PR_FAILURE)</span>
+<span class="lineNum">     596 </span>            :         return SECFailure;
+<span class="lineNum">     597 </span>            : 
+<span class="lineNum">     598 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     599 </span>            : }
+<span class="lineNum">     600 </span>            : 
+<span class="lineNum">     601 </span>            : /*
+<span class="lineNum">     602 </span>            :  * Perform base64 encoding of binary data &quot;inItem&quot; to an ascii string.
+<span class="lineNum">     603 </span>            :  * The output buffer may be provided (as &quot;outStrOpt&quot;); you can also pass
+<span class="lineNum">     604 </span>            :  * in a NULL and the buffer will be allocated for you.  The result will
+<span class="lineNum">     605 </span>            :  * be null-terminated, and if the buffer is provided, &quot;maxOutLen&quot; must
+<span class="lineNum">     606 </span>            :  * specify the maximum length of the buffer and will be checked to
+<span class="lineNum">     607 </span>            :  * supply sufficient space space for the encoded result.  (If &quot;outStrOpt&quot;
+<span class="lineNum">     608 </span>            :  * is NULL, &quot;maxOutLen&quot; is ignored.)
+<span class="lineNum">     609 </span>            :  *
+<span class="lineNum">     610 </span>            :  * If &quot;outStrOpt&quot; is NULL, allocation will happen out of the passed-in
+<span class="lineNum">     611 </span>            :  * &quot;arenaOpt&quot;, if *it* is non-NULL, otherwise standard allocation (heap)
+<span class="lineNum">     612 </span>            :  * will be used.
+<span class="lineNum">     613 </span>            :  *
+<span class="lineNum">     614 </span>            :  * Return value is NULL on error, the output buffer (allocated or provided)
+<span class="lineNum">     615 </span>            :  * otherwise.
+<a name="616"><span class="lineNum">     616 </span>            :  */</a>
+<span class="lineNum">     617 </span>            : char *
+<span class="lineNum">     618 </span><span class="lineCov">          1 : NSSBase64_EncodeItem(PLArenaPool *arenaOpt, char *outStrOpt,</span>
+<span class="lineNum">     619 </span>            :                      unsigned int maxOutLen, SECItem *inItem)
+<span class="lineNum">     620 </span>            : {
+<span class="lineNum">     621 </span><span class="lineCov">          1 :     char *out_string = outStrOpt;</span>
+<span class="lineNum">     622 </span>            :     PRUint32 max_out_len;
+<span class="lineNum">     623 </span><span class="lineCov">          1 :     PRUint32 out_len = 0;</span>
+<span class="lineNum">     624 </span><span class="lineCov">          1 :     void *mark = NULL;</span>
+<span class="lineNum">     625 </span>            :     char *dummy;
+<span class="lineNum">     626 </span>            : 
+<span class="lineNum">     627 </span>            :     PORT_Assert(inItem != NULL &amp;&amp; inItem-&gt;data != NULL &amp;&amp; inItem-&gt;len != 0);
+<span class="lineNum">     628 </span><span class="lineCov">          1 :     if (inItem == NULL || inItem-&gt;data == NULL || inItem-&gt;len == 0) {</span>
+<span class="lineNum">     629 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     630 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     631 </span>            :     }
+<span class="lineNum">     632 </span>            : 
+<span class="lineNum">     633 </span><span class="lineCov">          1 :     max_out_len = PL_Base64MaxEncodedLength(inItem-&gt;len, 64);</span>
+<span class="lineNum">     634 </span>            : 
+<span class="lineNum">     635 </span><span class="lineCov">          1 :     if (arenaOpt != NULL)</span>
+<span class="lineNum">     636 </span><span class="lineNoCov">          0 :         mark = PORT_ArenaMark(arenaOpt);</span>
+<span class="lineNum">     637 </span>            : 
+<span class="lineNum">     638 </span><span class="lineCov">          1 :     if (out_string == NULL) {</span>
+<span class="lineNum">     639 </span><span class="lineCov">          1 :         if (arenaOpt != NULL)</span>
+<span class="lineNum">     640 </span><span class="lineNoCov">          0 :             out_string = PORT_ArenaAlloc(arenaOpt, max_out_len + 1);</span>
+<span class="lineNum">     641 </span>            :         else
+<span class="lineNum">     642 </span><span class="lineCov">          1 :             out_string = PORT_Alloc(max_out_len + 1);</span>
+<span class="lineNum">     643 </span>            : 
+<span class="lineNum">     644 </span><span class="lineCov">          1 :         if (out_string == NULL) {</span>
+<span class="lineNum">     645 </span><span class="lineNoCov">          0 :             if (arenaOpt != NULL)</span>
+<span class="lineNum">     646 </span><span class="lineNoCov">          0 :                 PORT_ArenaRelease(arenaOpt, mark);</span>
+<span class="lineNum">     647 </span>            :             return NULL;
+<span class="lineNum">     648 </span>            :         }
+<span class="lineNum">     649 </span>            :     } else {
+<span class="lineNum">     650 </span><span class="lineNoCov">          0 :         if ((max_out_len + 1) &gt; maxOutLen) {</span>
+<span class="lineNum">     651 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_OUTPUT_LEN);</span>
+<span class="lineNum">     652 </span><span class="lineNoCov">          0 :             return NULL;</span>
+<span class="lineNum">     653 </span>            :         }
+<span class="lineNum">     654 </span>            :         max_out_len = maxOutLen;
+<span class="lineNum">     655 </span>            :     }
+<span class="lineNum">     656 </span>            : 
+<span class="lineNum">     657 </span><span class="lineCov">          1 :     dummy = PL_Base64EncodeBuffer(inItem-&gt;data, inItem-&gt;len, 64,</span>
+<span class="lineNum">     658 </span>            :                                   out_string, max_out_len, &amp;out_len);
+<span class="lineNum">     659 </span><span class="lineCov">          1 :     if (dummy == NULL) {</span>
+<span class="lineNum">     660 </span><span class="lineNoCov">          0 :         if (arenaOpt != NULL) {</span>
+<span class="lineNum">     661 </span><span class="lineNoCov">          0 :             PORT_ArenaRelease(arenaOpt, mark);</span>
+<span class="lineNum">     662 </span>            :         } else {
+<span class="lineNum">     663 </span><span class="lineNoCov">          0 :             PORT_Free(out_string);</span>
+<span class="lineNum">     664 </span>            :         }
+<span class="lineNum">     665 </span>            :         return NULL;
+<span class="lineNum">     666 </span>            :     }
+<span class="lineNum">     667 </span>            : 
+<span class="lineNum">     668 </span><span class="lineCov">          1 :     if (arenaOpt != NULL)</span>
+<span class="lineNum">     669 </span><span class="lineNoCov">          0 :         PORT_ArenaUnmark(arenaOpt, mark);</span>
+<span class="lineNum">     670 </span>            : 
+<span class="lineNum">     671 </span><span class="lineCov">          1 :     out_string[out_len] = '\0';</span>
+<span class="lineNum">     672 </span><span class="lineCov">          1 :     return out_string;</span>
+<span class="lineNum">     673 </span>            : }
+<span class="lineNum">     674 </span>            : 
+<span class="lineNum">     675 </span>            : /*
+<span class="lineNum">     676 </span>            :  * XXX Everything below is deprecated.  If you add new stuff, put it
+<span class="lineNum">     677 </span>            :  * *above*, not below.
+<span class="lineNum">     678 </span>            :  */
+<span class="lineNum">     679 </span>            : 
+<span class="lineNum">     680 </span>            : /*
+<span class="lineNum">     681 </span>            :  * XXX The following &quot;BTOA&quot; functions are provided for backward compatibility
+<span class="lineNum">     682 </span>            :  * with current code.  They should be considered strongly deprecated.
+<span class="lineNum">     683 </span>            :  * When we can convert all our code over to using the new NSSBase64Encoder_
+<span class="lineNum">     684 </span>            :  * functions defined above, we should get rid of these altogether.  (Remove
+<span class="lineNum">     685 </span>            :  * protoypes from base64.h as well -- actually, remove that file completely).
+<span class="lineNum">     686 </span>            :  * If someone thinks either of these functions provides such a very useful
+<span class="lineNum">     687 </span>            :  * interface (though, as shown, the same functionality can already be
+<span class="lineNum">     688 </span>            :  * obtained by calling NSSBase64_EncodeItem directly), fine -- but then
+<span class="lineNum">     689 </span>            :  * that API should be provided with a nice new NSSFoo name and using
+<span class="lineNum">     690 </span>            :  * appropriate types, etc.
+<span class="lineNum">     691 </span>            :  */
+<span class="lineNum">     692 </span>            : 
+<span class="lineNum">     693 </span>            : #include &quot;base64.h&quot;
+<span class="lineNum">     694 </span>            : 
+<span class="lineNum">     695 </span>            : /*
+<span class="lineNum">     696 </span>            : ** Return an PORT_Alloc'd ascii string which is the base64 encoded
+<span class="lineNum">     697 </span>            : ** version of the input string.
+<a name="698"><span class="lineNum">     698 </span>            : */</a>
+<span class="lineNum">     699 </span>            : char *
+<span class="lineNum">     700 </span><span class="lineCov">          1 : BTOA_DataToAscii(const unsigned char *data, unsigned int len)</span>
+<span class="lineNum">     701 </span>            : {
+<span class="lineNum">     702 </span>            :     SECItem binary_item;
+<span class="lineNum">     703 </span>            : 
+<span class="lineNum">     704 </span><span class="lineCov">          1 :     binary_item.data = (unsigned char *)data;</span>
+<span class="lineNum">     705 </span><span class="lineCov">          1 :     binary_item.len = len;</span>
+<span class="lineNum">     706 </span>            : 
+<span class="lineNum">     707 </span><span class="lineCov">          1 :     return NSSBase64_EncodeItem(NULL, NULL, 0, &amp;binary_item);</span>
+<span class="lineNum">     708 </span>            : }
+<span class="lineNum">     709 </span>            : 
+<span class="lineNum">     710 </span>            : /*
+<span class="lineNum">     711 </span>            : ** Convert from binary encoding of an item to ascii.
+<a name="712"><span class="lineNum">     712 </span>            : */</a>
+<span class="lineNum">     713 </span>            : char *
+<span class="lineNum">     714 </span><span class="lineNoCov">          0 : BTOA_ConvertItemToAscii(SECItem *binary_item)</span>
+<span class="lineNum">     715 </span>            : {
+<span class="lineNum">     716 </span><span class="lineNoCov">          0 :     return NSSBase64_EncodeItem(NULL, NULL, 0, binary_item);</span>
+<span class="lineNum">     717 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

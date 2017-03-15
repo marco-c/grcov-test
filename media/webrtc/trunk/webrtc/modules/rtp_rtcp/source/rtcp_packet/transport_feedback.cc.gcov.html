@@ -1,0 +1,860 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - media/webrtc/trunk/webrtc/modules/rtp_rtcp/source/rtcp_packet/transport_feedback.cc</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../../../../index.html">top level</a> - <a href="index.html">media/webrtc/trunk/webrtc/modules/rtp_rtcp/source/rtcp_packet</a> - transport_feedback.cc<span style="font-size: 80%;"> (source / <a href="transport_feedback.cc.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">6</td>
+            <td class="headerCovTableEntry">333</td>
+            <td class="headerCovTableEntryLo">1.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">2</td>
+            <td class="headerCovTableEntry">47</td>
+            <td class="headerCovTableEntryLo">4.3 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  *  Copyright (c) 2015 The WebRTC project authors. All Rights Reserved.
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  *  Use of this source code is governed by a BSD-style license
+<span class="lineNum">       5 </span>            :  *  that can be found in the LICENSE file in the root of the source
+<span class="lineNum">       6 </span>            :  *  tree. An additional intellectual property rights grant can be found
+<span class="lineNum">       7 </span>            :  *  in the file PATENTS.  All contributing project authors may
+<span class="lineNum">       8 </span>            :  *  be found in the AUTHORS file in the root of the source tree.
+<span class="lineNum">       9 </span>            :  */
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;webrtc/modules/rtp_rtcp/source/rtcp_packet/transport_feedback.h&quot;
+<span class="lineNum">      12 </span>            : 
+<span class="lineNum">      13 </span>            : #include &quot;webrtc/base/checks.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;webrtc/base/logging.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;webrtc/modules/rtp_rtcp/source/byte_io.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;webrtc/modules/rtp_rtcp/source/rtcp_utility.h&quot;
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : namespace webrtc {
+<span class="lineNum">      19 </span>            : namespace rtcp {
+<span class="lineNum">      20 </span>            : 
+<span class="lineNum">      21 </span>            : // Header size:
+<span class="lineNum">      22 </span>            : // * 12 bytes Common Packet Format for RTCP Feedback Messages
+<span class="lineNum">      23 </span>            : // * 8 bytes FeedbackPacket header
+<span class="lineNum">      24 </span>            : static const uint32_t kHeaderSizeBytes = 12 + 8;
+<span class="lineNum">      25 </span>            : static const uint32_t kChunkSizeBytes = 2;
+<span class="lineNum">      26 </span>            : static const uint32_t kOneBitVectorCapacity = 14;
+<span class="lineNum">      27 </span>            : static const uint32_t kTwoBitVectorCapacity = 7;
+<span class="lineNum">      28 </span>            : static const uint32_t kRunLengthCapacity = 0x1FFF;
+<span class="lineNum">      29 </span>            : // TODO(sprang): Add support for dynamic max size for easier fragmentation,
+<span class="lineNum">      30 </span>            : // eg. set it to what's left in the buffer or IP_PACKET_SIZE.
+<span class="lineNum">      31 </span>            : // Size constraint imposed by RTCP common header: 16bit size field interpreted
+<span class="lineNum">      32 </span>            : // as number of four byte words minus the first header word.
+<span class="lineNum">      33 </span>            : static const uint32_t kMaxSizeBytes = (1 &lt;&lt; 16) * 4;
+<span class="lineNum">      34 </span>            : static const uint32_t kMinSizeBytes = kHeaderSizeBytes + kChunkSizeBytes;
+<span class="lineNum">      35 </span>            : static const uint32_t kBaseScaleFactor =
+<span class="lineNum">      36 </span>            :     TransportFeedback::kDeltaScaleFactor * (1 &lt;&lt; 8);
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span><span class="lineNoCov">          0 : class PacketStatusChunk {</span>
+<span class="lineNum">      39 </span>            :  public:
+<span class="lineNum">      40 </span><span class="lineNoCov">          0 :   virtual ~PacketStatusChunk() {}</span>
+<span class="lineNum">      41 </span>            :   virtual uint16_t NumSymbols() const = 0;
+<span class="lineNum">      42 </span>            :   virtual void AppendSymbolsTo(
+<span class="lineNum">      43 </span>            :       std::vector&lt;TransportFeedback::StatusSymbol&gt;* vec) const = 0;
+<span class="lineNum">      44 </span>            :   virtual void WriteTo(uint8_t* buffer) const = 0;
+<a name="45"><span class="lineNum">      45 </span>            : };</a>
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span><span class="lineNoCov">          0 : uint8_t EncodeSymbol(TransportFeedback::StatusSymbol symbol) {</span>
+<span class="lineNum">      48 </span><span class="lineNoCov">          0 :   switch (symbol) {</span>
+<span class="lineNum">      49 </span>            :     case TransportFeedback::StatusSymbol::kNotReceived:
+<span class="lineNum">      50 </span>            :       return 0;
+<span class="lineNum">      51 </span>            :     case TransportFeedback::StatusSymbol::kReceivedSmallDelta:
+<span class="lineNum">      52 </span><span class="lineNoCov">          0 :       return 1;</span>
+<span class="lineNum">      53 </span>            :     case TransportFeedback::StatusSymbol::kReceivedLargeDelta:
+<span class="lineNum">      54 </span><span class="lineNoCov">          0 :       return 2;</span>
+<span class="lineNum">      55 </span>            :     default:
+<span class="lineNum">      56 </span>            :       RTC_NOTREACHED();
+<span class="lineNum">      57 </span>            :       return 0;
+<span class="lineNum">      58 </span>            :   }
+<a name="59"><span class="lineNum">      59 </span>            : }</a>
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span><span class="lineNoCov">          0 : TransportFeedback::StatusSymbol DecodeSymbol(uint8_t value) {</span>
+<span class="lineNum">      62 </span><span class="lineNoCov">          0 :   switch (value) {</span>
+<span class="lineNum">      63 </span>            :     case 0:
+<span class="lineNum">      64 </span>            :       return TransportFeedback::StatusSymbol::kNotReceived;
+<span class="lineNum">      65 </span>            :     case 1:
+<span class="lineNum">      66 </span><span class="lineNoCov">          0 :       return TransportFeedback::StatusSymbol::kReceivedSmallDelta;</span>
+<span class="lineNum">      67 </span>            :     case 2:
+<span class="lineNum">      68 </span><span class="lineNoCov">          0 :       return TransportFeedback::StatusSymbol::kReceivedLargeDelta;</span>
+<span class="lineNum">      69 </span>            :     default:
+<span class="lineNum">      70 </span>            :       RTC_NOTREACHED();
+<span class="lineNum">      71 </span>            :       return TransportFeedback::StatusSymbol::kNotReceived;
+<span class="lineNum">      72 </span>            :   }
+<a name="73"><span class="lineNum">      73 </span>            : }</a>
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span><span class="lineCov">          1 : TransportFeedback::TransportFeedback()</span>
+<span class="lineNum">      76 </span>            :     : packet_sender_ssrc_(0),
+<span class="lineNum">      77 </span>            :       media_source_ssrc_(0),
+<span class="lineNum">      78 </span>            :       base_seq_(-1),
+<span class="lineNum">      79 </span>            :       base_time_(-1),
+<span class="lineNum">      80 </span>            :       feedback_seq_(0),
+<span class="lineNum">      81 </span>            :       last_seq_(-1),
+<span class="lineNum">      82 </span>            :       last_timestamp_(-1),
+<span class="lineNum">      83 </span>            :       first_symbol_cardinality_(0),
+<span class="lineNum">      84 </span>            :       vec_needs_two_bit_symbols_(false),
+<span class="lineNum">      85 </span><span class="lineCov">          1 :       size_bytes_(kHeaderSizeBytes) {</span>
+<a name="86"><span class="lineNum">      86 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">      87 </span>            : 
+<span class="lineNum">      88 </span><span class="lineCov">          1 : TransportFeedback::~TransportFeedback() {</span>
+<span class="lineNum">      89 </span><span class="lineCov">          1 :   for (PacketStatusChunk* chunk : status_chunks_)</span>
+<span class="lineNum">      90 </span><span class="lineNoCov">          0 :     delete chunk;</span>
+<span class="lineNum">      91 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span>            : //  One Bit Status Vector Chunk
+<span class="lineNum">      94 </span>            : //
+<span class="lineNum">      95 </span>            : //  0                   1
+<span class="lineNum">      96 </span>            : //  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+<span class="lineNum">      97 </span>            : //  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+<span class="lineNum">      98 </span>            : //  |T|S|       symbol list         |
+<span class="lineNum">      99 </span>            : //  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+<span class="lineNum">     100 </span>            : //
+<span class="lineNum">     101 </span>            : //  T = 1
+<span class="lineNum">     102 </span>            : //  S = 0
+<span class="lineNum">     103 </span>            : //  symbol list = 14 entries where 0 = not received, 1 = received
+<span class="lineNum">     104 </span>            : 
+<span class="lineNum">     105 </span>            : class OneBitVectorChunk : public PacketStatusChunk {
+<span class="lineNum">     106 </span>            :  public:
+<a name="107"><span class="lineNum">     107 </span>            :   static const int kCapacity = 14;</a>
+<span class="lineNum">     108 </span>            : 
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 :   explicit OneBitVectorChunk(</span>
+<span class="lineNum">     110 </span><span class="lineNoCov">          0 :       std::deque&lt;TransportFeedback::StatusSymbol&gt;* symbols) {</span>
+<span class="lineNum">     111 </span><span class="lineNoCov">          0 :     size_t input_size = symbols-&gt;size();</span>
+<span class="lineNum">     112 </span><span class="lineNoCov">          0 :     for (size_t i = 0; i &lt; kCapacity; ++i) {</span>
+<span class="lineNum">     113 </span><span class="lineNoCov">          0 :       if (i &lt; input_size) {</span>
+<span class="lineNum">     114 </span><span class="lineNoCov">          0 :         symbols_[i] = symbols-&gt;front();</span>
+<span class="lineNum">     115 </span><span class="lineNoCov">          0 :         symbols-&gt;pop_front();</span>
+<span class="lineNum">     116 </span>            :       } else {
+<span class="lineNum">     117 </span><span class="lineNoCov">          0 :         symbols_[i] = TransportFeedback::StatusSymbol::kNotReceived;</span>
+<span class="lineNum">     118 </span>            :       }
+<span class="lineNum">     119 </span>            :     }
+<a name="120"><span class="lineNum">     120 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">     121 </span>            : 
+<a name="122"><span class="lineNum">     122 </span><span class="lineNoCov">          0 :   virtual ~OneBitVectorChunk() {}</span></a>
+<span class="lineNum">     123 </span>            : 
+<a name="124"><span class="lineNum">     124 </span><span class="lineNoCov">          0 :   uint16_t NumSymbols() const override { return kCapacity; }</span></a>
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :   void AppendSymbolsTo(</span>
+<span class="lineNum">     127 </span>            :       std::vector&lt;TransportFeedback::StatusSymbol&gt;* vec) const override {
+<span class="lineNum">     128 </span><span class="lineNoCov">          0 :     vec-&gt;insert(vec-&gt;end(), &amp;symbols_[0], &amp;symbols_[kCapacity]);</span>
+<a name="129"><span class="lineNum">     129 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">     130 </span>            : 
+<span class="lineNum">     131 </span><span class="lineNoCov">          0 :   void WriteTo(uint8_t* buffer) const override {</span>
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :     const int kSymbolsInFirstByte = 6;</span>
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :     const int kSymbolsInSecondByte = 8;</span>
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :     buffer[0] = 0x80u;</span>
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 :     for (int i = 0; i &lt; kSymbolsInFirstByte; ++i) {</span>
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 :       uint8_t encoded_symbol = EncodeSymbol(symbols_[i]);</span>
+<span class="lineNum">     137 </span>            :       RTC_DCHECK_LE(encoded_symbol, 1u);
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 :       buffer[0] |= encoded_symbol &lt;&lt; (kSymbolsInFirstByte - (i + 1));</span>
+<span class="lineNum">     139 </span>            :     }
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :     buffer[1] = 0x00u;</span>
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :     for (int i = 0; i &lt; kSymbolsInSecondByte; ++i) {</span>
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :       uint8_t encoded_symbol = EncodeSymbol(symbols_[i + kSymbolsInFirstByte]);</span>
+<span class="lineNum">     143 </span>            :       RTC_DCHECK_LE(encoded_symbol, 1u);
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :       buffer[1] |= encoded_symbol &lt;&lt; (kSymbolsInSecondByte - (i + 1));</span>
+<span class="lineNum">     145 </span>            :     }
+<a name="146"><span class="lineNum">     146 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 :   static OneBitVectorChunk* ParseFrom(const uint8_t* data) {</span>
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :     OneBitVectorChunk* chunk = new OneBitVectorChunk();</span>
+<span class="lineNum">     150 </span>            : 
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :     size_t index = 0;</span>
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :     for (int i = 5; i &gt;= 0; --i)  // Last 5 bits from first byte.</span>
+<span class="lineNum">     153 </span><span class="lineNoCov">          0 :       chunk-&gt;symbols_[index++] = DecodeSymbol((data[0] &gt;&gt; i) &amp; 0x01);</span>
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :     for (int i = 7; i &gt;= 0; --i)  // 8 bits from the last byte.</span>
+<span class="lineNum">     155 </span><span class="lineNoCov">          0 :       chunk-&gt;symbols_[index++] = DecodeSymbol((data[1] &gt;&gt; i) &amp; 0x01);</span>
+<span class="lineNum">     156 </span>            : 
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :     return chunk;</span>
+<span class="lineNum">     158 </span>            :   }
+<span class="lineNum">     159 </span>            : 
+<span class="lineNum">     160 </span>            :  private:
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :   OneBitVectorChunk() {}</span>
+<span class="lineNum">     162 </span>            : 
+<span class="lineNum">     163 </span>            :   TransportFeedback::StatusSymbol symbols_[kCapacity];
+<span class="lineNum">     164 </span>            : };
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span>            : //  Two Bit Status Vector Chunk
+<span class="lineNum">     167 </span>            : //
+<span class="lineNum">     168 </span>            : //  0                   1
+<span class="lineNum">     169 </span>            : //  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+<span class="lineNum">     170 </span>            : //  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+<span class="lineNum">     171 </span>            : //  |T|S|       symbol list         |
+<span class="lineNum">     172 </span>            : //  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+<span class="lineNum">     173 </span>            : //
+<span class="lineNum">     174 </span>            : //  T = 1
+<span class="lineNum">     175 </span>            : //  S = 1
+<span class="lineNum">     176 </span>            : //  symbol list = 7 entries of two bits each, see (Encode|Decode)Symbol
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span>            : class TwoBitVectorChunk : public PacketStatusChunk {
+<span class="lineNum">     179 </span>            :  public:
+<a name="180"><span class="lineNum">     180 </span>            :   static const int kCapacity = 7;</a>
+<span class="lineNum">     181 </span>            : 
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :   explicit TwoBitVectorChunk(</span>
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 :       std::deque&lt;TransportFeedback::StatusSymbol&gt;* symbols) {</span>
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :     size_t input_size = symbols-&gt;size();</span>
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :     for (size_t i = 0; i &lt; kCapacity; ++i) {</span>
+<span class="lineNum">     186 </span><span class="lineNoCov">          0 :       if (i &lt; input_size) {</span>
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 :         symbols_[i] = symbols-&gt;front();</span>
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :         symbols-&gt;pop_front();</span>
+<span class="lineNum">     189 </span>            :       } else {
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :         symbols_[i] = TransportFeedback::StatusSymbol::kNotReceived;</span>
+<span class="lineNum">     191 </span>            :       }
+<span class="lineNum">     192 </span>            :     }
+<a name="193"><span class="lineNum">     193 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">     194 </span>            : 
+<a name="195"><span class="lineNum">     195 </span><span class="lineNoCov">          0 :   virtual ~TwoBitVectorChunk() {}</span></a>
+<span class="lineNum">     196 </span>            : 
+<a name="197"><span class="lineNum">     197 </span><span class="lineNoCov">          0 :   uint16_t NumSymbols() const override { return kCapacity; }</span></a>
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span><span class="lineNoCov">          0 :   void AppendSymbolsTo(</span>
+<span class="lineNum">     200 </span>            :       std::vector&lt;TransportFeedback::StatusSymbol&gt;* vec) const override {
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :     vec-&gt;insert(vec-&gt;end(), &amp;symbols_[0], &amp;symbols_[kCapacity]);</span>
+<a name="202"><span class="lineNum">     202 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 :   void WriteTo(uint8_t* buffer) const override {</span>
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :     buffer[0] = 0xC0;</span>
+<span class="lineNum">     206 </span><span class="lineNoCov">          0 :     buffer[0] |= EncodeSymbol(symbols_[0]) &lt;&lt; 4;</span>
+<span class="lineNum">     207 </span><span class="lineNoCov">          0 :     buffer[0] |= EncodeSymbol(symbols_[1]) &lt;&lt; 2;</span>
+<span class="lineNum">     208 </span><span class="lineNoCov">          0 :     buffer[0] |= EncodeSymbol(symbols_[2]);</span>
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 :     buffer[1] = EncodeSymbol(symbols_[3]) &lt;&lt; 6;</span>
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :     buffer[1] |= EncodeSymbol(symbols_[4]) &lt;&lt; 4;</span>
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 :     buffer[1] |= EncodeSymbol(symbols_[5]) &lt;&lt; 2;</span>
+<span class="lineNum">     212 </span><span class="lineNoCov">          0 :     buffer[1] |= EncodeSymbol(symbols_[6]);</span>
+<a name="213"><span class="lineNum">     213 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">     214 </span>            : 
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 :   static TwoBitVectorChunk* ParseFrom(const uint8_t* buffer) {</span>
+<span class="lineNum">     216 </span><span class="lineNoCov">          0 :     TwoBitVectorChunk* chunk = new TwoBitVectorChunk();</span>
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span><span class="lineNoCov">          0 :     chunk-&gt;symbols_[0] = DecodeSymbol((buffer[0] &gt;&gt; 4) &amp; 0x03);</span>
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 :     chunk-&gt;symbols_[1] = DecodeSymbol((buffer[0] &gt;&gt; 2) &amp; 0x03);</span>
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 :     chunk-&gt;symbols_[2] = DecodeSymbol(buffer[0] &amp; 0x03);</span>
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :     chunk-&gt;symbols_[3] = DecodeSymbol((buffer[1] &gt;&gt; 6) &amp; 0x03);</span>
+<span class="lineNum">     222 </span><span class="lineNoCov">          0 :     chunk-&gt;symbols_[4] = DecodeSymbol((buffer[1] &gt;&gt; 4) &amp; 0x03);</span>
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :     chunk-&gt;symbols_[5] = DecodeSymbol((buffer[1] &gt;&gt; 2) &amp; 0x03);</span>
+<span class="lineNum">     224 </span><span class="lineNoCov">          0 :     chunk-&gt;symbols_[6] = DecodeSymbol(buffer[1] &amp; 0x03);</span>
+<span class="lineNum">     225 </span>            : 
+<span class="lineNum">     226 </span><span class="lineNoCov">          0 :     return chunk;</span>
+<span class="lineNum">     227 </span>            :   }
+<span class="lineNum">     228 </span>            : 
+<span class="lineNum">     229 </span>            :  private:
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :   TwoBitVectorChunk() {}</span>
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span>            :   TransportFeedback::StatusSymbol symbols_[kCapacity];
+<span class="lineNum">     233 </span>            : };
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span>            : //  Two Bit Status Vector Chunk
+<span class="lineNum">     236 </span>            : //
+<span class="lineNum">     237 </span>            : //  0                   1
+<span class="lineNum">     238 </span>            : //  0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5
+<span class="lineNum">     239 </span>            : //  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+<span class="lineNum">     240 </span>            : //  |T| S |       Run Length        |
+<span class="lineNum">     241 </span>            : //  +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+<span class="lineNum">     242 </span>            : //
+<span class="lineNum">     243 </span>            : //  T = 0
+<span class="lineNum">     244 </span>            : //  S = symbol, see (Encode|Decode)Symbol
+<span class="lineNum">     245 </span>            : //  Run Length = Unsigned integer denoting the run length of the symbol
+<span class="lineNum">     246 </span>            : 
+<span class="lineNum">     247 </span>            : class RunLengthChunk : public PacketStatusChunk {
+<span class="lineNum">     248 </span>            :  public:
+<span class="lineNum">     249 </span>            :   RunLengthChunk(TransportFeedback::StatusSymbol symbol, size_t size)
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 :       : symbol_(symbol), size_(size) {</span>
+<span class="lineNum">     251 </span>            :     RTC_DCHECK_LE(size, 0x1FFFu);
+<a name="252"><span class="lineNum">     252 </span>            :   }</a>
+<span class="lineNum">     253 </span>            : 
+<a name="254"><span class="lineNum">     254 </span><span class="lineNoCov">          0 :   virtual ~RunLengthChunk() {}</span></a>
+<span class="lineNum">     255 </span>            : 
+<a name="256"><span class="lineNum">     256 </span><span class="lineNoCov">          0 :   uint16_t NumSymbols() const override { return size_; }</span></a>
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 :   void AppendSymbolsTo(</span>
+<span class="lineNum">     259 </span>            :       std::vector&lt;TransportFeedback::StatusSymbol&gt;* vec) const override {
+<span class="lineNum">     260 </span><span class="lineNoCov">          0 :     vec-&gt;insert(vec-&gt;end(), size_, symbol_);</span>
+<a name="261"><span class="lineNum">     261 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">     262 </span>            : 
+<span class="lineNum">     263 </span><span class="lineNoCov">          0 :   void WriteTo(uint8_t* buffer) const override {</span>
+<span class="lineNum">     264 </span><span class="lineNoCov">          0 :     buffer[0] = EncodeSymbol(symbol_) &lt;&lt; 5;  // Write S (T = 0 implicitly)</span>
+<span class="lineNum">     265 </span><span class="lineNoCov">          0 :     buffer[0] |= (size_ &gt;&gt; 8) &amp; 0x1F;  // 5 most significant bits of run length.</span>
+<span class="lineNum">     266 </span><span class="lineNoCov">          0 :     buffer[1] = size_ &amp; 0xFF;  // 8 least significant bits of run length.</span>
+<a name="267"><span class="lineNum">     267 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span><span class="lineNoCov">          0 :   static RunLengthChunk* ParseFrom(const uint8_t* buffer) {</span>
+<span class="lineNum">     270 </span>            :     RTC_DCHECK_EQ(0, buffer[0] &amp; 0x80);
+<span class="lineNum">     271 </span>            :     TransportFeedback::StatusSymbol symbol =
+<span class="lineNum">     272 </span><span class="lineNoCov">          0 :         DecodeSymbol((buffer[0] &gt;&gt; 5) &amp; 0x03);</span>
+<span class="lineNum">     273 </span><span class="lineNoCov">          0 :     uint16_t count = (static_cast&lt;uint16_t&gt;(buffer[0] &amp; 0x1F) &lt;&lt; 8) | buffer[1];</span>
+<span class="lineNum">     274 </span>            : 
+<span class="lineNum">     275 </span><span class="lineNoCov">          0 :     return new RunLengthChunk(symbol, count);</span>
+<span class="lineNum">     276 </span>            :   }
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span>            :  private:
+<span class="lineNum">     279 </span>            :   const TransportFeedback::StatusSymbol symbol_;
+<span class="lineNum">     280 </span>            :   const size_t size_;
+<span class="lineNum">     281 </span>            : };
+<a name="282"><span class="lineNum">     282 </span>            : </a>
+<span class="lineNum">     283 </span>            : // Unwrap to a larger type, for easier handling of wraps.
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 : int64_t TransportFeedback::Unwrap(uint16_t sequence_number) {</span>
+<span class="lineNum">     285 </span><span class="lineNoCov">          0 :   if (last_seq_ == -1)</span>
+<span class="lineNum">     286 </span><span class="lineNoCov">          0 :     return sequence_number;</span>
+<span class="lineNum">     287 </span>            : 
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :   int64_t delta = sequence_number - last_seq_;</span>
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :   if (IsNewerSequenceNumber(sequence_number,</span>
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :                             static_cast&lt;uint16_t&gt;(last_seq_))) {</span>
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :     if (delta &lt; 0)</span>
+<span class="lineNum">     292 </span><span class="lineNoCov">          0 :       delta += (1 &lt;&lt; 16);</span>
+<span class="lineNum">     293 </span><span class="lineNoCov">          0 :   } else if (delta &gt; 0) {</span>
+<span class="lineNum">     294 </span><span class="lineNoCov">          0 :     delta -= (1 &lt;&lt; 16);</span>
+<span class="lineNum">     295 </span>            :   }
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :   return last_seq_ + delta;</span>
+<a name="298"><span class="lineNum">     298 </span>            : }</a>
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span><span class="lineNoCov">          0 : void TransportFeedback::WithPacketSenderSsrc(uint32_t ssrc) {</span>
+<span class="lineNum">     301 </span><span class="lineNoCov">          0 :   packet_sender_ssrc_ = ssrc;</span>
+<a name="302"><span class="lineNum">     302 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     303 </span>            : 
+<span class="lineNum">     304 </span><span class="lineNoCov">          0 : void TransportFeedback::WithMediaSourceSsrc(uint32_t ssrc) {</span>
+<span class="lineNum">     305 </span><span class="lineNoCov">          0 :   media_source_ssrc_ = ssrc;</span>
+<a name="306"><span class="lineNum">     306 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     307 </span>            : 
+<span class="lineNum">     308 </span><span class="lineNoCov">          0 : uint32_t TransportFeedback::GetPacketSenderSsrc() const {</span>
+<span class="lineNum">     309 </span><span class="lineNoCov">          0 :   return packet_sender_ssrc_;</span>
+<a name="310"><span class="lineNum">     310 </span>            : }</a>
+<span class="lineNum">     311 </span>            : 
+<span class="lineNum">     312 </span><span class="lineNoCov">          0 : uint32_t TransportFeedback::GetMediaSourceSsrc() const {</span>
+<a name="313"><span class="lineNum">     313 </span><span class="lineNoCov">          0 :   return media_source_ssrc_;</span></a>
+<span class="lineNum">     314 </span>            : }
+<span class="lineNum">     315 </span><span class="lineNoCov">          0 : void TransportFeedback::WithBase(uint16_t base_sequence,</span>
+<span class="lineNum">     316 </span>            :                                  int64_t ref_timestamp_us) {
+<span class="lineNum">     317 </span>            :   RTC_DCHECK_EQ(-1, base_seq_);
+<span class="lineNum">     318 </span>            :   RTC_DCHECK_NE(-1, ref_timestamp_us);
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :   base_seq_ = base_sequence;</span>
+<span class="lineNum">     320 </span><span class="lineNoCov">          0 :   last_seq_ = base_sequence;</span>
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :   base_time_ = ref_timestamp_us / kBaseScaleFactor;</span>
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 :   last_timestamp_ = base_time_ * kBaseScaleFactor;</span>
+<a name="323"><span class="lineNum">     323 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     324 </span>            : 
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 : void TransportFeedback::WithFeedbackSequenceNumber(uint8_t feedback_sequence) {</span>
+<span class="lineNum">     326 </span><span class="lineNoCov">          0 :   feedback_seq_ = feedback_sequence;</span>
+<a name="327"><span class="lineNum">     327 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     328 </span>            : 
+<span class="lineNum">     329 </span><span class="lineNoCov">          0 : bool TransportFeedback::WithReceivedPacket(uint16_t sequence_number,</span>
+<span class="lineNum">     330 </span>            :                                            int64_t timestamp) {
+<span class="lineNum">     331 </span>            :   RTC_DCHECK_NE(-1, base_seq_);
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :   int64_t seq = Unwrap(sequence_number);</span>
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :   if (seq != base_seq_ &amp;&amp; seq &lt;= last_seq_)</span>
+<span class="lineNum">     334 </span>            :     return false;
+<span class="lineNum">     335 </span>            : 
+<span class="lineNum">     336 </span>            :   // Convert to ticks and round.
+<span class="lineNum">     337 </span><span class="lineNoCov">          0 :   int64_t delta_full = timestamp - last_timestamp_;</span>
+<span class="lineNum">     338 </span>            :   delta_full +=
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 :       delta_full &lt; 0 ? -(kDeltaScaleFactor / 2) : kDeltaScaleFactor / 2;</span>
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :   delta_full /= kDeltaScaleFactor;</span>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 :   int16_t delta = static_cast&lt;int16_t&gt;(delta_full);</span>
+<span class="lineNum">     343 </span>            :   // If larger than 16bit signed, we can't represent it - need new fb packet.
+<span class="lineNum">     344 </span><span class="lineNoCov">          0 :   if (delta != delta_full) {</span>
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 :     LOG(LS_WARNING) &lt;&lt; &quot;Delta value too large ( &gt;= 2^16 ticks )&quot;;</span>
+<span class="lineNum">     346 </span>            :     return false;
+<span class="lineNum">     347 </span>            :   }
+<span class="lineNum">     348 </span>            : 
+<span class="lineNum">     349 </span>            :   StatusSymbol symbol;
+<span class="lineNum">     350 </span><span class="lineNoCov">          0 :   if (delta &gt;= 0 &amp;&amp; delta &lt;= 0xFF) {</span>
+<span class="lineNum">     351 </span>            :     symbol = StatusSymbol::kReceivedSmallDelta;
+<span class="lineNum">     352 </span>            :   } else {
+<span class="lineNum">     353 </span><span class="lineNoCov">          0 :     symbol = StatusSymbol::kReceivedLargeDelta;</span>
+<span class="lineNum">     354 </span>            :   }
+<span class="lineNum">     355 </span>            : 
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :   if (!AddSymbol(symbol, seq))</span>
+<span class="lineNum">     357 </span>            :     return false;
+<span class="lineNum">     358 </span>            : 
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 :   receive_deltas_.push_back(delta);</span>
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 :   last_timestamp_ += delta * kDeltaScaleFactor;</span>
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 :   return true;</span>
+<span class="lineNum">     362 </span>            : }
+<span class="lineNum">     363 </span>            : 
+<a name="364"><span class="lineNum">     364 </span>            : // Add a symbol for a received packet, with the given sequence number. This</a>
+<span class="lineNum">     365 </span>            : // method will add any &quot;packet not received&quot; symbols needed before this one.
+<span class="lineNum">     366 </span><span class="lineNoCov">          0 : bool TransportFeedback::AddSymbol(StatusSymbol symbol, int64_t seq) {</span>
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 :   while (last_seq_ &lt; seq - 1) {</span>
+<span class="lineNum">     368 </span><span class="lineNoCov">          0 :     if (!Encode(StatusSymbol::kNotReceived))</span>
+<span class="lineNum">     369 </span>            :       return false;
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :     ++last_seq_;</span>
+<span class="lineNum">     371 </span>            :   }
+<span class="lineNum">     372 </span>            : 
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :   if (!Encode(symbol))</span>
+<span class="lineNum">     374 </span>            :     return false;
+<span class="lineNum">     375 </span>            : 
+<span class="lineNum">     376 </span><span class="lineNoCov">          0 :   last_seq_ = seq;</span>
+<span class="lineNum">     377 </span><span class="lineNoCov">          0 :   return true;</span>
+<span class="lineNum">     378 </span>            : }
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span>            : // Append a symbol to the internal symbol vector. If the new state cannot be
+<a name="381"><span class="lineNum">     381 </span>            : // represented using a single status chunk, a chunk will first be emitted and</a>
+<span class="lineNum">     382 </span>            : // the associated symbols removed from the internal symbol vector.
+<span class="lineNum">     383 </span><span class="lineNoCov">          0 : bool TransportFeedback::Encode(StatusSymbol symbol) {</span>
+<span class="lineNum">     384 </span><span class="lineNoCov">          0 :   if (last_seq_ - base_seq_ + 1 &gt; 0xFFFF) {</span>
+<span class="lineNum">     385 </span><span class="lineNoCov">          0 :     LOG(LS_WARNING) &lt;&lt; &quot;Packet status count too large ( &gt;= 2^16 )&quot;;</span>
+<span class="lineNum">     386 </span>            :     return false;
+<span class="lineNum">     387 </span>            :   }
+<span class="lineNum">     388 </span>            : 
+<span class="lineNum">     389 </span>            :   bool is_two_bit;
+<span class="lineNum">     390 </span>            :   int delta_size;
+<span class="lineNum">     391 </span><span class="lineNoCov">          0 :   switch (symbol) {</span>
+<span class="lineNum">     392 </span>            :     case StatusSymbol::kReceivedSmallDelta:
+<span class="lineNum">     393 </span>            :       delta_size = 1;
+<span class="lineNum">     394 </span>            :       is_two_bit = false;
+<span class="lineNum">     395 </span>            :       break;
+<span class="lineNum">     396 </span>            :     case StatusSymbol::kReceivedLargeDelta:
+<span class="lineNum">     397 </span><span class="lineNoCov">          0 :       delta_size = 2;</span>
+<span class="lineNum">     398 </span><span class="lineNoCov">          0 :       is_two_bit = true;</span>
+<span class="lineNum">     399 </span><span class="lineNoCov">          0 :       break;</span>
+<span class="lineNum">     400 </span>            :     case StatusSymbol::kNotReceived:
+<span class="lineNum">     401 </span><span class="lineNoCov">          0 :       is_two_bit = false;</span>
+<span class="lineNum">     402 </span><span class="lineNoCov">          0 :       delta_size = 0;</span>
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :       break;</span>
+<span class="lineNum">     404 </span>            :     default:
+<span class="lineNum">     405 </span>            :       RTC_NOTREACHED();
+<span class="lineNum">     406 </span>            :       return false;
+<span class="lineNum">     407 </span>            :   }
+<span class="lineNum">     408 </span>            : 
+<span class="lineNum">     409 </span><span class="lineNoCov">          0 :   if (symbol_vec_.empty()) {</span>
+<span class="lineNum">     410 </span><span class="lineNoCov">          0 :     if (size_bytes_ + delta_size + kChunkSizeBytes &gt; kMaxSizeBytes)</span>
+<span class="lineNum">     411 </span>            :       return false;
+<span class="lineNum">     412 </span>            : 
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 :     symbol_vec_.push_back(symbol);</span>
+<span class="lineNum">     414 </span><span class="lineNoCov">          0 :     vec_needs_two_bit_symbols_ = is_two_bit;</span>
+<span class="lineNum">     415 </span><span class="lineNoCov">          0 :     first_symbol_cardinality_ = 1;</span>
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :     size_bytes_ += delta_size + kChunkSizeBytes;</span>
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">     418 </span>            :   }
+<span class="lineNum">     419 </span><span class="lineNoCov">          0 :   if (size_bytes_ + delta_size &gt; kMaxSizeBytes)</span>
+<span class="lineNum">     420 </span>            :     return false;
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span>            :   // Capacity, in number of symbols, that a vector chunk could hold.
+<span class="lineNum">     423 </span>            :   size_t capacity = vec_needs_two_bit_symbols_ ? kTwoBitVectorCapacity
+<span class="lineNum">     424 </span><span class="lineNoCov">          0 :                                                : kOneBitVectorCapacity;</span>
+<span class="lineNum">     425 </span>            : 
+<span class="lineNum">     426 </span>            :   // first_symbol_cardinality_ is the number of times the first symbol in
+<span class="lineNum">     427 </span>            :   // symbol_vec is repeated. So if that is equal to the size of symbol_vec,
+<span class="lineNum">     428 </span>            :   // there is only one kind of symbol - we can potentially RLE encode it.
+<span class="lineNum">     429 </span>            :   // If we have less than (capacity) symbols in symbol_vec, we can't know
+<span class="lineNum">     430 </span>            :   // for certain this will be RLE-encoded; if a different symbol is added
+<span class="lineNum">     431 </span>            :   // these symbols will be needed to emit a vector chunk instead. However,
+<span class="lineNum">     432 </span>            :   // if first_symbol_cardinality_ &gt; capacity, then we cannot encode the
+<span class="lineNum">     433 </span>            :   // current state as a vector chunk - we must first emit symbol_vec as an
+<span class="lineNum">     434 </span>            :   // RLE-chunk and then add the new symbol.
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :   bool rle_candidate = symbol_vec_.size() == first_symbol_cardinality_ ||</span>
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :                        first_symbol_cardinality_ &gt; capacity;</span>
+<span class="lineNum">     437 </span><span class="lineNoCov">          0 :   if (rle_candidate) {</span>
+<span class="lineNum">     438 </span><span class="lineNoCov">          0 :     if (symbol_vec_.back() == symbol) {</span>
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :       ++first_symbol_cardinality_;</span>
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :       if (first_symbol_cardinality_ &lt;= capacity) {</span>
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :         symbol_vec_.push_back(symbol);</span>
+<span class="lineNum">     442 </span><span class="lineNoCov">          0 :       } else if (first_symbol_cardinality_ == kRunLengthCapacity) {</span>
+<span class="lineNum">     443 </span>            :         // Max length for an RLE-chunk reached.
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 :         EmitRunLengthChunk();</span>
+<span class="lineNum">     445 </span>            :       }
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :       size_bytes_ += delta_size;</span>
+<span class="lineNum">     447 </span><span class="lineNoCov">          0 :       return true;</span>
+<span class="lineNum">     448 </span>            :     } else {
+<span class="lineNum">     449 </span>            :       // New symbol does not match what's already in symbol_vec.
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 :       if (first_symbol_cardinality_ &gt;= capacity) {</span>
+<span class="lineNum">     451 </span>            :         // Symbols in symbol_vec can only be RLE-encoded. Emit the RLE-chunk
+<span class="lineNum">     452 </span>            :         // and re-add input. symbol_vec is then guaranteed to have room for the
+<span class="lineNum">     453 </span>            :         // symbol, so recursion cannot continue.
+<span class="lineNum">     454 </span><span class="lineNoCov">          0 :         EmitRunLengthChunk();</span>
+<span class="lineNum">     455 </span><span class="lineNoCov">          0 :         return Encode(symbol);</span>
+<span class="lineNum">     456 </span>            :       }
+<span class="lineNum">     457 </span>            :       // Fall through and treat state as non RLE-candidate.
+<span class="lineNum">     458 </span>            :     }
+<span class="lineNum">     459 </span>            :   }
+<span class="lineNum">     460 </span>            : 
+<span class="lineNum">     461 </span>            :   // If this code point is reached, symbols in symbol_vec cannot be RLE-encoded.
+<span class="lineNum">     462 </span>            : 
+<span class="lineNum">     463 </span><span class="lineNoCov">          0 :   if (is_two_bit &amp;&amp; !vec_needs_two_bit_symbols_) {</span>
+<span class="lineNum">     464 </span>            :     // If the symbols in symbol_vec can be encoded using a one-bit chunk but
+<span class="lineNum">     465 </span>            :     // the input symbol cannot, first check if we can simply change target type.
+<span class="lineNum">     466 </span><span class="lineNoCov">          0 :     vec_needs_two_bit_symbols_ = true;</span>
+<span class="lineNum">     467 </span><span class="lineNoCov">          0 :     if (symbol_vec_.size() &gt;= kTwoBitVectorCapacity) {</span>
+<span class="lineNum">     468 </span>            :       // symbol_vec contains more symbols than we can encode in a single
+<span class="lineNum">     469 </span>            :       // two-bit chunk. Emit a new vector append to the remains, if any.
+<span class="lineNum">     470 </span><span class="lineNoCov">          0 :       if (size_bytes_ + delta_size + kChunkSizeBytes &gt; kMaxSizeBytes)</span>
+<span class="lineNum">     471 </span>            :         return false;
+<span class="lineNum">     472 </span><span class="lineNoCov">          0 :       EmitVectorChunk();</span>
+<span class="lineNum">     473 </span>            :       // If symbol_vec isn't empty after emitting a vector chunk, we need to
+<span class="lineNum">     474 </span>            :       // account for chunk size (otherwise handled by Encode method).
+<span class="lineNum">     475 </span><span class="lineNoCov">          0 :       if (!symbol_vec_.empty())</span>
+<span class="lineNum">     476 </span><span class="lineNoCov">          0 :         size_bytes_ += kChunkSizeBytes;</span>
+<span class="lineNum">     477 </span><span class="lineNoCov">          0 :       return Encode(symbol);</span>
+<span class="lineNum">     478 </span>            :     }
+<span class="lineNum">     479 </span>            :     // symbol_vec symbols fit within a single two-bit vector chunk.
+<span class="lineNum">     480 </span>            :     capacity = kTwoBitVectorCapacity;
+<span class="lineNum">     481 </span>            :   }
+<span class="lineNum">     482 </span>            : 
+<span class="lineNum">     483 </span><span class="lineNoCov">          0 :   symbol_vec_.push_back(symbol);</span>
+<span class="lineNum">     484 </span><span class="lineNoCov">          0 :   if (symbol_vec_.size() == capacity)</span>
+<span class="lineNum">     485 </span><span class="lineNoCov">          0 :     EmitVectorChunk();</span>
+<span class="lineNum">     486 </span>            : 
+<span class="lineNum">     487 </span><span class="lineNoCov">          0 :   size_bytes_ += delta_size;</span>
+<span class="lineNum">     488 </span><span class="lineNoCov">          0 :   return true;</span>
+<span class="lineNum">     489 </span>            : }
+<span class="lineNum">     490 </span>            : 
+<a name="491"><span class="lineNum">     491 </span>            : // Upon packet completion, emit any remaining symbols in symbol_vec that have</a>
+<span class="lineNum">     492 </span>            : // not yet been emitted in a status chunk.
+<span class="lineNum">     493 </span><span class="lineNoCov">          0 : void TransportFeedback::EmitRemaining() {</span>
+<span class="lineNum">     494 </span><span class="lineNoCov">          0 :   if (symbol_vec_.empty())</span>
+<span class="lineNum">     495 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     496 </span>            : 
+<span class="lineNum">     497 </span>            :   size_t capacity = vec_needs_two_bit_symbols_ ? kTwoBitVectorCapacity
+<span class="lineNum">     498 </span><span class="lineNoCov">          0 :                                                : kOneBitVectorCapacity;</span>
+<span class="lineNum">     499 </span><span class="lineNoCov">          0 :   if (first_symbol_cardinality_ &gt; capacity) {</span>
+<span class="lineNum">     500 </span><span class="lineNoCov">          0 :     EmitRunLengthChunk();</span>
+<span class="lineNum">     501 </span>            :   } else {
+<span class="lineNum">     502 </span><span class="lineNoCov">          0 :     EmitVectorChunk();</span>
+<span class="lineNum">     503 </span>            :   }
+<a name="504"><span class="lineNum">     504 </span>            : }</a>
+<span class="lineNum">     505 </span>            : 
+<span class="lineNum">     506 </span><span class="lineNoCov">          0 : void TransportFeedback::EmitVectorChunk() {</span>
+<span class="lineNum">     507 </span><span class="lineNoCov">          0 :   if (vec_needs_two_bit_symbols_) {</span>
+<span class="lineNum">     508 </span><span class="lineNoCov">          0 :     status_chunks_.push_back(new TwoBitVectorChunk(&amp;symbol_vec_));</span>
+<span class="lineNum">     509 </span>            :   } else {
+<span class="lineNum">     510 </span><span class="lineNoCov">          0 :     status_chunks_.push_back(new OneBitVectorChunk(&amp;symbol_vec_));</span>
+<span class="lineNum">     511 </span>            :   }
+<span class="lineNum">     512 </span>            :   // Update first symbol cardinality to match what is potentially left in in
+<span class="lineNum">     513 </span>            :   // symbol_vec.
+<span class="lineNum">     514 </span><span class="lineNoCov">          0 :   first_symbol_cardinality_ = 1;</span>
+<span class="lineNum">     515 </span><span class="lineNoCov">          0 :   for (size_t i = 1; i &lt; symbol_vec_.size(); ++i) {</span>
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :     if (symbol_vec_[i] != symbol_vec_[0])</span>
+<span class="lineNum">     517 </span>            :       break;
+<span class="lineNum">     518 </span><span class="lineNoCov">          0 :     ++first_symbol_cardinality_;</span>
+<span class="lineNum">     519 </span>            :   }
+<a name="520"><span class="lineNum">     520 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     521 </span>            : 
+<span class="lineNum">     522 </span><span class="lineNoCov">          0 : void TransportFeedback::EmitRunLengthChunk() {</span>
+<span class="lineNum">     523 </span>            :   RTC_DCHECK_GE(first_symbol_cardinality_, symbol_vec_.size());
+<span class="lineNum">     524 </span>            :   status_chunks_.push_back(
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :       new RunLengthChunk(symbol_vec_.front(), first_symbol_cardinality_));</span>
+<span class="lineNum">     526 </span><span class="lineNoCov">          0 :   symbol_vec_.clear();</span>
+<a name="527"><span class="lineNum">     527 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     528 </span>            : 
+<span class="lineNum">     529 </span><span class="lineNoCov">          0 : size_t TransportFeedback::BlockLength() const {</span>
+<span class="lineNum">     530 </span><span class="lineNoCov">          0 :   return size_bytes_;</span>
+<a name="531"><span class="lineNum">     531 </span>            : }</a>
+<span class="lineNum">     532 </span>            : 
+<span class="lineNum">     533 </span><span class="lineNoCov">          0 : uint16_t TransportFeedback::GetBaseSequence() const {</span>
+<span class="lineNum">     534 </span><span class="lineNoCov">          0 :   return base_seq_;</span>
+<a name="535"><span class="lineNum">     535 </span>            : }</a>
+<span class="lineNum">     536 </span>            : 
+<span class="lineNum">     537 </span><span class="lineNoCov">          0 : int64_t TransportFeedback::GetBaseTimeUs() const {</span>
+<span class="lineNum">     538 </span><span class="lineNoCov">          0 :   return base_time_ * kBaseScaleFactor;</span>
+<span class="lineNum">     539 </span>            : }
+<a name="540"><span class="lineNum">     540 </span>            : </a>
+<span class="lineNum">     541 </span>            : std::vector&lt;TransportFeedback::StatusSymbol&gt;
+<span class="lineNum">     542 </span><span class="lineNoCov">          0 : TransportFeedback::GetStatusVector() const {</span>
+<span class="lineNum">     543 </span>            :   std::vector&lt;TransportFeedback::StatusSymbol&gt; symbols;
+<span class="lineNum">     544 </span><span class="lineNoCov">          0 :   for (PacketStatusChunk* chunk : status_chunks_)</span>
+<span class="lineNum">     545 </span><span class="lineNoCov">          0 :     chunk-&gt;AppendSymbolsTo(&amp;symbols);</span>
+<span class="lineNum">     546 </span><span class="lineNoCov">          0 :   int64_t status_count = last_seq_ - base_seq_ + 1;</span>
+<span class="lineNum">     547 </span>            :   // If packet ends with a vector chunk, it may contain extraneous &quot;packet not
+<span class="lineNum">     548 </span>            :   // received&quot;-symbols at the end. Crop any such symbols.
+<span class="lineNum">     549 </span><span class="lineNoCov">          0 :   symbols.erase(symbols.begin() + status_count, symbols.end());</span>
+<span class="lineNum">     550 </span><span class="lineNoCov">          0 :   return symbols;</span>
+<a name="551"><span class="lineNum">     551 </span>            : }</a>
+<span class="lineNum">     552 </span>            : 
+<span class="lineNum">     553 </span><span class="lineNoCov">          0 : std::vector&lt;int16_t&gt; TransportFeedback::GetReceiveDeltas() const {</span>
+<span class="lineNum">     554 </span><span class="lineNoCov">          0 :   return receive_deltas_;</span>
+<a name="555"><span class="lineNum">     555 </span>            : }</a>
+<span class="lineNum">     556 </span>            : 
+<span class="lineNum">     557 </span><span class="lineNoCov">          0 : std::vector&lt;int64_t&gt; TransportFeedback::GetReceiveDeltasUs() const {</span>
+<span class="lineNum">     558 </span><span class="lineNoCov">          0 :   if (receive_deltas_.empty())</span>
+<span class="lineNum">     559 </span>            :     return std::vector&lt;int64_t&gt;();
+<span class="lineNum">     560 </span>            : 
+<span class="lineNum">     561 </span>            :   std::vector&lt;int64_t&gt; us_deltas;
+<span class="lineNum">     562 </span><span class="lineNoCov">          0 :   for (int16_t delta : receive_deltas_)</span>
+<span class="lineNum">     563 </span><span class="lineNoCov">          0 :     us_deltas.push_back(static_cast&lt;int64_t&gt;(delta) * kDeltaScaleFactor);</span>
+<span class="lineNum">     564 </span>            : 
+<span class="lineNum">     565 </span>            :   return us_deltas;
+<span class="lineNum">     566 </span>            : }
+<a name="567"><span class="lineNum">     567 </span>            : </a>
+<span class="lineNum">     568 </span>            : // Serialize packet.
+<span class="lineNum">     569 </span><span class="lineNoCov">          0 : bool TransportFeedback::Create(uint8_t* packet,</span>
+<span class="lineNum">     570 </span>            :                                size_t* position,
+<span class="lineNum">     571 </span>            :                                size_t max_length,
+<span class="lineNum">     572 </span>            :                                PacketReadyCallback* callback) const {
+<span class="lineNum">     573 </span><span class="lineNoCov">          0 :   if (base_seq_ == -1)</span>
+<span class="lineNum">     574 </span>            :     return false;
+<span class="lineNum">     575 </span>            : 
+<span class="lineNum">     576 </span><span class="lineNoCov">          0 :   while (*position + size_bytes_ &gt; max_length) {</span>
+<span class="lineNum">     577 </span><span class="lineNoCov">          0 :     if (!OnBufferFull(packet, position, callback))</span>
+<span class="lineNum">     578 </span>            :       return false;
+<span class="lineNum">     579 </span>            :   }
+<span class="lineNum">     580 </span>            : 
+<span class="lineNum">     581 </span>            :   CreateHeader(kFeedbackMessageType, kPayloadType, HeaderLength(), packet,
+<span class="lineNum">     582 </span><span class="lineNoCov">          0 :                position);</span>
+<span class="lineNum">     583 </span><span class="lineNoCov">          0 :   ByteWriter&lt;uint32_t&gt;::WriteBigEndian(&amp;packet[*position], packet_sender_ssrc_);</span>
+<span class="lineNum">     584 </span><span class="lineNoCov">          0 :   *position += 4;</span>
+<span class="lineNum">     585 </span><span class="lineNoCov">          0 :   ByteWriter&lt;uint32_t&gt;::WriteBigEndian(&amp;packet[*position], media_source_ssrc_);</span>
+<span class="lineNum">     586 </span><span class="lineNoCov">          0 :   *position += 4;</span>
+<span class="lineNum">     587 </span>            : 
+<span class="lineNum">     588 </span>            :   RTC_DCHECK_LE(base_seq_, 0xFFFF);
+<span class="lineNum">     589 </span><span class="lineNoCov">          0 :   ByteWriter&lt;uint16_t&gt;::WriteBigEndian(&amp;packet[*position], base_seq_);</span>
+<span class="lineNum">     590 </span><span class="lineNoCov">          0 :   *position += 2;</span>
+<span class="lineNum">     591 </span>            : 
+<span class="lineNum">     592 </span><span class="lineNoCov">          0 :   int64_t status_count = last_seq_ - base_seq_ + 1;</span>
+<span class="lineNum">     593 </span>            :   RTC_DCHECK_LE(status_count, 0xFFFF);
+<span class="lineNum">     594 </span><span class="lineNoCov">          0 :   ByteWriter&lt;uint16_t&gt;::WriteBigEndian(&amp;packet[*position], status_count);</span>
+<span class="lineNum">     595 </span><span class="lineNoCov">          0 :   *position += 2;</span>
+<span class="lineNum">     596 </span>            : 
+<span class="lineNum">     597 </span>            :   ByteWriter&lt;int32_t, 3&gt;::WriteBigEndian(&amp;packet[*position],
+<span class="lineNum">     598 </span><span class="lineNoCov">          0 :                                          static_cast&lt;int32_t&gt;(base_time_));</span>
+<span class="lineNum">     599 </span><span class="lineNoCov">          0 :   *position += 3;</span>
+<span class="lineNum">     600 </span>            : 
+<span class="lineNum">     601 </span><span class="lineNoCov">          0 :   packet[(*position)++] = feedback_seq_;</span>
+<span class="lineNum">     602 </span>            : 
+<span class="lineNum">     603 </span>            :   // TODO(sprang): Get rid of this cast.
+<span class="lineNum">     604 </span><span class="lineNoCov">          0 :   const_cast&lt;TransportFeedback*&gt;(this)-&gt;EmitRemaining();</span>
+<span class="lineNum">     605 </span><span class="lineNoCov">          0 :   for (PacketStatusChunk* chunk : status_chunks_) {</span>
+<span class="lineNum">     606 </span><span class="lineNoCov">          0 :     chunk-&gt;WriteTo(&amp;packet[*position]);</span>
+<span class="lineNum">     607 </span><span class="lineNoCov">          0 :     *position += 2;</span>
+<span class="lineNum">     608 </span>            :   }
+<span class="lineNum">     609 </span>            : 
+<span class="lineNum">     610 </span><span class="lineNoCov">          0 :   for (int16_t delta : receive_deltas_) {</span>
+<span class="lineNum">     611 </span><span class="lineNoCov">          0 :     if (delta &gt;= 0 &amp;&amp; delta &lt;= 0xFF) {</span>
+<span class="lineNum">     612 </span><span class="lineNoCov">          0 :       packet[(*position)++] = delta;</span>
+<span class="lineNum">     613 </span>            :     } else {
+<span class="lineNum">     614 </span><span class="lineNoCov">          0 :       ByteWriter&lt;int16_t&gt;::WriteBigEndian(&amp;packet[*position], delta);</span>
+<span class="lineNum">     615 </span><span class="lineNoCov">          0 :       *position += 2;</span>
+<span class="lineNum">     616 </span>            :     }
+<span class="lineNum">     617 </span>            :   }
+<span class="lineNum">     618 </span>            : 
+<span class="lineNum">     619 </span><span class="lineNoCov">          0 :   while ((*position % 4) != 0)</span>
+<span class="lineNum">     620 </span><span class="lineNoCov">          0 :     packet[(*position)++] = 0;</span>
+<span class="lineNum">     621 </span>            : 
+<span class="lineNum">     622 </span>            :   return true;
+<span class="lineNum">     623 </span>            : }
+<span class="lineNum">     624 </span>            : 
+<span class="lineNum">     625 </span>            : //    Message format
+<span class="lineNum">     626 </span>            : //
+<span class="lineNum">     627 </span>            : //     0                   1                   2                   3
+<span class="lineNum">     628 </span>            : //     0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+<span class="lineNum">     629 </span>            : //    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+<span class="lineNum">     630 </span>            : //    |V=2|P|  FMT=15 |    PT=205     |           length              |
+<span class="lineNum">     631 </span>            : //    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+<span class="lineNum">     632 </span>            : //    |                     SSRC of packet sender                     |
+<span class="lineNum">     633 </span>            : //    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+<span class="lineNum">     634 </span>            : //    |                      SSRC of media source                     |
+<span class="lineNum">     635 </span>            : //    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+<span class="lineNum">     636 </span>            : //    |      base sequence number     |      packet status count      |
+<span class="lineNum">     637 </span>            : //    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+<span class="lineNum">     638 </span>            : //    |                 reference time                | fb pkt. count |
+<span class="lineNum">     639 </span>            : //    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+<span class="lineNum">     640 </span>            : //    |          packet chunk         |         packet chunk          |
+<span class="lineNum">     641 </span>            : //    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+<span class="lineNum">     642 </span>            : //    .                                                               .
+<span class="lineNum">     643 </span>            : //    .                                                               .
+<span class="lineNum">     644 </span>            : //    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+<span class="lineNum">     645 </span>            : //    |         packet chunk          |  recv delta   |  recv delta   |
+<span class="lineNum">     646 </span>            : //    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+<span class="lineNum">     647 </span>            : //    .                                                               .
+<span class="lineNum">     648 </span>            : //    .                                                               .
+<span class="lineNum">     649 </span>            : //    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+<span class="lineNum">     650 </span>            : //    |           recv delta          |  recv delta   | zero padding  |
+<span class="lineNum">     651 </span>            : //    +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+<a name="652"><span class="lineNum">     652 </span>            : </a>
+<span class="lineNum">     653 </span>            : // De-serialize packet.
+<span class="lineNum">     654 </span><span class="lineNoCov">          0 : rtc::scoped_ptr&lt;TransportFeedback&gt; TransportFeedback::ParseFrom(</span>
+<span class="lineNum">     655 </span>            :     const uint8_t* buffer,
+<span class="lineNum">     656 </span>            :     size_t length) {
+<span class="lineNum">     657 </span><span class="lineNoCov">          0 :   rtc::scoped_ptr&lt;TransportFeedback&gt; packet(new TransportFeedback());</span>
+<span class="lineNum">     658 </span>            : 
+<span class="lineNum">     659 </span><span class="lineNoCov">          0 :   if (length &lt; kMinSizeBytes) {</span>
+<span class="lineNum">     660 </span><span class="lineNoCov">          0 :     LOG(LS_WARNING) &lt;&lt; &quot;Buffer too small (&quot; &lt;&lt; length</span>
+<span class="lineNum">     661 </span>            :                     &lt;&lt; &quot; bytes) to fit a &quot;
+<span class="lineNum">     662 </span><span class="lineNoCov">          0 :                        &quot;FeedbackPacket. Minimum size = &quot; &lt;&lt; kMinSizeBytes;</span>
+<span class="lineNum">     663 </span><span class="lineNoCov">          0 :     return nullptr;</span>
+<span class="lineNum">     664 </span>            :   }
+<span class="lineNum">     665 </span>            : 
+<span class="lineNum">     666 </span><span class="lineNoCov">          0 :   RTCPUtility::RtcpCommonHeader header;</span>
+<span class="lineNum">     667 </span><span class="lineNoCov">          0 :   if (!RtcpParseCommonHeader(buffer, length, &amp;header))</span>
+<span class="lineNum">     668 </span><span class="lineNoCov">          0 :     return nullptr;</span>
+<span class="lineNum">     669 </span>            : 
+<span class="lineNum">     670 </span><span class="lineNoCov">          0 :   if (header.count_or_format != kFeedbackMessageType) {</span>
+<span class="lineNum">     671 </span><span class="lineNoCov">          0 :     LOG(LS_WARNING) &lt;&lt; &quot;Invalid RTCP header: FMT must be &quot;</span>
+<span class="lineNum">     672 </span><span class="lineNoCov">          0 :                     &lt;&lt; kFeedbackMessageType &lt;&lt; &quot; but was &quot;</span>
+<span class="lineNum">     673 </span><span class="lineNoCov">          0 :                     &lt;&lt; header.count_or_format;</span>
+<span class="lineNum">     674 </span><span class="lineNoCov">          0 :     return nullptr;</span>
+<span class="lineNum">     675 </span>            :   }
+<span class="lineNum">     676 </span>            : 
+<span class="lineNum">     677 </span><span class="lineNoCov">          0 :   if (header.packet_type != kPayloadType) {</span>
+<span class="lineNum">     678 </span><span class="lineNoCov">          0 :     LOG(LS_WARNING) &lt;&lt; &quot;Invalid RTCP header: PT must be &quot; &lt;&lt; kPayloadType</span>
+<span class="lineNum">     679 </span><span class="lineNoCov">          0 :                     &lt;&lt; &quot; but was &quot; &lt;&lt; header.packet_type;</span>
+<span class="lineNum">     680 </span><span class="lineNoCov">          0 :     return nullptr;</span>
+<span class="lineNum">     681 </span>            :   }
+<span class="lineNum">     682 </span>            : 
+<span class="lineNum">     683 </span><span class="lineNoCov">          0 :   packet-&gt;packet_sender_ssrc_ = ByteReader&lt;uint32_t&gt;::ReadBigEndian(&amp;buffer[4]);</span>
+<span class="lineNum">     684 </span><span class="lineNoCov">          0 :   packet-&gt;media_source_ssrc_ = ByteReader&lt;uint32_t&gt;::ReadBigEndian(&amp;buffer[8]);</span>
+<span class="lineNum">     685 </span><span class="lineNoCov">          0 :   packet-&gt;base_seq_ = ByteReader&lt;uint16_t&gt;::ReadBigEndian(&amp;buffer[12]);</span>
+<span class="lineNum">     686 </span><span class="lineNoCov">          0 :   uint16_t num_packets = ByteReader&lt;uint16_t&gt;::ReadBigEndian(&amp;buffer[14]);</span>
+<span class="lineNum">     687 </span><span class="lineNoCov">          0 :   packet-&gt;base_time_ = ByteReader&lt;int32_t, 3&gt;::ReadBigEndian(&amp;buffer[16]);</span>
+<span class="lineNum">     688 </span><span class="lineNoCov">          0 :   packet-&gt;feedback_seq_ = buffer[19];</span>
+<span class="lineNum">     689 </span><span class="lineNoCov">          0 :   size_t index = 20;</span>
+<span class="lineNum">     690 </span><span class="lineNoCov">          0 :   const size_t end_index = kHeaderLength + header.payload_size_bytes;</span>
+<span class="lineNum">     691 </span>            : 
+<span class="lineNum">     692 </span><span class="lineNoCov">          0 :   if (num_packets == 0) {</span>
+<span class="lineNum">     693 </span><span class="lineNoCov">          0 :     LOG(LS_WARNING) &lt;&lt; &quot;Empty feedback messages not allowed.&quot;;</span>
+<span class="lineNum">     694 </span><span class="lineNoCov">          0 :     return nullptr;</span>
+<span class="lineNum">     695 </span>            :   }
+<span class="lineNum">     696 </span><span class="lineNoCov">          0 :   packet-&gt;last_seq_ = packet-&gt;base_seq_ + num_packets - 1;</span>
+<span class="lineNum">     697 </span>            : 
+<span class="lineNum">     698 </span><span class="lineNoCov">          0 :   size_t packets_read = 0;</span>
+<span class="lineNum">     699 </span><span class="lineNoCov">          0 :   while (packets_read &lt; num_packets) {</span>
+<span class="lineNum">     700 </span><span class="lineNoCov">          0 :     if (index + 2 &gt; end_index) {</span>
+<span class="lineNum">     701 </span><span class="lineNoCov">          0 :       LOG(LS_WARNING) &lt;&lt; &quot;Buffer overflow while parsing packet.&quot;;</span>
+<span class="lineNum">     702 </span><span class="lineNoCov">          0 :       return nullptr;</span>
+<span class="lineNum">     703 </span>            :     }
+<span class="lineNum">     704 </span>            : 
+<span class="lineNum">     705 </span>            :     PacketStatusChunk* chunk =
+<span class="lineNum">     706 </span><span class="lineNoCov">          0 :         ParseChunk(&amp;buffer[index], num_packets - packets_read);</span>
+<span class="lineNum">     707 </span><span class="lineNoCov">          0 :     if (chunk == nullptr)</span>
+<span class="lineNum">     708 </span><span class="lineNoCov">          0 :       return nullptr;</span>
+<span class="lineNum">     709 </span>            : 
+<span class="lineNum">     710 </span><span class="lineNoCov">          0 :     index += 2;</span>
+<span class="lineNum">     711 </span><span class="lineNoCov">          0 :     packet-&gt;status_chunks_.push_back(chunk);</span>
+<span class="lineNum">     712 </span><span class="lineNoCov">          0 :     packets_read += chunk-&gt;NumSymbols();</span>
+<span class="lineNum">     713 </span>            :   }
+<span class="lineNum">     714 </span>            : 
+<span class="lineNum">     715 </span><span class="lineNoCov">          0 :   std::vector&lt;StatusSymbol&gt; symbols = packet-&gt;GetStatusVector();</span>
+<span class="lineNum">     716 </span>            : 
+<span class="lineNum">     717 </span>            :   RTC_DCHECK_EQ(num_packets, symbols.size());
+<span class="lineNum">     718 </span>            : 
+<span class="lineNum">     719 </span><span class="lineNoCov">          0 :   for (StatusSymbol symbol : symbols) {</span>
+<span class="lineNum">     720 </span><span class="lineNoCov">          0 :     switch (symbol) {</span>
+<span class="lineNum">     721 </span>            :       case StatusSymbol::kReceivedSmallDelta:
+<span class="lineNum">     722 </span><span class="lineNoCov">          0 :         if (index + 1 &gt; end_index) {</span>
+<span class="lineNum">     723 </span><span class="lineNoCov">          0 :           LOG(LS_WARNING) &lt;&lt; &quot;Buffer overflow while parsing packet.&quot;;</span>
+<span class="lineNum">     724 </span><span class="lineNoCov">          0 :           return nullptr;</span>
+<span class="lineNum">     725 </span>            :         }
+<span class="lineNum">     726 </span><span class="lineNoCov">          0 :         packet-&gt;receive_deltas_.push_back(buffer[index]);</span>
+<span class="lineNum">     727 </span><span class="lineNoCov">          0 :         ++index;</span>
+<span class="lineNum">     728 </span><span class="lineNoCov">          0 :         break;</span>
+<span class="lineNum">     729 </span>            :       case StatusSymbol::kReceivedLargeDelta:
+<span class="lineNum">     730 </span><span class="lineNoCov">          0 :         if (index + 2 &gt; end_index) {</span>
+<span class="lineNum">     731 </span><span class="lineNoCov">          0 :           LOG(LS_WARNING) &lt;&lt; &quot;Buffer overflow while parsing packet.&quot;;</span>
+<span class="lineNum">     732 </span><span class="lineNoCov">          0 :           return nullptr;</span>
+<span class="lineNum">     733 </span>            :         }
+<span class="lineNum">     734 </span>            :         packet-&gt;receive_deltas_.push_back(
+<span class="lineNum">     735 </span><span class="lineNoCov">          0 :             ByteReader&lt;int16_t&gt;::ReadBigEndian(&amp;buffer[index]));</span>
+<span class="lineNum">     736 </span><span class="lineNoCov">          0 :         index += 2;</span>
+<span class="lineNum">     737 </span><span class="lineNoCov">          0 :         break;</span>
+<span class="lineNum">     738 </span>            :       default:
+<span class="lineNum">     739 </span>            :         continue;
+<span class="lineNum">     740 </span>            :     }
+<span class="lineNum">     741 </span>            :   }
+<span class="lineNum">     742 </span>            : 
+<span class="lineNum">     743 </span>            :   RTC_DCHECK_GE(index, end_index - 3);
+<span class="lineNum">     744 </span>            :   RTC_DCHECK_LE(index, end_index);
+<span class="lineNum">     745 </span>            : 
+<span class="lineNum">     746 </span>            :   return packet;
+<a name="747"><span class="lineNum">     747 </span>            : }</a>
+<span class="lineNum">     748 </span>            : 
+<span class="lineNum">     749 </span><span class="lineNoCov">          0 : PacketStatusChunk* TransportFeedback::ParseChunk(const uint8_t* buffer,</span>
+<span class="lineNum">     750 </span>            :                                                  size_t max_size) {
+<span class="lineNum">     751 </span><span class="lineNoCov">          0 :   if (buffer[0] &amp; 0x80) {</span>
+<span class="lineNum">     752 </span>            :     // First bit set =&gt; vector chunk.
+<span class="lineNum">     753 </span>            :     std::deque&lt;StatusSymbol&gt; symbols;
+<span class="lineNum">     754 </span><span class="lineNoCov">          0 :     if (buffer[0] &amp; 0x40) {</span>
+<span class="lineNum">     755 </span>            :       // Second bit set =&gt; two bits per symbol vector.
+<span class="lineNum">     756 </span><span class="lineNoCov">          0 :       return TwoBitVectorChunk::ParseFrom(buffer);</span>
+<span class="lineNum">     757 </span>            :     }
+<span class="lineNum">     758 </span>            : 
+<span class="lineNum">     759 </span>            :     // Second bit not set =&gt; one bit per symbol vector.
+<span class="lineNum">     760 </span><span class="lineNoCov">          0 :     return OneBitVectorChunk::ParseFrom(buffer);</span>
+<span class="lineNum">     761 </span>            :   }
+<span class="lineNum">     762 </span>            : 
+<span class="lineNum">     763 </span>            :   // First bit not set =&gt; RLE chunk.
+<span class="lineNum">     764 </span><span class="lineNoCov">          0 :   RunLengthChunk* rle_chunk = RunLengthChunk::ParseFrom(buffer);</span>
+<span class="lineNum">     765 </span><span class="lineNoCov">          0 :   if (rle_chunk-&gt;NumSymbols() &gt; max_size) {</span>
+<span class="lineNum">     766 </span><span class="lineNoCov">          0 :     LOG(LS_WARNING) &lt;&lt; &quot;Header/body mismatch. &quot;</span>
+<span class="lineNum">     767 </span><span class="lineNoCov">          0 :                        &quot;RLE block of size &quot; &lt;&lt; rle_chunk-&gt;NumSymbols()</span>
+<span class="lineNum">     768 </span><span class="lineNoCov">          0 :                     &lt;&lt; &quot; but only &quot; &lt;&lt; max_size &lt;&lt; &quot; left to read.&quot;;</span>
+<span class="lineNum">     769 </span><span class="lineNoCov">          0 :     delete rle_chunk;</span>
+<span class="lineNum">     770 </span>            :     return nullptr;
+<span class="lineNum">     771 </span>            :   }
+<span class="lineNum">     772 </span>            :   return rle_chunk;
+<span class="lineNum">     773 </span>            : }
+<span class="lineNum">     774 </span>            : 
+<span class="lineNum">     775 </span>            : }  // namespace rtcp
+<span class="lineNum">     776 </span>            : }  // namespace webrtc
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

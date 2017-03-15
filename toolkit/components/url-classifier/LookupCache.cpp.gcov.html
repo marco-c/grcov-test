@@ -1,0 +1,714 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - toolkit/components/url-classifier/LookupCache.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">toolkit/components/url-classifier</a> - LookupCache.cpp<span style="font-size: 80%;"> (source / <a href="LookupCache.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">160</td>
+            <td class="headerCovTableEntry">228</td>
+            <td class="headerCovTableEntryLo">70.2 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">18</td>
+            <td class="headerCovTableEntry">26</td>
+            <td class="headerCovTableEntryLo">69.2 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : //* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       3 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       4 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       5 </span>            : 
+<span class="lineNum">       6 </span>            : #include &quot;LookupCache.h&quot;
+<span class="lineNum">       7 </span>            : #include &quot;HashStore.h&quot;
+<span class="lineNum">       8 </span>            : #include &quot;nsISeekableStream.h&quot;
+<span class="lineNum">       9 </span>            : #include &quot;mozilla/Telemetry.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;mozilla/Logging.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;nsNetUtil.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;prprf.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;Classifier.h&quot;
+<span class="lineNum">      14 </span>            : 
+<span class="lineNum">      15 </span>            : // We act as the main entry point for all the real lookups,
+<span class="lineNum">      16 </span>            : // so note that those are not done to the actual HashStore.
+<span class="lineNum">      17 </span>            : // The latter solely exists to store the data needed to handle
+<span class="lineNum">      18 </span>            : // the updates from the protocol.
+<span class="lineNum">      19 </span>            : 
+<span class="lineNum">      20 </span>            : // This module provides a front for PrefixSet, mUpdateCompletions,
+<span class="lineNum">      21 </span>            : // and mGetHashCache, which together contain everything needed to
+<span class="lineNum">      22 </span>            : // provide a classification as long as the data is up to date.
+<span class="lineNum">      23 </span>            : 
+<span class="lineNum">      24 </span>            : // PrefixSet stores and provides lookups for 4-byte prefixes.
+<span class="lineNum">      25 </span>            : // mUpdateCompletions contains 32-byte completions which were
+<span class="lineNum">      26 </span>            : // contained in updates. They are retrieved from HashStore/.sbtore
+<span class="lineNum">      27 </span>            : // on startup.
+<span class="lineNum">      28 </span>            : // mGetHashCache contains 32-byte completions which were
+<span class="lineNum">      29 </span>            : // returned from the gethash server. They are not serialized,
+<span class="lineNum">      30 </span>            : // only cached until the next update.
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : // Name of the persistent PrefixSet storage
+<span class="lineNum">      33 </span>            : #define PREFIXSET_SUFFIX  &quot;.pset&quot;
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : // MOZ_LOG=UrlClassifierDbService:5
+<span class="lineNum">      36 </span>            : extern mozilla::LazyLogModule gUrlClassifierDbServiceLog;
+<span class="lineNum">      37 </span>            : #define LOG(args) MOZ_LOG(gUrlClassifierDbServiceLog, mozilla::LogLevel::Debug, args)
+<span class="lineNum">      38 </span>            : #define LOG_ENABLED() MOZ_LOG_TEST(gUrlClassifierDbServiceLog, mozilla::LogLevel::Debug)
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : namespace mozilla {
+<span class="lineNum">      41 </span>            : namespace safebrowsing {
+<span class="lineNum">      42 </span>            : 
+<a name="43"><span class="lineNum">      43 </span>            : const int LookupCacheV2::VER = 2;</a>
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span><span class="lineCov">          1 : LookupCache::LookupCache(const nsACString&amp; aTableName,</span>
+<span class="lineNum">      46 </span>            :                          const nsACString&amp; aProvider,
+<span class="lineNum">      47 </span>            :                          nsIFile* aRootStoreDir)
+<span class="lineNum">      48 </span>            :   : mPrimed(false)
+<span class="lineNum">      49 </span>            :   , mTableName(aTableName)
+<span class="lineNum">      50 </span>            :   , mProvider(aProvider)
+<span class="lineNum">      51 </span><span class="lineCov">          1 :   , mRootStoreDirectory(aRootStoreDir)</span>
+<span class="lineNum">      52 </span>            : {
+<span class="lineNum">      53 </span><span class="lineCov">          1 :   UpdateRootDirHandle(mRootStoreDirectory);</span>
+<span class="lineNum">      54 </span><span class="lineCov">          1 : }</span>
+<a name="55"><span class="lineNum">      55 </span>            : </a>
+<span class="lineNum">      56 </span>            : nsresult
+<span class="lineNum">      57 </span><span class="lineCov">          1 : LookupCache::Open()</span>
+<span class="lineNum">      58 </span>            : {
+<span class="lineNum">      59 </span><span class="lineCov">          1 :   LOG((&quot;Loading PrefixSet&quot;));</span>
+<span class="lineNum">      60 </span><span class="lineCov">          1 :   nsresult rv = LoadPrefixSet();</span>
+<span class="lineNum">      61 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span>            :   return NS_OK;
+<span class="lineNum">      64 </span>            : }
+<a name="65"><span class="lineNum">      65 </span>            : </a>
+<span class="lineNum">      66 </span>            : nsresult
+<span class="lineNum">      67 </span><span class="lineCov">          1 : LookupCache::UpdateRootDirHandle(nsIFile* aNewRootStoreDirectory)</span>
+<span class="lineNum">      68 </span>            : {
+<span class="lineNum">      69 </span>            :   nsresult rv;
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span><span class="lineCov">          1 :   if (aNewRootStoreDirectory != mRootStoreDirectory) {</span>
+<span class="lineNum">      72 </span><span class="lineCov">          1 :     rv = aNewRootStoreDirectory-&gt;Clone(getter_AddRefs(mRootStoreDirectory));</span>
+<span class="lineNum">      73 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">      74 </span>            :   }
+<span class="lineNum">      75 </span>            : 
+<span class="lineNum">      76 </span>            :   rv = Classifier::GetPrivateStoreDirectory(mRootStoreDirectory,
+<span class="lineNum">      77 </span>            :                                             mTableName,
+<span class="lineNum">      78 </span>            :                                             mProvider,
+<span class="lineNum">      79 </span><span class="lineCov">          1 :                                             getter_AddRefs(mStoreDirectory));</span>
+<span class="lineNum">      80 </span>            : 
+<span class="lineNum">      81 </span><span class="lineCov">          1 :   if (NS_FAILED(rv)) {</span>
+<span class="lineNum">      82 </span><span class="lineNoCov">          0 :     LOG((&quot;Failed to get private store directory for %s&quot;, mTableName.get()));</span>
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :     mStoreDirectory = mRootStoreDirectory;</span>
+<span class="lineNum">      84 </span>            :   }
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span><span class="lineCov">          1 :   if (LOG_ENABLED()) {</span>
+<span class="lineNum">      87 </span>            :     nsString path;
+<span class="lineNum">      88 </span><span class="lineNoCov">          0 :     mStoreDirectory-&gt;GetPath(path);</span>
+<span class="lineNum">      89 </span><span class="lineNoCov">          0 :     LOG((&quot;Private store directory for %s is %s&quot;, mTableName.get(),</span>
+<span class="lineNum">      90 </span>            :                                                  NS_ConvertUTF16toUTF8(path).get()));
+<span class="lineNum">      91 </span>            :   }
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span><span class="lineCov">          1 :   return rv;</span>
+<span class="lineNum">      94 </span>            : }
+<a name="95"><span class="lineNum">      95 </span>            : </a>
+<span class="lineNum">      96 </span>            : nsresult
+<span class="lineNum">      97 </span><span class="lineNoCov">          0 : LookupCache::Reset()</span>
+<span class="lineNum">      98 </span>            : {
+<span class="lineNum">      99 </span><span class="lineNoCov">          0 :   LOG((&quot;LookupCache resetting&quot;));</span>
+<span class="lineNum">     100 </span>            : 
+<span class="lineNum">     101 </span>            :   nsCOMPtr&lt;nsIFile&gt; prefixsetFile;
+<span class="lineNum">     102 </span><span class="lineNoCov">          0 :   nsresult rv = mStoreDirectory-&gt;Clone(getter_AddRefs(prefixsetFile));</span>
+<span class="lineNum">     103 </span><span class="lineNoCov">          0 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     104 </span>            : 
+<span class="lineNum">     105 </span><span class="lineNoCov">          0 :   rv = prefixsetFile-&gt;AppendNative(mTableName + NS_LITERAL_CSTRING(PREFIXSET_SUFFIX));</span>
+<span class="lineNum">     106 </span><span class="lineNoCov">          0 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span><span class="lineNoCov">          0 :   rv = prefixsetFile-&gt;Remove(false);</span>
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span><span class="lineNoCov">          0 :   ClearAll();</span>
+<span class="lineNum">     112 </span>            : 
+<span class="lineNum">     113 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     114 </span>            : }
+<a name="115"><span class="lineNum">     115 </span>            : </a>
+<span class="lineNum">     116 </span>            : nsresult
+<span class="lineNum">     117 </span><span class="lineNoCov">          0 : LookupCache::AddCompletionsToCache(AddCompleteArray&amp; aAddCompletes)</span>
+<span class="lineNum">     118 </span>            : {
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 :   for (uint32_t i = 0; i &lt; aAddCompletes.Length(); i++) {</span>
+<span class="lineNum">     120 </span><span class="lineNoCov">          0 :     if (mGetHashCache.BinaryIndexOf(aAddCompletes[i].CompleteHash()) == mGetHashCache.NoIndex) {</span>
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :       mGetHashCache.AppendElement(aAddCompletes[i].CompleteHash());</span>
+<span class="lineNum">     122 </span>            :     }
+<span class="lineNum">     123 </span>            :   }
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :   mGetHashCache.Sort();</span>
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     127 </span>            : }
+<span class="lineNum">     128 </span>            : 
+<span class="lineNum">     129 </span>            : #if defined(DEBUG)
+<span class="lineNum">     130 </span>            : void
+<span class="lineNum">     131 </span>            : LookupCache::DumpCache()
+<span class="lineNum">     132 </span>            : {
+<span class="lineNum">     133 </span>            :   if (!LOG_ENABLED())
+<span class="lineNum">     134 </span>            :     return;
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span>            :   for (uint32_t i = 0; i &lt; mGetHashCache.Length(); i++) {
+<span class="lineNum">     137 </span>            :     nsAutoCString str;
+<span class="lineNum">     138 </span>            :     mGetHashCache[i].ToHexString(str);
+<span class="lineNum">     139 </span>            :     LOG((&quot;Caches: %s&quot;, str.get()));
+<span class="lineNum">     140 </span>            :   }
+<span class="lineNum">     141 </span>            : }
+<span class="lineNum">     142 </span>            : #endif
+<a name="143"><span class="lineNum">     143 </span>            : </a>
+<span class="lineNum">     144 </span>            : nsresult
+<span class="lineNum">     145 </span><span class="lineCov">          1 : LookupCache::WriteFile()</span>
+<span class="lineNum">     146 </span>            : {
+<span class="lineNum">     147 </span><span class="lineCov">          1 :   if (nsUrlClassifierDBService::ShutdownHasStarted()) {</span>
+<span class="lineNum">     148 </span>            :     return NS_ERROR_ABORT;
+<span class="lineNum">     149 </span>            :   }
+<span class="lineNum">     150 </span>            : 
+<span class="lineNum">     151 </span>            :   nsCOMPtr&lt;nsIFile&gt; psFile;
+<span class="lineNum">     152 </span><span class="lineCov">          1 :   nsresult rv = mStoreDirectory-&gt;Clone(getter_AddRefs(psFile));</span>
+<span class="lineNum">     153 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     154 </span>            : 
+<span class="lineNum">     155 </span><span class="lineCov">          1 :   rv = psFile-&gt;AppendNative(mTableName + NS_LITERAL_CSTRING(PREFIXSET_SUFFIX));</span>
+<span class="lineNum">     156 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span><span class="lineCov">          1 :   rv = StoreToFile(psFile);</span>
+<span class="lineNum">     159 </span>            :   NS_WARNING_ASSERTION(NS_SUCCEEDED(rv), &quot;failed to store the prefixset&quot;);
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span><span class="lineCov">          1 :   return NS_OK;</span>
+<span class="lineNum">     162 </span>            : }
+<a name="163"><span class="lineNum">     163 </span>            : </a>
+<span class="lineNum">     164 </span>            : void
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 : LookupCache::ClearAll()</span>
+<span class="lineNum">     166 </span>            : {
+<span class="lineNum">     167 </span>            :   ClearCache();
+<span class="lineNum">     168 </span><span class="lineNoCov">          0 :   ClearPrefixes();</span>
+<span class="lineNum">     169 </span><span class="lineNoCov">          0 :   mPrimed = false;</span>
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 : }</span>
+<a name="171"><span class="lineNum">     171 </span>            : </a>
+<span class="lineNum">     172 </span>            : void
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 : LookupCache::ClearCache()</span>
+<span class="lineNum">     174 </span>            : {
+<span class="lineNum">     175 </span><span class="lineCov">          1 :   mGetHashCache.Clear();</span>
+<span class="lineNum">     176 </span><span class="lineNoCov">          0 : }</span>
+<a name="177"><span class="lineNum">     177 </span>            : </a>
+<span class="lineNum">     178 </span>            : /* static */ bool
+<span class="lineNum">     179 </span><span class="lineCov">          1 : LookupCache::IsCanonicalizedIP(const nsACString&amp; aHost)</span>
+<span class="lineNum">     180 </span>            : {
+<span class="lineNum">     181 </span>            :   // The canonicalization process will have left IP addresses in dotted
+<span class="lineNum">     182 </span>            :   // decimal with no surprises.
+<span class="lineNum">     183 </span>            :   uint32_t i1, i2, i3, i4;
+<span class="lineNum">     184 </span>            :   char c;
+<span class="lineNum">     185 </span><span class="lineCov">          1 :   if (PR_sscanf(PromiseFlatCString(aHost).get(), &quot;%u.%u.%u.%u%c&quot;,</span>
+<span class="lineNum">     186 </span><span class="lineCov">          1 :                 &amp;i1, &amp;i2, &amp;i3, &amp;i4, &amp;c) == 4) {</span>
+<span class="lineNum">     187 </span><span class="lineCov">          1 :     return (i1 &lt;= 0xFF &amp;&amp; i2 &lt;= 0xFF &amp;&amp; i3 &lt;= 0xFF &amp;&amp; i4 &lt;= 0xFF);</span>
+<span class="lineNum">     188 </span>            :   }
+<span class="lineNum">     189 </span>            : 
+<span class="lineNum">     190 </span>            :   return false;
+<span class="lineNum">     191 </span>            : }
+<a name="192"><span class="lineNum">     192 </span>            : </a>
+<span class="lineNum">     193 </span>            : /* static */ nsresult
+<span class="lineNum">     194 </span><span class="lineCov">          1 : LookupCache::GetLookupFragments(const nsACString&amp; aSpec,</span>
+<span class="lineNum">     195 </span>            :                                 nsTArray&lt;nsCString&gt;* aFragments)
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span>            : {
+<span class="lineNum">     198 </span><span class="lineCov">          1 :   aFragments-&gt;Clear();</span>
+<span class="lineNum">     199 </span>            : 
+<span class="lineNum">     200 </span>            :   nsACString::const_iterator begin, end, iter;
+<span class="lineNum">     201 </span><span class="lineCov">          1 :   aSpec.BeginReading(begin);</span>
+<span class="lineNum">     202 </span><span class="lineCov">          1 :   aSpec.EndReading(end);</span>
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span><span class="lineCov">          1 :   iter = begin;</span>
+<span class="lineNum">     205 </span><span class="lineCov">          1 :   if (!FindCharInReadable('/', iter, end)) {</span>
+<span class="lineNum">     206 </span>            :     return NS_OK;
+<span class="lineNum">     207 </span>            :   }
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span><span class="lineCov">          1 :   const nsCSubstring&amp; host = Substring(begin, iter++);</span>
+<span class="lineNum">     210 </span><span class="lineCov">          1 :   nsAutoCString path;</span>
+<span class="lineNum">     211 </span><span class="lineCov">          1 :   path.Assign(Substring(iter, end));</span>
+<span class="lineNum">     212 </span>            : 
+<span class="lineNum">     213 </span>            :   /**
+<span class="lineNum">     214 </span>            :    * From the protocol doc:
+<span class="lineNum">     215 </span>            :    * For the hostname, the client will try at most 5 different strings.  They
+<span class="lineNum">     216 </span>            :    * are:
+<span class="lineNum">     217 </span>            :    * a) The exact hostname of the url
+<span class="lineNum">     218 </span>            :    * b) The 4 hostnames formed by starting with the last 5 components and
+<span class="lineNum">     219 </span>            :    *    successivly removing the leading component.  The top-level component
+<span class="lineNum">     220 </span>            :    *    can be skipped. This is not done if the hostname is a numerical IP.
+<span class="lineNum">     221 </span>            :    */
+<span class="lineNum">     222 </span>            :   nsTArray&lt;nsCString&gt; hosts;
+<span class="lineNum">     223 </span><span class="lineCov">          1 :   hosts.AppendElement(host);</span>
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span><span class="lineCov">          1 :   if (!IsCanonicalizedIP(host)) {</span>
+<span class="lineNum">     226 </span><span class="lineCov">          1 :     host.BeginReading(begin);</span>
+<span class="lineNum">     227 </span><span class="lineCov">          1 :     host.EndReading(end);</span>
+<span class="lineNum">     228 </span><span class="lineCov">          1 :     int numHostComponents = 0;</span>
+<span class="lineNum">     229 </span><span class="lineCov">          1 :     while (RFindInReadable(NS_LITERAL_CSTRING(&quot;.&quot;), begin, end) &amp;&amp;</span>
+<span class="lineNum">     230 </span>            :            numHostComponents &lt; MAX_HOST_COMPONENTS) {
+<span class="lineNum">     231 </span>            :       // don't bother checking toplevel domains
+<span class="lineNum">     232 </span><span class="lineCov">          1 :       if (++numHostComponents &gt;= 2) {</span>
+<span class="lineNum">     233 </span><span class="lineCov">          1 :         host.EndReading(iter);</span>
+<span class="lineNum">     234 </span><span class="lineCov">          1 :         hosts.AppendElement(Substring(end, iter));</span>
+<span class="lineNum">     235 </span>            :       }
+<span class="lineNum">     236 </span><span class="lineCov">          1 :       end = begin;</span>
+<span class="lineNum">     237 </span><span class="lineCov">          1 :       host.BeginReading(begin);</span>
+<span class="lineNum">     238 </span>            :     }
+<span class="lineNum">     239 </span>            :   }
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span>            :   /**
+<span class="lineNum">     242 </span>            :    * From the protocol doc:
+<span class="lineNum">     243 </span>            :    * For the path, the client will also try at most 6 different strings.
+<span class="lineNum">     244 </span>            :    * They are:
+<span class="lineNum">     245 </span>            :    * a) the exact path of the url, including query parameters
+<span class="lineNum">     246 </span>            :    * b) the exact path of the url, without query parameters
+<span class="lineNum">     247 </span>            :    * c) the 4 paths formed by starting at the root (/) and
+<span class="lineNum">     248 </span>            :    *    successively appending path components, including a trailing
+<span class="lineNum">     249 </span>            :    *    slash.  This behavior should only extend up to the next-to-last
+<span class="lineNum">     250 </span>            :    *    path component, that is, a trailing slash should never be
+<span class="lineNum">     251 </span>            :    *    appended that was not present in the original url.
+<span class="lineNum">     252 </span>            :    */
+<span class="lineNum">     253 </span>            :   nsTArray&lt;nsCString&gt; paths;
+<span class="lineNum">     254 </span><span class="lineCov">          1 :   nsAutoCString pathToAdd;</span>
+<span class="lineNum">     255 </span>            : 
+<span class="lineNum">     256 </span><span class="lineCov">          1 :   path.BeginReading(begin);</span>
+<span class="lineNum">     257 </span><span class="lineCov">          1 :   path.EndReading(end);</span>
+<span class="lineNum">     258 </span><span class="lineCov">          1 :   iter = begin;</span>
+<span class="lineNum">     259 </span><span class="lineCov">          1 :   if (FindCharInReadable('?', iter, end)) {</span>
+<span class="lineNum">     260 </span><span class="lineCov">          1 :     pathToAdd = Substring(begin, iter);</span>
+<span class="lineNum">     261 </span><span class="lineCov">          1 :     paths.AppendElement(pathToAdd);</span>
+<span class="lineNum">     262 </span><span class="lineCov">          1 :     end = iter;</span>
+<span class="lineNum">     263 </span>            :   }
+<span class="lineNum">     264 </span>            : 
+<span class="lineNum">     265 </span><span class="lineCov">          1 :   int numPathComponents = 1;</span>
+<span class="lineNum">     266 </span><span class="lineCov">          1 :   iter = begin;</span>
+<span class="lineNum">     267 </span><span class="lineCov">          1 :   while (FindCharInReadable('/', iter, end) &amp;&amp;</span>
+<span class="lineNum">     268 </span>            :          numPathComponents &lt; MAX_PATH_COMPONENTS) {
+<span class="lineNum">     269 </span><span class="lineCov">          1 :     iter++;</span>
+<span class="lineNum">     270 </span><span class="lineCov">          1 :     pathToAdd.Assign(Substring(begin, iter));</span>
+<span class="lineNum">     271 </span><span class="lineCov">          1 :     paths.AppendElement(pathToAdd);</span>
+<span class="lineNum">     272 </span><span class="lineCov">          1 :     numPathComponents++;</span>
+<span class="lineNum">     273 </span>            :   }
+<span class="lineNum">     274 </span>            : 
+<span class="lineNum">     275 </span>            :   // If we haven't already done so, add the full path
+<span class="lineNum">     276 </span><span class="lineCov">          1 :   if (!pathToAdd.Equals(path)) {</span>
+<span class="lineNum">     277 </span><span class="lineCov">          1 :     paths.AppendElement(path);</span>
+<span class="lineNum">     278 </span>            :   }
+<span class="lineNum">     279 </span>            :   // Check an empty path (for whole-domain blacklist entries)
+<span class="lineNum">     280 </span><span class="lineCov">          1 :   paths.AppendElement(EmptyCString());</span>
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span><span class="lineCov">          1 :   for (uint32_t hostIndex = 0; hostIndex &lt; hosts.Length(); hostIndex++) {</span>
+<span class="lineNum">     283 </span><span class="lineCov">          1 :     for (uint32_t pathIndex = 0; pathIndex &lt; paths.Length(); pathIndex++) {</span>
+<span class="lineNum">     284 </span>            :       nsCString key;
+<span class="lineNum">     285 </span><span class="lineCov">          1 :       key.Assign(hosts[hostIndex]);</span>
+<span class="lineNum">     286 </span><span class="lineCov">          1 :       key.Append('/');</span>
+<span class="lineNum">     287 </span><span class="lineCov">          1 :       key.Append(paths[pathIndex]);</span>
+<span class="lineNum">     288 </span><span class="lineCov">          1 :       LOG((&quot;Checking fragment %s&quot;, key.get()));</span>
+<span class="lineNum">     289 </span>            : 
+<span class="lineNum">     290 </span><span class="lineCov">          1 :       aFragments-&gt;AppendElement(key);</span>
+<span class="lineNum">     291 </span>            :     }
+<span class="lineNum">     292 </span>            :   }
+<span class="lineNum">     293 </span>            : 
+<span class="lineNum">     294 </span><span class="lineCov">          1 :   return NS_OK;</span>
+<span class="lineNum">     295 </span>            : }
+<a name="296"><span class="lineNum">     296 </span>            : </a>
+<span class="lineNum">     297 </span>            : /* static */ nsresult
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 : LookupCache::GetHostKeys(const nsACString&amp; aSpec,</span>
+<span class="lineNum">     299 </span>            :                          nsTArray&lt;nsCString&gt;* aHostKeys)
+<span class="lineNum">     300 </span>            : {
+<span class="lineNum">     301 </span>            :   nsACString::const_iterator begin, end, iter;
+<span class="lineNum">     302 </span><span class="lineNoCov">          0 :   aSpec.BeginReading(begin);</span>
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 :   aSpec.EndReading(end);</span>
+<span class="lineNum">     304 </span>            : 
+<span class="lineNum">     305 </span><span class="lineNoCov">          0 :   iter = begin;</span>
+<span class="lineNum">     306 </span><span class="lineNoCov">          0 :   if (!FindCharInReadable('/', iter, end)) {</span>
+<span class="lineNum">     307 </span>            :     return NS_OK;
+<span class="lineNum">     308 </span>            :   }
+<span class="lineNum">     309 </span>            : 
+<span class="lineNum">     310 </span><span class="lineNoCov">          0 :   const nsCSubstring&amp; host = Substring(begin, iter);</span>
+<span class="lineNum">     311 </span>            : 
+<span class="lineNum">     312 </span><span class="lineNoCov">          0 :   if (IsCanonicalizedIP(host)) {</span>
+<span class="lineNum">     313 </span><span class="lineNoCov">          0 :     nsCString *key = aHostKeys-&gt;AppendElement();</span>
+<span class="lineNum">     314 </span><span class="lineNoCov">          0 :     if (!key)</span>
+<span class="lineNum">     315 </span>            :       return NS_ERROR_OUT_OF_MEMORY;
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :     key-&gt;Assign(host);</span>
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :     key-&gt;Append(&quot;/&quot;);</span>
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :     return NS_OK;</span>
+<span class="lineNum">     320 </span>            :   }
+<span class="lineNum">     321 </span>            : 
+<span class="lineNum">     322 </span>            :   nsTArray&lt;nsCString&gt; hostComponents;
+<span class="lineNum">     323 </span><span class="lineNoCov">          0 :   ParseString(PromiseFlatCString(host), '.', hostComponents);</span>
+<span class="lineNum">     324 </span>            : 
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :   if (hostComponents.Length() &lt; 2) {</span>
+<span class="lineNum">     326 </span>            :     // no host or toplevel host, this won't match anything in the db
+<span class="lineNum">     327 </span>            :     return NS_OK;
+<span class="lineNum">     328 </span>            :   }
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span>            :   // First check with two domain components
+<span class="lineNum">     331 </span><span class="lineNoCov">          0 :   int32_t last = int32_t(hostComponents.Length()) - 1;</span>
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :   nsCString *lookupHost = aHostKeys-&gt;AppendElement();</span>
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :   if (!lookupHost)</span>
+<span class="lineNum">     334 </span>            :     return NS_ERROR_OUT_OF_MEMORY;
+<span class="lineNum">     335 </span>            : 
+<span class="lineNum">     336 </span><span class="lineNoCov">          0 :   lookupHost-&gt;Assign(hostComponents[last - 1]);</span>
+<span class="lineNum">     337 </span><span class="lineNoCov">          0 :   lookupHost-&gt;Append(&quot;.&quot;);</span>
+<span class="lineNum">     338 </span><span class="lineNoCov">          0 :   lookupHost-&gt;Append(hostComponents[last]);</span>
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 :   lookupHost-&gt;Append(&quot;/&quot;);</span>
+<span class="lineNum">     340 </span>            : 
+<span class="lineNum">     341 </span>            :   // Now check with three domain components
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 :   if (hostComponents.Length() &gt; 2) {</span>
+<span class="lineNum">     343 </span><span class="lineNoCov">          0 :     nsCString *lookupHost2 = aHostKeys-&gt;AppendElement();</span>
+<span class="lineNum">     344 </span><span class="lineNoCov">          0 :     if (!lookupHost2)</span>
+<span class="lineNum">     345 </span>            :       return NS_ERROR_OUT_OF_MEMORY;
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :     lookupHost2-&gt;Assign(hostComponents[last - 2]);</span>
+<span class="lineNum">     347 </span><span class="lineNoCov">          0 :     lookupHost2-&gt;Append(&quot;.&quot;);</span>
+<span class="lineNum">     348 </span><span class="lineNoCov">          0 :     lookupHost2-&gt;Append(*lookupHost);</span>
+<span class="lineNum">     349 </span>            :   }
+<span class="lineNum">     350 </span>            : 
+<span class="lineNum">     351 </span>            :   return NS_OK;
+<span class="lineNum">     352 </span>            : }
+<a name="353"><span class="lineNum">     353 </span>            : </a>
+<span class="lineNum">     354 </span>            : nsresult
+<span class="lineNum">     355 </span><span class="lineCov">          1 : LookupCache::LoadPrefixSet()</span>
+<span class="lineNum">     356 </span>            : {
+<span class="lineNum">     357 </span>            :   nsCOMPtr&lt;nsIFile&gt; psFile;
+<span class="lineNum">     358 </span><span class="lineCov">          1 :   nsresult rv = mStoreDirectory-&gt;Clone(getter_AddRefs(psFile));</span>
+<span class="lineNum">     359 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     360 </span>            : 
+<span class="lineNum">     361 </span><span class="lineCov">          1 :   rv = psFile-&gt;AppendNative(mTableName + NS_LITERAL_CSTRING(PREFIXSET_SUFFIX));</span>
+<span class="lineNum">     362 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     363 </span>            : 
+<span class="lineNum">     364 </span>            :   bool exists;
+<span class="lineNum">     365 </span><span class="lineCov">          1 :   rv = psFile-&gt;Exists(&amp;exists);</span>
+<span class="lineNum">     366 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     367 </span>            : 
+<span class="lineNum">     368 </span><span class="lineCov">          1 :   if (exists) {</span>
+<span class="lineNum">     369 </span><span class="lineCov">          1 :     LOG((&quot;stored PrefixSet exists, loading from disk&quot;));</span>
+<span class="lineNum">     370 </span><span class="lineCov">          1 :     rv = LoadFromFile(psFile);</span>
+<span class="lineNum">     371 </span><span class="lineCov">          1 :     if (NS_FAILED(rv)) {</span>
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :       if (rv == NS_ERROR_FILE_CORRUPTED) {</span>
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :         Reset();</span>
+<span class="lineNum">     374 </span>            :       }
+<span class="lineNum">     375 </span><span class="lineNoCov">          0 :       return rv;</span>
+<span class="lineNum">     376 </span>            :     }
+<span class="lineNum">     377 </span><span class="lineCov">          1 :     mPrimed = true;</span>
+<span class="lineNum">     378 </span>            :   } else {
+<span class="lineNum">     379 </span><span class="lineCov">          1 :     LOG((&quot;no (usable) stored PrefixSet found&quot;));</span>
+<span class="lineNum">     380 </span>            :   }
+<span class="lineNum">     381 </span>            : 
+<span class="lineNum">     382 </span>            : #ifdef DEBUG
+<span class="lineNum">     383 </span>            :   if (mPrimed) {
+<span class="lineNum">     384 </span>            :     uint32_t size = SizeOfPrefixSet();
+<span class="lineNum">     385 </span>            :     LOG((&quot;SB tree done, size = %d bytes\n&quot;, size));
+<span class="lineNum">     386 </span>            :   }
+<span class="lineNum">     387 </span>            : #endif
+<span class="lineNum">     388 </span>            : 
+<span class="lineNum">     389 </span>            :   return NS_OK;
+<span class="lineNum">     390 </span>            : }
+<a name="391"><span class="lineNum">     391 </span>            : </a>
+<span class="lineNum">     392 </span>            : nsresult
+<span class="lineNum">     393 </span><span class="lineCov">          1 : LookupCacheV2::Init()</span>
+<span class="lineNum">     394 </span>            : {
+<span class="lineNum">     395 </span><span class="lineCov">          1 :   mPrefixSet = new nsUrlClassifierPrefixSet();</span>
+<span class="lineNum">     396 </span><span class="lineCov">          1 :   nsresult rv = mPrefixSet-&gt;Init(mTableName);</span>
+<span class="lineNum">     397 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     398 </span>            : 
+<span class="lineNum">     399 </span>            :   return NS_OK;
+<span class="lineNum">     400 </span>            : }
+<a name="401"><span class="lineNum">     401 </span>            : </a>
+<span class="lineNum">     402 </span>            : nsresult
+<span class="lineNum">     403 </span><span class="lineCov">          1 : LookupCacheV2::Open()</span>
+<span class="lineNum">     404 </span>            : {
+<span class="lineNum">     405 </span><span class="lineCov">          1 :   nsresult rv = LookupCache::Open();</span>
+<span class="lineNum">     406 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     407 </span>            : 
+<span class="lineNum">     408 </span><span class="lineCov">          1 :   LOG((&quot;Reading Completions&quot;));</span>
+<span class="lineNum">     409 </span><span class="lineCov">          1 :   rv = ReadCompletions();</span>
+<span class="lineNum">     410 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     411 </span>            : 
+<span class="lineNum">     412 </span>            :   return NS_OK;
+<span class="lineNum">     413 </span>            : }
+<a name="414"><span class="lineNum">     414 </span>            : </a>
+<span class="lineNum">     415 </span>            : void
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 : LookupCacheV2::ClearAll()</span>
+<span class="lineNum">     417 </span>            : {
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 :   LookupCache::ClearAll();</span>
+<span class="lineNum">     419 </span><span class="lineNoCov">          0 :   mUpdateCompletions.Clear();</span>
+<span class="lineNum">     420 </span><span class="lineNoCov">          0 : }</span>
+<a name="421"><span class="lineNum">     421 </span>            : </a>
+<span class="lineNum">     422 </span>            : nsresult
+<span class="lineNum">     423 </span><span class="lineCov">          1 : LookupCacheV2::Has(const Completion&amp; aCompletion,</span>
+<span class="lineNum">     424 </span>            :                    bool* aHas, uint32_t* aMatchLength,
+<span class="lineNum">     425 </span>            :                    bool* aFromCache)
+<span class="lineNum">     426 </span>            : {
+<span class="lineNum">     427 </span><span class="lineCov">          1 :   *aHas = *aFromCache = false;</span>
+<span class="lineNum">     428 </span><span class="lineCov">          1 :   *aMatchLength = 0;</span>
+<span class="lineNum">     429 </span>            : 
+<span class="lineNum">     430 </span><span class="lineCov">          1 :   uint32_t prefix = aCompletion.ToUint32();</span>
+<span class="lineNum">     431 </span>            : 
+<span class="lineNum">     432 </span>            :   bool found;
+<span class="lineNum">     433 </span><span class="lineCov">          1 :   nsresult rv = mPrefixSet-&gt;Contains(prefix, &amp;found);</span>
+<span class="lineNum">     434 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     435 </span>            : 
+<span class="lineNum">     436 </span><span class="lineCov">          1 :   LOG((&quot;Probe in %s: %X, found %d&quot;, mTableName.get(), prefix, found));</span>
+<span class="lineNum">     437 </span>            : 
+<span class="lineNum">     438 </span><span class="lineCov">          1 :   if (found) {</span>
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :     *aHas = true;</span>
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :     *aMatchLength = PREFIX_SIZE;</span>
+<span class="lineNum">     441 </span>            :   }
+<span class="lineNum">     442 </span>            : 
+<span class="lineNum">     443 </span><span class="lineCov">          1 :   if ((mGetHashCache.BinaryIndexOf(aCompletion) != nsTArray&lt;Completion&gt;::NoIndex) ||</span>
+<span class="lineNum">     444 </span><span class="lineCov">          1 :       (mUpdateCompletions.BinaryIndexOf(aCompletion) != nsTArray&lt;Completion&gt;::NoIndex)) {</span>
+<span class="lineNum">     445 </span><span class="lineCov">          1 :     LOG((&quot;Complete in %s&quot;, mTableName.get()));</span>
+<span class="lineNum">     446 </span><span class="lineCov">          1 :     *aFromCache = true;</span>
+<span class="lineNum">     447 </span><span class="lineCov">          1 :     *aHas = true;</span>
+<span class="lineNum">     448 </span><span class="lineCov">          1 :     *aMatchLength = COMPLETE_SIZE;</span>
+<span class="lineNum">     449 </span>            :   }
+<span class="lineNum">     450 </span>            : 
+<span class="lineNum">     451 </span>            :   return NS_OK;
+<span class="lineNum">     452 </span>            : }
+<a name="453"><span class="lineNum">     453 </span>            : </a>
+<span class="lineNum">     454 </span>            : void
+<span class="lineNum">     455 </span><span class="lineCov">          1 : LookupCacheV2::IsHashEntryConfirmed(const Completion&amp; aEntry,</span>
+<span class="lineNum">     456 </span>            :                                     const TableFreshnessMap&amp; aTableFreshness,
+<span class="lineNum">     457 </span>            :                                     uint32_t aFreshnessGuarantee,
+<span class="lineNum">     458 </span>            :                                     bool* aConfirmed)
+<span class="lineNum">     459 </span>            : {
+<span class="lineNum">     460 </span>            :   int64_t age; // in seconds
+<span class="lineNum">     461 </span><span class="lineCov">          1 :   bool found = aTableFreshness.Get(mTableName, &amp;age);</span>
+<span class="lineNum">     462 </span><span class="lineCov">          1 :   if (!found) {</span>
+<span class="lineNum">     463 </span><span class="lineNoCov">          0 :     *aConfirmed = false;</span>
+<span class="lineNum">     464 </span>            :   } else {
+<span class="lineNum">     465 </span><span class="lineCov">          1 :     int64_t now = (PR_Now() / PR_USEC_PER_SEC);</span>
+<span class="lineNum">     466 </span>            :     MOZ_ASSERT(age &lt;= now);
+<span class="lineNum">     467 </span>            : 
+<span class="lineNum">     468 </span>            :     // Considered completion as unsafe if its table is up-to-date.
+<span class="lineNum">     469 </span><span class="lineCov">          1 :     *aConfirmed = (now - age) &lt; aFreshnessGuarantee;</span>
+<span class="lineNum">     470 </span>            :   }
+<span class="lineNum">     471 </span><span class="lineCov">          1 : }</span>
+<a name="472"><span class="lineNum">     472 </span>            : </a>
+<span class="lineNum">     473 </span>            : bool
+<span class="lineNum">     474 </span><span class="lineCov">          1 : LookupCacheV2::IsEmpty()</span>
+<span class="lineNum">     475 </span>            : {
+<span class="lineNum">     476 </span>            :   bool isEmpty;
+<span class="lineNum">     477 </span><span class="lineCov">          1 :   mPrefixSet-&gt;IsEmpty(&amp;isEmpty);</span>
+<span class="lineNum">     478 </span><span class="lineCov">          1 :   return isEmpty;</span>
+<span class="lineNum">     479 </span>            : }
+<a name="480"><span class="lineNum">     480 </span>            : </a>
+<span class="lineNum">     481 </span>            : nsresult
+<span class="lineNum">     482 </span><span class="lineCov">          1 : LookupCacheV2::Build(AddPrefixArray&amp; aAddPrefixes,</span>
+<span class="lineNum">     483 </span>            :                      AddCompleteArray&amp; aAddCompletes)
+<span class="lineNum">     484 </span>            : {
+<span class="lineNum">     485 </span>            :   Telemetry::Accumulate(Telemetry::URLCLASSIFIER_LC_COMPLETIONS,
+<span class="lineNum">     486 </span><span class="lineCov">          1 :                         static_cast&lt;uint32_t&gt;(aAddCompletes.Length()));</span>
+<span class="lineNum">     487 </span>            : 
+<span class="lineNum">     488 </span><span class="lineCov">          1 :   mUpdateCompletions.Clear();</span>
+<span class="lineNum">     489 </span><span class="lineCov">          1 :   mUpdateCompletions.SetCapacity(aAddCompletes.Length());</span>
+<span class="lineNum">     490 </span><span class="lineCov">          1 :   for (uint32_t i = 0; i &lt; aAddCompletes.Length(); i++) {</span>
+<span class="lineNum">     491 </span><span class="lineCov">          1 :     mUpdateCompletions.AppendElement(aAddCompletes[i].CompleteHash());</span>
+<span class="lineNum">     492 </span>            :   }
+<span class="lineNum">     493 </span><span class="lineCov">          1 :   aAddCompletes.Clear();</span>
+<span class="lineNum">     494 </span><span class="lineCov">          1 :   mUpdateCompletions.Sort();</span>
+<span class="lineNum">     495 </span>            : 
+<span class="lineNum">     496 </span>            :   Telemetry::Accumulate(Telemetry::URLCLASSIFIER_LC_PREFIXES,
+<span class="lineNum">     497 </span><span class="lineCov">          1 :                         static_cast&lt;uint32_t&gt;(aAddPrefixes.Length()));</span>
+<span class="lineNum">     498 </span>            : 
+<span class="lineNum">     499 </span><span class="lineCov">          1 :   nsresult rv = ConstructPrefixSet(aAddPrefixes);</span>
+<span class="lineNum">     500 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     501 </span><span class="lineCov">          1 :   mPrimed = true;</span>
+<span class="lineNum">     502 </span>            : 
+<span class="lineNum">     503 </span><span class="lineCov">          1 :   return NS_OK;</span>
+<span class="lineNum">     504 </span>            : }
+<a name="505"><span class="lineNum">     505 </span>            : </a>
+<span class="lineNum">     506 </span>            : nsresult
+<span class="lineNum">     507 </span><span class="lineCov">          1 : LookupCacheV2::GetPrefixes(FallibleTArray&lt;uint32_t&gt;&amp; aAddPrefixes)</span>
+<span class="lineNum">     508 </span>            : {
+<span class="lineNum">     509 </span><span class="lineCov">          1 :   if (!mPrimed) {</span>
+<span class="lineNum">     510 </span>            :     // This can happen if its a new table, so no error.
+<span class="lineNum">     511 </span><span class="lineCov">          1 :     LOG((&quot;GetPrefixes from empty LookupCache&quot;));</span>
+<span class="lineNum">     512 </span>            :     return NS_OK;
+<span class="lineNum">     513 </span>            :   }
+<span class="lineNum">     514 </span><span class="lineCov">          1 :   return mPrefixSet-&gt;GetPrefixesNative(aAddPrefixes);</span>
+<span class="lineNum">     515 </span>            : }
+<a name="516"><span class="lineNum">     516 </span>            : </a>
+<span class="lineNum">     517 </span>            : nsresult
+<span class="lineNum">     518 </span><span class="lineCov">          1 : LookupCacheV2::ReadCompletions()</span>
+<span class="lineNum">     519 </span>            : {
+<span class="lineNum">     520 </span><span class="lineCov">          1 :   HashStore store(mTableName, mProvider, mRootStoreDirectory);</span>
+<span class="lineNum">     521 </span>            : 
+<span class="lineNum">     522 </span><span class="lineCov">          1 :   nsresult rv = store.Open();</span>
+<span class="lineNum">     523 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     524 </span>            : 
+<span class="lineNum">     525 </span><span class="lineCov">          1 :   mUpdateCompletions.Clear();</span>
+<span class="lineNum">     526 </span>            : 
+<span class="lineNum">     527 </span><span class="lineCov">          1 :   const AddCompleteArray&amp; addComplete = store.AddCompletes();</span>
+<span class="lineNum">     528 </span><span class="lineCov">          1 :   for (uint32_t i = 0; i &lt; addComplete.Length(); i++) {</span>
+<span class="lineNum">     529 </span><span class="lineCov">          1 :     mUpdateCompletions.AppendElement(addComplete[i].complete);</span>
+<span class="lineNum">     530 </span>            :   }
+<span class="lineNum">     531 </span>            : 
+<span class="lineNum">     532 </span><span class="lineCov">          1 :   return NS_OK;</span>
+<span class="lineNum">     533 </span>            : }
+<a name="534"><span class="lineNum">     534 </span>            : </a>
+<span class="lineNum">     535 </span>            : nsresult
+<span class="lineNum">     536 </span><span class="lineNoCov">          0 : LookupCacheV2::ClearPrefixes()</span>
+<span class="lineNum">     537 </span>            : {
+<span class="lineNum">     538 </span><span class="lineNoCov">          0 :   return mPrefixSet-&gt;SetPrefixes(nullptr, 0);</span>
+<span class="lineNum">     539 </span>            : }
+<a name="540"><span class="lineNum">     540 </span>            : </a>
+<span class="lineNum">     541 </span>            : nsresult
+<span class="lineNum">     542 </span><span class="lineCov">          1 : LookupCacheV2::StoreToFile(nsIFile* aFile)</span>
+<span class="lineNum">     543 </span>            : {
+<span class="lineNum">     544 </span><span class="lineCov">          1 :   return mPrefixSet-&gt;StoreToFile(aFile);</span>
+<span class="lineNum">     545 </span>            : }
+<a name="546"><span class="lineNum">     546 </span>            : </a>
+<span class="lineNum">     547 </span>            : nsresult
+<span class="lineNum">     548 </span><span class="lineCov">          1 : LookupCacheV2::LoadFromFile(nsIFile* aFile)</span>
+<span class="lineNum">     549 </span>            : {
+<span class="lineNum">     550 </span><span class="lineCov">          1 :   return mPrefixSet-&gt;LoadFromFile(aFile);</span>
+<span class="lineNum">     551 </span>            : }
+<a name="552"><span class="lineNum">     552 </span>            : </a>
+<span class="lineNum">     553 </span>            : size_t
+<span class="lineNum">     554 </span><span class="lineNoCov">          0 : LookupCacheV2::SizeOfPrefixSet()</span>
+<span class="lineNum">     555 </span>            : {
+<span class="lineNum">     556 </span><span class="lineNoCov">          0 :   return mPrefixSet-&gt;SizeOfIncludingThis(moz_malloc_size_of);</span>
+<span class="lineNum">     557 </span>            : }
+<span class="lineNum">     558 </span>            : 
+<span class="lineNum">     559 </span>            : #ifdef DEBUG
+<span class="lineNum">     560 </span>            : template &lt;class T&gt;
+<span class="lineNum">     561 </span>            : static void EnsureSorted(T* aArray)
+<span class="lineNum">     562 </span>            : {
+<span class="lineNum">     563 </span>            :   typename T::elem_type* start = aArray-&gt;Elements();
+<span class="lineNum">     564 </span>            :   typename T::elem_type* end = aArray-&gt;Elements() + aArray-&gt;Length();
+<span class="lineNum">     565 </span>            :   typename T::elem_type* iter = start;
+<span class="lineNum">     566 </span>            :   typename T::elem_type* previous = start;
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span>            :   while (iter != end) {
+<span class="lineNum">     569 </span>            :     previous = iter;
+<span class="lineNum">     570 </span>            :     ++iter;
+<span class="lineNum">     571 </span>            :     if (iter != end) {
+<span class="lineNum">     572 </span>            :       MOZ_ASSERT(*previous &lt;= *iter);
+<span class="lineNum">     573 </span>            :     }
+<span class="lineNum">     574 </span>            :   }
+<span class="lineNum">     575 </span>            :   return;
+<span class="lineNum">     576 </span>            : }
+<span class="lineNum">     577 </span>            : #endif
+<a name="578"><span class="lineNum">     578 </span>            : </a>
+<span class="lineNum">     579 </span>            : nsresult
+<span class="lineNum">     580 </span><span class="lineCov">          1 : LookupCacheV2::ConstructPrefixSet(AddPrefixArray&amp; aAddPrefixes)</span>
+<span class="lineNum">     581 </span>            : {
+<span class="lineNum">     582 </span><span class="lineCov">          1 :   Telemetry::AutoTimer&lt;Telemetry::URLCLASSIFIER_PS_CONSTRUCT_TIME&gt; timer;</span>
+<span class="lineNum">     583 </span>            : 
+<span class="lineNum">     584 </span>            :   nsTArray&lt;uint32_t&gt; array;
+<span class="lineNum">     585 </span><span class="lineCov">          1 :   if (!array.SetCapacity(aAddPrefixes.Length(), fallible)) {</span>
+<span class="lineNum">     586 </span>            :     return NS_ERROR_OUT_OF_MEMORY;
+<span class="lineNum">     587 </span>            :   }
+<span class="lineNum">     588 </span>            : 
+<span class="lineNum">     589 </span><span class="lineCov">          1 :   for (uint32_t i = 0; i &lt; aAddPrefixes.Length(); i++) {</span>
+<span class="lineNum">     590 </span><span class="lineNoCov">          0 :     array.AppendElement(aAddPrefixes[i].PrefixHash().ToUint32());</span>
+<span class="lineNum">     591 </span>            :   }
+<span class="lineNum">     592 </span><span class="lineCov">          1 :   aAddPrefixes.Clear();</span>
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span>            : #ifdef DEBUG
+<span class="lineNum">     595 </span>            :   // PrefixSet requires sorted order
+<span class="lineNum">     596 </span>            :   EnsureSorted(&amp;array);
+<span class="lineNum">     597 </span>            : #endif
+<span class="lineNum">     598 </span>            : 
+<span class="lineNum">     599 </span>            :   // construct new one, replace old entries
+<span class="lineNum">     600 </span><span class="lineCov">          1 :   nsresult rv = mPrefixSet-&gt;SetPrefixes(array.Elements(), array.Length());</span>
+<span class="lineNum">     601 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     602 </span>            : 
+<span class="lineNum">     603 </span>            : #ifdef DEBUG
+<span class="lineNum">     604 </span>            :   uint32_t size;
+<span class="lineNum">     605 </span>            :   size = mPrefixSet-&gt;SizeOfIncludingThis(moz_malloc_size_of);
+<span class="lineNum">     606 </span>            :   LOG((&quot;SB tree done, size = %d bytes\n&quot;, size));
+<span class="lineNum">     607 </span>            : #endif
+<span class="lineNum">     608 </span>            : 
+<span class="lineNum">     609 </span><span class="lineCov">          1 :   mPrimed = true;</span>
+<span class="lineNum">     610 </span>            : 
+<span class="lineNum">     611 </span><span class="lineCov">          1 :   return NS_OK;</span>
+<span class="lineNum">     612 </span>            : }
+<span class="lineNum">     613 </span>            : 
+<span class="lineNum">     614 </span>            : #if defined(DEBUG)
+<span class="lineNum">     615 </span>            : void
+<span class="lineNum">     616 </span>            : LookupCacheV2::DumpCompletions()
+<span class="lineNum">     617 </span>            : {
+<span class="lineNum">     618 </span>            :   if (!LOG_ENABLED())
+<span class="lineNum">     619 </span>            :     return;
+<span class="lineNum">     620 </span>            : 
+<span class="lineNum">     621 </span>            :   for (uint32_t i = 0; i &lt; mUpdateCompletions.Length(); i++) {
+<span class="lineNum">     622 </span>            :     nsAutoCString str;
+<span class="lineNum">     623 </span>            :     mUpdateCompletions[i].ToHexString(str);
+<span class="lineNum">     624 </span>            :     LOG((&quot;Update: %s&quot;, str.get()));
+<span class="lineNum">     625 </span>            :   }
+<span class="lineNum">     626 </span>            : }
+<span class="lineNum">     627 </span>            : #endif
+<span class="lineNum">     628 </span>            : 
+<span class="lineNum">     629 </span>            : } // namespace safebrowsing
+<span class="lineNum">     630 </span>            : } // namespace mozilla
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

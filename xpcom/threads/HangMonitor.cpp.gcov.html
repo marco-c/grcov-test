@@ -1,0 +1,506 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - xpcom/threads/HangMonitor.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">xpcom/threads</a> - HangMonitor.cpp<span style="font-size: 80%;"> (source / <a href="HangMonitor.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">55</td>
+            <td class="headerCovTableEntry">77</td>
+            <td class="headerCovTableEntryLo">71.4 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">6</td>
+            <td class="headerCovTableEntry">7</td>
+            <td class="headerCovTableEntryMed">85.7 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* vim: set ts=8 sts=2 et sw=2 tw=80: */
+<span class="lineNum">       3 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #include &quot;mozilla/HangMonitor.h&quot;
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &quot;mozilla/Atomics.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;mozilla/BackgroundHangMonitor.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;mozilla/Monitor.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;mozilla/Preferences.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;mozilla/ProcessedStack.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;mozilla/Telemetry.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;mozilla/StaticPtr.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;mozilla/UniquePtr.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;nsReadableUtils.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;mozilla/StackWalk.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;nsThreadUtils.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;nsXULAppAPI.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;GeckoProfiler.h&quot;
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : #ifdef MOZ_CRASHREPORTER
+<span class="lineNum">      24 </span>            : #include &quot;nsExceptionHandler.h&quot;
+<span class="lineNum">      25 </span>            : #endif
+<span class="lineNum">      26 </span>            : 
+<span class="lineNum">      27 </span>            : #ifdef XP_WIN
+<span class="lineNum">      28 </span>            : #include &lt;windows.h&gt;
+<span class="lineNum">      29 </span>            : #endif
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : #if defined(MOZ_GECKO_PROFILER) &amp;&amp; defined(MOZ_PROFILING) &amp;&amp; defined(XP_WIN)
+<span class="lineNum">      32 </span>            :   #define REPORT_CHROME_HANGS
+<span class="lineNum">      33 </span>            : #endif
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : namespace mozilla {
+<span class="lineNum">      36 </span>            : namespace HangMonitor {
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : /**
+<span class="lineNum">      39 </span>            :  * A flag which may be set from within a debugger to disable the hang
+<span class="lineNum">      40 </span>            :  * monitor.
+<span class="lineNum">      41 </span>            :  */
+<span class="lineNum">      42 </span>            : volatile bool gDebugDisableHangMonitor = false;
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span>            : const char kHangMonitorPrefName[] = &quot;hangmonitor.timeout&quot;;
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span>            : #ifdef REPORT_CHROME_HANGS
+<span class="lineNum">      47 </span>            : const char kTelemetryPrefName[] = &quot;toolkit.telemetry.enabled&quot;;
+<span class="lineNum">      48 </span>            : #endif
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            : // Monitor protects gShutdown and gTimeout, but not gTimestamp which rely on
+<span class="lineNum">      51 </span>            : // being atomically set by the processor; synchronization doesn't really matter
+<span class="lineNum">      52 </span>            : // in this use case.
+<span class="lineNum">      53 </span>            : Monitor* gMonitor;
+<span class="lineNum">      54 </span>            : 
+<span class="lineNum">      55 </span>            : // The timeout preference, in seconds.
+<span class="lineNum">      56 </span>            : int32_t gTimeout;
+<span class="lineNum">      57 </span>            : 
+<span class="lineNum">      58 </span>            : PRThread* gThread;
+<span class="lineNum">      59 </span>            : 
+<span class="lineNum">      60 </span>            : // Set when shutdown begins to signal the thread to exit immediately.
+<span class="lineNum">      61 </span>            : bool gShutdown;
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span>            : // The timestamp of the last event notification, or PR_INTERVAL_NO_WAIT if
+<span class="lineNum">      64 </span>            : // we're currently not processing events.
+<span class="lineNum">      65 </span>            : Atomic&lt;PRIntervalTime&gt; gTimestamp(PR_INTERVAL_NO_WAIT);
+<span class="lineNum">      66 </span>            : 
+<span class="lineNum">      67 </span>            : #ifdef REPORT_CHROME_HANGS
+<span class="lineNum">      68 </span>            : // Main thread ID used in reporting chrome hangs under Windows
+<span class="lineNum">      69 </span>            : static HANDLE winMainThreadHandle = nullptr;
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span>            : // Default timeout for reporting chrome hangs to Telemetry (5 seconds)
+<span class="lineNum">      72 </span>            : static const int32_t DEFAULT_CHROME_HANG_INTERVAL = 5;
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span>            : // Maximum number of PCs to gather from the stack
+<span class="lineNum">      75 </span>            : static const int32_t MAX_CALL_STACK_PCS = 400;
+<span class="lineNum">      76 </span>            : #endif
+<span class="lineNum">      77 </span>            : 
+<a name="78"><span class="lineNum">      78 </span>            : // PrefChangedFunc</a>
+<span class="lineNum">      79 </span>            : void
+<span class="lineNum">      80 </span><span class="lineCov">          1 : PrefChanged(const char*, void*)</span>
+<span class="lineNum">      81 </span>            : {
+<span class="lineNum">      82 </span><span class="lineCov">          1 :   int32_t newval = Preferences::GetInt(kHangMonitorPrefName);</span>
+<span class="lineNum">      83 </span>            : #ifdef REPORT_CHROME_HANGS
+<span class="lineNum">      84 </span>            :   // Monitor chrome hangs on the profiling branch if Telemetry enabled
+<span class="lineNum">      85 </span>            :   if (newval == 0) {
+<span class="lineNum">      86 </span>            :     bool telemetryEnabled = Preferences::GetBool(kTelemetryPrefName);
+<span class="lineNum">      87 </span>            :     if (telemetryEnabled) {
+<span class="lineNum">      88 </span>            :       newval = DEFAULT_CHROME_HANG_INTERVAL;
+<span class="lineNum">      89 </span>            :     }
+<span class="lineNum">      90 </span>            :   }
+<span class="lineNum">      91 </span>            : #endif
+<span class="lineNum">      92 </span><span class="lineCov">          1 :   MonitorAutoLock lock(*gMonitor);</span>
+<span class="lineNum">      93 </span><span class="lineCov">          1 :   if (newval != gTimeout) {</span>
+<span class="lineNum">      94 </span><span class="lineNoCov">          0 :     gTimeout = newval;</span>
+<span class="lineNum">      95 </span><span class="lineNoCov">          0 :     lock.Notify();</span>
+<span class="lineNum">      96 </span><span class="lineCov">          1 :   }</span>
+<span class="lineNum">      97 </span><span class="lineCov">          1 : }</span>
+<a name="98"><span class="lineNum">      98 </span>            : </a>
+<span class="lineNum">      99 </span>            : void
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 : Crash()</span>
+<span class="lineNum">     101 </span>            : {
+<span class="lineNum">     102 </span><span class="lineNoCov">          0 :   if (gDebugDisableHangMonitor) {</span>
+<span class="lineNum">     103 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     104 </span>            :   }
+<span class="lineNum">     105 </span>            : 
+<span class="lineNum">     106 </span>            : #ifdef XP_WIN
+<span class="lineNum">     107 </span>            :   if (::IsDebuggerPresent()) {
+<span class="lineNum">     108 </span>            :     return;
+<span class="lineNum">     109 </span>            :   }
+<span class="lineNum">     110 </span>            : #endif
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span>            : #ifdef MOZ_CRASHREPORTER
+<span class="lineNum">     113 </span>            :   // If you change this, you must also deal with the threadsafety of AnnotateCrashReport in
+<span class="lineNum">     114 </span>            :   // non-chrome processes!
+<span class="lineNum">     115 </span>            :   if (GeckoProcessType_Default == XRE_GetProcessType()) {
+<span class="lineNum">     116 </span>            :     CrashReporter::AnnotateCrashReport(NS_LITERAL_CSTRING(&quot;Hang&quot;),
+<span class="lineNum">     117 </span>            :                                        NS_LITERAL_CSTRING(&quot;1&quot;));
+<span class="lineNum">     118 </span>            :   }
+<span class="lineNum">     119 </span>            : #endif
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :   MOZ_CRASH(&quot;HangMonitor triggered&quot;);</span>
+<span class="lineNum">     122 </span>            : }
+<span class="lineNum">     123 </span>            : 
+<span class="lineNum">     124 </span>            : #ifdef REPORT_CHROME_HANGS
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span>            : static void
+<span class="lineNum">     127 </span>            : ChromeStackWalker(uint32_t aFrameNumber, void* aPC, void* aSP, void* aClosure)
+<span class="lineNum">     128 </span>            : {
+<span class="lineNum">     129 </span>            :   MOZ_ASSERT(aClosure);
+<span class="lineNum">     130 </span>            :   std::vector&lt;uintptr_t&gt;* stack =
+<span class="lineNum">     131 </span>            :     static_cast&lt;std::vector&lt;uintptr_t&gt;*&gt;(aClosure);
+<span class="lineNum">     132 </span>            :   if (stack-&gt;size() == MAX_CALL_STACK_PCS) {
+<span class="lineNum">     133 </span>            :     return;
+<span class="lineNum">     134 </span>            :   }
+<span class="lineNum">     135 </span>            :   MOZ_ASSERT(stack-&gt;size() &lt; MAX_CALL_STACK_PCS);
+<span class="lineNum">     136 </span>            :   stack-&gt;push_back(reinterpret_cast&lt;uintptr_t&gt;(aPC));
+<span class="lineNum">     137 </span>            : }
+<span class="lineNum">     138 </span>            : 
+<span class="lineNum">     139 </span>            : static void
+<span class="lineNum">     140 </span>            : GetChromeHangReport(Telemetry::ProcessedStack&amp; aStack,
+<span class="lineNum">     141 </span>            :                     int32_t&amp; aSystemUptime,
+<span class="lineNum">     142 </span>            :                     int32_t&amp; aFirefoxUptime)
+<span class="lineNum">     143 </span>            : {
+<span class="lineNum">     144 </span>            :   MOZ_ASSERT(winMainThreadHandle);
+<span class="lineNum">     145 </span>            : 
+<span class="lineNum">     146 </span>            :   // The thread we're about to suspend might have the alloc lock
+<span class="lineNum">     147 </span>            :   // so allocate ahead of time
+<span class="lineNum">     148 </span>            :   std::vector&lt;uintptr_t&gt; rawStack;
+<span class="lineNum">     149 </span>            :   rawStack.reserve(MAX_CALL_STACK_PCS);
+<span class="lineNum">     150 </span>            : 
+<span class="lineNum">     151 </span>            :   DWORD ret = ::SuspendThread(winMainThreadHandle);
+<span class="lineNum">     152 </span>            :   bool suspended = false;
+<span class="lineNum">     153 </span>            :   if (ret != -1) {
+<span class="lineNum">     154 </span>            :     // SuspendThread is asynchronous, so the thread may still be running. Use
+<span class="lineNum">     155 </span>            :     // GetThreadContext to ensure it's really suspended.
+<span class="lineNum">     156 </span>            :     // See https://blogs.msdn.microsoft.com/oldnewthing/20150205-00/?p=44743.
+<span class="lineNum">     157 </span>            :     CONTEXT context;
+<span class="lineNum">     158 </span>            :     context.ContextFlags = CONTEXT_CONTROL;
+<span class="lineNum">     159 </span>            :     if (::GetThreadContext(winMainThreadHandle, &amp;context)) {
+<span class="lineNum">     160 </span>            :       suspended = true;
+<span class="lineNum">     161 </span>            :     }
+<span class="lineNum">     162 </span>            :   }
+<span class="lineNum">     163 </span>            : 
+<span class="lineNum">     164 </span>            :   if (!suspended) {
+<span class="lineNum">     165 </span>            :     if (ret != -1) {
+<span class="lineNum">     166 </span>            :       MOZ_ALWAYS_TRUE(::ResumeThread(winMainThreadHandle) != DWORD(-1));
+<span class="lineNum">     167 </span>            :     }
+<span class="lineNum">     168 </span>            :     return;
+<span class="lineNum">     169 </span>            :   }
+<span class="lineNum">     170 </span>            : 
+<span class="lineNum">     171 </span>            :   MozStackWalk(ChromeStackWalker, /* skipFrames */ 0, /* maxFrames */ 0,
+<span class="lineNum">     172 </span>            :                reinterpret_cast&lt;void*&gt;(&amp;rawStack),
+<span class="lineNum">     173 </span>            :                reinterpret_cast&lt;uintptr_t&gt;(winMainThreadHandle), nullptr);
+<span class="lineNum">     174 </span>            :   ret = ::ResumeThread(winMainThreadHandle);
+<span class="lineNum">     175 </span>            :   if (ret == -1) {
+<span class="lineNum">     176 </span>            :     return;
+<span class="lineNum">     177 </span>            :   }
+<span class="lineNum">     178 </span>            :   aStack = Telemetry::GetStackAndModules(rawStack);
+<span class="lineNum">     179 </span>            : 
+<span class="lineNum">     180 </span>            :   // Record system uptime (in minutes) at the time of the hang
+<span class="lineNum">     181 </span>            :   aSystemUptime = ((GetTickCount() / 1000) - (gTimeout * 2)) / 60;
+<span class="lineNum">     182 </span>            : 
+<span class="lineNum">     183 </span>            :   // Record Firefox uptime (in minutes) at the time of the hang
+<span class="lineNum">     184 </span>            :   bool error;
+<span class="lineNum">     185 </span>            :   TimeStamp processCreation = TimeStamp::ProcessCreation(error);
+<span class="lineNum">     186 </span>            :   if (!error) {
+<span class="lineNum">     187 </span>            :     TimeDuration td = TimeStamp::Now() - processCreation;
+<span class="lineNum">     188 </span>            :     aFirefoxUptime = (static_cast&lt;int32_t&gt;(td.ToSeconds()) - (gTimeout * 2)) / 60;
+<span class="lineNum">     189 </span>            :   } else {
+<span class="lineNum">     190 </span>            :     aFirefoxUptime = -1;
+<span class="lineNum">     191 </span>            :   }
+<span class="lineNum">     192 </span>            : }
+<span class="lineNum">     193 </span>            : 
+<span class="lineNum">     194 </span>            : #endif
+<a name="195"><span class="lineNum">     195 </span>            : </a>
+<span class="lineNum">     196 </span>            : void
+<span class="lineNum">     197 </span><span class="lineCov">          1 : ThreadMain(void*)</span>
+<span class="lineNum">     198 </span>            : {
+<span class="lineNum">     199 </span>            :   AutoProfilerRegister registerThread(&quot;Hang Monitor&quot;);
+<span class="lineNum">     200 </span><span class="lineCov">          1 :   PR_SetCurrentThreadName(&quot;Hang Monitor&quot;);</span>
+<span class="lineNum">     201 </span>            : 
+<span class="lineNum">     202 </span><span class="lineCov">          1 :   MonitorAutoLock lock(*gMonitor);</span>
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span>            :   // In order to avoid issues with the hang monitor incorrectly triggering
+<span class="lineNum">     205 </span>            :   // during a general system stop such as sleeping, the monitor thread must
+<span class="lineNum">     206 </span>            :   // run twice to trigger hang protection.
+<span class="lineNum">     207 </span><span class="lineCov">          1 :   PRIntervalTime lastTimestamp = 0;</span>
+<span class="lineNum">     208 </span><span class="lineCov">          1 :   int waitCount = 0;</span>
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span>            : #ifdef REPORT_CHROME_HANGS
+<span class="lineNum">     211 </span>            :   Telemetry::ProcessedStack stack;
+<span class="lineNum">     212 </span>            :   int32_t systemUptime = -1;
+<span class="lineNum">     213 </span>            :   int32_t firefoxUptime = -1;
+<span class="lineNum">     214 </span>            :   UniquePtr&lt;HangAnnotations&gt; annotations;
+<span class="lineNum">     215 </span>            : #endif
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span>            :   while (true) {
+<span class="lineNum">     218 </span><span class="lineCov">          1 :     if (gShutdown) {</span>
+<span class="lineNum">     219 </span><span class="lineCov">          1 :       return; // Exit the thread</span>
+<span class="lineNum">     220 </span>            :     }
+<span class="lineNum">     221 </span>            : 
+<span class="lineNum">     222 </span>            :     // avoid rereading the volatile value in this loop
+<span class="lineNum">     223 </span><span class="lineCov">          1 :     PRIntervalTime timestamp = gTimestamp;</span>
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span><span class="lineCov">          1 :     PRIntervalTime now = PR_IntervalNow();</span>
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span><span class="lineCov">          1 :     if (timestamp != PR_INTERVAL_NO_WAIT &amp;&amp;</span>
+<span class="lineNum">     228 </span><span class="lineCov">          1 :         now &lt; timestamp) {</span>
+<span class="lineNum">     229 </span>            :       // 32-bit overflow, reset for another waiting period
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :       timestamp = 1; // lowest legal PRInterval value</span>
+<span class="lineNum">     231 </span>            :     }
+<span class="lineNum">     232 </span>            : 
+<span class="lineNum">     233 </span><span class="lineCov">          1 :     if (timestamp != PR_INTERVAL_NO_WAIT &amp;&amp;</span>
+<span class="lineNum">     234 </span><span class="lineCov">          1 :         timestamp == lastTimestamp &amp;&amp;</span>
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :         gTimeout &gt; 0) {</span>
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :       ++waitCount;</span>
+<span class="lineNum">     237 </span>            : #ifdef REPORT_CHROME_HANGS
+<span class="lineNum">     238 </span>            :       // Capture the chrome-hang stack + Firefox &amp; system uptimes after
+<span class="lineNum">     239 </span>            :       // the minimum hang duration has been reached (not when the hang ends)
+<span class="lineNum">     240 </span>            :       if (waitCount == 2) {
+<span class="lineNum">     241 </span>            :         GetChromeHangReport(stack, systemUptime, firefoxUptime);
+<span class="lineNum">     242 </span>            :         annotations = ChromeHangAnnotatorCallout();
+<span class="lineNum">     243 </span>            :       }
+<span class="lineNum">     244 </span>            : #else
+<span class="lineNum">     245 </span>            :       // This is the crash-on-hang feature.
+<span class="lineNum">     246 </span>            :       // See bug 867313 for the quirk in the waitCount comparison
+<span class="lineNum">     247 </span><span class="lineNoCov">          0 :       if (waitCount &gt;= 2) {</span>
+<span class="lineNum">     248 </span>            :         int32_t delay =
+<span class="lineNum">     249 </span><span class="lineNoCov">          0 :           int32_t(PR_IntervalToSeconds(now - timestamp));</span>
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 :         if (delay &gt;= gTimeout) {</span>
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 :           MonitorAutoUnlock unlock(*gMonitor);</span>
+<span class="lineNum">     252 </span><span class="lineNoCov">          0 :           Crash();</span>
+<span class="lineNum">     253 </span>            :         }
+<span class="lineNum">     254 </span>            :       }
+<span class="lineNum">     255 </span>            : #endif
+<span class="lineNum">     256 </span>            :     } else {
+<span class="lineNum">     257 </span>            : #ifdef REPORT_CHROME_HANGS
+<span class="lineNum">     258 </span>            :       if (waitCount &gt;= 2) {
+<span class="lineNum">     259 </span>            :         uint32_t hangDuration = PR_IntervalToSeconds(now - lastTimestamp);
+<span class="lineNum">     260 </span>            :         Telemetry::RecordChromeHang(hangDuration, stack, systemUptime,
+<span class="lineNum">     261 </span>            :                                     firefoxUptime, Move(annotations));
+<span class="lineNum">     262 </span>            :         stack.Clear();
+<span class="lineNum">     263 </span>            :       }
+<span class="lineNum">     264 </span>            : #endif
+<span class="lineNum">     265 </span>            :       lastTimestamp = timestamp;
+<span class="lineNum">     266 </span>            :       waitCount = 0;
+<span class="lineNum">     267 </span>            :     }
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span>            :     PRIntervalTime timeout;
+<span class="lineNum">     270 </span><span class="lineCov">          1 :     if (gTimeout &lt;= 0) {</span>
+<span class="lineNum">     271 </span>            :       timeout = PR_INTERVAL_NO_TIMEOUT;
+<span class="lineNum">     272 </span>            :     } else {
+<span class="lineNum">     273 </span><span class="lineNoCov">          0 :       timeout = PR_MillisecondsToInterval(gTimeout * 500);</span>
+<span class="lineNum">     274 </span>            :     }
+<span class="lineNum">     275 </span><span class="lineCov">          1 :     lock.Wait(timeout);</span>
+<span class="lineNum">     276 </span>            :   }
+<span class="lineNum">     277 </span>            : }
+<a name="278"><span class="lineNum">     278 </span>            : </a>
+<span class="lineNum">     279 </span>            : void
+<span class="lineNum">     280 </span><span class="lineCov">          1 : Startup()</span>
+<span class="lineNum">     281 </span>            : {
+<span class="lineNum">     282 </span><span class="lineCov">          1 :   if (GeckoProcessType_Default != XRE_GetProcessType() &amp;&amp;</span>
+<span class="lineNum">     283 </span><span class="lineNoCov">          0 :       GeckoProcessType_Content != XRE_GetProcessType()) {</span>
+<span class="lineNum">     284 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">     285 </span>            :   }
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span>            :   MOZ_ASSERT(!gMonitor, &quot;Hang monitor already initialized&quot;);
+<span class="lineNum">     288 </span><span class="lineCov">          1 :   gMonitor = new Monitor(&quot;HangMonitor&quot;);</span>
+<span class="lineNum">     289 </span>            : 
+<span class="lineNum">     290 </span><span class="lineCov">          1 :   Preferences::RegisterCallback(PrefChanged, kHangMonitorPrefName, nullptr);</span>
+<span class="lineNum">     291 </span><span class="lineCov">          1 :   PrefChanged(nullptr, nullptr);</span>
+<span class="lineNum">     292 </span>            : 
+<span class="lineNum">     293 </span>            : #ifdef REPORT_CHROME_HANGS
+<span class="lineNum">     294 </span>            :   Preferences::RegisterCallback(PrefChanged, kTelemetryPrefName, nullptr);
+<span class="lineNum">     295 </span>            :   winMainThreadHandle =
+<span class="lineNum">     296 </span>            :     OpenThread(THREAD_ALL_ACCESS, FALSE, GetCurrentThreadId());
+<span class="lineNum">     297 </span>            :   if (!winMainThreadHandle) {
+<span class="lineNum">     298 </span>            :     return;
+<span class="lineNum">     299 </span>            :   }
+<span class="lineNum">     300 </span>            : #endif
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span>            :   // Don't actually start measuring hangs until we hit the main event loop.
+<span class="lineNum">     303 </span>            :   // This potentially misses a small class of really early startup hangs,
+<span class="lineNum">     304 </span>            :   // but avoids dealing with some xpcshell tests and other situations which
+<span class="lineNum">     305 </span>            :   // start XPCOM but don't ever start the event loop.
+<span class="lineNum">     306 </span><span class="lineCov">          1 :   Suspend();</span>
+<span class="lineNum">     307 </span>            : 
+<span class="lineNum">     308 </span>            :   gThread = PR_CreateThread(PR_USER_THREAD,
+<span class="lineNum">     309 </span>            :                             ThreadMain,
+<span class="lineNum">     310 </span>            :                             nullptr, PR_PRIORITY_LOW, PR_GLOBAL_THREAD,
+<span class="lineNum">     311 </span><span class="lineCov">          1 :                             PR_JOINABLE_THREAD, 0);</span>
+<span class="lineNum">     312 </span>            : }
+<a name="313"><span class="lineNum">     313 </span>            : </a>
+<span class="lineNum">     314 </span>            : void
+<span class="lineNum">     315 </span><span class="lineCov">          1 : Shutdown()</span>
+<span class="lineNum">     316 </span>            : {
+<span class="lineNum">     317 </span><span class="lineCov">          1 :   if (GeckoProcessType_Default != XRE_GetProcessType() &amp;&amp;</span>
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :       GeckoProcessType_Content != XRE_GetProcessType()) {</span>
+<span class="lineNum">     319 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">     320 </span>            :   }
+<span class="lineNum">     321 </span>            : 
+<span class="lineNum">     322 </span>            :   MOZ_ASSERT(gMonitor, &quot;Hang monitor not started&quot;);
+<span class="lineNum">     323 </span>            : 
+<span class="lineNum">     324 </span>            :   {
+<span class="lineNum">     325 </span>            :     // Scope the lock we're going to delete later
+<span class="lineNum">     326 </span><span class="lineCov">          1 :     MonitorAutoLock lock(*gMonitor);</span>
+<span class="lineNum">     327 </span><span class="lineCov">          1 :     gShutdown = true;</span>
+<span class="lineNum">     328 </span><span class="lineCov">          1 :     lock.Notify();</span>
+<span class="lineNum">     329 </span>            :   }
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span>            :   // thread creation could theoretically fail
+<span class="lineNum">     332 </span><span class="lineCov">          1 :   if (gThread) {</span>
+<span class="lineNum">     333 </span><span class="lineCov">          1 :     PR_JoinThread(gThread);</span>
+<span class="lineNum">     334 </span><span class="lineCov">          1 :     gThread = nullptr;</span>
+<span class="lineNum">     335 </span>            :   }
+<span class="lineNum">     336 </span>            : 
+<span class="lineNum">     337 </span><span class="lineCov">          1 :   delete gMonitor;</span>
+<span class="lineNum">     338 </span><span class="lineCov">          1 :   gMonitor = nullptr;</span>
+<span class="lineNum">     339 </span>            : }
+<span class="lineNum">     340 </span>            : 
+<span class="lineNum">     341 </span>            : static bool
+<span class="lineNum">     342 </span>            : IsUIMessageWaiting()
+<span class="lineNum">     343 </span>            : {
+<span class="lineNum">     344 </span>            : #ifndef XP_WIN
+<span class="lineNum">     345 </span>            :   return false;
+<span class="lineNum">     346 </span>            : #else
+<span class="lineNum">     347 </span>            : #define NS_WM_IMEFIRST WM_IME_SETCONTEXT
+<span class="lineNum">     348 </span>            : #define NS_WM_IMELAST  WM_IME_KEYUP
+<span class="lineNum">     349 </span>            :   BOOL haveUIMessageWaiting = FALSE;
+<span class="lineNum">     350 </span>            :   MSG msg;
+<span class="lineNum">     351 </span>            :   haveUIMessageWaiting |= ::PeekMessageW(&amp;msg, nullptr, WM_KEYFIRST,
+<span class="lineNum">     352 </span>            :                                          WM_IME_KEYLAST, PM_NOREMOVE);
+<span class="lineNum">     353 </span>            :   haveUIMessageWaiting |= ::PeekMessageW(&amp;msg, nullptr, NS_WM_IMEFIRST,
+<span class="lineNum">     354 </span>            :                                          NS_WM_IMELAST, PM_NOREMOVE);
+<span class="lineNum">     355 </span>            :   haveUIMessageWaiting |= ::PeekMessageW(&amp;msg, nullptr, WM_MOUSEFIRST,
+<span class="lineNum">     356 </span>            :                                          WM_MOUSELAST, PM_NOREMOVE);
+<span class="lineNum">     357 </span>            :   return haveUIMessageWaiting;
+<span class="lineNum">     358 </span>            : #endif
+<span class="lineNum">     359 </span>            : }
+<a name="360"><span class="lineNum">     360 </span>            : </a>
+<span class="lineNum">     361 </span>            : void
+<span class="lineNum">     362 </span><span class="lineCov">          1 : NotifyActivity(ActivityType aActivityType)</span>
+<span class="lineNum">     363 </span>            : {
+<span class="lineNum">     364 </span>            :   MOZ_ASSERT(NS_IsMainThread(),
+<span class="lineNum">     365 </span>            :              &quot;HangMonitor::Notify called from off the main thread.&quot;);
+<span class="lineNum">     366 </span>            : 
+<span class="lineNum">     367 </span>            :   // Determine the activity type more specifically
+<span class="lineNum">     368 </span><span class="lineCov">          1 :   if (aActivityType == kGeneralActivity) {</span>
+<span class="lineNum">     369 </span>            :     aActivityType = IsUIMessageWaiting() ? kActivityUIAVail :
+<span class="lineNum">     370 </span><span class="lineCov">          1 :                                            kActivityNoUIAVail;</span>
+<span class="lineNum">     371 </span>            :   }
+<span class="lineNum">     372 </span>            : 
+<span class="lineNum">     373 </span>            :   // Calculate the cumulative amount of lag time since the last UI message
+<span class="lineNum">     374 </span>            :   static uint32_t cumulativeUILagMS = 0;
+<span class="lineNum">     375 </span><span class="lineCov">          1 :   switch (aActivityType) {</span>
+<span class="lineNum">     376 </span>            :     case kActivityNoUIAVail:
+<span class="lineNum">     377 </span><span class="lineCov">          1 :       cumulativeUILagMS = 0;</span>
+<span class="lineNum">     378 </span><span class="lineCov">          1 :       break;</span>
+<span class="lineNum">     379 </span>            :     case kActivityUIAVail:
+<span class="lineNum">     380 </span>            :     case kUIActivity:
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 :       if (gTimestamp != PR_INTERVAL_NO_WAIT) {</span>
+<span class="lineNum">     382 </span><span class="lineNoCov">          0 :         cumulativeUILagMS += PR_IntervalToMilliseconds(PR_IntervalNow() -</span>
+<span class="lineNum">     383 </span><span class="lineNoCov">          0 :                                                        gTimestamp);</span>
+<span class="lineNum">     384 </span>            :       }
+<span class="lineNum">     385 </span>            :       break;
+<span class="lineNum">     386 </span>            :     default:
+<span class="lineNum">     387 </span>            :       break;
+<span class="lineNum">     388 </span>            :   }
+<span class="lineNum">     389 </span>            : 
+<span class="lineNum">     390 </span>            :   // This is not a locked activity because PRTimeStamp is a 32-bit quantity
+<span class="lineNum">     391 </span>            :   // which can be read/written atomically, and we don't want to pay locking
+<span class="lineNum">     392 </span>            :   // penalties here.
+<span class="lineNum">     393 </span><span class="lineCov">          1 :   gTimestamp = PR_IntervalNow();</span>
+<span class="lineNum">     394 </span>            : 
+<span class="lineNum">     395 </span>            :   // If we have UI activity we should reset the timer and report it
+<span class="lineNum">     396 </span><span class="lineCov">          1 :   if (aActivityType == kUIActivity) {</span>
+<span class="lineNum">     397 </span>            :     mozilla::Telemetry::Accumulate(mozilla::Telemetry::EVENTLOOP_UI_ACTIVITY_EXP_MS,
+<span class="lineNum">     398 </span><span class="lineNoCov">          0 :                                      cumulativeUILagMS);</span>
+<span class="lineNum">     399 </span><span class="lineNoCov">          0 :     cumulativeUILagMS = 0;</span>
+<span class="lineNum">     400 </span>            :   }
+<span class="lineNum">     401 </span>            : 
+<span class="lineNum">     402 </span><span class="lineCov">          1 :   if (gThread &amp;&amp; !gShutdown) {</span>
+<span class="lineNum">     403 </span><span class="lineCov">          1 :     mozilla::BackgroundHangMonitor().NotifyActivity();</span>
+<span class="lineNum">     404 </span>            :   }
+<span class="lineNum">     405 </span><span class="lineCov">          1 : }</span>
+<a name="406"><span class="lineNum">     406 </span>            : </a>
+<span class="lineNum">     407 </span>            : void
+<span class="lineNum">     408 </span><span class="lineCov">          1 : Suspend()</span>
+<span class="lineNum">     409 </span>            : {
+<span class="lineNum">     410 </span>            :   MOZ_ASSERT(NS_IsMainThread(),
+<span class="lineNum">     411 </span>            :              &quot;HangMonitor::Suspend called from off the main thread.&quot;);
+<span class="lineNum">     412 </span>            : 
+<span class="lineNum">     413 </span>            :   // Because gTimestamp changes this resets the wait count.
+<span class="lineNum">     414 </span>            :   gTimestamp = PR_INTERVAL_NO_WAIT;
+<span class="lineNum">     415 </span>            : 
+<span class="lineNum">     416 </span><span class="lineCov">          1 :   if (gThread &amp;&amp; !gShutdown) {</span>
+<span class="lineNum">     417 </span><span class="lineCov">          1 :     mozilla::BackgroundHangMonitor().NotifyWait();</span>
+<span class="lineNum">     418 </span>            :   }
+<span class="lineNum">     419 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span>            : } // namespace HangMonitor
+<span class="lineNum">     422 </span>            : } // namespace mozilla
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

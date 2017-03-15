@@ -1,0 +1,705 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - js/src/frontend/SyntaxParseHandler.h</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">js/src/frontend</a> - SyntaxParseHandler.h<span style="font-size: 80%;"> (source / <a href="SyntaxParseHandler.h.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">39</td>
+            <td class="headerCovTableEntry">39</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntryHi">-</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-</a>
+<span class="lineNum">       2 </span>            :  * vim: set ts=8 sts=4 et sw=4 tw=99:
+<span class="lineNum">       3 </span>            :  * This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #ifndef frontend_SyntaxParseHandler_h
+<span class="lineNum">       8 </span>            : #define frontend_SyntaxParseHandler_h
+<span class="lineNum">       9 </span>            : 
+<span class="lineNum">      10 </span>            : #include &quot;mozilla/Attributes.h&quot;
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : #include &lt;string.h&gt;
+<span class="lineNum">      13 </span>            : 
+<span class="lineNum">      14 </span>            : #include &quot;frontend/ParseNode.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;frontend/TokenStream.h&quot;
+<span class="lineNum">      16 </span>            : 
+<span class="lineNum">      17 </span>            : namespace js {
+<span class="lineNum">      18 </span>            : namespace frontend {
+<span class="lineNum">      19 </span>            : 
+<span class="lineNum">      20 </span>            : template &lt;typename ParseHandler&gt;
+<span class="lineNum">      21 </span>            : class Parser;
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : // Parse handler used when processing the syntax in a block of code, to generate
+<span class="lineNum">      24 </span>            : // the minimal information which is required to detect syntax errors and allow
+<span class="lineNum">      25 </span>            : // bytecode to be emitted for outer functions.
+<span class="lineNum">      26 </span>            : //
+<span class="lineNum">      27 </span>            : // When parsing, we start at the top level with a full parse, and when possible
+<span class="lineNum">      28 </span>            : // only check the syntax for inner functions, so that they can be lazily parsed
+<span class="lineNum">      29 </span>            : // into bytecode when/if they first run. Checking the syntax of a function is
+<span class="lineNum">      30 </span>            : // several times faster than doing a full parse/emit, and lazy parsing improves
+<span class="lineNum">      31 </span>            : // both performance and memory usage significantly when pages contain large
+<span class="lineNum">      32 </span>            : // amounts of code that never executes (which happens often).
+<span class="lineNum">      33 </span>            : class SyntaxParseHandler
+<span class="lineNum">      34 </span>            : {
+<span class="lineNum">      35 </span>            :     // Remember the last encountered name or string literal during syntax parses.
+<span class="lineNum">      36 </span>            :     JSAtom* lastAtom;
+<span class="lineNum">      37 </span>            :     TokenPos lastStringPos;
+<span class="lineNum">      38 </span>            :     TokenStream&amp; tokenStream;
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            :   public:
+<span class="lineNum">      41 </span>            :     enum Node {
+<span class="lineNum">      42 </span>            :         NodeFailure = 0,
+<span class="lineNum">      43 </span>            :         NodeGeneric,
+<span class="lineNum">      44 </span>            :         NodeGetProp,
+<span class="lineNum">      45 </span>            :         NodeStringExprStatement,
+<span class="lineNum">      46 </span>            :         NodeReturn,
+<span class="lineNum">      47 </span>            :         NodeBreak,
+<span class="lineNum">      48 </span>            :         NodeThrow,
+<span class="lineNum">      49 </span>            :         NodeEmptyStatement,
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            :         NodeVarDeclaration,
+<span class="lineNum">      52 </span>            :         NodeLexicalDeclaration,
+<span class="lineNum">      53 </span>            : 
+<span class="lineNum">      54 </span>            :         NodeFunctionDefinition,
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span>            :         // This is needed for proper assignment-target handling.  ES6 formally
+<span class="lineNum">      57 </span>            :         // requires function calls *not* pass IsValidSimpleAssignmentTarget,
+<span class="lineNum">      58 </span>            :         // but at last check there were still sites with |f() = 5| and similar
+<span class="lineNum">      59 </span>            :         // in code not actually executed (or at least not executed enough to be
+<span class="lineNum">      60 </span>            :         // noticed).
+<span class="lineNum">      61 </span>            :         NodeFunctionCall,
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span>            :         // Nodes representing *parenthesized* IsValidSimpleAssignmentTarget
+<span class="lineNum">      64 </span>            :         // nodes.  We can't simply treat all such parenthesized nodes
+<span class="lineNum">      65 </span>            :         // identically, because in assignment and increment/decrement contexts
+<span class="lineNum">      66 </span>            :         // ES6 says that parentheses constitute a syntax error.
+<span class="lineNum">      67 </span>            :         //
+<span class="lineNum">      68 </span>            :         //   var obj = {};
+<span class="lineNum">      69 </span>            :         //   var val;
+<span class="lineNum">      70 </span>            :         //   (val) = 3; (obj.prop) = 4;       // okay per ES5's little mind
+<span class="lineNum">      71 </span>            :         //   [(a)] = [3]; [(obj.prop)] = [4]; // invalid ES6 syntax
+<span class="lineNum">      72 </span>            :         //   // ...and so on for the other IsValidSimpleAssignmentTarget nodes
+<span class="lineNum">      73 </span>            :         //
+<span class="lineNum">      74 </span>            :         // We don't know in advance in the current parser when we're parsing
+<span class="lineNum">      75 </span>            :         // in a place where name parenthesization changes meaning, so we must
+<span class="lineNum">      76 </span>            :         // have multiple node values for these cases.
+<span class="lineNum">      77 </span>            :         NodeParenthesizedArgumentsName,
+<span class="lineNum">      78 </span>            :         NodeParenthesizedEvalName,
+<span class="lineNum">      79 </span>            :         NodeParenthesizedName,
+<span class="lineNum">      80 </span>            : 
+<span class="lineNum">      81 </span>            :         NodeDottedProperty,
+<span class="lineNum">      82 </span>            :         NodeElement,
+<span class="lineNum">      83 </span>            : 
+<span class="lineNum">      84 </span>            :         // Destructuring target patterns can't be parenthesized: |([a]) = [3];|
+<span class="lineNum">      85 </span>            :         // must be a syntax error.  (We can't use NodeGeneric instead of these
+<span class="lineNum">      86 </span>            :         // because that would trigger invalid-left-hand-side ReferenceError
+<span class="lineNum">      87 </span>            :         // semantics when SyntaxError semantics are desired.)
+<span class="lineNum">      88 </span>            :         NodeParenthesizedArray,
+<span class="lineNum">      89 </span>            :         NodeParenthesizedObject,
+<span class="lineNum">      90 </span>            : 
+<span class="lineNum">      91 </span>            :         // In rare cases a parenthesized |node| doesn't have the same semantics
+<span class="lineNum">      92 </span>            :         // as |node|.  Each such node has a special Node value, and we use a
+<span class="lineNum">      93 </span>            :         // different Node value to represent the parenthesized form.  See also
+<span class="lineNum">      94 </span>            :         // is{Unp,P}arenthesized*(Node), parenthesize(Node), and the various
+<span class="lineNum">      95 </span>            :         // functions that deal in NodeUnparenthesized* below.
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span>            :         // Nodes representing unparenthesized names.
+<span class="lineNum">      98 </span>            :         NodeUnparenthesizedArgumentsName,
+<span class="lineNum">      99 </span>            :         NodeUnparenthesizedEvalName,
+<span class="lineNum">     100 </span>            :         NodeUnparenthesizedName,
+<span class="lineNum">     101 </span>            : 
+<span class="lineNum">     102 </span>            :         // Node representing the &quot;async&quot; name, which may actually be a
+<span class="lineNum">     103 </span>            :         // contextual keyword.
+<span class="lineNum">     104 </span>            :         NodePotentialAsyncKeyword,
+<span class="lineNum">     105 </span>            : 
+<span class="lineNum">     106 </span>            :         // Valuable for recognizing potential destructuring patterns.
+<span class="lineNum">     107 </span>            :         NodeUnparenthesizedArray,
+<span class="lineNum">     108 </span>            :         NodeUnparenthesizedObject,
+<span class="lineNum">     109 </span>            : 
+<span class="lineNum">     110 </span>            :         // The directive prologue at the start of a FunctionBody or ScriptBody
+<span class="lineNum">     111 </span>            :         // is the longest sequence (possibly empty) of string literal
+<span class="lineNum">     112 </span>            :         // expression statements at the start of a function.  Thus we need this
+<span class="lineNum">     113 </span>            :         // to treat |&quot;use strict&quot;;| as a possible Use Strict Directive and
+<span class="lineNum">     114 </span>            :         // |(&quot;use strict&quot;);| as a useless statement.
+<span class="lineNum">     115 </span>            :         NodeUnparenthesizedString,
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            :         // Legacy generator expressions of the form |(expr for (...))| and
+<span class="lineNum">     118 </span>            :         // array comprehensions of the form |[expr for (...)]|) don't permit
+<span class="lineNum">     119 </span>            :         // |expr| to be a comma expression.  Thus we need this to treat
+<span class="lineNum">     120 </span>            :         // |(a(), b for (x in []))| as a syntax error and
+<span class="lineNum">     121 </span>            :         // |((a(), b) for (x in []))| as a generator that calls |a| and then
+<span class="lineNum">     122 </span>            :         // yields |b| each time it's resumed.
+<span class="lineNum">     123 </span>            :         NodeUnparenthesizedCommaExpr,
+<span class="lineNum">     124 </span>            : 
+<span class="lineNum">     125 </span>            :         // Assignment expressions in condition contexts could be typos for
+<span class="lineNum">     126 </span>            :         // equality checks.  (Think |if (x = y)| versus |if (x == y)|.)  Thus
+<span class="lineNum">     127 </span>            :         // we need this to treat |if (x = y)| as a possible typo and
+<span class="lineNum">     128 </span>            :         // |if ((x = y))| as a deliberate assignment within a condition.
+<span class="lineNum">     129 </span>            :         //
+<span class="lineNum">     130 </span>            :         // (Technically this isn't needed, as these are *only* extraWarnings
+<span class="lineNum">     131 </span>            :         // warnings, and parsing with that option disables syntax parsing.  But
+<span class="lineNum">     132 </span>            :         // it seems best to be consistent, and perhaps the syntax parser will
+<span class="lineNum">     133 </span>            :         // eventually enforce extraWarnings and will require this then.)
+<span class="lineNum">     134 </span>            :         NodeUnparenthesizedAssignment,
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span>            :         // This node is necessary to determine if the base operand in an
+<span class="lineNum">     137 </span>            :         // exponentiation operation is an unparenthesized unary expression.
+<span class="lineNum">     138 </span>            :         // We want to reject |-2 ** 3|, but still need to allow |(-2) ** 3|.
+<span class="lineNum">     139 </span>            :         NodeUnparenthesizedUnary,
+<span class="lineNum">     140 </span>            : 
+<span class="lineNum">     141 </span>            :         // This node is necessary to determine if the LHS of a property access is
+<span class="lineNum">     142 </span>            :         // super related.
+<span class="lineNum">     143 </span>            :         NodeSuperBase
+<span class="lineNum">     144 </span>            :     };
+<span class="lineNum">     145 </span>            : 
+<span class="lineNum">     146 </span>            :     bool isPropertyAccess(Node node) {
+<span class="lineNum">     147 </span><span class="lineCov">          1 :         return node == NodeDottedProperty || node == NodeElement;</span>
+<span class="lineNum">     148 </span>            :     }
+<span class="lineNum">     149 </span>            : 
+<span class="lineNum">     150 </span>            :     bool isFunctionCall(Node node) {
+<span class="lineNum">     151 </span>            :         // Note: super() is a special form, *not* a function call.
+<span class="lineNum">     152 </span>            :         return node == NodeFunctionCall;
+<span class="lineNum">     153 </span>            :     }
+<span class="lineNum">     154 </span>            : 
+<span class="lineNum">     155 </span>            :     static bool isUnparenthesizedDestructuringPattern(Node node) {
+<span class="lineNum">     156 </span><span class="lineCov">          1 :         return node == NodeUnparenthesizedArray || node == NodeUnparenthesizedObject;</span>
+<span class="lineNum">     157 </span>            :     }
+<span class="lineNum">     158 </span>            : 
+<span class="lineNum">     159 </span>            :     static bool isParenthesizedDestructuringPattern(Node node) {
+<span class="lineNum">     160 </span>            :         // Technically this isn't a destructuring target at all -- the grammar
+<span class="lineNum">     161 </span>            :         // doesn't treat it as such.  But we need to know when this happens to
+<span class="lineNum">     162 </span>            :         // consider it a SyntaxError rather than an invalid-left-hand-side
+<span class="lineNum">     163 </span>            :         // ReferenceError.
+<span class="lineNum">     164 </span>            :         return node == NodeParenthesizedArray || node == NodeParenthesizedObject;
+<span class="lineNum">     165 </span>            :     }
+<span class="lineNum">     166 </span>            : 
+<span class="lineNum">     167 </span>            :     static bool isDestructuringPatternAnyParentheses(Node node) {
+<span class="lineNum">     168 </span>            :         return isUnparenthesizedDestructuringPattern(node) ||
+<span class="lineNum">     169 </span>            :                 isParenthesizedDestructuringPattern(node);
+<span class="lineNum">     170 </span>            :     }
+<span class="lineNum">     171 </span>            : 
+<span class="lineNum">     172 </span>            :   public:
+<span class="lineNum">     173 </span>            :     SyntaxParseHandler(JSContext* cx, LifoAlloc&amp; alloc,
+<span class="lineNum">     174 </span>            :                        TokenStream&amp; tokenStream, Parser&lt;SyntaxParseHandler&gt;* syntaxParser,
+<span class="lineNum">     175 </span>            :                        LazyScript* lazyOuterFunction)
+<span class="lineNum">     176 </span>            :       : lastAtom(nullptr),
+<span class="lineNum">     177 </span><span class="lineCov">          1 :         tokenStream(tokenStream)</span>
+<span class="lineNum">     178 </span>            :     {}
+<span class="lineNum">     179 </span>            : 
+<span class="lineNum">     180 </span>            :     static Node null() { return NodeFailure; }
+<span class="lineNum">     181 </span>            : 
+<span class="lineNum">     182 </span>            :     void prepareNodeForMutation(Node node) {}
+<span class="lineNum">     183 </span>            :     void freeTree(Node node) {}
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span>            :     void trace(JSTracer* trc) {}
+<span class="lineNum">     186 </span>            : 
+<span class="lineNum">     187 </span>            :     Node newName(PropertyName* name, const TokenPos&amp; pos, JSContext* cx) {
+<span class="lineNum">     188 </span><span class="lineCov">          1 :         lastAtom = name;</span>
+<span class="lineNum">     189 </span><span class="lineCov">          1 :         if (name == cx-&gt;names().arguments)</span>
+<span class="lineNum">     190 </span>            :             return NodeUnparenthesizedArgumentsName;
+<span class="lineNum">     191 </span><span class="lineCov">          1 :         if (pos.begin + strlen(&quot;async&quot;) == pos.end &amp;&amp; name == cx-&gt;names().async)</span>
+<span class="lineNum">     192 </span>            :             return NodePotentialAsyncKeyword;
+<span class="lineNum">     193 </span><span class="lineCov">          1 :         if (name == cx-&gt;names().eval)</span>
+<span class="lineNum">     194 </span>            :             return NodeUnparenthesizedEvalName;
+<span class="lineNum">     195 </span>            :         return NodeUnparenthesizedName;
+<span class="lineNum">     196 </span>            :     }
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span>            :     Node newComputedName(Node expr, uint32_t start, uint32_t end) {
+<span class="lineNum">     199 </span>            :         return NodeGeneric;
+<span class="lineNum">     200 </span>            :     }
+<span class="lineNum">     201 </span>            : 
+<span class="lineNum">     202 </span>            :     Node newObjectLiteralPropertyName(JSAtom* atom, const TokenPos&amp; pos) {
+<span class="lineNum">     203 </span>            :         return NodeUnparenthesizedName;
+<span class="lineNum">     204 </span>            :     }
+<span class="lineNum">     205 </span>            : 
+<span class="lineNum">     206 </span>            :     Node newNumber(double value, DecimalPoint decimalPoint, const TokenPos&amp; pos) { return NodeGeneric; }
+<span class="lineNum">     207 </span>            :     Node newBooleanLiteral(bool cond, const TokenPos&amp; pos) { return NodeGeneric; }
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span>            :     Node newStringLiteral(JSAtom* atom, const TokenPos&amp; pos) {
+<span class="lineNum">     210 </span><span class="lineCov">          1 :         lastAtom = atom;</span>
+<span class="lineNum">     211 </span><span class="lineCov">          1 :         lastStringPos = pos;</span>
+<span class="lineNum">     212 </span>            :         return NodeUnparenthesizedString;
+<span class="lineNum">     213 </span>            :     }
+<span class="lineNum">     214 </span>            : 
+<span class="lineNum">     215 </span>            :     Node newTemplateStringLiteral(JSAtom* atom, const TokenPos&amp; pos) {
+<span class="lineNum">     216 </span>            :         return NodeGeneric;
+<span class="lineNum">     217 </span>            :     }
+<span class="lineNum">     218 </span>            : 
+<span class="lineNum">     219 </span>            :     Node newCallSiteObject(uint32_t begin) {
+<span class="lineNum">     220 </span>            :         return NodeGeneric;
+<span class="lineNum">     221 </span>            :     }
+<span class="lineNum">     222 </span>            : 
+<span class="lineNum">     223 </span>            :     void addToCallSiteObject(Node callSiteObj, Node rawNode, Node cookedNode) {}
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span>            :     Node newThisLiteral(const TokenPos&amp; pos, Node thisName) { return NodeGeneric; }
+<span class="lineNum">     226 </span>            :     Node newNullLiteral(const TokenPos&amp; pos) { return NodeGeneric; }
+<span class="lineNum">     227 </span>            :     Node newRawUndefinedLiteral(const TokenPos&amp; pos) { return NodeGeneric; }
+<span class="lineNum">     228 </span>            : 
+<span class="lineNum">     229 </span>            :     template &lt;class Boxer&gt;
+<span class="lineNum">     230 </span>            :     Node newRegExp(RegExpObject* reobj, const TokenPos&amp; pos, Boxer&amp; boxer) { return NodeGeneric; }
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span>            :     Node newConditional(Node cond, Node thenExpr, Node elseExpr) { return NodeGeneric; }
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span>            :     Node newElision() { return NodeGeneric; }
+<span class="lineNum">     235 </span>            : 
+<span class="lineNum">     236 </span>            :     Node newDelete(uint32_t begin, Node expr) {
+<span class="lineNum">     237 </span>            :         return NodeUnparenthesizedUnary;
+<span class="lineNum">     238 </span>            :     }
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span>            :     Node newTypeof(uint32_t begin, Node kid) {
+<span class="lineNum">     241 </span>            :         return NodeUnparenthesizedUnary;
+<span class="lineNum">     242 </span>            :     }
+<span class="lineNum">     243 </span>            : 
+<span class="lineNum">     244 </span>            :     Node newNullary(ParseNodeKind kind, JSOp op, const TokenPos&amp; pos) {
+<span class="lineNum">     245 </span>            :         return NodeGeneric;
+<span class="lineNum">     246 </span>            :     }
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span>            :     Node newUnary(ParseNodeKind kind, JSOp op, uint32_t begin, Node kid) {
+<span class="lineNum">     249 </span>            :         return NodeUnparenthesizedUnary;
+<span class="lineNum">     250 </span>            :     }
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span>            :     Node newUpdate(ParseNodeKind kind, uint32_t begin, Node kid) {
+<span class="lineNum">     253 </span>            :         return NodeGeneric;
+<span class="lineNum">     254 </span>            :     }
+<span class="lineNum">     255 </span>            : 
+<span class="lineNum">     256 </span>            :     Node newSpread(uint32_t begin, Node kid) {
+<span class="lineNum">     257 </span>            :         return NodeGeneric;
+<span class="lineNum">     258 </span>            :     }
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span>            :     Node newArrayPush(uint32_t begin, Node kid) {
+<span class="lineNum">     261 </span>            :         return NodeGeneric;
+<span class="lineNum">     262 </span>            :     }
+<span class="lineNum">     263 </span>            : 
+<span class="lineNum">     264 </span>            :     Node newBinary(ParseNodeKind kind, JSOp op = JSOP_NOP) { return NodeGeneric; }
+<span class="lineNum">     265 </span>            :     Node newBinary(ParseNodeKind kind, Node left, JSOp op = JSOP_NOP) { return NodeGeneric; }
+<span class="lineNum">     266 </span>            :     Node newBinary(ParseNodeKind kind, Node left, Node right, JSOp op = JSOP_NOP) {
+<span class="lineNum">     267 </span>            :         return NodeGeneric;
+<span class="lineNum">     268 </span>            :     }
+<span class="lineNum">     269 </span>            :     Node appendOrCreateList(ParseNodeKind kind, Node left, Node right,
+<span class="lineNum">     270 </span>            :                             ParseContext* pc, JSOp op = JSOP_NOP) {
+<span class="lineNum">     271 </span>            :         return NodeGeneric;
+<span class="lineNum">     272 </span>            :     }
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span>            :     Node newTernary(ParseNodeKind kind, Node first, Node second, Node third, JSOp op = JSOP_NOP) {
+<span class="lineNum">     275 </span>            :         return NodeGeneric;
+<span class="lineNum">     276 </span>            :     }
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span>            :     // Expressions
+<span class="lineNum">     279 </span>            : 
+<span class="lineNum">     280 </span>            :     Node newArrayComprehension(Node body, const TokenPos&amp; pos) { return NodeGeneric; }
+<span class="lineNum">     281 </span>            :     Node newArrayLiteral(uint32_t begin) { return NodeUnparenthesizedArray; }
+<span class="lineNum">     282 </span>            :     MOZ_MUST_USE bool addElision(Node literal, const TokenPos&amp; pos) { return true; }
+<span class="lineNum">     283 </span>            :     MOZ_MUST_USE bool addSpreadElement(Node literal, uint32_t begin, Node inner) { return true; }
+<span class="lineNum">     284 </span>            :     void addArrayElement(Node literal, Node element) { }
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span>            :     Node newCall() { return NodeFunctionCall; }
+<span class="lineNum">     287 </span>            :     Node newTaggedTemplate() { return NodeGeneric; }
+<span class="lineNum">     288 </span>            : 
+<span class="lineNum">     289 </span>            :     Node newObjectLiteral(uint32_t begin) { return NodeUnparenthesizedObject; }
+<span class="lineNum">     290 </span>            :     Node newClassMethodList(uint32_t begin) { return NodeGeneric; }
+<span class="lineNum">     291 </span>            :     Node newClassNames(Node outer, Node inner, const TokenPos&amp; pos) { return NodeGeneric; }
+<span class="lineNum">     292 </span>            :     Node newClass(Node name, Node heritage, Node methodBlock) { return NodeGeneric; }
+<span class="lineNum">     293 </span>            : 
+<span class="lineNum">     294 </span>            :     Node newNewTarget(Node newHolder, Node targetHolder) { return NodeGeneric; }
+<span class="lineNum">     295 </span>            :     Node newPosHolder(const TokenPos&amp; pos) { return NodeGeneric; }
+<span class="lineNum">     296 </span>            :     Node newSuperBase(Node thisName, const TokenPos&amp; pos) { return NodeSuperBase; }
+<span class="lineNum">     297 </span>            : 
+<span class="lineNum">     298 </span>            :     MOZ_MUST_USE bool addPrototypeMutation(Node literal, uint32_t begin, Node expr) { return true; }
+<span class="lineNum">     299 </span>            :     MOZ_MUST_USE bool addPropertyDefinition(Node literal, Node name, Node expr) { return true; }
+<span class="lineNum">     300 </span>            :     MOZ_MUST_USE bool addShorthand(Node literal, Node name, Node expr) { return true; }
+<span class="lineNum">     301 </span>            :     MOZ_MUST_USE bool addObjectMethodDefinition(Node literal, Node name, Node fn, JSOp op) { return true; }
+<span class="lineNum">     302 </span>            :     MOZ_MUST_USE bool addClassMethodDefinition(Node literal, Node name, Node fn, JSOp op, bool isStatic) { return true; }
+<span class="lineNum">     303 </span>            :     Node newYieldExpression(uint32_t begin, Node value) { return NodeGeneric; }
+<span class="lineNum">     304 </span>            :     Node newYieldStarExpression(uint32_t begin, Node value) { return NodeGeneric; }
+<span class="lineNum">     305 </span>            :     Node newAwaitExpression(uint32_t begin, Node value) { return NodeGeneric; }
+<span class="lineNum">     306 </span>            : 
+<span class="lineNum">     307 </span>            :     // Statements
+<span class="lineNum">     308 </span>            : 
+<span class="lineNum">     309 </span>            :     Node newStatementList(const TokenPos&amp; pos) { return NodeGeneric; }
+<span class="lineNum">     310 </span>            :     void addStatementToList(Node list, Node stmt) {}
+<span class="lineNum">     311 </span>            :     void addCaseStatementToList(Node list, Node stmt) {}
+<span class="lineNum">     312 </span>            :     MOZ_MUST_USE bool prependInitialYield(Node stmtList, Node gen) { return true; }
+<span class="lineNum">     313 </span>            :     Node newEmptyStatement(const TokenPos&amp; pos) { return NodeEmptyStatement; }
+<span class="lineNum">     314 </span>            : 
+<span class="lineNum">     315 </span>            :     Node newExportDeclaration(Node kid, const TokenPos&amp; pos) {
+<span class="lineNum">     316 </span>            :         return NodeGeneric;
+<span class="lineNum">     317 </span>            :     }
+<span class="lineNum">     318 </span>            :     Node newExportFromDeclaration(uint32_t begin, Node exportSpecSet, Node moduleSpec) {
+<span class="lineNum">     319 </span>            :         return NodeGeneric;
+<span class="lineNum">     320 </span>            :     }
+<span class="lineNum">     321 </span>            :     Node newExportDefaultDeclaration(Node kid, Node maybeBinding, const TokenPos&amp; pos) {
+<span class="lineNum">     322 </span>            :         return NodeGeneric;
+<span class="lineNum">     323 </span>            :     }
+<span class="lineNum">     324 </span>            : 
+<span class="lineNum">     325 </span>            :     Node newSetThis(Node thisName, Node value) { return value; }
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span>            :     Node newExprStatement(Node expr, uint32_t end) {
+<span class="lineNum">     328 </span><span class="lineCov">          1 :         return expr == NodeUnparenthesizedString ? NodeStringExprStatement : NodeGeneric;</span>
+<span class="lineNum">     329 </span>            :     }
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span>            :     Node newIfStatement(uint32_t begin, Node cond, Node then, Node else_) { return NodeGeneric; }
+<span class="lineNum">     332 </span>            :     Node newDoWhileStatement(Node body, Node cond, const TokenPos&amp; pos) { return NodeGeneric; }
+<span class="lineNum">     333 </span>            :     Node newWhileStatement(uint32_t begin, Node cond, Node body) { return NodeGeneric; }
+<span class="lineNum">     334 </span>            :     Node newSwitchStatement(uint32_t begin, Node discriminant, Node caseList) { return NodeGeneric; }
+<span class="lineNum">     335 </span>            :     Node newCaseOrDefault(uint32_t begin, Node expr, Node body) { return NodeGeneric; }
+<span class="lineNum">     336 </span>            :     Node newContinueStatement(PropertyName* label, const TokenPos&amp; pos) { return NodeGeneric; }
+<span class="lineNum">     337 </span>            :     Node newBreakStatement(PropertyName* label, const TokenPos&amp; pos) { return NodeBreak; }
+<span class="lineNum">     338 </span>            :     Node newReturnStatement(Node expr, const TokenPos&amp; pos) { return NodeReturn; }
+<span class="lineNum">     339 </span>            :     Node newWithStatement(uint32_t begin, Node expr, Node body) { return NodeGeneric; }
+<span class="lineNum">     340 </span>            : 
+<span class="lineNum">     341 </span>            :     Node newLabeledStatement(PropertyName* label, Node stmt, uint32_t begin) {
+<span class="lineNum">     342 </span>            :         return NodeGeneric;
+<span class="lineNum">     343 </span>            :     }
+<span class="lineNum">     344 </span>            : 
+<span class="lineNum">     345 </span>            :     Node newThrowStatement(Node expr, const TokenPos&amp; pos) { return NodeThrow; }
+<span class="lineNum">     346 </span>            :     Node newTryStatement(uint32_t begin, Node body, Node catchList, Node finallyBlock) {
+<span class="lineNum">     347 </span>            :         return NodeGeneric;
+<span class="lineNum">     348 </span>            :     }
+<span class="lineNum">     349 </span>            :     Node newDebuggerStatement(const TokenPos&amp; pos) { return NodeGeneric; }
+<span class="lineNum">     350 </span>            : 
+<span class="lineNum">     351 </span>            :     Node newPropertyAccess(Node pn, PropertyName* name, uint32_t end) {
+<span class="lineNum">     352 </span><span class="lineCov">          1 :         lastAtom = name;</span>
+<span class="lineNum">     353 </span>            :         return NodeDottedProperty;
+<span class="lineNum">     354 </span>            :     }
+<span class="lineNum">     355 </span>            : 
+<span class="lineNum">     356 </span>            :     Node newPropertyByValue(Node pn, Node kid, uint32_t end) { return NodeElement; }
+<span class="lineNum">     357 </span>            : 
+<span class="lineNum">     358 </span>            :     MOZ_MUST_USE bool addCatchBlock(Node catchList, Node letBlock, Node catchName,
+<span class="lineNum">     359 </span>            :                                     Node catchGuard, Node catchBody) { return true; }
+<span class="lineNum">     360 </span>            : 
+<span class="lineNum">     361 </span>            :     MOZ_MUST_USE bool setLastFunctionFormalParameterDefault(Node funcpn, Node pn) { return true; }
+<span class="lineNum">     362 </span>            : 
+<span class="lineNum">     363 </span>            :     void checkAndSetIsDirectRHSAnonFunction(Node pn) {}
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span>            :     Node newFunctionStatement() { return NodeFunctionDefinition; }
+<span class="lineNum">     366 </span>            :     Node newFunctionExpression() { return NodeFunctionDefinition; }
+<span class="lineNum">     367 </span>            :     Node newArrowFunction() { return NodeFunctionDefinition; }
+<span class="lineNum">     368 </span>            : 
+<span class="lineNum">     369 </span>            :     bool setComprehensionLambdaBody(Node pn, Node body) { return true; }
+<span class="lineNum">     370 </span>            :     void setFunctionFormalParametersAndBody(Node pn, Node kid) {}
+<span class="lineNum">     371 </span>            :     void setFunctionBody(Node pn, Node kid) {}
+<span class="lineNum">     372 </span>            :     void setFunctionBox(Node pn, FunctionBox* funbox) {}
+<span class="lineNum">     373 </span>            :     void addFunctionFormalParameter(Node pn, Node argpn) {}
+<span class="lineNum">     374 </span>            : 
+<span class="lineNum">     375 </span>            :     Node newForStatement(uint32_t begin, Node forHead, Node body, unsigned iflags) {
+<span class="lineNum">     376 </span>            :         return NodeGeneric;
+<span class="lineNum">     377 </span>            :     }
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span>            :     Node newComprehensionFor(uint32_t begin, Node forHead, Node body) {
+<span class="lineNum">     380 </span>            :         return NodeGeneric;
+<span class="lineNum">     381 </span>            :     }
+<span class="lineNum">     382 </span>            : 
+<span class="lineNum">     383 </span>            :     Node newComprehensionBinding(Node kid) {
+<span class="lineNum">     384 </span>            :         // Careful: we're asking this well after the name was parsed, so the
+<span class="lineNum">     385 </span>            :         // value returned may not correspond to |kid|'s actual name.  But it
+<span class="lineNum">     386 </span>            :         // *will* be truthy iff |kid| was a name, so we're safe.
+<span class="lineNum">     387 </span>            :         MOZ_ASSERT(isUnparenthesizedName(kid));
+<span class="lineNum">     388 </span>            :         return NodeGeneric;
+<span class="lineNum">     389 </span>            :     }
+<span class="lineNum">     390 </span>            : 
+<span class="lineNum">     391 </span>            :     Node newForHead(Node init, Node test, Node update, const TokenPos&amp; pos) {
+<span class="lineNum">     392 </span>            :         return NodeGeneric;
+<span class="lineNum">     393 </span>            :     }
+<span class="lineNum">     394 </span>            : 
+<span class="lineNum">     395 </span>            :     Node newForInOrOfHead(ParseNodeKind kind, Node target, Node iteratedExpr, const TokenPos&amp; pos) {
+<span class="lineNum">     396 </span>            :         return NodeGeneric;
+<span class="lineNum">     397 </span>            :     }
+<span class="lineNum">     398 </span>            : 
+<span class="lineNum">     399 </span>            :     MOZ_MUST_USE bool finishInitializerAssignment(Node pn, Node init) { return true; }
+<span class="lineNum">     400 </span>            : 
+<span class="lineNum">     401 </span>            :     void setBeginPosition(Node pn, Node oth) {}
+<span class="lineNum">     402 </span>            :     void setBeginPosition(Node pn, uint32_t begin) {}
+<span class="lineNum">     403 </span>            : 
+<span class="lineNum">     404 </span>            :     void setEndPosition(Node pn, Node oth) {}
+<span class="lineNum">     405 </span>            :     void setEndPosition(Node pn, uint32_t end) {}
+<span class="lineNum">     406 </span>            : 
+<span class="lineNum">     407 </span>            :     void setPosition(Node pn, const TokenPos&amp; pos) {}
+<span class="lineNum">     408 </span>            :     TokenPos getPosition(Node pn) {
+<span class="lineNum">     409 </span><span class="lineCov">          1 :         return tokenStream.currentToken().pos;</span>
+<span class="lineNum">     410 </span>            :     }
+<span class="lineNum">     411 </span>            : 
+<span class="lineNum">     412 </span>            :     Node newList(ParseNodeKind kind, JSOp op = JSOP_NOP) {
+<span class="lineNum">     413 </span>            :         MOZ_ASSERT(kind != PNK_VAR);
+<span class="lineNum">     414 </span>            :         MOZ_ASSERT(kind != PNK_LET);
+<span class="lineNum">     415 </span>            :         MOZ_ASSERT(kind != PNK_CONST);
+<span class="lineNum">     416 </span>            :         return NodeGeneric;
+<span class="lineNum">     417 </span>            :     }
+<span class="lineNum">     418 </span>            :     Node newList(ParseNodeKind kind, uint32_t begin, JSOp op = JSOP_NOP) {
+<span class="lineNum">     419 </span><span class="lineCov">          1 :         return newList(kind, op);</span>
+<span class="lineNum">     420 </span>            :     }
+<span class="lineNum">     421 </span>            :     Node newList(ParseNodeKind kind, Node kid, JSOp op = JSOP_NOP) {
+<span class="lineNum">     422 </span><span class="lineCov">          1 :         return newList(kind, op);</span>
+<span class="lineNum">     423 </span>            :     }
+<span class="lineNum">     424 </span>            : 
+<span class="lineNum">     425 </span>            :     Node newDeclarationList(ParseNodeKind kind, JSOp op = JSOP_NOP) {
+<span class="lineNum">     426 </span><span class="lineCov">          1 :         if (kind == PNK_VAR)</span>
+<span class="lineNum">     427 </span>            :             return NodeVarDeclaration;
+<span class="lineNum">     428 </span>            :         MOZ_ASSERT(kind == PNK_LET || kind == PNK_CONST);
+<span class="lineNum">     429 </span>            :         return NodeLexicalDeclaration;
+<span class="lineNum">     430 </span>            :     }
+<span class="lineNum">     431 </span>            :     Node newDeclarationList(ParseNodeKind kind, Node kid, JSOp op = JSOP_NOP) {
+<span class="lineNum">     432 </span>            :         return newDeclarationList(kind, op);
+<span class="lineNum">     433 </span>            :     }
+<span class="lineNum">     434 </span>            : 
+<span class="lineNum">     435 </span>            :     bool isDeclarationList(Node node) {
+<span class="lineNum">     436 </span>            :         return node == NodeVarDeclaration || node == NodeLexicalDeclaration;
+<span class="lineNum">     437 </span>            :     }
+<span class="lineNum">     438 </span>            : 
+<span class="lineNum">     439 </span>            :     Node singleBindingFromDeclaration(Node decl) {
+<span class="lineNum">     440 </span>            :         MOZ_ASSERT(isDeclarationList(decl));
+<span class="lineNum">     441 </span>            : 
+<span class="lineNum">     442 </span>            :         // This is, unfortunately, very dodgy.  Obviously NodeVarDeclaration
+<span class="lineNum">     443 </span>            :         // and NodeLexicalDeclaration can store no info on the arbitrary
+<span class="lineNum">     444 </span>            :         // number of bindings it could contain.
+<span class="lineNum">     445 </span>            :         //
+<span class="lineNum">     446 </span>            :         // But this method is called only for cloning for-in/of declarations
+<span class="lineNum">     447 </span>            :         // as initialization targets.  That context simplifies matters.  If the
+<span class="lineNum">     448 </span>            :         // binding is a single name, it'll always syntax-parse (or it would
+<span class="lineNum">     449 </span>            :         // already have been rejected as assigning/binding a forbidden name).
+<span class="lineNum">     450 </span>            :         // Otherwise the binding is a destructuring pattern.  But syntax
+<span class="lineNum">     451 </span>            :         // parsing would *already* have aborted when it saw a destructuring
+<span class="lineNum">     452 </span>            :         // pattern.  So we can just say any old thing here, because the only
+<span class="lineNum">     453 </span>            :         // time we'll be wrong is a case that syntax parsing has already
+<span class="lineNum">     454 </span>            :         // rejected.  Use NodeUnparenthesizedName so the SyntaxParseHandler
+<span class="lineNum">     455 </span>            :         // Parser::cloneLeftHandSide can assert it sees only this.
+<span class="lineNum">     456 </span>            :         return NodeUnparenthesizedName;
+<span class="lineNum">     457 </span>            :     }
+<span class="lineNum">     458 </span>            : 
+<span class="lineNum">     459 </span>            :     Node newCatchList() {
+<span class="lineNum">     460 </span>            :         return newList(PNK_CATCHLIST, JSOP_NOP);
+<span class="lineNum">     461 </span>            :     }
+<span class="lineNum">     462 </span>            : 
+<span class="lineNum">     463 </span>            :     Node newCommaExpressionList(Node kid) {
+<span class="lineNum">     464 </span>            :         return NodeUnparenthesizedCommaExpr;
+<span class="lineNum">     465 </span>            :     }
+<span class="lineNum">     466 </span>            : 
+<span class="lineNum">     467 </span>            :     void addList(Node list, Node kid) {
+<span class="lineNum">     468 </span>            :         MOZ_ASSERT(list == NodeGeneric ||
+<span class="lineNum">     469 </span>            :                    list == NodeUnparenthesizedArray ||
+<span class="lineNum">     470 </span>            :                    list == NodeUnparenthesizedObject ||
+<span class="lineNum">     471 </span>            :                    list == NodeUnparenthesizedCommaExpr ||
+<span class="lineNum">     472 </span>            :                    list == NodeVarDeclaration ||
+<span class="lineNum">     473 </span>            :                    list == NodeLexicalDeclaration ||
+<span class="lineNum">     474 </span>            :                    list == NodeFunctionCall);
+<span class="lineNum">     475 </span>            :     }
+<span class="lineNum">     476 </span>            : 
+<span class="lineNum">     477 </span>            :     Node newAssignment(ParseNodeKind kind, Node lhs, Node rhs, JSOp op) {
+<span class="lineNum">     478 </span><span class="lineCov">          1 :         if (kind == PNK_ASSIGN)</span>
+<span class="lineNum">     479 </span>            :             return NodeUnparenthesizedAssignment;
+<span class="lineNum">     480 </span><span class="lineCov">          1 :         return newBinary(kind, lhs, rhs, op);</span>
+<span class="lineNum">     481 </span>            :     }
+<span class="lineNum">     482 </span>            : 
+<span class="lineNum">     483 </span>            :     bool isUnparenthesizedCommaExpression(Node node) {
+<span class="lineNum">     484 </span>            :         return node == NodeUnparenthesizedCommaExpr;
+<span class="lineNum">     485 </span>            :     }
+<span class="lineNum">     486 </span>            : 
+<span class="lineNum">     487 </span>            :     bool isUnparenthesizedAssignment(Node node) {
+<span class="lineNum">     488 </span>            :         return node == NodeUnparenthesizedAssignment;
+<span class="lineNum">     489 </span>            :     }
+<span class="lineNum">     490 </span>            : 
+<span class="lineNum">     491 </span>            :     bool isUnparenthesizedUnaryExpression(Node node) {
+<span class="lineNum">     492 </span>            :         return node == NodeUnparenthesizedUnary;
+<span class="lineNum">     493 </span>            :     }
+<span class="lineNum">     494 </span>            : 
+<span class="lineNum">     495 </span>            :     bool isReturnStatement(Node node) {
+<span class="lineNum">     496 </span>            :         return node == NodeReturn;
+<span class="lineNum">     497 </span>            :     }
+<span class="lineNum">     498 </span>            : 
+<span class="lineNum">     499 </span>            :     bool isStatementPermittedAfterReturnStatement(Node pn) {
+<span class="lineNum">     500 </span><span class="lineCov">          1 :         return pn == NodeFunctionDefinition || pn == NodeVarDeclaration ||</span>
+<span class="lineNum">     501 </span><span class="lineCov">          1 :                pn == NodeBreak ||</span>
+<span class="lineNum">     502 </span><span class="lineCov">          1 :                pn == NodeThrow ||</span>
+<span class="lineNum">     503 </span>            :                pn == NodeEmptyStatement;
+<span class="lineNum">     504 </span>            :     }
+<span class="lineNum">     505 </span>            : 
+<span class="lineNum">     506 </span>            :     bool isSuperBase(Node pn) {
+<span class="lineNum">     507 </span>            :         return pn == NodeSuperBase;
+<span class="lineNum">     508 </span>            :     }
+<span class="lineNum">     509 </span>            : 
+<span class="lineNum">     510 </span>            :     void setOp(Node pn, JSOp op) {}
+<span class="lineNum">     511 </span>            :     void setListFlag(Node pn, unsigned flag) {}
+<span class="lineNum">     512 </span>            :     MOZ_MUST_USE Node parenthesize(Node node) {
+<span class="lineNum">     513 </span>            :         // A number of nodes have different behavior upon parenthesization, but
+<span class="lineNum">     514 </span>            :         // only in some circumstances.  Convert these nodes to special
+<span class="lineNum">     515 </span>            :         // parenthesized forms.
+<span class="lineNum">     516 </span><span class="lineCov">          1 :         if (node == NodeUnparenthesizedArgumentsName)</span>
+<span class="lineNum">     517 </span>            :             return NodeParenthesizedArgumentsName;
+<span class="lineNum">     518 </span><span class="lineCov">          1 :         if (node == NodeUnparenthesizedEvalName)</span>
+<span class="lineNum">     519 </span>            :             return NodeParenthesizedEvalName;
+<span class="lineNum">     520 </span><span class="lineCov">          1 :         if (node == NodeUnparenthesizedName || node == NodePotentialAsyncKeyword)</span>
+<span class="lineNum">     521 </span>            :             return NodeParenthesizedName;
+<span class="lineNum">     522 </span>            : 
+<span class="lineNum">     523 </span><span class="lineCov">          1 :         if (node == NodeUnparenthesizedArray)</span>
+<span class="lineNum">     524 </span>            :             return NodeParenthesizedArray;
+<span class="lineNum">     525 </span><span class="lineCov">          1 :         if (node == NodeUnparenthesizedObject)</span>
+<span class="lineNum">     526 </span>            :             return NodeParenthesizedObject;
+<span class="lineNum">     527 </span>            : 
+<span class="lineNum">     528 </span>            :         // Other nodes need not be recognizable after parenthesization; convert
+<span class="lineNum">     529 </span>            :         // them to a generic node.
+<span class="lineNum">     530 </span><span class="lineCov">          1 :         if (node == NodeUnparenthesizedString ||</span>
+<span class="lineNum">     531 </span>            :             node == NodeUnparenthesizedCommaExpr ||
+<span class="lineNum">     532 </span><span class="lineCov">          1 :             node == NodeUnparenthesizedAssignment ||</span>
+<span class="lineNum">     533 </span>            :             node == NodeUnparenthesizedUnary)
+<span class="lineNum">     534 </span>            :         {
+<span class="lineNum">     535 </span>            :             return NodeGeneric;
+<span class="lineNum">     536 </span>            :         }
+<span class="lineNum">     537 </span>            : 
+<span class="lineNum">     538 </span>            :         // In all other cases, the parenthesized form of |node| is equivalent
+<span class="lineNum">     539 </span>            :         // to the unparenthesized form: return |node| unchanged.
+<span class="lineNum">     540 </span>            :         return node;
+<span class="lineNum">     541 </span>            :     }
+<span class="lineNum">     542 </span>            :     MOZ_MUST_USE Node setLikelyIIFE(Node pn) {
+<span class="lineNum">     543 </span>            :         return pn; // Remain in syntax-parse mode.
+<span class="lineNum">     544 </span>            :     }
+<span class="lineNum">     545 </span>            :     void setInDirectivePrologue(Node pn) {}
+<span class="lineNum">     546 </span>            : 
+<span class="lineNum">     547 </span>            :     bool isConstant(Node pn) { return false; }
+<span class="lineNum">     548 </span>            : 
+<span class="lineNum">     549 </span>            :     bool isUnparenthesizedName(Node node) {
+<span class="lineNum">     550 </span>            :         return node == NodeUnparenthesizedArgumentsName ||
+<span class="lineNum">     551 </span>            :                node == NodeUnparenthesizedEvalName ||
+<span class="lineNum">     552 </span><span class="lineCov">          1 :                node == NodeUnparenthesizedName ||</span>
+<span class="lineNum">     553 </span>            :                node == NodePotentialAsyncKeyword;
+<span class="lineNum">     554 </span>            :     }
+<span class="lineNum">     555 </span>            : 
+<span class="lineNum">     556 </span>            :     bool isNameAnyParentheses(Node node) {
+<span class="lineNum">     557 </span><span class="lineCov">          1 :         if (isUnparenthesizedName(node))</span>
+<span class="lineNum">     558 </span>            :             return true;
+<span class="lineNum">     559 </span>            :         return node == NodeParenthesizedArgumentsName ||
+<span class="lineNum">     560 </span><span class="lineCov">          1 :                node == NodeParenthesizedEvalName ||</span>
+<span class="lineNum">     561 </span><span class="lineCov">          1 :                node == NodeParenthesizedName;</span>
+<span class="lineNum">     562 </span>            :     }
+<span class="lineNum">     563 </span>            : 
+<span class="lineNum">     564 </span>            :     bool isEvalAnyParentheses(Node node, JSContext* cx) {
+<span class="lineNum">     565 </span><span class="lineCov">          1 :         return node == NodeUnparenthesizedEvalName || node == NodeParenthesizedEvalName;</span>
+<span class="lineNum">     566 </span>            :     }
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span>            :     const char* nameIsArgumentsEvalAnyParentheses(Node node, JSContext* cx) {
+<span class="lineNum">     569 </span>            :         MOZ_ASSERT(isNameAnyParentheses(node),
+<span class="lineNum">     570 </span>            :                    &quot;must only call this method on known names&quot;);
+<span class="lineNum">     571 </span>            : 
+<span class="lineNum">     572 </span><span class="lineCov">          1 :         if (isEvalAnyParentheses(node, cx))</span>
+<span class="lineNum">     573 </span>            :             return js_eval_str;
+<span class="lineNum">     574 </span><span class="lineCov">          1 :         if (node == NodeUnparenthesizedArgumentsName || node == NodeParenthesizedArgumentsName)</span>
+<span class="lineNum">     575 </span>            :             return js_arguments_str;
+<span class="lineNum">     576 </span>            :         return nullptr;
+<span class="lineNum">     577 </span>            :     }
+<span class="lineNum">     578 </span>            : 
+<span class="lineNum">     579 </span>            :     bool isAsyncKeyword(Node node, JSContext* cx) {
+<span class="lineNum">     580 </span>            :         return node == NodePotentialAsyncKeyword;
+<span class="lineNum">     581 </span>            :     }
+<span class="lineNum">     582 </span>            : 
+<span class="lineNum">     583 </span>            :     PropertyName* maybeDottedProperty(Node node) {
+<span class="lineNum">     584 </span>            :         // Note: |super.apply(...)| is a special form that calls an &quot;apply&quot;
+<span class="lineNum">     585 </span>            :         // method retrieved from one value, but using a *different* value as
+<span class="lineNum">     586 </span>            :         // |this|.  It's not really eligible for the funapply/funcall
+<span class="lineNum">     587 </span>            :         // optimizations as they're currently implemented (assuming a single
+<span class="lineNum">     588 </span>            :         // value is used for both retrieval and |this|).
+<span class="lineNum">     589 </span><span class="lineCov">          1 :         if (node != NodeDottedProperty)</span>
+<span class="lineNum">     590 </span>            :             return nullptr;
+<span class="lineNum">     591 </span><span class="lineCov">          1 :         return lastAtom-&gt;asPropertyName();</span>
+<span class="lineNum">     592 </span>            :     }
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span>            :     JSAtom* isStringExprStatement(Node pn, TokenPos* pos) {
+<span class="lineNum">     595 </span><span class="lineCov">          1 :         if (pn == NodeStringExprStatement) {</span>
+<span class="lineNum">     596 </span><span class="lineCov">          1 :             *pos = lastStringPos;</span>
+<span class="lineNum">     597 </span><span class="lineCov">          1 :             return lastAtom;</span>
+<span class="lineNum">     598 </span>            :         }
+<span class="lineNum">     599 </span>            :         return nullptr;
+<span class="lineNum">     600 </span>            :     }
+<span class="lineNum">     601 </span>            : 
+<span class="lineNum">     602 </span>            :     bool canSkipLazyInnerFunctions() {
+<span class="lineNum">     603 </span>            :         return false;
+<span class="lineNum">     604 </span>            :     }
+<span class="lineNum">     605 </span>            :     bool canSkipLazyClosedOverBindings() {
+<span class="lineNum">     606 </span>            :         return false;
+<span class="lineNum">     607 </span>            :     }
+<span class="lineNum">     608 </span>            :     JSAtom* nextLazyClosedOverBinding() {
+<span class="lineNum">     609 </span>            :         MOZ_CRASH(&quot;SyntaxParseHandler::canSkipLazyClosedOverBindings must return false&quot;);
+<span class="lineNum">     610 </span>            :     }
+<span class="lineNum">     611 </span>            : 
+<span class="lineNum">     612 </span>            :     void adjustGetToSet(Node node) {}
+<span class="lineNum">     613 </span>            : 
+<span class="lineNum">     614 </span>            :     void disableSyntaxParser() {
+<span class="lineNum">     615 </span>            :     }
+<span class="lineNum">     616 </span>            : };
+<span class="lineNum">     617 </span>            : 
+<span class="lineNum">     618 </span>            : } // namespace frontend
+<span class="lineNum">     619 </span>            : } // namespace js
+<span class="lineNum">     620 </span>            : 
+<span class="lineNum">     621 </span>            : #endif /* frontend_SyntaxParseHandler_h */
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

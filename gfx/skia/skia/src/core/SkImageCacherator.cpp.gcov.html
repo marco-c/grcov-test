@@ -1,0 +1,440 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gfx/skia/skia/src/core/SkImageCacherator.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">gfx/skia/skia/src/core</a> - SkImageCacherator.cpp<span style="font-size: 80%;"> (source / <a href="SkImageCacherator.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">97</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">16</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  * Copyright 2015 Google Inc.
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  * Use of this source code is governed by a BSD-style license that can be
+<span class="lineNum">       5 </span>            :  * found in the LICENSE file.
+<span class="lineNum">       6 </span>            :  */
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #include &quot;SkBitmap.h&quot;
+<span class="lineNum">       9 </span>            : #include &quot;SkBitmapCache.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;SkImage_Base.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;SkImageCacherator.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;SkMallocPixelRef.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;SkNextID.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;SkPixelRef.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;SkResourceCache.h&quot;
+<span class="lineNum">      16 </span>            : 
+<span class="lineNum">      17 </span>            : #if SK_SUPPORT_GPU
+<span class="lineNum">      18 </span>            : #include &quot;GrContext.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;GrGpuResourcePriv.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;GrImageIDTextureAdjuster.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;GrResourceKey.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;GrTextureParams.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;GrYUVProvider.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;SkGr.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;SkGrPriv.h&quot;
+<span class="lineNum">      26 </span>            : #endif
+<span class="lineNum">      27 </span>            : 
+<span class="lineNum">      28 </span>            : // Until we actually have codecs/etc. that can contain/support a GPU texture format
+<span class="lineNum">      29 </span>            : // skip this step, since for some generators, returning their encoded data as a SkData
+<span class="lineNum">      30 </span>            : // can be somewhat expensive, and this call doesn't indicate to the generator that we're
+<span class="lineNum">      31 </span>            : // only interested in GPU datas...
+<span class="lineNum">      32 </span>            : // see skbug.com/ 4971, 5128, ...
+<a name="33"><span class="lineNum">      33 </span>            : //#define SK_SUPPORT_COMPRESSED_TEXTURES_IN_CACHERATOR</a>
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span><span class="lineNoCov">          0 : SkImageCacherator* SkImageCacherator::NewFromGenerator(SkImageGenerator* gen,</span>
+<span class="lineNum">      36 </span>            :                                                        const SkIRect* subset) {
+<span class="lineNum">      37 </span><span class="lineNoCov">          0 :     if (!gen) {</span>
+<span class="lineNum">      38 </span>            :         return nullptr;
+<span class="lineNum">      39 </span>            :     }
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span>            :     // We are required to take ownership of gen, regardless of if we return a cacherator or not
+<span class="lineNum">      42 </span>            :     SkAutoTDelete&lt;SkImageGenerator&gt; genHolder(gen);
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span><span class="lineNoCov">          0 :     const SkImageInfo&amp; info = gen-&gt;getInfo();</span>
+<span class="lineNum">      45 </span><span class="lineNoCov">          0 :     if (info.isEmpty()) {</span>
+<span class="lineNum">      46 </span>            :         return nullptr;
+<span class="lineNum">      47 </span>            :     }
+<span class="lineNum">      48 </span>            : 
+<span class="lineNum">      49 </span><span class="lineNoCov">          0 :     uint32_t uniqueID = gen-&gt;uniqueID();</span>
+<span class="lineNum">      50 </span><span class="lineNoCov">          0 :     const SkIRect bounds = SkIRect::MakeWH(info.width(), info.height());</span>
+<span class="lineNum">      51 </span><span class="lineNoCov">          0 :     if (subset) {</span>
+<span class="lineNum">      52 </span><span class="lineNoCov">          0 :         if (!bounds.contains(*subset)) {</span>
+<span class="lineNum">      53 </span>            :             return nullptr;
+<span class="lineNum">      54 </span>            :         }
+<span class="lineNum">      55 </span><span class="lineNoCov">          0 :         if (*subset != bounds) {</span>
+<span class="lineNum">      56 </span>            :             // we need a different uniqueID since we really are a subset of the raw generator
+<span class="lineNum">      57 </span><span class="lineNoCov">          0 :             uniqueID = SkNextID::ImageID();</span>
+<span class="lineNum">      58 </span>            :         }
+<span class="lineNum">      59 </span>            :     } else {
+<span class="lineNum">      60 </span>            :         subset = &amp;bounds;
+<span class="lineNum">      61 </span>            :     }
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span>            :     // Now that we know we can hand-off the generator (to be owned by the cacherator) we can
+<span class="lineNum">      64 </span>            :     // release our holder. (we DONT want to delete it here anymore)
+<span class="lineNum">      65 </span>            :     genHolder.release();
+<span class="lineNum">      66 </span>            : 
+<span class="lineNum">      67 </span>            :     return new SkImageCacherator(gen, gen-&gt;getInfo().makeWH(subset-&gt;width(), subset-&gt;height()),
+<span class="lineNum">      68 </span><span class="lineNoCov">          0 :                                  SkIPoint::Make(subset-&gt;x(), subset-&gt;y()), uniqueID);</span>
+<a name="69"><span class="lineNum">      69 </span>            : }</a>
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span><span class="lineNoCov">          0 : SkImageCacherator::SkImageCacherator(SkImageGenerator* gen, const SkImageInfo&amp; info,</span>
+<span class="lineNum">      72 </span>            :                                      const SkIPoint&amp; origin, uint32_t uniqueID)
+<span class="lineNum">      73 </span>            :     : fNotThreadSafeGenerator(gen)
+<span class="lineNum">      74 </span>            :     , fInfo(info)
+<span class="lineNum">      75 </span>            :     , fOrigin(origin)
+<span class="lineNum">      76 </span><span class="lineNoCov">          0 :     , fUniqueID(uniqueID)</span>
+<a name="77"><span class="lineNum">      77 </span><span class="lineNoCov">          0 : {}</span></a>
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span><span class="lineNoCov">          0 : SkData* SkImageCacherator::refEncoded(GrContext* ctx) {</span>
+<span class="lineNum">      80 </span>            :     ScopedGenerator generator(this);
+<span class="lineNum">      81 </span><span class="lineNoCov">          0 :     return generator-&gt;refEncodedData(ctx);</span>
+<span class="lineNum">      82 </span>            : }
+<span class="lineNum">      83 </span>            : 
+<span class="lineNum">      84 </span>            : static bool check_output_bitmap(const SkBitmap&amp; bitmap, uint32_t expectedID) {
+<span class="lineNum">      85 </span>            :     SkASSERT(bitmap.getGenerationID() == expectedID);
+<span class="lineNum">      86 </span>            :     SkASSERT(bitmap.isImmutable());
+<span class="lineNum">      87 </span>            :     SkASSERT(bitmap.getPixels());
+<span class="lineNum">      88 </span>            :     return true;
+<span class="lineNum">      89 </span>            : }
+<span class="lineNum">      90 </span>            : 
+<span class="lineNum">      91 </span>            : // Note, this returns a new, mutable, bitmap, with a new genID.
+<a name="92"><span class="lineNum">      92 </span>            : // If you want the immutable bitmap with the same ID as our cacherator, call tryLockAsBitmap()</a>
+<span class="lineNum">      93 </span>            : //
+<span class="lineNum">      94 </span><span class="lineNoCov">          0 : bool SkImageCacherator::generateBitmap(SkBitmap* bitmap) {</span>
+<span class="lineNum">      95 </span><span class="lineNoCov">          0 :     SkBitmap::Allocator* allocator = SkResourceCache::GetAllocator();</span>
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span>            :     ScopedGenerator generator(this);
+<span class="lineNum">      98 </span><span class="lineNoCov">          0 :     const SkImageInfo&amp; genInfo = generator-&gt;getInfo();</span>
+<span class="lineNum">      99 </span><span class="lineNoCov">          0 :     if (fInfo.dimensions() == genInfo.dimensions()) {</span>
+<span class="lineNum">     100 </span>            :         SkASSERT(fOrigin.x() == 0 &amp;&amp; fOrigin.y() == 0);
+<span class="lineNum">     101 </span>            :         // fast-case, no copy needed
+<span class="lineNum">     102 </span><span class="lineNoCov">          0 :         return generator-&gt;tryGenerateBitmap(bitmap, fInfo, allocator);</span>
+<span class="lineNum">     103 </span>            :     } else {
+<span class="lineNum">     104 </span>            :         // need to handle subsetting, so we first generate the full size version, and then
+<span class="lineNum">     105 </span>            :         // &quot;read&quot; from it to get our subset. See https://bug.skia.org/4213
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span><span class="lineNoCov">          0 :         SkBitmap full;</span>
+<span class="lineNum">     108 </span><span class="lineNoCov">          0 :         if (!generator-&gt;tryGenerateBitmap(&amp;full, genInfo, allocator)) {</span>
+<span class="lineNum">     109 </span>            :             return false;
+<span class="lineNum">     110 </span>            :         }
+<span class="lineNum">     111 </span><span class="lineNoCov">          0 :         if (!bitmap-&gt;tryAllocPixels(fInfo, nullptr, full.getColorTable())) {</span>
+<span class="lineNum">     112 </span>            :             return false;
+<span class="lineNum">     113 </span>            :         }
+<span class="lineNum">     114 </span>            :         return full.readPixels(bitmap-&gt;info(), bitmap-&gt;getPixels(), bitmap-&gt;rowBytes(),
+<span class="lineNum">     115 </span><span class="lineNoCov">          0 :                                fOrigin.x(), fOrigin.y());</span>
+<span class="lineNum">     116 </span><span class="lineNoCov">          0 :     }</span>
+<a name="117"><span class="lineNum">     117 </span>            : }</a>
+<span class="lineNum">     118 </span>            : 
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 : bool SkImageCacherator::directGeneratePixels(const SkImageInfo&amp; info, void* pixels, size_t rb,</span>
+<span class="lineNum">     120 </span>            :                                              int srcX, int srcY) {
+<span class="lineNum">     121 </span>            :     ScopedGenerator generator(this);
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :     const SkImageInfo&amp; genInfo = generator-&gt;getInfo();</span>
+<span class="lineNum">     123 </span>            :     // Currently generators do not natively handle subsets, so check that first.
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :     if (srcX || srcY || genInfo.width() != info.width() || genInfo.height() != info.height()) {</span>
+<span class="lineNum">     125 </span>            :         return false;
+<span class="lineNum">     126 </span>            :     }
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 :     return generator-&gt;getPixels(info, pixels, rb);</span>
+<span class="lineNum">     128 </span>            : }
+<span class="lineNum">     129 </span>            : 
+<a name="130"><span class="lineNum">     130 </span>            : //////////////////////////////////////////////////////////////////////////////////////////////////</a>
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 : bool SkImageCacherator::lockAsBitmapOnlyIfAlreadyCached(SkBitmap* bitmap) {</span>
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :     return SkBitmapCache::Find(fUniqueID, bitmap) &amp;&amp; check_output_bitmap(*bitmap, fUniqueID);</span>
+<a name="134"><span class="lineNum">     134 </span>            : }</a>
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 : bool SkImageCacherator::tryLockAsBitmap(SkBitmap* bitmap, const SkImage* client,</span>
+<span class="lineNum">     137 </span>            :                                         SkImage::CachingHint chint) {
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 :     if (this-&gt;lockAsBitmapOnlyIfAlreadyCached(bitmap)) {</span>
+<span class="lineNum">     139 </span>            :         return true;
+<span class="lineNum">     140 </span>            :     }
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :     if (!this-&gt;generateBitmap(bitmap)) {</span>
+<span class="lineNum">     142 </span>            :         return false;
+<span class="lineNum">     143 </span>            :     }
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span><span class="lineNoCov">          0 :     bitmap-&gt;pixelRef()-&gt;setImmutableWithID(fUniqueID);</span>
+<span class="lineNum">     146 </span><span class="lineNoCov">          0 :     if (SkImage::kAllow_CachingHint == chint) {</span>
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 :         SkBitmapCache::Add(fUniqueID, *bitmap);</span>
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 :         if (client) {</span>
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :             as_IB(client)-&gt;notifyAddedToCache();</span>
+<span class="lineNum">     150 </span>            :         }
+<span class="lineNum">     151 </span>            :     }
+<span class="lineNum">     152 </span>            :     return true;
+<a name="153"><span class="lineNum">     153 </span>            : }</a>
+<span class="lineNum">     154 </span>            : 
+<span class="lineNum">     155 </span><span class="lineNoCov">          0 : bool SkImageCacherator::lockAsBitmap(SkBitmap* bitmap, const SkImage* client,</span>
+<span class="lineNum">     156 </span>            :                                      SkImage::CachingHint chint) {
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :     if (this-&gt;tryLockAsBitmap(bitmap, client, chint)) {</span>
+<span class="lineNum">     158 </span>            :         return check_output_bitmap(*bitmap, fUniqueID);
+<span class="lineNum">     159 </span>            :     }
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span>            : #if SK_SUPPORT_GPU
+<span class="lineNum">     162 </span>            :     // Try to get a texture and read it back to raster (and then cache that with our ID)
+<span class="lineNum">     163 </span>            :     SkAutoTUnref&lt;GrTexture&gt; tex;
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span>            :     {
+<span class="lineNum">     166 </span>            :         ScopedGenerator generator(this);
+<span class="lineNum">     167 </span><span class="lineNoCov">          0 :         SkIRect subset = SkIRect::MakeXYWH(fOrigin.x(), fOrigin.y(), fInfo.width(), fInfo.height());</span>
+<span class="lineNum">     168 </span><span class="lineNoCov">          0 :         tex.reset(generator-&gt;generateTexture(nullptr, &amp;subset));</span>
+<span class="lineNum">     169 </span>            :     }
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :     if (!tex) {</span>
+<span class="lineNum">     171 </span><span class="lineNoCov">          0 :         bitmap-&gt;reset();</span>
+<span class="lineNum">     172 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     173 </span>            :     }
+<span class="lineNum">     174 </span>            : 
+<span class="lineNum">     175 </span><span class="lineNoCov">          0 :     if (!bitmap-&gt;tryAllocPixels(fInfo)) {</span>
+<span class="lineNum">     176 </span><span class="lineNoCov">          0 :         bitmap-&gt;reset();</span>
+<span class="lineNum">     177 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     178 </span>            :     }
+<span class="lineNum">     179 </span>            : 
+<span class="lineNum">     180 </span><span class="lineNoCov">          0 :     const uint32_t pixelOpsFlags = 0;</span>
+<span class="lineNum">     181 </span><span class="lineNoCov">          0 :     if (!tex-&gt;readPixels(0, 0, bitmap-&gt;width(), bitmap-&gt;height(),</span>
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :                          SkImageInfo2GrPixelConfig(fInfo, *tex-&gt;getContext()-&gt;caps()),</span>
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 :                          bitmap-&gt;getPixels(), bitmap-&gt;rowBytes(), pixelOpsFlags)) {</span>
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :         bitmap-&gt;reset();</span>
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     186 </span>            :     }
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :     bitmap-&gt;pixelRef()-&gt;setImmutableWithID(fUniqueID);</span>
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 :     if (SkImage::kAllow_CachingHint == chint) {</span>
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :         SkBitmapCache::Add(fUniqueID, *bitmap);</span>
+<span class="lineNum">     191 </span><span class="lineNoCov">          0 :         if (client) {</span>
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :             as_IB(client)-&gt;notifyAddedToCache();</span>
+<span class="lineNum">     193 </span>            :         }
+<span class="lineNum">     194 </span>            :     }
+<span class="lineNum">     195 </span>            :     return check_output_bitmap(*bitmap, fUniqueID);
+<span class="lineNum">     196 </span>            : #else
+<span class="lineNum">     197 </span>            :     return false;
+<span class="lineNum">     198 </span>            : #endif
+<span class="lineNum">     199 </span>            : }
+<span class="lineNum">     200 </span>            : 
+<span class="lineNum">     201 </span>            : //////////////////////////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">     202 </span>            : 
+<span class="lineNum">     203 </span>            : #if SK_SUPPORT_GPU
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span>            : #ifdef SK_SUPPORT_COMPRESSED_TEXTURES_IN_CACHERATOR
+<span class="lineNum">     206 </span>            : static GrTexture* load_compressed_into_texture(GrContext* ctx, SkData* data, GrSurfaceDesc desc) {
+<span class="lineNum">     207 </span>            :     const void* rawStart;
+<span class="lineNum">     208 </span>            :     GrPixelConfig config = GrIsCompressedTextureDataSupported(ctx, data, desc.fWidth, desc.fHeight,
+<span class="lineNum">     209 </span>            :                                                               &amp;rawStart);
+<span class="lineNum">     210 </span>            :     if (kUnknown_GrPixelConfig == config) {
+<span class="lineNum">     211 </span>            :         return nullptr;
+<span class="lineNum">     212 </span>            :     }
+<span class="lineNum">     213 </span>            : 
+<span class="lineNum">     214 </span>            :     desc.fConfig = config;
+<span class="lineNum">     215 </span>            :     return ctx-&gt;textureProvider()-&gt;createTexture(desc, SkBudgeted::kYes, rawStart, 0);
+<span class="lineNum">     216 </span>            : }
+<a name="217"><span class="lineNum">     217 </span>            : #endif</a>
+<span class="lineNum">     218 </span>            : 
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 : class Generator_GrYUVProvider : public GrYUVProvider {</span>
+<span class="lineNum">     220 </span>            :     SkImageGenerator* fGen;
+<span class="lineNum">     221 </span>            : 
+<span class="lineNum">     222 </span>            : public:
+<a name="223"><span class="lineNum">     223 </span><span class="lineNoCov">          0 :     Generator_GrYUVProvider(SkImageGenerator* gen) : fGen(gen) {}</span></a>
+<a name="224"><span class="lineNum">     224 </span>            : </a>
+<span class="lineNum">     225 </span><span class="lineNoCov">          0 :     uint32_t onGetID() override { return fGen-&gt;uniqueID(); }</span>
+<span class="lineNum">     226 </span><span class="lineNoCov">          0 :     bool onQueryYUV8(SkYUVSizeInfo* sizeInfo, SkYUVColorSpace* colorSpace) const override {</span>
+<a name="227"><span class="lineNum">     227 </span><span class="lineNoCov">          0 :         return fGen-&gt;queryYUV8(sizeInfo, colorSpace);</span></a>
+<span class="lineNum">     228 </span>            :     }
+<span class="lineNum">     229 </span><span class="lineNoCov">          0 :     bool onGetYUV8Planes(const SkYUVSizeInfo&amp; sizeInfo, void* planes[3]) override {</span>
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :         return fGen-&gt;getYUV8Planes(sizeInfo, planes);</span>
+<span class="lineNum">     231 </span>            :     }
+<a name="232"><span class="lineNum">     232 </span>            : };</a>
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span><span class="lineNoCov">          0 : static GrTexture* set_key_and_return(GrTexture* tex, const GrUniqueKey&amp; key) {</span>
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :     if (key.isValid()) {</span>
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :         tex-&gt;resourcePriv().setUniqueKey(key);</span>
+<span class="lineNum">     237 </span>            :     }
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :     return tex;</span>
+<span class="lineNum">     239 </span>            : }
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span>            : /*
+<span class="lineNum">     242 </span>            :  *  We have a 5 ways to try to return a texture (in sorted order)
+<span class="lineNum">     243 </span>            :  *
+<span class="lineNum">     244 </span>            :  *  1. Check the cache for a pre-existing one
+<span class="lineNum">     245 </span>            :  *  2. Ask the generator to natively create one
+<span class="lineNum">     246 </span>            :  *  3. Ask the generator to return a compressed form that the GPU might support
+<span class="lineNum">     247 </span>            :  *  4. Ask the generator to return YUV planes, which the GPU can convert
+<a name="248"><span class="lineNum">     248 </span>            :  *  5. Ask the generator to return RGB(A) data, which the GPU can convert</a>
+<span class="lineNum">     249 </span>            :  */
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 : GrTexture* SkImageCacherator::lockTexture(GrContext* ctx, const GrUniqueKey&amp; key,</span>
+<span class="lineNum">     251 </span>            :                                           const SkImage* client, SkImage::CachingHint chint,
+<span class="lineNum">     252 </span>            :                                           bool willBeMipped,
+<span class="lineNum">     253 </span>            :                                           SkSourceGammaTreatment gammaTreatment) {
+<span class="lineNum">     254 </span>            :     // Values representing the various texture lock paths we can take. Used for logging the path
+<span class="lineNum">     255 </span>            :     // taken to a histogram.
+<span class="lineNum">     256 </span>            :     enum LockTexturePath {
+<span class="lineNum">     257 </span>            :         kFailure_LockTexturePath,
+<span class="lineNum">     258 </span>            :         kPreExisting_LockTexturePath,
+<span class="lineNum">     259 </span>            :         kNative_LockTexturePath,
+<span class="lineNum">     260 </span>            :         kCompressed_LockTexturePath,
+<span class="lineNum">     261 </span>            :         kYUV_LockTexturePath,
+<span class="lineNum">     262 </span>            :         kRGBA_LockTexturePath,
+<span class="lineNum">     263 </span>            :     };
+<span class="lineNum">     264 </span>            : 
+<span class="lineNum">     265 </span>            :     enum { kLockTexturePathCount = kRGBA_LockTexturePath + 1 };
+<span class="lineNum">     266 </span>            : 
+<span class="lineNum">     267 </span>            :     // 1. Check the cache for a pre-existing one
+<span class="lineNum">     268 </span><span class="lineNoCov">          0 :     if (key.isValid()) {</span>
+<span class="lineNum">     269 </span><span class="lineNoCov">          0 :         if (GrTexture* tex = ctx-&gt;textureProvider()-&gt;findAndRefTextureByUniqueKey(key)) {</span>
+<span class="lineNum">     270 </span>            :             SK_HISTOGRAM_ENUMERATION(&quot;LockTexturePath&quot;, kPreExisting_LockTexturePath,
+<span class="lineNum">     271 </span>            :                                      kLockTexturePathCount);
+<span class="lineNum">     272 </span>            :             return tex;
+<span class="lineNum">     273 </span>            :         }
+<span class="lineNum">     274 </span>            :     }
+<span class="lineNum">     275 </span>            : 
+<span class="lineNum">     276 </span>            :     // 2. Ask the generator to natively create one
+<span class="lineNum">     277 </span>            :     {
+<span class="lineNum">     278 </span>            :         ScopedGenerator generator(this);
+<span class="lineNum">     279 </span><span class="lineNoCov">          0 :         SkIRect subset = SkIRect::MakeXYWH(fOrigin.x(), fOrigin.y(), fInfo.width(), fInfo.height());</span>
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 :         if (GrTexture* tex = generator-&gt;generateTexture(ctx, &amp;subset)) {</span>
+<span class="lineNum">     281 </span>            :             SK_HISTOGRAM_ENUMERATION(&quot;LockTexturePath&quot;, kNative_LockTexturePath,
+<span class="lineNum">     282 </span>            :                                      kLockTexturePathCount);
+<span class="lineNum">     283 </span><span class="lineNoCov">          0 :             return set_key_and_return(tex, key);</span>
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 :         }</span>
+<span class="lineNum">     285 </span>            :     }
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span><span class="lineNoCov">          0 :     const GrSurfaceDesc desc = GrImageInfoToSurfaceDesc(fInfo, *ctx-&gt;caps());</span>
+<span class="lineNum">     288 </span>            : 
+<span class="lineNum">     289 </span>            : #ifdef SK_SUPPORT_COMPRESSED_TEXTURES_IN_CACHERATOR
+<span class="lineNum">     290 </span>            :     // 3. Ask the generator to return a compressed form that the GPU might support
+<span class="lineNum">     291 </span>            :     sk_sp&lt;SkData&gt; data(this-&gt;refEncoded(ctx));
+<span class="lineNum">     292 </span>            :     if (data) {
+<span class="lineNum">     293 </span>            :         GrTexture* tex = load_compressed_into_texture(ctx, data, desc);
+<span class="lineNum">     294 </span>            :         if (tex) {
+<span class="lineNum">     295 </span>            :             SK_HISTOGRAM_ENUMERATION(&quot;LockTexturePath&quot;, kCompressed_LockTexturePath,
+<span class="lineNum">     296 </span>            :                                      kLockTexturePathCount);
+<span class="lineNum">     297 </span>            :             return set_key_and_return(tex, key);
+<span class="lineNum">     298 </span>            :         }
+<span class="lineNum">     299 </span>            :     }
+<span class="lineNum">     300 </span>            : #endif
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span>            :     // 4. Ask the generator to return YUV planes, which the GPU can convert
+<span class="lineNum">     303 </span>            :     {
+<span class="lineNum">     304 </span>            :         ScopedGenerator generator(this);
+<span class="lineNum">     305 </span>            :         Generator_GrYUVProvider provider(generator);
+<span class="lineNum">     306 </span><span class="lineNoCov">          0 :         sk_sp&lt;GrTexture&gt; tex = provider.refAsTexture(ctx, desc, true);</span>
+<span class="lineNum">     307 </span><span class="lineNoCov">          0 :         if (tex) {</span>
+<span class="lineNum">     308 </span>            :             SK_HISTOGRAM_ENUMERATION(&quot;LockTexturePath&quot;, kYUV_LockTexturePath,
+<span class="lineNum">     309 </span>            :                                      kLockTexturePathCount);
+<span class="lineNum">     310 </span><span class="lineNoCov">          0 :             return set_key_and_return(tex.release(), key);</span>
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :         }</span>
+<span class="lineNum">     312 </span>            :     }
+<span class="lineNum">     313 </span>            : 
+<span class="lineNum">     314 </span>            :     // 5. Ask the generator to return RGB(A) data, which the GPU can convert
+<span class="lineNum">     315 </span><span class="lineNoCov">          0 :     SkBitmap bitmap;</span>
+<span class="lineNum">     316 </span><span class="lineNoCov">          0 :     if (this-&gt;tryLockAsBitmap(&amp;bitmap, client, chint)) {</span>
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :         GrTexture* tex = nullptr;</span>
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :         if (willBeMipped) {</span>
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :             tex = GrGenerateMipMapsAndUploadToTexture(ctx, bitmap, gammaTreatment);</span>
+<span class="lineNum">     320 </span>            :         }
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :         if (!tex) {</span>
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 :             tex = GrUploadBitmapToTexture(ctx, bitmap);</span>
+<span class="lineNum">     323 </span>            :         }
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 :         if (tex) {</span>
+<span class="lineNum">     325 </span>            :             SK_HISTOGRAM_ENUMERATION(&quot;LockTexturePath&quot;, kRGBA_LockTexturePath,
+<span class="lineNum">     326 </span>            :                                      kLockTexturePathCount);
+<span class="lineNum">     327 </span><span class="lineNoCov">          0 :             return set_key_and_return(tex, key);</span>
+<span class="lineNum">     328 </span>            :         }
+<span class="lineNum">     329 </span>            :     }
+<span class="lineNum">     330 </span>            :     SK_HISTOGRAM_ENUMERATION(&quot;LockTexturePath&quot;, kFailure_LockTexturePath,
+<span class="lineNum">     331 </span>            :                              kLockTexturePathCount);
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :     return nullptr;</span>
+<span class="lineNum">     333 </span>            : }
+<span class="lineNum">     334 </span>            : 
+<a name="335"><span class="lineNum">     335 </span>            : ///////////////////////////////////////////////////////////////////////////////////////////////////</a>
+<span class="lineNum">     336 </span>            : 
+<span class="lineNum">     337 </span><span class="lineNoCov">          0 : GrTexture* SkImageCacherator::lockAsTexture(GrContext* ctx, const GrTextureParams&amp; params,</span>
+<span class="lineNum">     338 </span>            :                                             SkSourceGammaTreatment gammaTreatment,
+<span class="lineNum">     339 </span>            :                                             const SkImage* client, SkImage::CachingHint chint) {
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :     if (!ctx) {</span>
+<span class="lineNum">     341 </span>            :         return nullptr;
+<span class="lineNum">     342 </span>            :     }
+<span class="lineNum">     343 </span>            : 
+<span class="lineNum">     344 </span>            :     return GrImageTextureMaker(ctx, this, client, chint).refTextureForParams(params,
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 :                                                                              gammaTreatment);</span>
+<span class="lineNum">     346 </span>            : }
+<span class="lineNum">     347 </span>            : 
+<span class="lineNum">     348 </span>            : #else
+<span class="lineNum">     349 </span>            : 
+<span class="lineNum">     350 </span>            : GrTexture* SkImageCacherator::lockAsTexture(GrContext* ctx, const GrTextureParams&amp;,
+<span class="lineNum">     351 </span>            :                                             SkSourceGammaTreatment gammaTreatment,
+<span class="lineNum">     352 </span>            :                                             const SkImage* client, SkImage::CachingHint) {
+<span class="lineNum">     353 </span>            :     return nullptr;
+<span class="lineNum">     354 </span>            : }
+<span class="lineNum">     355 </span>            : 
+<span class="lineNum">     356 </span>            : #endif
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

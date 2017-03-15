@@ -1,0 +1,489 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/nss/lib/base/list.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">security/nss/lib/base</a> - list.c<span style="font-size: 80%;"> (source / <a href="list.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">155</td>
+            <td class="headerCovTableEntry">178</td>
+            <td class="headerCovTableEntryMed">87.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">18</td>
+            <td class="headerCovTableEntry">21</td>
+            <td class="headerCovTableEntryMed">85.7 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public</a>
+<span class="lineNum">       2 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       3 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : /*
+<span class="lineNum">       6 </span>            :  * list.c
+<span class="lineNum">       7 </span>            :  *
+<span class="lineNum">       8 </span>            :  * This contains the implementation of NSS's thread-safe linked list.
+<span class="lineNum">       9 </span>            :  */
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #ifndef BASE_H
+<span class="lineNum">      12 </span>            : #include &quot;base.h&quot;
+<span class="lineNum">      13 </span>            : #endif /* BASE_H */
+<span class="lineNum">      14 </span>            : 
+<span class="lineNum">      15 </span>            : struct nssListElementStr {
+<span class="lineNum">      16 </span>            :     PRCList link;
+<span class="lineNum">      17 </span>            :     void *data;
+<span class="lineNum">      18 </span>            : };
+<span class="lineNum">      19 </span>            : 
+<span class="lineNum">      20 </span>            : typedef struct nssListElementStr nssListElement;
+<span class="lineNum">      21 </span>            : 
+<span class="lineNum">      22 </span>            : struct nssListStr {
+<span class="lineNum">      23 </span>            :     NSSArena *arena;
+<span class="lineNum">      24 </span>            :     PZLock *lock;
+<span class="lineNum">      25 </span>            :     nssListElement *head;
+<span class="lineNum">      26 </span>            :     PRUint32 count;
+<span class="lineNum">      27 </span>            :     nssListCompareFunc compareFunc;
+<span class="lineNum">      28 </span>            :     nssListSortFunc sortFunc;
+<span class="lineNum">      29 </span>            :     PRBool i_alloced_arena;
+<span class="lineNum">      30 </span>            : };
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : struct nssListIteratorStr {
+<span class="lineNum">      33 </span>            :     PZLock *lock;
+<span class="lineNum">      34 </span>            :     nssList *list;
+<span class="lineNum">      35 </span>            :     nssListElement *current;
+<span class="lineNum">      36 </span>            : };
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : #define NSSLIST_LOCK_IF(list) \
+<span class="lineNum">      39 </span>            :     if ((list)-&gt;lock)         \
+<span class="lineNum">      40 </span>            :     PZ_Lock((list)-&gt;lock)
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : #define NSSLIST_UNLOCK_IF(list) \
+<span class="lineNum">      43 </span>            :     if ((list)-&gt;lock)           \
+<span class="lineNum">      44 </span>            :     PZ_Unlock((list)-&gt;lock)
+<a name="45"><span class="lineNum">      45 </span>            : </a>
+<span class="lineNum">      46 </span>            : static PRBool
+<span class="lineNum">      47 </span><span class="lineCov">          1 : pointer_compare(void *a, void *b)</span>
+<span class="lineNum">      48 </span>            : {
+<span class="lineNum">      49 </span><span class="lineCov">          1 :     return (PRBool)(a == b);</span>
+<span class="lineNum">      50 </span>            : }
+<a name="51"><span class="lineNum">      51 </span>            : </a>
+<span class="lineNum">      52 </span>            : static nssListElement *
+<span class="lineNum">      53 </span><span class="lineCov">          1 : nsslist_get_matching_element(nssList *list, void *data)</span>
+<span class="lineNum">      54 </span>            : {
+<span class="lineNum">      55 </span>            :     nssListElement *node;
+<span class="lineNum">      56 </span><span class="lineCov">          1 :     node = list-&gt;head;</span>
+<span class="lineNum">      57 </span><span class="lineCov">          1 :     if (!node) {</span>
+<span class="lineNum">      58 </span>            :         return NULL;
+<span class="lineNum">      59 </span>            :     }
+<span class="lineNum">      60 </span><span class="lineCov">          1 :     while (node) {</span>
+<span class="lineNum">      61 </span>            :         /* using a callback slows things down when it's just compare ... */
+<span class="lineNum">      62 </span><span class="lineCov">          1 :         if (list-&gt;compareFunc(node-&gt;data, data)) {</span>
+<span class="lineNum">      63 </span>            :             break;
+<span class="lineNum">      64 </span>            :         }
+<span class="lineNum">      65 </span><span class="lineCov">          1 :         if (&amp;node-&gt;link == PR_LIST_TAIL(&amp;list-&gt;head-&gt;link)) {</span>
+<span class="lineNum">      66 </span>            :             node = NULL;
+<span class="lineNum">      67 </span>            :             break;
+<span class="lineNum">      68 </span>            :         }
+<span class="lineNum">      69 </span><span class="lineCov">          1 :         node = (nssListElement *)PR_NEXT_LINK(&amp;node-&gt;link);</span>
+<span class="lineNum">      70 </span>            :     }
+<span class="lineNum">      71 </span><span class="lineCov">          1 :     return node;</span>
+<span class="lineNum">      72 </span>            : }
+<a name="73"><span class="lineNum">      73 </span>            : </a>
+<span class="lineNum">      74 </span>            : NSS_IMPLEMENT nssList *
+<span class="lineNum">      75 </span><span class="lineCov">          1 : nssList_Create(NSSArena *arenaOpt, PRBool threadSafe)</span>
+<span class="lineNum">      76 </span>            : {
+<span class="lineNum">      77 </span>            :     NSSArena *arena;
+<span class="lineNum">      78 </span>            :     nssList *list;
+<span class="lineNum">      79 </span>            :     PRBool i_alloced;
+<span class="lineNum">      80 </span><span class="lineCov">          1 :     if (arenaOpt) {</span>
+<span class="lineNum">      81 </span>            :         arena = arenaOpt;
+<span class="lineNum">      82 </span>            :         i_alloced = PR_FALSE;
+<span class="lineNum">      83 </span>            :     } else {
+<span class="lineNum">      84 </span><span class="lineCov">          1 :         arena = nssArena_Create();</span>
+<span class="lineNum">      85 </span><span class="lineCov">          1 :         i_alloced = PR_TRUE;</span>
+<span class="lineNum">      86 </span>            :     }
+<span class="lineNum">      87 </span><span class="lineCov">          1 :     if (!arena) {</span>
+<span class="lineNum">      88 </span>            :         return (nssList *)NULL;
+<span class="lineNum">      89 </span>            :     }
+<span class="lineNum">      90 </span><span class="lineCov">          1 :     list = nss_ZNEW(arena, nssList);</span>
+<span class="lineNum">      91 </span><span class="lineCov">          1 :     if (!list) {</span>
+<span class="lineNum">      92 </span><span class="lineNoCov">          0 :         if (!arenaOpt) {</span>
+<span class="lineNum">      93 </span><span class="lineNoCov">          0 :             NSSArena_Destroy(arena);</span>
+<span class="lineNum">      94 </span>            :         }
+<span class="lineNum">      95 </span>            :         return (nssList *)NULL;
+<span class="lineNum">      96 </span>            :     }
+<span class="lineNum">      97 </span><span class="lineCov">          1 :     if (threadSafe) {</span>
+<span class="lineNum">      98 </span><span class="lineCov">          1 :         list-&gt;lock = PZ_NewLock(nssILockOther);</span>
+<span class="lineNum">      99 </span><span class="lineCov">          1 :         if (!list-&gt;lock) {</span>
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :             if (arenaOpt) {</span>
+<span class="lineNum">     101 </span><span class="lineNoCov">          0 :                 nss_ZFreeIf(list);</span>
+<span class="lineNum">     102 </span>            :             } else {
+<span class="lineNum">     103 </span><span class="lineNoCov">          0 :                 NSSArena_Destroy(arena);</span>
+<span class="lineNum">     104 </span>            :             }
+<span class="lineNum">     105 </span>            :             return (nssList *)NULL;
+<span class="lineNum">     106 </span>            :         }
+<span class="lineNum">     107 </span>            :     }
+<span class="lineNum">     108 </span><span class="lineCov">          1 :     list-&gt;arena = arena;</span>
+<span class="lineNum">     109 </span><span class="lineCov">          1 :     list-&gt;i_alloced_arena = i_alloced;</span>
+<span class="lineNum">     110 </span><span class="lineCov">          1 :     list-&gt;compareFunc = pointer_compare;</span>
+<span class="lineNum">     111 </span><span class="lineCov">          1 :     return list;</span>
+<span class="lineNum">     112 </span>            : }
+<a name="113"><span class="lineNum">     113 </span>            : </a>
+<span class="lineNum">     114 </span>            : NSS_IMPLEMENT PRStatus
+<span class="lineNum">     115 </span><span class="lineCov">          1 : nssList_Destroy(nssList *list)</span>
+<span class="lineNum">     116 </span>            : {
+<span class="lineNum">     117 </span><span class="lineCov">          1 :     if (!list) {</span>
+<span class="lineNum">     118 </span>            :         return PR_SUCCESS;
+<span class="lineNum">     119 </span>            :     }
+<span class="lineNum">     120 </span><span class="lineCov">          1 :     if (!list-&gt;i_alloced_arena) {</span>
+<span class="lineNum">     121 </span><span class="lineCov">          1 :         nssList_Clear(list, NULL);</span>
+<span class="lineNum">     122 </span>            :     }
+<span class="lineNum">     123 </span><span class="lineCov">          1 :     if (list-&gt;lock) {</span>
+<span class="lineNum">     124 </span><span class="lineCov">          1 :         (void)PZ_DestroyLock(list-&gt;lock);</span>
+<span class="lineNum">     125 </span>            :     }
+<span class="lineNum">     126 </span><span class="lineCov">          1 :     if (list-&gt;i_alloced_arena) {</span>
+<span class="lineNum">     127 </span><span class="lineCov">          1 :         NSSArena_Destroy(list-&gt;arena);</span>
+<span class="lineNum">     128 </span><span class="lineCov">          1 :         list = NULL;</span>
+<span class="lineNum">     129 </span>            :     }
+<span class="lineNum">     130 </span><span class="lineCov">          1 :     nss_ZFreeIf(list);</span>
+<span class="lineNum">     131 </span><span class="lineCov">          1 :     return PR_SUCCESS;</span>
+<span class="lineNum">     132 </span>            : }
+<a name="133"><span class="lineNum">     133 </span>            : </a>
+<span class="lineNum">     134 </span>            : NSS_IMPLEMENT void
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 : nssList_SetCompareFunction(nssList *list, nssListCompareFunc compareFunc)</span>
+<span class="lineNum">     136 </span>            : {
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :     list-&gt;compareFunc = compareFunc;</span>
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 : }</span>
+<a name="139"><span class="lineNum">     139 </span>            : </a>
+<span class="lineNum">     140 </span>            : NSS_IMPLEMENT void
+<span class="lineNum">     141 </span><span class="lineCov">          1 : nssList_SetSortFunction(nssList *list, nssListSortFunc sortFunc)</span>
+<span class="lineNum">     142 </span>            : {
+<span class="lineNum">     143 </span>            :     /* XXX if list already has elements, sort them */
+<span class="lineNum">     144 </span><span class="lineCov">          1 :     list-&gt;sortFunc = sortFunc;</span>
+<span class="lineNum">     145 </span><span class="lineCov">          1 : }</span>
+<a name="146"><span class="lineNum">     146 </span>            : </a>
+<span class="lineNum">     147 </span>            : NSS_IMPLEMENT nssListCompareFunc
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 : nssList_GetCompareFunction(nssList *list)</span>
+<span class="lineNum">     149 </span>            : {
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :     return list-&gt;compareFunc;</span>
+<span class="lineNum">     151 </span>            : }
+<a name="152"><span class="lineNum">     152 </span>            : </a>
+<span class="lineNum">     153 </span>            : NSS_IMPLEMENT void
+<span class="lineNum">     154 </span><span class="lineCov">          1 : nssList_Clear(nssList *list, nssListElementDestructorFunc destructor)</span>
+<span class="lineNum">     155 </span>            : {
+<span class="lineNum">     156 </span>            :     PRCList *link;
+<span class="lineNum">     157 </span>            :     nssListElement *node, *tmp;
+<span class="lineNum">     158 </span><span class="lineCov">          1 :     if (!list) {</span>
+<span class="lineNum">     159 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     160 </span>            :     }
+<span class="lineNum">     161 </span><span class="lineCov">          1 :     NSSLIST_LOCK_IF(list);</span>
+<span class="lineNum">     162 </span><span class="lineCov">          1 :     node = list-&gt;head;</span>
+<span class="lineNum">     163 </span><span class="lineCov">          1 :     list-&gt;head = NULL;</span>
+<span class="lineNum">     164 </span><span class="lineCov">          1 :     while (node &amp;&amp; list-&gt;count &gt; 0) {</span>
+<span class="lineNum">     165 </span><span class="lineCov">          1 :         if (destructor)</span>
+<span class="lineNum">     166 </span><span class="lineCov">          1 :             (*destructor)(node-&gt;data);</span>
+<span class="lineNum">     167 </span><span class="lineCov">          1 :         link = &amp;node-&gt;link;</span>
+<span class="lineNum">     168 </span><span class="lineCov">          1 :         tmp = (nssListElement *)PR_NEXT_LINK(link);</span>
+<span class="lineNum">     169 </span><span class="lineCov">          1 :         PR_REMOVE_LINK(link);</span>
+<span class="lineNum">     170 </span><span class="lineCov">          1 :         nss_ZFreeIf(node);</span>
+<span class="lineNum">     171 </span><span class="lineCov">          1 :         node = tmp;</span>
+<span class="lineNum">     172 </span><span class="lineCov">          1 :         --list-&gt;count;</span>
+<span class="lineNum">     173 </span>            :     }
+<span class="lineNum">     174 </span><span class="lineCov">          1 :     NSSLIST_UNLOCK_IF(list);</span>
+<span class="lineNum">     175 </span>            : }
+<a name="176"><span class="lineNum">     176 </span>            : </a>
+<span class="lineNum">     177 </span>            : static PRStatus
+<span class="lineNum">     178 </span><span class="lineCov">          1 : nsslist_add_element(nssList *list, void *data)</span>
+<span class="lineNum">     179 </span>            : {
+<span class="lineNum">     180 </span><span class="lineCov">          1 :     nssListElement *node = nss_ZNEW(list-&gt;arena, nssListElement);</span>
+<span class="lineNum">     181 </span><span class="lineCov">          1 :     if (!node) {</span>
+<span class="lineNum">     182 </span>            :         return PR_FAILURE;
+<span class="lineNum">     183 </span>            :     }
+<span class="lineNum">     184 </span><span class="lineCov">          1 :     PR_INIT_CLIST(&amp;node-&gt;link);</span>
+<span class="lineNum">     185 </span><span class="lineCov">          1 :     node-&gt;data = data;</span>
+<span class="lineNum">     186 </span><span class="lineCov">          1 :     if (list-&gt;head) {</span>
+<span class="lineNum">     187 </span><span class="lineCov">          1 :         if (list-&gt;sortFunc) {</span>
+<span class="lineNum">     188 </span>            :             PRCList *link;
+<span class="lineNum">     189 </span>            :             nssListElement *currNode;
+<span class="lineNum">     190 </span>            :             currNode = list-&gt;head;
+<span class="lineNum">     191 </span>            :             /* insert in ordered list */
+<span class="lineNum">     192 </span><span class="lineCov">          1 :             while (currNode) {</span>
+<span class="lineNum">     193 </span><span class="lineCov">          1 :                 link = &amp;currNode-&gt;link;</span>
+<span class="lineNum">     194 </span><span class="lineCov">          1 :                 if (list-&gt;sortFunc(data, currNode-&gt;data) &lt;= 0) {</span>
+<span class="lineNum">     195 </span>            :                     /* new element goes before current node */
+<span class="lineNum">     196 </span><span class="lineCov">          1 :                     PR_INSERT_BEFORE(&amp;node-&gt;link, link);</span>
+<span class="lineNum">     197 </span>            :                     /* reset head if this is first */
+<span class="lineNum">     198 </span><span class="lineCov">          1 :                     if (currNode == list-&gt;head)</span>
+<span class="lineNum">     199 </span><span class="lineCov">          1 :                         list-&gt;head = node;</span>
+<span class="lineNum">     200 </span>            :                     break;
+<span class="lineNum">     201 </span>            :                 }
+<span class="lineNum">     202 </span><span class="lineCov">          1 :                 if (link == PR_LIST_TAIL(&amp;list-&gt;head-&gt;link)) {</span>
+<span class="lineNum">     203 </span>            :                     /* reached end of list, append */
+<span class="lineNum">     204 </span><span class="lineCov">          1 :                     PR_INSERT_AFTER(&amp;node-&gt;link, link);</span>
+<span class="lineNum">     205 </span><span class="lineCov">          1 :                     break;</span>
+<span class="lineNum">     206 </span>            :                 }
+<span class="lineNum">     207 </span><span class="lineCov">          1 :                 currNode = (nssListElement *)PR_NEXT_LINK(&amp;currNode-&gt;link);</span>
+<span class="lineNum">     208 </span>            :             }
+<span class="lineNum">     209 </span>            :         } else {
+<span class="lineNum">     210 </span>            :             /* not sorting */
+<span class="lineNum">     211 </span><span class="lineCov">          1 :             PR_APPEND_LINK(&amp;node-&gt;link, &amp;list-&gt;head-&gt;link);</span>
+<span class="lineNum">     212 </span>            :         }
+<span class="lineNum">     213 </span>            :     } else {
+<span class="lineNum">     214 </span><span class="lineCov">          1 :         list-&gt;head = node;</span>
+<span class="lineNum">     215 </span>            :     }
+<span class="lineNum">     216 </span><span class="lineCov">          1 :     ++list-&gt;count;</span>
+<span class="lineNum">     217 </span><span class="lineCov">          1 :     return PR_SUCCESS;</span>
+<span class="lineNum">     218 </span>            : }
+<a name="219"><span class="lineNum">     219 </span>            : </a>
+<span class="lineNum">     220 </span>            : NSS_IMPLEMENT PRStatus
+<span class="lineNum">     221 </span><span class="lineCov">          1 : nssList_Add(nssList *list, void *data)</span>
+<span class="lineNum">     222 </span>            : {
+<span class="lineNum">     223 </span><span class="lineCov">          1 :     NSSLIST_LOCK_IF(list);</span>
+<span class="lineNum">     224 </span><span class="lineCov">          1 :     (void)nsslist_add_element(list, data);</span>
+<span class="lineNum">     225 </span><span class="lineCov">          1 :     NSSLIST_UNLOCK_IF(list);</span>
+<span class="lineNum">     226 </span><span class="lineCov">          1 :     return PR_SUCCESS;</span>
+<span class="lineNum">     227 </span>            : }
+<a name="228"><span class="lineNum">     228 </span>            : </a>
+<span class="lineNum">     229 </span>            : NSS_IMPLEMENT PRStatus
+<span class="lineNum">     230 </span><span class="lineCov">          1 : nssList_AddUnique(nssList *list, void *data)</span>
+<span class="lineNum">     231 </span>            : {
+<span class="lineNum">     232 </span>            :     PRStatus nssrv;
+<span class="lineNum">     233 </span>            :     nssListElement *node;
+<span class="lineNum">     234 </span><span class="lineCov">          1 :     NSSLIST_LOCK_IF(list);</span>
+<span class="lineNum">     235 </span><span class="lineCov">          1 :     node = nsslist_get_matching_element(list, data);</span>
+<span class="lineNum">     236 </span><span class="lineCov">          1 :     if (node) {</span>
+<span class="lineNum">     237 </span>            :         /* already in, finish */
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :         NSSLIST_UNLOCK_IF(list);</span>
+<span class="lineNum">     239 </span>            :         return PR_SUCCESS;
+<span class="lineNum">     240 </span>            :     }
+<span class="lineNum">     241 </span><span class="lineCov">          1 :     nssrv = nsslist_add_element(list, data);</span>
+<span class="lineNum">     242 </span><span class="lineCov">          1 :     NSSLIST_UNLOCK_IF(list);</span>
+<span class="lineNum">     243 </span><span class="lineCov">          1 :     return nssrv;</span>
+<span class="lineNum">     244 </span>            : }
+<a name="245"><span class="lineNum">     245 </span>            : </a>
+<span class="lineNum">     246 </span>            : NSS_IMPLEMENT PRStatus
+<span class="lineNum">     247 </span><span class="lineCov">          1 : nssList_Remove(nssList *list, void *data)</span>
+<span class="lineNum">     248 </span>            : {
+<span class="lineNum">     249 </span>            :     nssListElement *node;
+<span class="lineNum">     250 </span><span class="lineCov">          1 :     NSSLIST_LOCK_IF(list);</span>
+<span class="lineNum">     251 </span><span class="lineCov">          1 :     node = nsslist_get_matching_element(list, data);</span>
+<span class="lineNum">     252 </span><span class="lineCov">          1 :     if (node) {</span>
+<span class="lineNum">     253 </span><span class="lineCov">          1 :         if (node == list-&gt;head) {</span>
+<span class="lineNum">     254 </span><span class="lineCov">          1 :             list-&gt;head = (nssListElement *)PR_NEXT_LINK(&amp;node-&gt;link);</span>
+<span class="lineNum">     255 </span>            :         }
+<span class="lineNum">     256 </span><span class="lineCov">          1 :         PR_REMOVE_LINK(&amp;node-&gt;link);</span>
+<span class="lineNum">     257 </span><span class="lineCov">          1 :         nss_ZFreeIf(node);</span>
+<span class="lineNum">     258 </span><span class="lineCov">          1 :         if (--list-&gt;count == 0) {</span>
+<span class="lineNum">     259 </span><span class="lineCov">          1 :             list-&gt;head = NULL;</span>
+<span class="lineNum">     260 </span>            :         }
+<span class="lineNum">     261 </span>            :     }
+<span class="lineNum">     262 </span><span class="lineCov">          1 :     NSSLIST_UNLOCK_IF(list);</span>
+<span class="lineNum">     263 </span><span class="lineCov">          1 :     return PR_SUCCESS;</span>
+<span class="lineNum">     264 </span>            : }
+<a name="265"><span class="lineNum">     265 </span>            : </a>
+<span class="lineNum">     266 </span>            : NSS_IMPLEMENT void *
+<span class="lineNum">     267 </span><span class="lineNoCov">          0 : nssList_Get(nssList *list, void *data)</span>
+<span class="lineNum">     268 </span>            : {
+<span class="lineNum">     269 </span>            :     nssListElement *node;
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 :     NSSLIST_LOCK_IF(list);</span>
+<span class="lineNum">     271 </span><span class="lineNoCov">          0 :     node = nsslist_get_matching_element(list, data);</span>
+<span class="lineNum">     272 </span><span class="lineNoCov">          0 :     NSSLIST_UNLOCK_IF(list);</span>
+<span class="lineNum">     273 </span><span class="lineNoCov">          0 :     return (node) ? node-&gt;data : NULL;</span>
+<span class="lineNum">     274 </span>            : }
+<a name="275"><span class="lineNum">     275 </span>            : </a>
+<span class="lineNum">     276 </span>            : NSS_IMPLEMENT PRUint32
+<span class="lineNum">     277 </span><span class="lineCov">          1 : nssList_Count(nssList *list)</span>
+<span class="lineNum">     278 </span>            : {
+<span class="lineNum">     279 </span><span class="lineCov">          1 :     return list-&gt;count;</span>
+<span class="lineNum">     280 </span>            : }
+<a name="281"><span class="lineNum">     281 </span>            : </a>
+<span class="lineNum">     282 </span>            : NSS_IMPLEMENT PRStatus
+<span class="lineNum">     283 </span><span class="lineCov">          1 : nssList_GetArray(nssList *list, void **rvArray, PRUint32 maxElements)</span>
+<span class="lineNum">     284 </span>            : {
+<span class="lineNum">     285 </span>            :     nssListElement *node;
+<span class="lineNum">     286 </span><span class="lineCov">          1 :     PRUint32 i = 0;</span>
+<span class="lineNum">     287 </span>            :     PR_ASSERT(maxElements &gt; 0);
+<span class="lineNum">     288 </span><span class="lineCov">          1 :     node = list-&gt;head;</span>
+<span class="lineNum">     289 </span><span class="lineCov">          1 :     if (!node) {</span>
+<span class="lineNum">     290 </span>            :         return PR_SUCCESS;
+<span class="lineNum">     291 </span>            :     }
+<span class="lineNum">     292 </span><span class="lineCov">          1 :     NSSLIST_LOCK_IF(list);</span>
+<span class="lineNum">     293 </span><span class="lineCov">          1 :     while (node) {</span>
+<span class="lineNum">     294 </span><span class="lineCov">          1 :         rvArray[i++] = node-&gt;data;</span>
+<span class="lineNum">     295 </span><span class="lineCov">          1 :         if (i == maxElements)</span>
+<span class="lineNum">     296 </span>            :             break;
+<span class="lineNum">     297 </span><span class="lineCov">          1 :         node = (nssListElement *)PR_NEXT_LINK(&amp;node-&gt;link);</span>
+<span class="lineNum">     298 </span><span class="lineCov">          1 :         if (node == list-&gt;head) {</span>
+<span class="lineNum">     299 </span>            :             break;
+<span class="lineNum">     300 </span>            :         }
+<span class="lineNum">     301 </span>            :     }
+<span class="lineNum">     302 </span><span class="lineCov">          1 :     NSSLIST_UNLOCK_IF(list);</span>
+<span class="lineNum">     303 </span>            :     return PR_SUCCESS;
+<span class="lineNum">     304 </span>            : }
+<a name="305"><span class="lineNum">     305 </span>            : </a>
+<span class="lineNum">     306 </span>            : NSS_IMPLEMENT nssList *
+<span class="lineNum">     307 </span><span class="lineCov">          1 : nssList_Clone(nssList *list)</span>
+<span class="lineNum">     308 </span>            : {
+<span class="lineNum">     309 </span>            :     nssList *rvList;
+<span class="lineNum">     310 </span>            :     nssListElement *node;
+<span class="lineNum">     311 </span><span class="lineCov">          1 :     rvList = nssList_Create(NULL, (list-&gt;lock != NULL));</span>
+<span class="lineNum">     312 </span><span class="lineCov">          1 :     if (!rvList) {</span>
+<span class="lineNum">     313 </span>            :         return NULL;
+<span class="lineNum">     314 </span>            :     }
+<span class="lineNum">     315 </span><span class="lineCov">          1 :     NSSLIST_LOCK_IF(list);</span>
+<span class="lineNum">     316 </span><span class="lineCov">          1 :     if (list-&gt;count &gt; 0) {</span>
+<span class="lineNum">     317 </span><span class="lineCov">          1 :         node = list-&gt;head;</span>
+<span class="lineNum">     318 </span>            :         while (PR_TRUE) {
+<span class="lineNum">     319 </span><span class="lineCov">          1 :             nssList_Add(rvList, node-&gt;data);</span>
+<span class="lineNum">     320 </span><span class="lineCov">          1 :             node = (nssListElement *)PR_NEXT_LINK(&amp;node-&gt;link);</span>
+<span class="lineNum">     321 </span><span class="lineCov">          1 :             if (node == list-&gt;head) {</span>
+<span class="lineNum">     322 </span>            :                 break;
+<span class="lineNum">     323 </span>            :             }
+<span class="lineNum">     324 </span>            :         }
+<span class="lineNum">     325 </span>            :     }
+<span class="lineNum">     326 </span><span class="lineCov">          1 :     NSSLIST_UNLOCK_IF(list);</span>
+<span class="lineNum">     327 </span><span class="lineCov">          1 :     return rvList;</span>
+<span class="lineNum">     328 </span>            : }
+<a name="329"><span class="lineNum">     329 </span>            : </a>
+<span class="lineNum">     330 </span>            : NSS_IMPLEMENT nssListIterator *
+<span class="lineNum">     331 </span><span class="lineCov">          1 : nssList_CreateIterator(nssList *list)</span>
+<span class="lineNum">     332 </span>            : {
+<span class="lineNum">     333 </span>            :     nssListIterator *rvIterator;
+<span class="lineNum">     334 </span><span class="lineCov">          1 :     rvIterator = nss_ZNEW(NULL, nssListIterator);</span>
+<span class="lineNum">     335 </span><span class="lineCov">          1 :     if (!rvIterator) {</span>
+<span class="lineNum">     336 </span>            :         return NULL;
+<span class="lineNum">     337 </span>            :     }
+<span class="lineNum">     338 </span><span class="lineCov">          1 :     rvIterator-&gt;list = nssList_Clone(list);</span>
+<span class="lineNum">     339 </span><span class="lineCov">          1 :     if (!rvIterator-&gt;list) {</span>
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :         nss_ZFreeIf(rvIterator);</span>
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     342 </span>            :     }
+<span class="lineNum">     343 </span><span class="lineCov">          1 :     rvIterator-&gt;current = rvIterator-&gt;list-&gt;head;</span>
+<span class="lineNum">     344 </span><span class="lineCov">          1 :     if (list-&gt;lock) {</span>
+<span class="lineNum">     345 </span><span class="lineCov">          1 :         rvIterator-&gt;lock = PZ_NewLock(nssILockOther);</span>
+<span class="lineNum">     346 </span><span class="lineCov">          1 :         if (!rvIterator-&gt;lock) {</span>
+<span class="lineNum">     347 </span><span class="lineNoCov">          0 :             nssList_Destroy(rvIterator-&gt;list);</span>
+<span class="lineNum">     348 </span><span class="lineNoCov">          0 :             nss_ZFreeIf(rvIterator);</span>
+<span class="lineNum">     349 </span><span class="lineNoCov">          0 :             rvIterator = NULL;</span>
+<span class="lineNum">     350 </span>            :         }
+<span class="lineNum">     351 </span>            :     }
+<span class="lineNum">     352 </span><span class="lineCov">          1 :     return rvIterator;</span>
+<span class="lineNum">     353 </span>            : }
+<a name="354"><span class="lineNum">     354 </span>            : </a>
+<span class="lineNum">     355 </span>            : NSS_IMPLEMENT void
+<span class="lineNum">     356 </span><span class="lineCov">          1 : nssListIterator_Destroy(nssListIterator *iter)</span>
+<span class="lineNum">     357 </span>            : {
+<span class="lineNum">     358 </span><span class="lineCov">          1 :     if (iter-&gt;lock) {</span>
+<span class="lineNum">     359 </span><span class="lineCov">          1 :         (void)PZ_DestroyLock(iter-&gt;lock);</span>
+<span class="lineNum">     360 </span>            :     }
+<span class="lineNum">     361 </span><span class="lineCov">          1 :     if (iter-&gt;list) {</span>
+<span class="lineNum">     362 </span><span class="lineCov">          1 :         nssList_Destroy(iter-&gt;list);</span>
+<span class="lineNum">     363 </span>            :     }
+<span class="lineNum">     364 </span><span class="lineCov">          1 :     nss_ZFreeIf(iter);</span>
+<span class="lineNum">     365 </span><span class="lineCov">          1 : }</span>
+<a name="366"><span class="lineNum">     366 </span>            : </a>
+<span class="lineNum">     367 </span>            : NSS_IMPLEMENT void *
+<span class="lineNum">     368 </span><span class="lineCov">          1 : nssListIterator_Start(nssListIterator *iter)</span>
+<span class="lineNum">     369 </span>            : {
+<span class="lineNum">     370 </span><span class="lineCov">          1 :     NSSLIST_LOCK_IF(iter);</span>
+<span class="lineNum">     371 </span><span class="lineCov">          1 :     if (iter-&gt;list-&gt;count == 0) {</span>
+<span class="lineNum">     372 </span>            :         return NULL;
+<span class="lineNum">     373 </span>            :     }
+<span class="lineNum">     374 </span><span class="lineCov">          1 :     iter-&gt;current = iter-&gt;list-&gt;head;</span>
+<span class="lineNum">     375 </span><span class="lineCov">          1 :     return iter-&gt;current-&gt;data;</span>
+<span class="lineNum">     376 </span>            : }
+<a name="377"><span class="lineNum">     377 </span>            : </a>
+<span class="lineNum">     378 </span>            : NSS_IMPLEMENT void *
+<span class="lineNum">     379 </span><span class="lineCov">          1 : nssListIterator_Next(nssListIterator *iter)</span>
+<span class="lineNum">     380 </span>            : {
+<span class="lineNum">     381 </span>            :     nssListElement *node;
+<span class="lineNum">     382 </span>            :     PRCList *link;
+<span class="lineNum">     383 </span><span class="lineCov">          1 :     if (iter-&gt;list-&gt;count == 1 || iter-&gt;current == NULL) {</span>
+<span class="lineNum">     384 </span>            :         /* Reached the end of the list.  Don't change the state, force to
+<span class="lineNum">     385 </span>            :          * user to call nssList_Finish to clean up.
+<span class="lineNum">     386 </span>            :          */
+<span class="lineNum">     387 </span>            :         return NULL;
+<span class="lineNum">     388 </span>            :     }
+<span class="lineNum">     389 </span><span class="lineCov">          1 :     node = (nssListElement *)PR_NEXT_LINK(&amp;iter-&gt;current-&gt;link);</span>
+<span class="lineNum">     390 </span><span class="lineCov">          1 :     link = &amp;node-&gt;link;</span>
+<span class="lineNum">     391 </span><span class="lineCov">          1 :     if (link == PR_LIST_TAIL(&amp;iter-&gt;list-&gt;head-&gt;link)) {</span>
+<span class="lineNum">     392 </span>            :         /* Signal the end of the list. */
+<span class="lineNum">     393 </span><span class="lineCov">          1 :         iter-&gt;current = NULL;</span>
+<span class="lineNum">     394 </span><span class="lineCov">          1 :         return node-&gt;data;</span>
+<span class="lineNum">     395 </span>            :     }
+<span class="lineNum">     396 </span><span class="lineNoCov">          0 :     iter-&gt;current = node;</span>
+<span class="lineNum">     397 </span><span class="lineNoCov">          0 :     return node-&gt;data;</span>
+<span class="lineNum">     398 </span>            : }
+<a name="399"><span class="lineNum">     399 </span>            : </a>
+<span class="lineNum">     400 </span>            : NSS_IMPLEMENT PRStatus
+<span class="lineNum">     401 </span><span class="lineCov">          1 : nssListIterator_Finish(nssListIterator *iter)</span>
+<span class="lineNum">     402 </span>            : {
+<span class="lineNum">     403 </span><span class="lineCov">          1 :     iter-&gt;current = iter-&gt;list-&gt;head;</span>
+<span class="lineNum">     404 </span><span class="lineCov">          1 :     return (iter-&gt;lock) ? PZ_Unlock(iter-&gt;lock) : PR_SUCCESS;</span>
+<span class="lineNum">     405 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

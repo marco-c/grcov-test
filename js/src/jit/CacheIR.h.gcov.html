@@ -1,0 +1,1297 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - js/src/jit/CacheIR.h</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">js/src/jit</a> - CacheIR.h<span style="font-size: 80%;"> (source / <a href="CacheIR.h.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">337</td>
+            <td class="headerCovTableEntry">388</td>
+            <td class="headerCovTableEntryMed">86.9 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">46</td>
+            <td class="headerCovTableEntry">55</td>
+            <td class="headerCovTableEntryMed">83.6 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-</a>
+<span class="lineNum">       2 </span>            :  * vim: set ts=8 sts=4 et sw=4 tw=99:
+<span class="lineNum">       3 </span>            :  * This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #ifndef jit_CacheIR_h
+<span class="lineNum">       8 </span>            : #define jit_CacheIR_h
+<span class="lineNum">       9 </span>            : 
+<span class="lineNum">      10 </span>            : #include &quot;mozilla/Maybe.h&quot;
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : #include &quot;NamespaceImports.h&quot;
+<span class="lineNum">      13 </span>            : 
+<span class="lineNum">      14 </span>            : #include &quot;gc/Rooting.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;jit/CompactBuffer.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;jit/SharedIC.h&quot;
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : namespace js {
+<span class="lineNum">      19 </span>            : namespace jit {
+<span class="lineNum">      20 </span>            : 
+<span class="lineNum">      21 </span>            : // CacheIR is an (extremely simple) linear IR language for inline caches.
+<span class="lineNum">      22 </span>            : // From this IR, we can generate machine code for Baseline or Ion IC stubs.
+<span class="lineNum">      23 </span>            : //
+<span class="lineNum">      24 </span>            : // IRWriter
+<span class="lineNum">      25 </span>            : // --------
+<span class="lineNum">      26 </span>            : // CacheIR bytecode is written using IRWriter. This class also records some
+<span class="lineNum">      27 </span>            : // metadata that's used by the Baseline and Ion code generators to generate
+<span class="lineNum">      28 </span>            : // (efficient) machine code.
+<span class="lineNum">      29 </span>            : //
+<span class="lineNum">      30 </span>            : // Sharing Baseline stub code
+<span class="lineNum">      31 </span>            : // --------------------------
+<span class="lineNum">      32 </span>            : // Baseline stores data (like Shape* and fixed slot offsets) inside the ICStub
+<span class="lineNum">      33 </span>            : // structure, instead of embedding them directly in the JitCode. This makes
+<span class="lineNum">      34 </span>            : // Baseline IC code slightly slower, but allows us to share IC code between
+<span class="lineNum">      35 </span>            : // caches. CacheIR makes it easy to share code between stubs: stubs that have
+<span class="lineNum">      36 </span>            : // the same CacheIR (and CacheKind), will have the same Baseline stub code.
+<span class="lineNum">      37 </span>            : //
+<span class="lineNum">      38 </span>            : // Baseline stubs that share JitCode also share a CacheIRStubInfo structure.
+<span class="lineNum">      39 </span>            : // This class stores the CacheIR and the location of GC things stored in the
+<span class="lineNum">      40 </span>            : // stub, for the GC.
+<span class="lineNum">      41 </span>            : //
+<span class="lineNum">      42 </span>            : // JitCompartment has a CacheIRStubInfo* -&gt; JitCode* weak map that's used to
+<span class="lineNum">      43 </span>            : // share both the IR and JitCode between CacheIR stubs. This HashMap owns the
+<span class="lineNum">      44 </span>            : // stubInfo (it uses UniquePtr), so once there are no references left to the
+<span class="lineNum">      45 </span>            : // shared stub code, we can also free the CacheIRStubInfo.
+<span class="lineNum">      46 </span>            : //
+<span class="lineNum">      47 </span>            : // Ion stubs
+<span class="lineNum">      48 </span>            : // ---------
+<span class="lineNum">      49 </span>            : // Unlike Baseline stubs, Ion stubs do not share stub code, and data stored in
+<span class="lineNum">      50 </span>            : // the IonICStub is baked into JIT code. This is one of the reasons Ion stubs
+<span class="lineNum">      51 </span>            : // are faster than Baseline stubs. Also note that Ion ICs contain more state
+<span class="lineNum">      52 </span>            : // (see IonGetPropertyIC for example) and use dynamic input/output registers,
+<span class="lineNum">      53 </span>            : // so sharing stub code for Ion would be much more difficult.
+<span class="lineNum">      54 </span>            : 
+<span class="lineNum">      55 </span>            : // An OperandId represents either a cache input or a value returned by a
+<span class="lineNum">      56 </span>            : // CacheIR instruction. Most code should use the ValOperandId and ObjOperandId
+<span class="lineNum">      57 </span>            : // classes below. The ObjOperandId class represents an operand that's known to
+<span class="lineNum">      58 </span>            : // be an object.
+<span class="lineNum">      59 </span>            : class OperandId
+<span class="lineNum">      60 </span>            : {
+<span class="lineNum">      61 </span>            :   protected:
+<span class="lineNum">      62 </span>            :     static const uint16_t InvalidId = UINT16_MAX;
+<span class="lineNum">      63 </span>            :     uint16_t id_;
+<span class="lineNum">      64 </span>            : 
+<span class="lineNum">      65 </span><span class="lineCov">          1 :     OperandId() : id_(InvalidId) {}</span>
+<span class="lineNum">      66 </span><span class="lineCov">          1 :     explicit OperandId(uint16_t id) : id_(id) {}</span>
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            :   public:
+<span class="lineNum">      69 </span><span class="lineCov">          1 :     uint16_t id() const { return id_; }</span>
+<span class="lineNum">      70 </span>            :     bool valid() const { return id_ != InvalidId; }
+<span class="lineNum">      71 </span>            : };
+<span class="lineNum">      72 </span>            : 
+<span class="lineNum">      73 </span>            : class ValOperandId : public OperandId
+<span class="lineNum">      74 </span>            : {
+<span class="lineNum">      75 </span>            :   public:
+<span class="lineNum">      76 </span><span class="lineCov">          1 :     ValOperandId() = default;</span>
+<span class="lineNum">      77 </span><span class="lineCov">          1 :     explicit ValOperandId(uint16_t id) : OperandId(id) {}</span>
+<span class="lineNum">      78 </span>            : };
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span>            : class ObjOperandId : public OperandId
+<span class="lineNum">      81 </span>            : {
+<span class="lineNum">      82 </span>            :   public:
+<span class="lineNum">      83 </span>            :     ObjOperandId() = default;
+<span class="lineNum">      84 </span><span class="lineCov">          1 :     explicit ObjOperandId(uint16_t id) : OperandId(id) {}</span>
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span>            :     bool operator==(const ObjOperandId&amp; other) const { return id_ == other.id_; }
+<span class="lineNum">      87 </span>            :     bool operator!=(const ObjOperandId&amp; other) const { return id_ != other.id_; }
+<span class="lineNum">      88 </span>            : };
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span>            : class StringOperandId : public OperandId
+<span class="lineNum">      91 </span>            : {
+<span class="lineNum">      92 </span>            :   public:
+<span class="lineNum">      93 </span>            :     StringOperandId() = default;
+<span class="lineNum">      94 </span><span class="lineCov">          1 :     explicit StringOperandId(uint16_t id) : OperandId(id) {}</span>
+<span class="lineNum">      95 </span>            : };
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span>            : class SymbolOperandId : public OperandId
+<span class="lineNum">      98 </span>            : {
+<span class="lineNum">      99 </span>            :   public:
+<span class="lineNum">     100 </span>            :     SymbolOperandId() = default;
+<span class="lineNum">     101 </span><span class="lineCov">          1 :     explicit SymbolOperandId(uint16_t id) : OperandId(id) {}</span>
+<span class="lineNum">     102 </span>            : };
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span>            : class Int32OperandId : public OperandId
+<span class="lineNum">     105 </span>            : {
+<span class="lineNum">     106 </span>            :   public:
+<span class="lineNum">     107 </span><span class="lineCov">          1 :     Int32OperandId() = default;</span>
+<span class="lineNum">     108 </span><span class="lineCov">          1 :     explicit Int32OperandId(uint16_t id) : OperandId(id) {}</span>
+<span class="lineNum">     109 </span>            : };
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span>            : class TypedOperandId : public OperandId
+<span class="lineNum">     112 </span>            : {
+<span class="lineNum">     113 </span>            :     JSValueType type_;
+<span class="lineNum">     114 </span>            : 
+<span class="lineNum">     115 </span>            :   public:
+<span class="lineNum">     116 </span>            :     MOZ_IMPLICIT TypedOperandId(ObjOperandId id)
+<span class="lineNum">     117 </span><span class="lineCov">          1 :       : OperandId(id.id()), type_(JSVAL_TYPE_OBJECT)</span>
+<span class="lineNum">     118 </span>            :     {}
+<span class="lineNum">     119 </span>            :     MOZ_IMPLICIT TypedOperandId(StringOperandId id)
+<span class="lineNum">     120 </span><span class="lineCov">          1 :       : OperandId(id.id()), type_(JSVAL_TYPE_STRING)</span>
+<span class="lineNum">     121 </span>            :     {}
+<span class="lineNum">     122 </span>            :     MOZ_IMPLICIT TypedOperandId(SymbolOperandId id)
+<span class="lineNum">     123 </span><span class="lineCov">          1 :       : OperandId(id.id()), type_(JSVAL_TYPE_SYMBOL)</span>
+<span class="lineNum">     124 </span>            :     {}
+<span class="lineNum">     125 </span>            :     MOZ_IMPLICIT TypedOperandId(Int32OperandId id)
+<span class="lineNum">     126 </span><span class="lineCov">          1 :       : OperandId(id.id()), type_(JSVAL_TYPE_INT32)</span>
+<span class="lineNum">     127 </span>            :     {}
+<span class="lineNum">     128 </span>            :     TypedOperandId(ValOperandId val, JSValueType type)
+<span class="lineNum">     129 </span><span class="lineCov">          1 :       : OperandId(val.id()), type_(type)</span>
+<span class="lineNum">     130 </span>            :     {}
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span>            :     JSValueType type() const { return type_; }
+<span class="lineNum">     133 </span>            : };
+<span class="lineNum">     134 </span>            : 
+<span class="lineNum">     135 </span>            : #define CACHE_IR_KINDS(_)   \
+<span class="lineNum">     136 </span>            :     _(GetProp)              \
+<span class="lineNum">     137 </span>            :     _(GetElem)              \
+<span class="lineNum">     138 </span>            :     _(GetName)              \
+<span class="lineNum">     139 </span>            :     _(SetProp)              \
+<span class="lineNum">     140 </span>            :     _(SetElem)              \
+<span class="lineNum">     141 </span>            :     _(In)
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span>            : enum class CacheKind : uint8_t
+<span class="lineNum">     144 </span>            : {
+<span class="lineNum">     145 </span>            : #define DEFINE_KIND(kind) kind,
+<span class="lineNum">     146 </span>            :     CACHE_IR_KINDS(DEFINE_KIND)
+<span class="lineNum">     147 </span>            : #undef DEFINE_KIND
+<span class="lineNum">     148 </span>            : };
+<span class="lineNum">     149 </span>            : 
+<span class="lineNum">     150 </span>            : extern const char* CacheKindNames[];
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span>            : #define CACHE_IR_OPS(_)                   \
+<span class="lineNum">     153 </span>            :     _(GuardIsObject)                      \
+<span class="lineNum">     154 </span>            :     _(GuardIsObjectOrNull)                \
+<span class="lineNum">     155 </span>            :     _(GuardIsString)                      \
+<span class="lineNum">     156 </span>            :     _(GuardIsSymbol)                      \
+<span class="lineNum">     157 </span>            :     _(GuardIsInt32Index)                  \
+<span class="lineNum">     158 </span>            :     _(GuardType)                          \
+<span class="lineNum">     159 </span>            :     _(GuardShape)                         \
+<span class="lineNum">     160 </span>            :     _(GuardGroup)                         \
+<span class="lineNum">     161 </span>            :     _(GuardProto)                         \
+<span class="lineNum">     162 </span>            :     _(GuardClass)                         \
+<span class="lineNum">     163 </span>            :     _(GuardCompartment)                   \
+<span class="lineNum">     164 </span>            :     _(GuardIsProxy)                       \
+<span class="lineNum">     165 </span>            :     _(GuardIsCrossCompartmentWrapper)     \
+<span class="lineNum">     166 </span>            :     _(GuardNotDOMProxy)                   \
+<span class="lineNum">     167 </span>            :     _(GuardSpecificObject)                \
+<span class="lineNum">     168 </span>            :     _(GuardSpecificAtom)                  \
+<span class="lineNum">     169 </span>            :     _(GuardSpecificSymbol)                \
+<span class="lineNum">     170 </span>            :     _(GuardNoDetachedTypedObjects)        \
+<span class="lineNum">     171 </span>            :     _(GuardMagicValue)                    \
+<span class="lineNum">     172 </span>            :     _(GuardFrameHasNoArgumentsObject)     \
+<span class="lineNum">     173 </span>            :     _(GuardNoDenseElements)               \
+<span class="lineNum">     174 </span>            :     _(GuardNoUnboxedExpando)              \
+<span class="lineNum">     175 </span>            :     _(GuardAndLoadUnboxedExpando)         \
+<span class="lineNum">     176 </span>            :     _(GuardAndGetIndexFromString)         \
+<span class="lineNum">     177 </span>            :     _(LoadObject)                         \
+<span class="lineNum">     178 </span>            :     _(LoadProto)                          \
+<span class="lineNum">     179 </span>            :     _(LoadEnclosingEnvironment)           \
+<span class="lineNum">     180 </span>            :     _(LoadWrapperTarget)                  \
+<span class="lineNum">     181 </span>            :                                           \
+<span class="lineNum">     182 </span>            :     /* See CacheIR.cpp 'DOM proxies' comment. */ \
+<span class="lineNum">     183 </span>            :     _(LoadDOMExpandoValue)                \
+<span class="lineNum">     184 </span>            :     _(LoadDOMExpandoValueGuardGeneration) \
+<span class="lineNum">     185 </span>            :     _(LoadDOMExpandoValueIgnoreGeneration)\
+<span class="lineNum">     186 </span>            :     _(GuardDOMExpandoMissingOrGuardShape) \
+<span class="lineNum">     187 </span>            :                                           \
+<span class="lineNum">     188 </span>            :     _(StoreFixedSlot)                     \
+<span class="lineNum">     189 </span>            :     _(StoreDynamicSlot)                   \
+<span class="lineNum">     190 </span>            :     _(AddAndStoreFixedSlot)               \
+<span class="lineNum">     191 </span>            :     _(AddAndStoreDynamicSlot)             \
+<span class="lineNum">     192 </span>            :     _(AllocateAndStoreDynamicSlot)        \
+<span class="lineNum">     193 </span>            :     _(StoreTypedObjectReferenceProperty)  \
+<span class="lineNum">     194 </span>            :     _(StoreTypedObjectScalarProperty)     \
+<span class="lineNum">     195 </span>            :     _(StoreUnboxedProperty)               \
+<span class="lineNum">     196 </span>            :     _(StoreDenseElement)                  \
+<span class="lineNum">     197 </span>            :     _(StoreDenseElementHole)              \
+<span class="lineNum">     198 </span>            :     _(StoreTypedElement)                  \
+<span class="lineNum">     199 </span>            :     _(StoreUnboxedArrayElement)           \
+<span class="lineNum">     200 </span>            :     _(StoreUnboxedArrayElementHole)       \
+<span class="lineNum">     201 </span>            :     _(CallNativeSetter)                   \
+<span class="lineNum">     202 </span>            :     _(CallScriptedSetter)                 \
+<span class="lineNum">     203 </span>            :     _(CallSetArrayLength)                 \
+<span class="lineNum">     204 </span>            :     _(CallProxySet)                       \
+<span class="lineNum">     205 </span>            :     _(CallProxySetByValue)                \
+<span class="lineNum">     206 </span>            :                                           \
+<span class="lineNum">     207 </span>            :     /* The *Result ops load a value into the cache's result register. */ \
+<span class="lineNum">     208 </span>            :     _(LoadFixedSlotResult)                \
+<span class="lineNum">     209 </span>            :     _(LoadDynamicSlotResult)              \
+<span class="lineNum">     210 </span>            :     _(LoadUnboxedPropertyResult)          \
+<span class="lineNum">     211 </span>            :     _(LoadTypedObjectResult)              \
+<span class="lineNum">     212 </span>            :     _(LoadDenseElementResult)             \
+<span class="lineNum">     213 </span>            :     _(LoadDenseElementHoleResult)         \
+<span class="lineNum">     214 </span>            :     _(LoadDenseElementExistsResult)       \
+<span class="lineNum">     215 </span>            :     _(LoadDenseElementHoleExistsResult)   \
+<span class="lineNum">     216 </span>            :     _(LoadUnboxedArrayElementResult)      \
+<span class="lineNum">     217 </span>            :     _(LoadTypedElementResult)             \
+<span class="lineNum">     218 </span>            :     _(LoadInt32ArrayLengthResult)         \
+<span class="lineNum">     219 </span>            :     _(LoadUnboxedArrayLengthResult)       \
+<span class="lineNum">     220 </span>            :     _(LoadArgumentsObjectArgResult)       \
+<span class="lineNum">     221 </span>            :     _(LoadArgumentsObjectLengthResult)    \
+<span class="lineNum">     222 </span>            :     _(LoadFunctionLengthResult)           \
+<span class="lineNum">     223 </span>            :     _(LoadStringCharResult)               \
+<span class="lineNum">     224 </span>            :     _(LoadStringLengthResult)             \
+<span class="lineNum">     225 </span>            :     _(LoadFrameCalleeResult)              \
+<span class="lineNum">     226 </span>            :     _(LoadFrameNumActualArgsResult)       \
+<span class="lineNum">     227 </span>            :     _(LoadFrameArgumentResult)            \
+<span class="lineNum">     228 </span>            :     _(LoadEnvironmentFixedSlotResult)     \
+<span class="lineNum">     229 </span>            :     _(LoadEnvironmentDynamicSlotResult)   \
+<span class="lineNum">     230 </span>            :     _(CallScriptedGetterResult)           \
+<span class="lineNum">     231 </span>            :     _(CallNativeGetterResult)             \
+<span class="lineNum">     232 </span>            :     _(CallProxyGetResult)                 \
+<span class="lineNum">     233 </span>            :     _(CallProxyGetByValueResult)          \
+<span class="lineNum">     234 </span>            :     _(LoadUndefinedResult)                \
+<span class="lineNum">     235 </span>            :     _(LoadBooleanResult)                  \
+<span class="lineNum">     236 </span>            :                                           \
+<span class="lineNum">     237 </span>            :     _(TypeMonitorResult)                  \
+<span class="lineNum">     238 </span>            :     _(ReturnFromIC)                       \
+<span class="lineNum">     239 </span>            :     _(WrapResult)
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span>            : enum class CacheOp {
+<span class="lineNum">     242 </span>            : #define DEFINE_OP(op) op,
+<span class="lineNum">     243 </span>            :     CACHE_IR_OPS(DEFINE_OP)
+<span class="lineNum">     244 </span>            : #undef DEFINE_OP
+<span class="lineNum">     245 </span>            : };
+<span class="lineNum">     246 </span>            : 
+<span class="lineNum">     247 </span>            : class StubField
+<span class="lineNum">     248 </span>            : {
+<span class="lineNum">     249 </span>            :   public:
+<span class="lineNum">     250 </span>            :     enum class Type : uint8_t {
+<span class="lineNum">     251 </span>            :         // These fields take up a single word.
+<span class="lineNum">     252 </span>            :         RawWord,
+<span class="lineNum">     253 </span>            :         Shape,
+<span class="lineNum">     254 </span>            :         ObjectGroup,
+<span class="lineNum">     255 </span>            :         JSObject,
+<span class="lineNum">     256 </span>            :         Symbol,
+<span class="lineNum">     257 </span>            :         String,
+<span class="lineNum">     258 </span>            :         Id,
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span>            :         // These fields take up 64 bits on all platforms.
+<span class="lineNum">     261 </span>            :         RawInt64,
+<span class="lineNum">     262 </span>            :         First64BitType = RawInt64,
+<span class="lineNum">     263 </span>            :         DOMExpandoGeneration,
+<span class="lineNum">     264 </span>            :         Value,
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span>            :         Limit
+<span class="lineNum">     267 </span>            :     };
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span>            :     static bool sizeIsWord(Type type) {
+<span class="lineNum">     270 </span>            :         MOZ_ASSERT(type != Type::Limit);
+<span class="lineNum">     271 </span>            :         return type &lt; Type::First64BitType;
+<span class="lineNum">     272 </span>            :     }
+<span class="lineNum">     273 </span>            :     static bool sizeIsInt64(Type type) {
+<span class="lineNum">     274 </span>            :         MOZ_ASSERT(type != Type::Limit);
+<span class="lineNum">     275 </span>            :         return type &gt;= Type::First64BitType;
+<span class="lineNum">     276 </span>            :     }
+<span class="lineNum">     277 </span>            :     static size_t sizeInBytes(Type type) {
+<span class="lineNum">     278 </span>            :         if (sizeIsWord(type))
+<span class="lineNum">     279 </span>            :             return sizeof(uintptr_t);
+<span class="lineNum">     280 </span>            :         MOZ_ASSERT(sizeIsInt64(type));
+<span class="lineNum">     281 </span>            :         return sizeof(int64_t);
+<span class="lineNum">     282 </span>            :     }
+<span class="lineNum">     283 </span>            : 
+<span class="lineNum">     284 </span>            :   private:
+<span class="lineNum">     285 </span>            :     union {
+<span class="lineNum">     286 </span>            :         uintptr_t dataWord_;
+<span class="lineNum">     287 </span>            :         uint64_t dataInt64_;
+<span class="lineNum">     288 </span>            :     };
+<span class="lineNum">     289 </span>            :     Type type_;
+<span class="lineNum">     290 </span>            : 
+<span class="lineNum">     291 </span>            :   public:
+<span class="lineNum">     292 </span>            :     StubField(uint64_t data, Type type)
+<span class="lineNum">     293 </span><span class="lineCov">          1 :       : dataInt64_(data), type_(type)</span>
+<span class="lineNum">     294 </span>            :     {
+<span class="lineNum">     295 </span>            :         MOZ_ASSERT_IF(sizeIsWord(), data &lt;= UINTPTR_MAX);
+<span class="lineNum">     296 </span>            :     }
+<span class="lineNum">     297 </span>            : 
+<span class="lineNum">     298 </span>            :     Type type() const { return type_; }
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span><span class="lineCov">          1 :     bool sizeIsWord() const { return sizeIsWord(type_); }</span>
+<span class="lineNum">     301 </span>            :     bool sizeIsInt64() const { return sizeIsInt64(type_); }
+<span class="lineNum">     302 </span>            : 
+<span class="lineNum">     303 </span>            :     uintptr_t asWord() const { MOZ_ASSERT(sizeIsWord()); return dataWord_; }
+<span class="lineNum">     304 </span>            :     uint64_t asInt64() const { MOZ_ASSERT(sizeIsInt64()); return dataInt64_; }
+<span class="lineNum">     305 </span>            : } JS_HAZ_GC_POINTER;
+<span class="lineNum">     306 </span>            : 
+<span class="lineNum">     307 </span>            : // We use this enum as GuardClass operand, instead of storing Class* pointers
+<span class="lineNum">     308 </span>            : // in the IR, to keep the IR compact and the same size on all platforms.
+<span class="lineNum">     309 </span>            : enum class GuardClassKind : uint8_t
+<span class="lineNum">     310 </span>            : {
+<span class="lineNum">     311 </span>            :     Array,
+<span class="lineNum">     312 </span>            :     UnboxedArray,
+<span class="lineNum">     313 </span>            :     MappedArguments,
+<span class="lineNum">     314 </span>            :     UnmappedArguments,
+<span class="lineNum">     315 </span>            :     WindowProxy,
+<span class="lineNum">     316 </span>            :     JSFunction,
+<span class="lineNum">     317 </span>            : };
+<a name="318"><span class="lineNum">     318 </span>            : </a>
+<span class="lineNum">     319 </span>            : // Class to record CacheIR + some additional metadata for code generation.
+<span class="lineNum">     320 </span><span class="lineCov">          1 : class MOZ_RAII CacheIRWriter : public JS::CustomAutoRooter</span>
+<span class="lineNum">     321 </span>            : {
+<span class="lineNum">     322 </span>            :     CompactBufferWriter buffer_;
+<span class="lineNum">     323 </span>            : 
+<span class="lineNum">     324 </span>            :     uint32_t nextOperandId_;
+<span class="lineNum">     325 </span>            :     uint32_t nextInstructionId_;
+<span class="lineNum">     326 </span>            :     uint32_t numInputOperands_;
+<span class="lineNum">     327 </span>            : 
+<span class="lineNum">     328 </span>            :     // The data (shapes, slot offsets, etc.) that will be stored in the ICStub.
+<span class="lineNum">     329 </span>            :     Vector&lt;StubField, 8, SystemAllocPolicy&gt; stubFields_;
+<span class="lineNum">     330 </span>            :     size_t stubDataSize_;
+<span class="lineNum">     331 </span>            : 
+<span class="lineNum">     332 </span>            :     // For each operand id, record which instruction accessed it last. This
+<span class="lineNum">     333 </span>            :     // information greatly improves register allocation.
+<span class="lineNum">     334 </span>            :     Vector&lt;uint32_t, 8, SystemAllocPolicy&gt; operandLastUsed_;
+<span class="lineNum">     335 </span>            : 
+<span class="lineNum">     336 </span>            :     // OperandId and stub offsets are stored in a single byte, so make sure
+<span class="lineNum">     337 </span>            :     // this doesn't overflow. We use a very conservative limit for now.
+<span class="lineNum">     338 </span>            :     static const size_t MaxOperandIds = 20;
+<span class="lineNum">     339 </span>            :     static const size_t MaxStubDataSizeInBytes = 20 * sizeof(uintptr_t);
+<span class="lineNum">     340 </span>            :     bool tooLarge_;
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span>            :     void writeOp(CacheOp op) {
+<span class="lineNum">     343 </span>            :         MOZ_ASSERT(uint32_t(op) &lt;= UINT8_MAX);
+<span class="lineNum">     344 </span><span class="lineCov">          1 :         buffer_.writeByte(uint32_t(op));</span>
+<span class="lineNum">     345 </span><span class="lineCov">          1 :         nextInstructionId_++;</span>
+<a name="346"><span class="lineNum">     346 </span>            :     }</a>
+<span class="lineNum">     347 </span>            : 
+<span class="lineNum">     348 </span><span class="lineCov">          1 :     void writeOperandId(OperandId opId) {</span>
+<span class="lineNum">     349 </span><span class="lineCov">          1 :         if (opId.id() &lt; MaxOperandIds) {</span>
+<span class="lineNum">     350 </span>            :             static_assert(MaxOperandIds &lt;= UINT8_MAX, &quot;operand id must fit in a single byte&quot;);
+<span class="lineNum">     351 </span><span class="lineCov">          1 :             buffer_.writeByte(opId.id());</span>
+<span class="lineNum">     352 </span>            :         } else {
+<span class="lineNum">     353 </span><span class="lineNoCov">          0 :             tooLarge_ = true;</span>
+<span class="lineNum">     354 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">     355 </span>            :         }
+<span class="lineNum">     356 </span><span class="lineCov">          1 :         if (opId.id() &gt;= operandLastUsed_.length()) {</span>
+<span class="lineNum">     357 </span><span class="lineCov">          1 :             buffer_.propagateOOM(operandLastUsed_.resize(opId.id() + 1));</span>
+<span class="lineNum">     358 </span><span class="lineCov">          1 :             if (buffer_.oom())</span>
+<span class="lineNum">     359 </span>            :                 return;
+<span class="lineNum">     360 </span>            :         }
+<span class="lineNum">     361 </span>            :         MOZ_ASSERT(nextInstructionId_ &gt; 0);
+<span class="lineNum">     362 </span><span class="lineCov">          1 :         operandLastUsed_[opId.id()] = nextInstructionId_ - 1;</span>
+<a name="363"><span class="lineNum">     363 </span>            :     }</a>
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span><span class="lineCov">          1 :     void writeOpWithOperandId(CacheOp op, OperandId opId) {</span>
+<span class="lineNum">     366 </span>            :         writeOp(op);
+<span class="lineNum">     367 </span><span class="lineCov">          1 :         writeOperandId(opId);</span>
+<a name="368"><span class="lineNum">     368 </span><span class="lineCov">          1 :     }</span></a>
+<span class="lineNum">     369 </span>            : 
+<span class="lineNum">     370 </span><span class="lineCov">          1 :     void addStubField(uint64_t value, StubField::Type fieldType) {</span>
+<span class="lineNum">     371 </span><span class="lineCov">          1 :         size_t newStubDataSize = stubDataSize_ + StubField::sizeInBytes(fieldType);</span>
+<span class="lineNum">     372 </span><span class="lineCov">          1 :         if (newStubDataSize &lt; MaxStubDataSizeInBytes) {</span>
+<span class="lineNum">     373 </span><span class="lineCov">          1 :             buffer_.propagateOOM(stubFields_.append(StubField(value, fieldType)));</span>
+<span class="lineNum">     374 </span>            :             MOZ_ASSERT((stubDataSize_ % sizeof(uintptr_t)) == 0);
+<span class="lineNum">     375 </span><span class="lineCov">          1 :             buffer_.writeByte(stubDataSize_ / sizeof(uintptr_t));</span>
+<span class="lineNum">     376 </span><span class="lineCov">          1 :             stubDataSize_ = newStubDataSize;</span>
+<span class="lineNum">     377 </span>            :         } else {
+<span class="lineNum">     378 </span><span class="lineNoCov">          0 :             tooLarge_ = true;</span>
+<span class="lineNum">     379 </span>            :         }
+<span class="lineNum">     380 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     381 </span>            : 
+<span class="lineNum">     382 </span>            :     CacheIRWriter(const CacheIRWriter&amp;) = delete;
+<span class="lineNum">     383 </span>            :     CacheIRWriter&amp; operator=(const CacheIRWriter&amp;) = delete;
+<a name="384"><span class="lineNum">     384 </span>            : </a>
+<span class="lineNum">     385 </span>            :   public:
+<span class="lineNum">     386 </span><span class="lineCov">          1 :     explicit CacheIRWriter(JSContext* cx)</span>
+<span class="lineNum">     387 </span>            :       : CustomAutoRooter(cx),
+<span class="lineNum">     388 </span>            :         nextOperandId_(0),
+<span class="lineNum">     389 </span>            :         nextInstructionId_(0),
+<span class="lineNum">     390 </span>            :         numInputOperands_(0),
+<span class="lineNum">     391 </span>            :         stubDataSize_(0),
+<span class="lineNum">     392 </span><span class="lineCov">          1 :         tooLarge_(false)</span>
+<span class="lineNum">     393 </span><span class="lineCov">          1 :     {}</span>
+<span class="lineNum">     394 </span>            : 
+<span class="lineNum">     395 </span><span class="lineCov">          1 :     bool failed() const { return buffer_.oom() || tooLarge_; }</span>
+<span class="lineNum">     396 </span>            : 
+<span class="lineNum">     397 </span>            :     uint32_t numInputOperands() const { return numInputOperands_; }
+<span class="lineNum">     398 </span>            :     uint32_t numOperandIds() const { return nextOperandId_; }
+<span class="lineNum">     399 </span>            :     uint32_t numInstructions() const { return nextInstructionId_; }
+<span class="lineNum">     400 </span>            : 
+<span class="lineNum">     401 </span><span class="lineCov">          1 :     size_t numStubFields() const { return stubFields_.length(); }</span>
+<span class="lineNum">     402 </span><span class="lineCov">          1 :     StubField::Type stubFieldType(uint32_t i) const { return stubFields_[i].type(); }</span>
+<span class="lineNum">     403 </span>            : 
+<span class="lineNum">     404 </span>            :     uint32_t setInputOperandId(uint32_t op) {
+<span class="lineNum">     405 </span>            :         MOZ_ASSERT(op == nextOperandId_);
+<span class="lineNum">     406 </span><span class="lineCov">          1 :         nextOperandId_++;</span>
+<span class="lineNum">     407 </span><span class="lineCov">          1 :         numInputOperands_++;</span>
+<span class="lineNum">     408 </span>            :         return op;
+<a name="409"><span class="lineNum">     409 </span>            :     }</a>
+<span class="lineNum">     410 </span>            : 
+<span class="lineNum">     411 </span><span class="lineNoCov">          0 :     void trace(JSTracer* trc) override {</span>
+<span class="lineNum">     412 </span>            :         // For now, assert we only GC before we append stub fields.
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 :         MOZ_RELEASE_ASSERT(stubFields_.empty());</span>
+<span class="lineNum">     414 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     415 </span>            : 
+<span class="lineNum">     416 </span>            :     size_t stubDataSize() const {
+<span class="lineNum">     417 </span>            :         return stubDataSize_;
+<span class="lineNum">     418 </span>            :     }
+<span class="lineNum">     419 </span>            :     void copyStubData(uint8_t* dest) const;
+<span class="lineNum">     420 </span>            :     bool stubDataEqualsMaybeUpdate(uint8_t* stubData) const;
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span>            :     bool operandIsDead(uint32_t operandId, uint32_t currentInstruction) const {
+<span class="lineNum">     423 </span><span class="lineCov">          1 :         if (operandId &gt;= operandLastUsed_.length())</span>
+<span class="lineNum">     424 </span>            :             return false;
+<span class="lineNum">     425 </span><span class="lineCov">          1 :         return currentInstruction &gt; operandLastUsed_[operandId];</span>
+<span class="lineNum">     426 </span>            :     }
+<span class="lineNum">     427 </span>            :     const uint8_t* codeStart() const {
+<span class="lineNum">     428 </span>            :         MOZ_ASSERT(!failed());
+<span class="lineNum">     429 </span><span class="lineCov">          1 :         return buffer_.buffer();</span>
+<span class="lineNum">     430 </span>            :     }
+<span class="lineNum">     431 </span>            :     const uint8_t* codeEnd() const {
+<span class="lineNum">     432 </span>            :         MOZ_ASSERT(!failed());
+<span class="lineNum">     433 </span><span class="lineCov">          1 :         return buffer_.buffer() + buffer_.length();</span>
+<span class="lineNum">     434 </span>            :     }
+<span class="lineNum">     435 </span>            :     uint32_t codeLength() const {
+<span class="lineNum">     436 </span>            :         MOZ_ASSERT(!failed());
+<span class="lineNum">     437 </span><span class="lineCov">          1 :         return buffer_.length();</span>
+<span class="lineNum">     438 </span>            :     }
+<span class="lineNum">     439 </span>            : 
+<span class="lineNum">     440 </span>            :     // This should not be used when compiling Baseline code, as Baseline code
+<span class="lineNum">     441 </span>            :     // shouldn't bake in stub values.
+<span class="lineNum">     442 </span>            :     StubField readStubFieldForIon(size_t i, StubField::Type type) const {
+<span class="lineNum">     443 </span>            :         MOZ_ASSERT(stubFields_[i].type() == type);
+<span class="lineNum">     444 </span><span class="lineCov">          1 :         return stubFields_[i];</span>
+<span class="lineNum">     445 </span>            :     }
+<span class="lineNum">     446 </span>            : 
+<span class="lineNum">     447 </span>            :     ObjOperandId guardIsObject(ValOperandId val) {
+<span class="lineNum">     448 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardIsObject, val);</span>
+<span class="lineNum">     449 </span><span class="lineCov">          1 :         return ObjOperandId(val.id());</span>
+<span class="lineNum">     450 </span>            :     }
+<span class="lineNum">     451 </span>            :     StringOperandId guardIsString(ValOperandId val) {
+<span class="lineNum">     452 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardIsString, val);</span>
+<span class="lineNum">     453 </span><span class="lineCov">          1 :         return StringOperandId(val.id());</span>
+<span class="lineNum">     454 </span>            :     }
+<span class="lineNum">     455 </span>            :     SymbolOperandId guardIsSymbol(ValOperandId val) {
+<span class="lineNum">     456 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardIsSymbol, val);</span>
+<a name="457"><span class="lineNum">     457 </span><span class="lineCov">          1 :         return SymbolOperandId(val.id());</span></a>
+<span class="lineNum">     458 </span>            :     }
+<span class="lineNum">     459 </span><span class="lineCov">          1 :     Int32OperandId guardIsInt32Index(ValOperandId val) {</span>
+<span class="lineNum">     460 </span><span class="lineCov">          1 :         Int32OperandId res(nextOperandId_++);</span>
+<span class="lineNum">     461 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardIsInt32Index, val);</span>
+<span class="lineNum">     462 </span><span class="lineCov">          1 :         writeOperandId(res);</span>
+<span class="lineNum">     463 </span><span class="lineCov">          1 :         return res;</span>
+<span class="lineNum">     464 </span>            :     }
+<span class="lineNum">     465 </span>            :     void guardType(ValOperandId val, JSValueType type) {
+<span class="lineNum">     466 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardType, val);</span>
+<span class="lineNum">     467 </span>            :         static_assert(sizeof(type) == sizeof(uint8_t), &quot;JSValueType should fit in a byte&quot;);
+<span class="lineNum">     468 </span><span class="lineCov">          1 :         buffer_.writeByte(uint32_t(type));</span>
+<span class="lineNum">     469 </span>            :     }
+<span class="lineNum">     470 </span>            :     void guardIsObjectOrNull(ValOperandId val) {
+<a name="471"><span class="lineNum">     471 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardIsObjectOrNull, val);</span></a>
+<span class="lineNum">     472 </span>            :     }
+<span class="lineNum">     473 </span><span class="lineCov">          1 :     void guardShape(ObjOperandId obj, Shape* shape) {</span>
+<span class="lineNum">     474 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardShape, obj);</span>
+<a name="475"><span class="lineNum">     475 </span><span class="lineCov">          1 :         addStubField(uintptr_t(shape), StubField::Type::Shape);</span></a>
+<span class="lineNum">     476 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     477 </span><span class="lineCov">          1 :     void guardGroup(ObjOperandId obj, ObjectGroup* group) {</span>
+<span class="lineNum">     478 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardGroup, obj);</span>
+<a name="479"><span class="lineNum">     479 </span><span class="lineCov">          1 :         addStubField(uintptr_t(group), StubField::Type::ObjectGroup);</span></a>
+<span class="lineNum">     480 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     481 </span><span class="lineCov">          1 :     void guardProto(ObjOperandId obj, JSObject* proto) {</span>
+<span class="lineNum">     482 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardProto, obj);</span>
+<span class="lineNum">     483 </span><span class="lineCov">          1 :         addStubField(uintptr_t(proto), StubField::Type::JSObject);</span>
+<span class="lineNum">     484 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     485 </span>            :     void guardClass(ObjOperandId obj, GuardClassKind kind) {
+<span class="lineNum">     486 </span>            :         static_assert(sizeof(GuardClassKind) == sizeof(uint8_t),
+<span class="lineNum">     487 </span>            :                       &quot;GuardClassKind must fit in a byte&quot;);
+<span class="lineNum">     488 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardClass, obj);</span>
+<span class="lineNum">     489 </span><span class="lineCov">          1 :         buffer_.writeByte(uint32_t(kind));</span>
+<span class="lineNum">     490 </span>            :     }
+<span class="lineNum">     491 </span>            :     void guardIsProxy(ObjOperandId obj) {
+<span class="lineNum">     492 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardIsProxy, obj);</span>
+<span class="lineNum">     493 </span>            :     }
+<span class="lineNum">     494 </span>            :     void guardIsCrossCompartmentWrapper(ObjOperandId obj) {
+<span class="lineNum">     495 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardIsCrossCompartmentWrapper, obj);</span>
+<span class="lineNum">     496 </span>            :     }
+<span class="lineNum">     497 </span>            :     void guardNotDOMProxy(ObjOperandId obj) {
+<a name="498"><span class="lineNum">     498 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardNotDOMProxy, obj);</span></a>
+<span class="lineNum">     499 </span>            :     }
+<span class="lineNum">     500 </span><span class="lineNoCov">          0 :     void guardSpecificObject(ObjOperandId obj, JSObject* expected) {</span>
+<span class="lineNum">     501 </span><span class="lineNoCov">          0 :         writeOpWithOperandId(CacheOp::GuardSpecificObject, obj);</span>
+<a name="502"><span class="lineNum">     502 </span><span class="lineNoCov">          0 :         addStubField(uintptr_t(expected), StubField::Type::JSObject);</span></a>
+<span class="lineNum">     503 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     504 </span><span class="lineCov">          1 :     void guardSpecificAtom(StringOperandId str, JSAtom* expected) {</span>
+<span class="lineNum">     505 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardSpecificAtom, str);</span>
+<a name="506"><span class="lineNum">     506 </span><span class="lineCov">          1 :         addStubField(uintptr_t(expected), StubField::Type::String);</span></a>
+<span class="lineNum">     507 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     508 </span><span class="lineCov">          1 :     void guardSpecificSymbol(SymbolOperandId sym, JS::Symbol* expected) {</span>
+<span class="lineNum">     509 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardSpecificSymbol, sym);</span>
+<span class="lineNum">     510 </span><span class="lineCov">          1 :         addStubField(uintptr_t(expected), StubField::Type::Symbol);</span>
+<span class="lineNum">     511 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     512 </span>            :     void guardMagicValue(ValOperandId val, JSWhyMagic magic) {
+<span class="lineNum">     513 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardMagicValue, val);</span>
+<a name="514"><span class="lineNum">     514 </span><span class="lineCov">          1 :         buffer_.writeByte(uint32_t(magic));</span></a>
+<span class="lineNum">     515 </span>            :     }
+<span class="lineNum">     516 </span><span class="lineCov">          1 :     void guardCompartment(ObjOperandId obj, JSCompartment* compartment) {</span>
+<span class="lineNum">     517 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardCompartment, obj);</span>
+<span class="lineNum">     518 </span>            :         // Add a reference to the compartment's global to keep it alive.
+<span class="lineNum">     519 </span><span class="lineCov">          1 :         addStubField(uintptr_t(compartment-&gt;maybeGlobal()), StubField::Type::JSObject);</span>
+<span class="lineNum">     520 </span>            :         // Use RawWord, because compartments never move and it can't be GCed.
+<span class="lineNum">     521 </span><span class="lineCov">          1 :         addStubField(uintptr_t(compartment), StubField::Type::RawWord);</span>
+<span class="lineNum">     522 </span>            : 
+<span class="lineNum">     523 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     524 </span>            :     void guardNoDetachedTypedObjects() {
+<span class="lineNum">     525 </span>            :         writeOp(CacheOp::GuardNoDetachedTypedObjects);
+<span class="lineNum">     526 </span>            :     }
+<span class="lineNum">     527 </span>            :     void guardFrameHasNoArgumentsObject() {
+<span class="lineNum">     528 </span>            :         writeOp(CacheOp::GuardFrameHasNoArgumentsObject);
+<a name="529"><span class="lineNum">     529 </span>            :     }</a>
+<span class="lineNum">     530 </span>            : 
+<span class="lineNum">     531 </span><span class="lineCov">          1 :     Int32OperandId guardAndGetIndexFromString(StringOperandId str) {</span>
+<span class="lineNum">     532 </span><span class="lineCov">          1 :         Int32OperandId res(nextOperandId_++);</span>
+<span class="lineNum">     533 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardAndGetIndexFromString, str);</span>
+<span class="lineNum">     534 </span><span class="lineCov">          1 :         writeOperandId(res);</span>
+<span class="lineNum">     535 </span><span class="lineCov">          1 :         return res;</span>
+<span class="lineNum">     536 </span>            :     }
+<span class="lineNum">     537 </span>            : 
+<span class="lineNum">     538 </span>            :     void loadFrameCalleeResult() {
+<span class="lineNum">     539 </span>            :         writeOp(CacheOp::LoadFrameCalleeResult);
+<span class="lineNum">     540 </span>            :     }
+<span class="lineNum">     541 </span>            :     void loadFrameNumActualArgsResult() {
+<span class="lineNum">     542 </span>            :         writeOp(CacheOp::LoadFrameNumActualArgsResult);
+<span class="lineNum">     543 </span>            :     }
+<span class="lineNum">     544 </span>            :     void loadFrameArgumentResult(Int32OperandId index) {
+<span class="lineNum">     545 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadFrameArgumentResult, index);</span>
+<span class="lineNum">     546 </span>            :     }
+<span class="lineNum">     547 </span>            :     void guardNoDenseElements(ObjOperandId obj) {
+<span class="lineNum">     548 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardNoDenseElements, obj);</span>
+<span class="lineNum">     549 </span>            :     }
+<span class="lineNum">     550 </span>            :     void guardNoUnboxedExpando(ObjOperandId obj) {
+<a name="551"><span class="lineNum">     551 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardNoUnboxedExpando, obj);</span></a>
+<span class="lineNum">     552 </span>            :     }
+<span class="lineNum">     553 </span><span class="lineCov">          1 :     ObjOperandId guardAndLoadUnboxedExpando(ObjOperandId obj) {</span>
+<span class="lineNum">     554 </span><span class="lineCov">          1 :         ObjOperandId res(nextOperandId_++);</span>
+<span class="lineNum">     555 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardAndLoadUnboxedExpando, obj);</span>
+<span class="lineNum">     556 </span><span class="lineCov">          1 :         writeOperandId(res);</span>
+<span class="lineNum">     557 </span><span class="lineCov">          1 :         return res;</span>
+<a name="558"><span class="lineNum">     558 </span>            :     }</a>
+<span class="lineNum">     559 </span>            : 
+<span class="lineNum">     560 </span><span class="lineCov">          1 :     ObjOperandId loadObject(JSObject* obj) {</span>
+<span class="lineNum">     561 </span><span class="lineCov">          1 :         ObjOperandId res(nextOperandId_++);</span>
+<span class="lineNum">     562 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadObject, res);</span>
+<span class="lineNum">     563 </span><span class="lineCov">          1 :         addStubField(uintptr_t(obj), StubField::Type::JSObject);</span>
+<a name="564"><span class="lineNum">     564 </span><span class="lineCov">          1 :         return res;</span></a>
+<span class="lineNum">     565 </span>            :     }
+<span class="lineNum">     566 </span><span class="lineCov">          1 :     ObjOperandId loadProto(ObjOperandId obj) {</span>
+<span class="lineNum">     567 </span><span class="lineCov">          1 :         ObjOperandId res(nextOperandId_++);</span>
+<span class="lineNum">     568 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadProto, obj);</span>
+<span class="lineNum">     569 </span><span class="lineCov">          1 :         writeOperandId(res);</span>
+<span class="lineNum">     570 </span><span class="lineCov">          1 :         return res;</span>
+<a name="571"><span class="lineNum">     571 </span>            :     }</a>
+<span class="lineNum">     572 </span>            : 
+<span class="lineNum">     573 </span><span class="lineCov">          1 :     ObjOperandId loadEnclosingEnvironment(ObjOperandId obj) {</span>
+<span class="lineNum">     574 </span><span class="lineCov">          1 :         ObjOperandId res(nextOperandId_++);</span>
+<span class="lineNum">     575 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadEnclosingEnvironment, obj);</span>
+<span class="lineNum">     576 </span><span class="lineCov">          1 :         writeOperandId(res);</span>
+<span class="lineNum">     577 </span><span class="lineCov">          1 :         return res;</span>
+<a name="578"><span class="lineNum">     578 </span>            :     }</a>
+<span class="lineNum">     579 </span>            : 
+<span class="lineNum">     580 </span><span class="lineCov">          1 :     ObjOperandId loadWrapperTarget(ObjOperandId obj) {</span>
+<span class="lineNum">     581 </span><span class="lineCov">          1 :         ObjOperandId res(nextOperandId_++);</span>
+<span class="lineNum">     582 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadWrapperTarget, obj);</span>
+<span class="lineNum">     583 </span><span class="lineCov">          1 :         writeOperandId(res);</span>
+<span class="lineNum">     584 </span><span class="lineCov">          1 :         return res;</span>
+<a name="585"><span class="lineNum">     585 </span>            :     }</a>
+<span class="lineNum">     586 </span>            : 
+<span class="lineNum">     587 </span><span class="lineCov">          1 :     ValOperandId loadDOMExpandoValue(ObjOperandId obj) {</span>
+<span class="lineNum">     588 </span><span class="lineCov">          1 :         ValOperandId res(nextOperandId_++);</span>
+<span class="lineNum">     589 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadDOMExpandoValue, obj);</span>
+<span class="lineNum">     590 </span><span class="lineCov">          1 :         writeOperandId(res);</span>
+<a name="591"><span class="lineNum">     591 </span><span class="lineCov">          1 :         return res;</span></a>
+<span class="lineNum">     592 </span>            :     }
+<span class="lineNum">     593 </span><span class="lineCov">          1 :     void guardDOMExpandoMissingOrGuardShape(ValOperandId expando, Shape* shape) {</span>
+<span class="lineNum">     594 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::GuardDOMExpandoMissingOrGuardShape, expando);</span>
+<a name="595"><span class="lineNum">     595 </span><span class="lineCov">          1 :         addStubField(uintptr_t(shape), StubField::Type::Shape);</span></a>
+<span class="lineNum">     596 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     597 </span><span class="lineCov">          1 :     ValOperandId loadDOMExpandoValueGuardGeneration(ObjOperandId obj,</span>
+<span class="lineNum">     598 </span>            :                                                     ExpandoAndGeneration* expandoAndGeneration)
+<span class="lineNum">     599 </span>            :     {
+<span class="lineNum">     600 </span><span class="lineCov">          1 :         ValOperandId res(nextOperandId_++);</span>
+<span class="lineNum">     601 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadDOMExpandoValueGuardGeneration, obj);</span>
+<span class="lineNum">     602 </span><span class="lineCov">          1 :         addStubField(uintptr_t(expandoAndGeneration), StubField::Type::RawWord);</span>
+<span class="lineNum">     603 </span><span class="lineCov">          1 :         addStubField(expandoAndGeneration-&gt;generation, StubField::Type::DOMExpandoGeneration);</span>
+<span class="lineNum">     604 </span><span class="lineCov">          1 :         writeOperandId(res);</span>
+<a name="605"><span class="lineNum">     605 </span><span class="lineCov">          1 :         return res;</span></a>
+<span class="lineNum">     606 </span>            :     }
+<span class="lineNum">     607 </span><span class="lineCov">          1 :     ValOperandId loadDOMExpandoValueIgnoreGeneration(ObjOperandId obj) {</span>
+<span class="lineNum">     608 </span><span class="lineCov">          1 :         ValOperandId res(nextOperandId_++);</span>
+<span class="lineNum">     609 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadDOMExpandoValueIgnoreGeneration, obj);</span>
+<span class="lineNum">     610 </span><span class="lineCov">          1 :         writeOperandId(res);</span>
+<span class="lineNum">     611 </span><span class="lineCov">          1 :         return res;</span>
+<a name="612"><span class="lineNum">     612 </span>            :     }</a>
+<span class="lineNum">     613 </span>            : 
+<span class="lineNum">     614 </span><span class="lineCov">          1 :     void storeFixedSlot(ObjOperandId obj, size_t offset, ValOperandId rhs) {</span>
+<span class="lineNum">     615 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::StoreFixedSlot, obj);</span>
+<span class="lineNum">     616 </span><span class="lineCov">          1 :         addStubField(offset, StubField::Type::RawWord);</span>
+<a name="617"><span class="lineNum">     617 </span><span class="lineCov">          1 :         writeOperandId(rhs);</span></a>
+<span class="lineNum">     618 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     619 </span><span class="lineCov">          1 :     void storeDynamicSlot(ObjOperandId obj, size_t offset, ValOperandId rhs) {</span>
+<span class="lineNum">     620 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::StoreDynamicSlot, obj);</span>
+<span class="lineNum">     621 </span><span class="lineCov">          1 :         addStubField(offset, StubField::Type::RawWord);</span>
+<a name="622"><span class="lineNum">     622 </span><span class="lineCov">          1 :         writeOperandId(rhs);</span></a>
+<span class="lineNum">     623 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     624 </span><span class="lineCov">          1 :     void addAndStoreFixedSlot(ObjOperandId obj, size_t offset, ValOperandId rhs,</span>
+<span class="lineNum">     625 </span>            :                               Shape* newShape, bool changeGroup, ObjectGroup* newGroup)
+<span class="lineNum">     626 </span>            :     {
+<span class="lineNum">     627 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::AddAndStoreFixedSlot, obj);</span>
+<span class="lineNum">     628 </span><span class="lineCov">          1 :         addStubField(offset, StubField::Type::RawWord);</span>
+<span class="lineNum">     629 </span><span class="lineCov">          1 :         writeOperandId(rhs);</span>
+<span class="lineNum">     630 </span><span class="lineCov">          1 :         buffer_.writeByte(changeGroup);</span>
+<span class="lineNum">     631 </span><span class="lineCov">          1 :         addStubField(uintptr_t(newGroup), StubField::Type::ObjectGroup);</span>
+<a name="632"><span class="lineNum">     632 </span><span class="lineCov">          1 :         addStubField(uintptr_t(newShape), StubField::Type::Shape);</span></a>
+<span class="lineNum">     633 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     634 </span><span class="lineCov">          1 :     void addAndStoreDynamicSlot(ObjOperandId obj, size_t offset, ValOperandId rhs,</span>
+<span class="lineNum">     635 </span>            :                                 Shape* newShape, bool changeGroup, ObjectGroup* newGroup)
+<span class="lineNum">     636 </span>            :     {
+<span class="lineNum">     637 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::AddAndStoreDynamicSlot, obj);</span>
+<span class="lineNum">     638 </span><span class="lineCov">          1 :         addStubField(offset, StubField::Type::RawWord);</span>
+<span class="lineNum">     639 </span><span class="lineCov">          1 :         writeOperandId(rhs);</span>
+<span class="lineNum">     640 </span><span class="lineCov">          1 :         buffer_.writeByte(changeGroup);</span>
+<span class="lineNum">     641 </span><span class="lineCov">          1 :         addStubField(uintptr_t(newGroup), StubField::Type::ObjectGroup);</span>
+<a name="642"><span class="lineNum">     642 </span><span class="lineCov">          1 :         addStubField(uintptr_t(newShape), StubField::Type::Shape);</span></a>
+<span class="lineNum">     643 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     644 </span><span class="lineCov">          1 :     void allocateAndStoreDynamicSlot(ObjOperandId obj, size_t offset, ValOperandId rhs,</span>
+<span class="lineNum">     645 </span>            :                                      Shape* newShape, bool changeGroup, ObjectGroup* newGroup,
+<span class="lineNum">     646 </span>            :                                      uint32_t numNewSlots)
+<span class="lineNum">     647 </span>            :     {
+<span class="lineNum">     648 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::AllocateAndStoreDynamicSlot, obj);</span>
+<span class="lineNum">     649 </span><span class="lineCov">          1 :         addStubField(offset, StubField::Type::RawWord);</span>
+<span class="lineNum">     650 </span><span class="lineCov">          1 :         writeOperandId(rhs);</span>
+<span class="lineNum">     651 </span><span class="lineCov">          1 :         buffer_.writeByte(changeGroup);</span>
+<span class="lineNum">     652 </span><span class="lineCov">          1 :         addStubField(uintptr_t(newGroup), StubField::Type::ObjectGroup);</span>
+<span class="lineNum">     653 </span><span class="lineCov">          1 :         addStubField(uintptr_t(newShape), StubField::Type::Shape);</span>
+<span class="lineNum">     654 </span><span class="lineCov">          1 :         addStubField(numNewSlots, StubField::Type::RawWord);</span>
+<a name="655"><span class="lineNum">     655 </span><span class="lineCov">          1 :     }</span></a>
+<span class="lineNum">     656 </span>            : 
+<span class="lineNum">     657 </span><span class="lineNoCov">          0 :     void storeTypedObjectReferenceProperty(ObjOperandId obj, uint32_t offset,</span>
+<span class="lineNum">     658 </span>            :                                            TypedThingLayout layout, ReferenceTypeDescr::Type type,
+<span class="lineNum">     659 </span>            :                                            ValOperandId rhs)
+<span class="lineNum">     660 </span>            :     {
+<span class="lineNum">     661 </span><span class="lineNoCov">          0 :         writeOpWithOperandId(CacheOp::StoreTypedObjectReferenceProperty, obj);</span>
+<span class="lineNum">     662 </span><span class="lineNoCov">          0 :         addStubField(offset, StubField::Type::RawWord);</span>
+<span class="lineNum">     663 </span><span class="lineNoCov">          0 :         buffer_.writeByte(uint32_t(layout));</span>
+<span class="lineNum">     664 </span><span class="lineNoCov">          0 :         buffer_.writeByte(uint32_t(type));</span>
+<a name="665"><span class="lineNum">     665 </span><span class="lineNoCov">          0 :         writeOperandId(rhs);</span></a>
+<span class="lineNum">     666 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     667 </span><span class="lineNoCov">          0 :     void storeTypedObjectScalarProperty(ObjOperandId obj, uint32_t offset, TypedThingLayout layout,</span>
+<span class="lineNum">     668 </span>            :                                         Scalar::Type type, ValOperandId rhs)
+<span class="lineNum">     669 </span>            :     {
+<span class="lineNum">     670 </span><span class="lineNoCov">          0 :         writeOpWithOperandId(CacheOp::StoreTypedObjectScalarProperty, obj);</span>
+<span class="lineNum">     671 </span><span class="lineNoCov">          0 :         addStubField(offset, StubField::Type::RawWord);</span>
+<span class="lineNum">     672 </span><span class="lineNoCov">          0 :         buffer_.writeByte(uint32_t(layout));</span>
+<span class="lineNum">     673 </span><span class="lineNoCov">          0 :         buffer_.writeByte(uint32_t(type));</span>
+<a name="674"><span class="lineNum">     674 </span><span class="lineNoCov">          0 :         writeOperandId(rhs);</span></a>
+<span class="lineNum">     675 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     676 </span><span class="lineCov">          1 :     void storeUnboxedProperty(ObjOperandId obj, JSValueType type, size_t offset,</span>
+<span class="lineNum">     677 </span>            :                               ValOperandId rhs)
+<span class="lineNum">     678 </span>            :     {
+<span class="lineNum">     679 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::StoreUnboxedProperty, obj);</span>
+<span class="lineNum">     680 </span><span class="lineCov">          1 :         buffer_.writeByte(uint32_t(type));</span>
+<span class="lineNum">     681 </span><span class="lineCov">          1 :         addStubField(offset, StubField::Type::RawWord);</span>
+<a name="682"><span class="lineNum">     682 </span><span class="lineCov">          1 :         writeOperandId(rhs);</span></a>
+<span class="lineNum">     683 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     684 </span><span class="lineCov">          1 :     void storeDenseElement(ObjOperandId obj, Int32OperandId index, ValOperandId rhs) {</span>
+<span class="lineNum">     685 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::StoreDenseElement, obj);</span>
+<span class="lineNum">     686 </span><span class="lineCov">          1 :         writeOperandId(index);</span>
+<a name="687"><span class="lineNum">     687 </span><span class="lineCov">          1 :         writeOperandId(rhs);</span></a>
+<span class="lineNum">     688 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     689 </span><span class="lineCov">          1 :     void storeTypedElement(ObjOperandId obj, Int32OperandId index, ValOperandId rhs,</span>
+<span class="lineNum">     690 </span>            :                            TypedThingLayout layout, Scalar::Type elementType, bool handleOOB)
+<span class="lineNum">     691 </span>            :     {
+<span class="lineNum">     692 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::StoreTypedElement, obj);</span>
+<span class="lineNum">     693 </span><span class="lineCov">          1 :         writeOperandId(index);</span>
+<span class="lineNum">     694 </span><span class="lineCov">          1 :         writeOperandId(rhs);</span>
+<span class="lineNum">     695 </span><span class="lineCov">          1 :         buffer_.writeByte(uint32_t(layout));</span>
+<span class="lineNum">     696 </span><span class="lineCov">          1 :         buffer_.writeByte(uint32_t(elementType));</span>
+<a name="697"><span class="lineNum">     697 </span><span class="lineCov">          1 :         buffer_.writeByte(uint32_t(handleOOB));</span></a>
+<span class="lineNum">     698 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     699 </span><span class="lineNoCov">          0 :     void storeUnboxedArrayElement(ObjOperandId obj, Int32OperandId index, ValOperandId rhs,</span>
+<span class="lineNum">     700 </span>            :                                   JSValueType elementType)
+<span class="lineNum">     701 </span>            :     {
+<span class="lineNum">     702 </span><span class="lineNoCov">          0 :         writeOpWithOperandId(CacheOp::StoreUnboxedArrayElement, obj);</span>
+<span class="lineNum">     703 </span><span class="lineNoCov">          0 :         writeOperandId(index);</span>
+<span class="lineNum">     704 </span><span class="lineNoCov">          0 :         writeOperandId(rhs);</span>
+<a name="705"><span class="lineNum">     705 </span><span class="lineNoCov">          0 :         buffer_.writeByte(uint32_t(elementType));</span></a>
+<span class="lineNum">     706 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     707 </span><span class="lineNoCov">          0 :     void storeUnboxedArrayElementHole(ObjOperandId obj, Int32OperandId index, ValOperandId rhs,</span>
+<span class="lineNum">     708 </span>            :                                       JSValueType elementType)
+<span class="lineNum">     709 </span>            :     {
+<span class="lineNum">     710 </span><span class="lineNoCov">          0 :         writeOpWithOperandId(CacheOp::StoreUnboxedArrayElementHole, obj);</span>
+<span class="lineNum">     711 </span><span class="lineNoCov">          0 :         writeOperandId(index);</span>
+<span class="lineNum">     712 </span><span class="lineNoCov">          0 :         writeOperandId(rhs);</span>
+<a name="713"><span class="lineNum">     713 </span><span class="lineNoCov">          0 :         buffer_.writeByte(uint32_t(elementType));</span></a>
+<span class="lineNum">     714 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     715 </span><span class="lineCov">          1 :     void storeDenseElementHole(ObjOperandId obj, Int32OperandId index, ValOperandId rhs,</span>
+<span class="lineNum">     716 </span>            :                                bool handleAdd)
+<span class="lineNum">     717 </span>            :     {
+<span class="lineNum">     718 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::StoreDenseElementHole, obj);</span>
+<span class="lineNum">     719 </span><span class="lineCov">          1 :         writeOperandId(index);</span>
+<span class="lineNum">     720 </span><span class="lineCov">          1 :         writeOperandId(rhs);</span>
+<a name="721"><span class="lineNum">     721 </span><span class="lineCov">          1 :         buffer_.writeByte(handleAdd);</span></a>
+<span class="lineNum">     722 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     723 </span><span class="lineCov">          1 :     void callScriptedSetter(ObjOperandId obj, JSFunction* setter, ValOperandId rhs) {</span>
+<span class="lineNum">     724 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::CallScriptedSetter, obj);</span>
+<span class="lineNum">     725 </span><span class="lineCov">          1 :         addStubField(uintptr_t(setter), StubField::Type::JSObject);</span>
+<a name="726"><span class="lineNum">     726 </span><span class="lineCov">          1 :         writeOperandId(rhs);</span></a>
+<span class="lineNum">     727 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     728 </span><span class="lineCov">          1 :     void callNativeSetter(ObjOperandId obj, JSFunction* setter, ValOperandId rhs) {</span>
+<span class="lineNum">     729 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::CallNativeSetter, obj);</span>
+<span class="lineNum">     730 </span><span class="lineCov">          1 :         addStubField(uintptr_t(setter), StubField::Type::JSObject);</span>
+<a name="731"><span class="lineNum">     731 </span><span class="lineCov">          1 :         writeOperandId(rhs);</span></a>
+<span class="lineNum">     732 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     733 </span><span class="lineCov">          1 :     void callSetArrayLength(ObjOperandId obj, bool strict, ValOperandId rhs) {</span>
+<span class="lineNum">     734 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::CallSetArrayLength, obj);</span>
+<span class="lineNum">     735 </span><span class="lineCov">          1 :         buffer_.writeByte(uint32_t(strict));</span>
+<a name="736"><span class="lineNum">     736 </span><span class="lineCov">          1 :         writeOperandId(rhs);</span></a>
+<span class="lineNum">     737 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     738 </span><span class="lineCov">          1 :     void callProxySet(ObjOperandId obj, jsid id, ValOperandId rhs, bool strict) {</span>
+<span class="lineNum">     739 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::CallProxySet, obj);</span>
+<span class="lineNum">     740 </span><span class="lineCov">          1 :         writeOperandId(rhs);</span>
+<span class="lineNum">     741 </span><span class="lineCov">          1 :         addStubField(uintptr_t(JSID_BITS(id)), StubField::Type::Id);</span>
+<a name="742"><span class="lineNum">     742 </span><span class="lineCov">          1 :         buffer_.writeByte(uint32_t(strict));</span></a>
+<span class="lineNum">     743 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     744 </span><span class="lineCov">          1 :     void callProxySetByValue(ObjOperandId obj, ValOperandId id, ValOperandId rhs, bool strict) {</span>
+<span class="lineNum">     745 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::CallProxySetByValue, obj);</span>
+<span class="lineNum">     746 </span><span class="lineCov">          1 :         writeOperandId(id);</span>
+<span class="lineNum">     747 </span><span class="lineCov">          1 :         writeOperandId(rhs);</span>
+<span class="lineNum">     748 </span><span class="lineCov">          1 :         buffer_.writeByte(uint32_t(strict));</span>
+<a name="749"><span class="lineNum">     749 </span><span class="lineCov">          1 :     }</span></a>
+<span class="lineNum">     750 </span>            : 
+<span class="lineNum">     751 </span><span class="lineCov">          1 :     void loadBooleanResult(bool val) {</span>
+<span class="lineNum">     752 </span>            :         writeOp(CacheOp::LoadBooleanResult);
+<span class="lineNum">     753 </span><span class="lineCov">          1 :         buffer_.writeByte(uint32_t(val));</span>
+<span class="lineNum">     754 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     755 </span>            :     void loadUndefinedResult() {
+<a name="756"><span class="lineNum">     756 </span>            :         writeOp(CacheOp::LoadUndefinedResult);</a>
+<span class="lineNum">     757 </span>            :     }
+<span class="lineNum">     758 </span><span class="lineCov">          1 :     void loadFixedSlotResult(ObjOperandId obj, size_t offset) {</span>
+<span class="lineNum">     759 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadFixedSlotResult, obj);</span>
+<a name="760"><span class="lineNum">     760 </span><span class="lineCov">          1 :         addStubField(offset, StubField::Type::RawWord);</span></a>
+<span class="lineNum">     761 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     762 </span><span class="lineCov">          1 :     void loadDynamicSlotResult(ObjOperandId obj, size_t offset) {</span>
+<span class="lineNum">     763 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadDynamicSlotResult, obj);</span>
+<a name="764"><span class="lineNum">     764 </span><span class="lineCov">          1 :         addStubField(offset, StubField::Type::RawWord);</span></a>
+<span class="lineNum">     765 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     766 </span><span class="lineCov">          1 :     void loadUnboxedPropertyResult(ObjOperandId obj, JSValueType type, size_t offset) {</span>
+<span class="lineNum">     767 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadUnboxedPropertyResult, obj);</span>
+<span class="lineNum">     768 </span><span class="lineCov">          1 :         buffer_.writeByte(uint32_t(type));</span>
+<a name="769"><span class="lineNum">     769 </span><span class="lineCov">          1 :         addStubField(offset, StubField::Type::RawWord);</span></a>
+<span class="lineNum">     770 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     771 </span><span class="lineNoCov">          0 :     void loadTypedObjectResult(ObjOperandId obj, uint32_t offset, TypedThingLayout layout,</span>
+<span class="lineNum">     772 </span>            :                                uint32_t typeDescr) {
+<span class="lineNum">     773 </span>            :         MOZ_ASSERT(uint32_t(layout) &lt;= UINT8_MAX);
+<span class="lineNum">     774 </span>            :         MOZ_ASSERT(typeDescr &lt;= UINT8_MAX);
+<span class="lineNum">     775 </span><span class="lineNoCov">          0 :         writeOpWithOperandId(CacheOp::LoadTypedObjectResult, obj);</span>
+<span class="lineNum">     776 </span><span class="lineNoCov">          0 :         buffer_.writeByte(uint32_t(layout));</span>
+<span class="lineNum">     777 </span><span class="lineNoCov">          0 :         buffer_.writeByte(typeDescr);</span>
+<span class="lineNum">     778 </span><span class="lineNoCov">          0 :         addStubField(offset, StubField::Type::RawWord);</span>
+<span class="lineNum">     779 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     780 </span>            :     void loadInt32ArrayLengthResult(ObjOperandId obj) {
+<span class="lineNum">     781 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadInt32ArrayLengthResult, obj);</span>
+<span class="lineNum">     782 </span>            :     }
+<span class="lineNum">     783 </span>            :     void loadUnboxedArrayLengthResult(ObjOperandId obj) {
+<span class="lineNum">     784 </span><span class="lineNoCov">          0 :         writeOpWithOperandId(CacheOp::LoadUnboxedArrayLengthResult, obj);</span>
+<span class="lineNum">     785 </span>            :     }
+<span class="lineNum">     786 </span>            :     void loadArgumentsObjectLengthResult(ObjOperandId obj) {
+<span class="lineNum">     787 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadArgumentsObjectLengthResult, obj);</span>
+<span class="lineNum">     788 </span>            :     }
+<span class="lineNum">     789 </span>            :     void loadFunctionLengthResult(ObjOperandId obj) {
+<span class="lineNum">     790 </span><span class="lineNoCov">          0 :         writeOpWithOperandId(CacheOp::LoadFunctionLengthResult, obj);</span>
+<span class="lineNum">     791 </span>            :     }
+<span class="lineNum">     792 </span>            :     void loadArgumentsObjectArgResult(ObjOperandId obj, Int32OperandId index) {
+<span class="lineNum">     793 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadArgumentsObjectArgResult, obj);</span>
+<span class="lineNum">     794 </span><span class="lineCov">          1 :         writeOperandId(index);</span>
+<span class="lineNum">     795 </span>            :     }
+<span class="lineNum">     796 </span>            :     void loadDenseElementResult(ObjOperandId obj, Int32OperandId index) {
+<span class="lineNum">     797 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadDenseElementResult, obj);</span>
+<span class="lineNum">     798 </span><span class="lineCov">          1 :         writeOperandId(index);</span>
+<span class="lineNum">     799 </span>            :     }
+<span class="lineNum">     800 </span>            :     void loadDenseElementHoleResult(ObjOperandId obj, Int32OperandId index) {
+<span class="lineNum">     801 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadDenseElementHoleResult, obj);</span>
+<span class="lineNum">     802 </span><span class="lineCov">          1 :         writeOperandId(index);</span>
+<span class="lineNum">     803 </span>            :     }
+<span class="lineNum">     804 </span>            :     void loadDenseElementExistsResult(ObjOperandId obj, Int32OperandId index) {
+<span class="lineNum">     805 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadDenseElementExistsResult, obj);</span>
+<span class="lineNum">     806 </span><span class="lineCov">          1 :         writeOperandId(index);</span>
+<span class="lineNum">     807 </span>            :     }
+<span class="lineNum">     808 </span>            :     void loadDenseElementHoleExistsResult(ObjOperandId obj, Int32OperandId index) {
+<span class="lineNum">     809 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadDenseElementHoleExistsResult, obj);</span>
+<a name="810"><span class="lineNum">     810 </span><span class="lineCov">          1 :         writeOperandId(index);</span></a>
+<span class="lineNum">     811 </span>            :     }
+<span class="lineNum">     812 </span><span class="lineNoCov">          0 :     void loadUnboxedArrayElementResult(ObjOperandId obj, Int32OperandId index, JSValueType elementType) {</span>
+<span class="lineNum">     813 </span><span class="lineNoCov">          0 :         writeOpWithOperandId(CacheOp::LoadUnboxedArrayElementResult, obj);</span>
+<span class="lineNum">     814 </span><span class="lineNoCov">          0 :         writeOperandId(index);</span>
+<a name="815"><span class="lineNum">     815 </span><span class="lineNoCov">          0 :         buffer_.writeByte(uint32_t(elementType));</span></a>
+<span class="lineNum">     816 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     817 </span><span class="lineCov">          1 :     void loadTypedElementResult(ObjOperandId obj, Int32OperandId index, TypedThingLayout layout,</span>
+<span class="lineNum">     818 </span>            :                                 Scalar::Type elementType) {
+<span class="lineNum">     819 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadTypedElementResult, obj);</span>
+<span class="lineNum">     820 </span><span class="lineCov">          1 :         writeOperandId(index);</span>
+<span class="lineNum">     821 </span><span class="lineCov">          1 :         buffer_.writeByte(uint32_t(layout));</span>
+<span class="lineNum">     822 </span><span class="lineCov">          1 :         buffer_.writeByte(uint32_t(elementType));</span>
+<span class="lineNum">     823 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     824 </span>            :     void loadStringLengthResult(StringOperandId str) {
+<span class="lineNum">     825 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadStringLengthResult, str);</span>
+<span class="lineNum">     826 </span>            :     }
+<span class="lineNum">     827 </span>            :     void loadStringCharResult(StringOperandId str, Int32OperandId index) {
+<span class="lineNum">     828 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadStringCharResult, str);</span>
+<a name="829"><span class="lineNum">     829 </span><span class="lineCov">          1 :         writeOperandId(index);</span></a>
+<span class="lineNum">     830 </span>            :     }
+<span class="lineNum">     831 </span><span class="lineCov">          1 :     void callScriptedGetterResult(ObjOperandId obj, JSFunction* getter) {</span>
+<span class="lineNum">     832 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::CallScriptedGetterResult, obj);</span>
+<a name="833"><span class="lineNum">     833 </span><span class="lineCov">          1 :         addStubField(uintptr_t(getter), StubField::Type::JSObject);</span></a>
+<span class="lineNum">     834 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     835 </span><span class="lineCov">          1 :     void callNativeGetterResult(ObjOperandId obj, JSFunction* getter) {</span>
+<span class="lineNum">     836 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::CallNativeGetterResult, obj);</span>
+<a name="837"><span class="lineNum">     837 </span><span class="lineCov">          1 :         addStubField(uintptr_t(getter), StubField::Type::JSObject);</span></a>
+<span class="lineNum">     838 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     839 </span><span class="lineCov">          1 :     void callProxyGetResult(ObjOperandId obj, jsid id) {</span>
+<span class="lineNum">     840 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::CallProxyGetResult, obj);</span>
+<span class="lineNum">     841 </span><span class="lineCov">          1 :         addStubField(uintptr_t(JSID_BITS(id)), StubField::Type::Id);</span>
+<span class="lineNum">     842 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     843 </span>            :     void callProxyGetByValueResult(ObjOperandId obj, ValOperandId idVal) {
+<span class="lineNum">     844 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::CallProxyGetByValueResult, obj);</span>
+<a name="845"><span class="lineNum">     845 </span><span class="lineCov">          1 :         writeOperandId(idVal);</span></a>
+<span class="lineNum">     846 </span>            :     }
+<span class="lineNum">     847 </span><span class="lineCov">          1 :     void loadEnvironmentFixedSlotResult(ObjOperandId obj, size_t offset) {</span>
+<span class="lineNum">     848 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadEnvironmentFixedSlotResult, obj);</span>
+<a name="849"><span class="lineNum">     849 </span><span class="lineCov">          1 :         addStubField(offset, StubField::Type::RawWord);</span></a>
+<span class="lineNum">     850 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     851 </span><span class="lineCov">          1 :     void loadEnvironmentDynamicSlotResult(ObjOperandId obj, size_t offset) {</span>
+<span class="lineNum">     852 </span><span class="lineCov">          1 :         writeOpWithOperandId(CacheOp::LoadEnvironmentDynamicSlotResult, obj);</span>
+<span class="lineNum">     853 </span><span class="lineCov">          1 :         addStubField(offset, StubField::Type::RawWord);</span>
+<span class="lineNum">     854 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     855 </span>            : 
+<span class="lineNum">     856 </span>            :     void typeMonitorResult() {
+<span class="lineNum">     857 </span>            :         writeOp(CacheOp::TypeMonitorResult);
+<span class="lineNum">     858 </span>            :     }
+<span class="lineNum">     859 </span>            :     void returnFromIC() {
+<span class="lineNum">     860 </span>            :         writeOp(CacheOp::ReturnFromIC);
+<span class="lineNum">     861 </span>            :     }
+<span class="lineNum">     862 </span>            :     void wrapResult() {
+<span class="lineNum">     863 </span>            :         writeOp(CacheOp::WrapResult);
+<span class="lineNum">     864 </span>            :     }
+<span class="lineNum">     865 </span>            : };
+<span class="lineNum">     866 </span>            : 
+<span class="lineNum">     867 </span>            : class CacheIRStubInfo;
+<span class="lineNum">     868 </span>            : 
+<span class="lineNum">     869 </span>            : // Helper class for reading CacheIR bytecode.
+<span class="lineNum">     870 </span>            : class MOZ_RAII CacheIRReader
+<span class="lineNum">     871 </span>            : {
+<span class="lineNum">     872 </span>            :     CompactBufferReader buffer_;
+<span class="lineNum">     873 </span>            : 
+<span class="lineNum">     874 </span>            :     CacheIRReader(const CacheIRReader&amp;) = delete;
+<span class="lineNum">     875 </span>            :     CacheIRReader&amp; operator=(const CacheIRReader&amp;) = delete;
+<span class="lineNum">     876 </span>            : 
+<span class="lineNum">     877 </span>            :   public:
+<span class="lineNum">     878 </span>            :     CacheIRReader(const uint8_t* start, const uint8_t* end)
+<span class="lineNum">     879 </span><span class="lineCov">          1 :       : buffer_(start, end)</span>
+<span class="lineNum">     880 </span>            :     {}
+<span class="lineNum">     881 </span>            :     explicit CacheIRReader(const CacheIRWriter&amp; writer)
+<span class="lineNum">     882 </span><span class="lineCov">          1 :       : CacheIRReader(writer.codeStart(), writer.codeEnd())</span>
+<span class="lineNum">     883 </span>            :     {}
+<span class="lineNum">     884 </span>            :     explicit CacheIRReader(const CacheIRStubInfo* stubInfo);
+<span class="lineNum">     885 </span>            : 
+<span class="lineNum">     886 </span><span class="lineCov">          1 :     bool more() const { return buffer_.more(); }</span>
+<span class="lineNum">     887 </span>            : 
+<span class="lineNum">     888 </span>            :     CacheOp readOp() {
+<span class="lineNum">     889 </span><span class="lineCov">          1 :         return CacheOp(buffer_.readByte());</span>
+<span class="lineNum">     890 </span>            :     }
+<span class="lineNum">     891 </span>            : 
+<span class="lineNum">     892 </span><span class="lineCov">          1 :     ValOperandId valOperandId() { return ValOperandId(buffer_.readByte()); }</span>
+<span class="lineNum">     893 </span><span class="lineCov">          1 :     ObjOperandId objOperandId() { return ObjOperandId(buffer_.readByte()); }</span>
+<span class="lineNum">     894 </span><span class="lineCov">          1 :     StringOperandId stringOperandId() { return StringOperandId(buffer_.readByte()); }</span>
+<span class="lineNum">     895 </span><span class="lineCov">          1 :     SymbolOperandId symbolOperandId() { return SymbolOperandId(buffer_.readByte()); }</span>
+<span class="lineNum">     896 </span><span class="lineCov">          1 :     Int32OperandId int32OperandId() { return Int32OperandId(buffer_.readByte()); }</span>
+<span class="lineNum">     897 </span>            : 
+<span class="lineNum">     898 </span><span class="lineCov">          1 :     uint32_t stubOffset() { return buffer_.readByte() * sizeof(uintptr_t); }</span>
+<span class="lineNum">     899 </span><span class="lineCov">          1 :     GuardClassKind guardClassKind() { return GuardClassKind(buffer_.readByte()); }</span>
+<span class="lineNum">     900 </span><span class="lineCov">          1 :     JSValueType valueType() { return JSValueType(buffer_.readByte()); }</span>
+<span class="lineNum">     901 </span><span class="lineCov">          1 :     TypedThingLayout typedThingLayout() { return TypedThingLayout(buffer_.readByte()); }</span>
+<span class="lineNum">     902 </span><span class="lineCov">          1 :     Scalar::Type scalarType() { return Scalar::Type(buffer_.readByte()); }</span>
+<span class="lineNum">     903 </span><span class="lineNoCov">          0 :     uint32_t typeDescrKey() { return buffer_.readByte(); }</span>
+<span class="lineNum">     904 </span><span class="lineCov">          1 :     JSWhyMagic whyMagic() { return JSWhyMagic(buffer_.readByte()); }</span>
+<span class="lineNum">     905 </span>            : 
+<span class="lineNum">     906 </span>            :     ReferenceTypeDescr::Type referenceTypeDescrType() {
+<span class="lineNum">     907 </span><span class="lineNoCov">          0 :         return ReferenceTypeDescr::Type(buffer_.readByte());</span>
+<span class="lineNum">     908 </span>            :     }
+<span class="lineNum">     909 </span>            : 
+<span class="lineNum">     910 </span>            :     bool readBool() {
+<span class="lineNum">     911 </span><span class="lineCov">          1 :         uint8_t b = buffer_.readByte();</span>
+<span class="lineNum">     912 </span>            :         MOZ_ASSERT(b &lt;= 1);
+<span class="lineNum">     913 </span><span class="lineCov">          1 :         return bool(b);</span>
+<span class="lineNum">     914 </span>            :     }
+<span class="lineNum">     915 </span>            : 
+<span class="lineNum">     916 </span>            :     bool matchOp(CacheOp op) {
+<span class="lineNum">     917 </span><span class="lineCov">          1 :         const uint8_t* pos = buffer_.currentPosition();</span>
+<span class="lineNum">     918 </span><span class="lineCov">          1 :         if (readOp() == op)</span>
+<span class="lineNum">     919 </span>            :             return true;
+<span class="lineNum">     920 </span><span class="lineCov">          1 :         buffer_.seek(pos, 0);</span>
+<span class="lineNum">     921 </span>            :         return false;
+<span class="lineNum">     922 </span>            :     }
+<span class="lineNum">     923 </span>            :     bool matchOp(CacheOp op, OperandId id) {
+<span class="lineNum">     924 </span><span class="lineCov">          1 :         const uint8_t* pos = buffer_.currentPosition();</span>
+<span class="lineNum">     925 </span><span class="lineCov">          1 :         if (readOp() == op &amp;&amp; buffer_.readByte() == id.id())</span>
+<span class="lineNum">     926 </span>            :             return true;
+<span class="lineNum">     927 </span><span class="lineCov">          1 :         buffer_.seek(pos, 0);</span>
+<span class="lineNum">     928 </span>            :         return false;
+<span class="lineNum">     929 </span>            :     }
+<span class="lineNum">     930 </span>            :     bool matchOpEither(CacheOp op1, CacheOp op2) {
+<span class="lineNum">     931 </span><span class="lineCov">          1 :         const uint8_t* pos = buffer_.currentPosition();</span>
+<span class="lineNum">     932 </span><span class="lineCov">          1 :         CacheOp op = readOp();</span>
+<span class="lineNum">     933 </span><span class="lineCov">          1 :         if (op == op1 || op == op2)</span>
+<span class="lineNum">     934 </span>            :             return true;
+<span class="lineNum">     935 </span><span class="lineCov">          1 :         buffer_.seek(pos, 0);</span>
+<span class="lineNum">     936 </span>            :         return false;
+<span class="lineNum">     937 </span>            :     }
+<span class="lineNum">     938 </span>            : };
+<span class="lineNum">     939 </span>            : 
+<span class="lineNum">     940 </span><span class="lineCov">          1 : class MOZ_RAII IRGenerator</span>
+<span class="lineNum">     941 </span>            : {
+<span class="lineNum">     942 </span>            :   protected:
+<span class="lineNum">     943 </span>            :     CacheIRWriter writer;
+<span class="lineNum">     944 </span>            :     JSContext* cx_;
+<span class="lineNum">     945 </span>            :     HandleScript script_;
+<span class="lineNum">     946 </span>            :     jsbytecode* pc_;
+<span class="lineNum">     947 </span>            :     CacheKind cacheKind_;
+<span class="lineNum">     948 </span>            : 
+<span class="lineNum">     949 </span>            :     IRGenerator(const IRGenerator&amp;) = delete;
+<span class="lineNum">     950 </span>            :     IRGenerator&amp; operator=(const IRGenerator&amp;) = delete;
+<span class="lineNum">     951 </span>            : 
+<span class="lineNum">     952 </span>            :     bool maybeGuardInt32Index(const Value&amp; index, ValOperandId indexId,
+<span class="lineNum">     953 </span>            :                               uint32_t* int32Index, Int32OperandId* int32IndexId);
+<span class="lineNum">     954 </span>            : 
+<span class="lineNum">     955 </span>            :     void emitIdGuard(ValOperandId valId, jsid id);
+<span class="lineNum">     956 </span>            : 
+<span class="lineNum">     957 </span>            :     friend class CacheIRSpewer;
+<span class="lineNum">     958 </span>            : 
+<span class="lineNum">     959 </span>            :   public:
+<span class="lineNum">     960 </span>            :     explicit IRGenerator(JSContext* cx, HandleScript script, jsbytecode* pc, CacheKind cacheKind);
+<span class="lineNum">     961 </span>            : 
+<span class="lineNum">     962 </span>            :     const CacheIRWriter&amp; writerRef() const { return writer; }
+<span class="lineNum">     963 </span>            :     CacheKind cacheKind() const { return cacheKind_; }
+<span class="lineNum">     964 </span>            : };
+<span class="lineNum">     965 </span>            : 
+<span class="lineNum">     966 </span>            : enum class CanAttachGetter { Yes, No };
+<span class="lineNum">     967 </span>            : 
+<span class="lineNum">     968 </span>            : // GetPropIRGenerator generates CacheIR for a GetProp IC.
+<span class="lineNum">     969 </span><span class="lineCov">          1 : class MOZ_RAII GetPropIRGenerator : public IRGenerator</span>
+<span class="lineNum">     970 </span>            : {
+<span class="lineNum">     971 </span>            :     HandleValue val_;
+<span class="lineNum">     972 </span>            :     HandleValue idVal_;
+<span class="lineNum">     973 </span>            :     bool* isTemporarilyUnoptimizable_;
+<span class="lineNum">     974 </span>            :     CanAttachGetter canAttachGetter_;
+<span class="lineNum">     975 </span>            : 
+<span class="lineNum">     976 </span>            :     enum class PreliminaryObjectAction { None, Unlink, NotePreliminary };
+<span class="lineNum">     977 </span>            :     PreliminaryObjectAction preliminaryObjectAction_;
+<span class="lineNum">     978 </span>            : 
+<span class="lineNum">     979 </span>            :     bool tryAttachNative(HandleObject obj, ObjOperandId objId, HandleId id);
+<span class="lineNum">     980 </span>            :     bool tryAttachUnboxed(HandleObject obj, ObjOperandId objId, HandleId id);
+<span class="lineNum">     981 </span>            :     bool tryAttachUnboxedExpando(HandleObject obj, ObjOperandId objId, HandleId id);
+<span class="lineNum">     982 </span>            :     bool tryAttachTypedObject(HandleObject obj, ObjOperandId objId, HandleId id);
+<span class="lineNum">     983 </span>            :     bool tryAttachObjectLength(HandleObject obj, ObjOperandId objId, HandleId id);
+<span class="lineNum">     984 </span>            :     bool tryAttachModuleNamespace(HandleObject obj, ObjOperandId objId, HandleId id);
+<span class="lineNum">     985 </span>            :     bool tryAttachWindowProxy(HandleObject obj, ObjOperandId objId, HandleId id);
+<span class="lineNum">     986 </span>            :     bool tryAttachCrossCompartmentWrapper(HandleObject obj, ObjOperandId objId, HandleId id);
+<span class="lineNum">     987 </span>            :     bool tryAttachFunction(HandleObject obj, ObjOperandId objId, HandleId id);
+<span class="lineNum">     988 </span>            : 
+<span class="lineNum">     989 </span>            :     bool tryAttachGenericProxy(HandleObject obj, ObjOperandId objId, HandleId id);
+<span class="lineNum">     990 </span>            :     bool tryAttachDOMProxyExpando(HandleObject obj, ObjOperandId objId, HandleId id);
+<span class="lineNum">     991 </span>            :     bool tryAttachDOMProxyShadowed(HandleObject obj, ObjOperandId objId, HandleId id);
+<span class="lineNum">     992 </span>            :     bool tryAttachDOMProxyUnshadowed(HandleObject obj, ObjOperandId objId, HandleId id);
+<span class="lineNum">     993 </span>            :     bool tryAttachProxy(HandleObject obj, ObjOperandId objId, HandleId id);
+<span class="lineNum">     994 </span>            : 
+<span class="lineNum">     995 </span>            :     bool tryAttachPrimitive(ValOperandId valId, HandleId id);
+<span class="lineNum">     996 </span>            :     bool tryAttachStringChar(ValOperandId valId, ValOperandId indexId);
+<span class="lineNum">     997 </span>            :     bool tryAttachStringLength(ValOperandId valId, HandleId id);
+<span class="lineNum">     998 </span>            :     bool tryAttachMagicArgumentsName(ValOperandId valId, HandleId id);
+<span class="lineNum">     999 </span>            : 
+<span class="lineNum">    1000 </span>            :     bool tryAttachMagicArgument(ValOperandId valId, ValOperandId indexId);
+<span class="lineNum">    1001 </span>            :     bool tryAttachArgumentsObjectArg(HandleObject obj, ObjOperandId objId,
+<span class="lineNum">    1002 </span>            :                                      uint32_t index, Int32OperandId indexId);
+<span class="lineNum">    1003 </span>            : 
+<span class="lineNum">    1004 </span>            :     bool tryAttachDenseElement(HandleObject obj, ObjOperandId objId,
+<span class="lineNum">    1005 </span>            :                                uint32_t index, Int32OperandId indexId);
+<span class="lineNum">    1006 </span>            :     bool tryAttachDenseElementHole(HandleObject obj, ObjOperandId objId,
+<span class="lineNum">    1007 </span>            :                                    uint32_t index, Int32OperandId indexId);
+<span class="lineNum">    1008 </span>            :     bool tryAttachUnboxedArrayElement(HandleObject obj, ObjOperandId objId,
+<span class="lineNum">    1009 </span>            :                                       uint32_t index, Int32OperandId indexId);
+<span class="lineNum">    1010 </span>            :     bool tryAttachTypedElement(HandleObject obj, ObjOperandId objId,
+<span class="lineNum">    1011 </span>            :                                uint32_t index, Int32OperandId indexId);
+<span class="lineNum">    1012 </span>            : 
+<span class="lineNum">    1013 </span>            :     bool tryAttachProxyElement(HandleObject obj, ObjOperandId objId);
+<span class="lineNum">    1014 </span>            : 
+<span class="lineNum">    1015 </span>            :     ValOperandId getElemKeyValueId() const {
+<span class="lineNum">    1016 </span>            :         MOZ_ASSERT(cacheKind_ == CacheKind::GetElem);
+<span class="lineNum">    1017 </span>            :         return ValOperandId(1);
+<span class="lineNum">    1018 </span>            :     }
+<span class="lineNum">    1019 </span>            : 
+<span class="lineNum">    1020 </span>            :     // No pc if idempotent, as there can be multiple bytecode locations
+<span class="lineNum">    1021 </span>            :     // due to GVN.
+<span class="lineNum">    1022 </span>            :     bool idempotent() const { return pc_ == nullptr; }
+<span class="lineNum">    1023 </span>            : 
+<span class="lineNum">    1024 </span>            :     // If this is a GetElem cache, emit instructions to guard the incoming Value
+<span class="lineNum">    1025 </span>            :     // matches |id|.
+<span class="lineNum">    1026 </span>            :     void maybeEmitIdGuard(jsid id);
+<span class="lineNum">    1027 </span>            : 
+<span class="lineNum">    1028 </span>            :     void trackAttached(const char* name);
+<span class="lineNum">    1029 </span>            :     void trackNotAttached();
+<span class="lineNum">    1030 </span>            : 
+<span class="lineNum">    1031 </span>            :   public:
+<span class="lineNum">    1032 </span>            :     GetPropIRGenerator(JSContext* cx, HandleScript script, jsbytecode* pc, CacheKind cacheKind,
+<span class="lineNum">    1033 </span>            :                        bool* isTemporarilyUnoptimizable, HandleValue val,HandleValue idVal,
+<span class="lineNum">    1034 </span>            :                        CanAttachGetter canAttachGetter);
+<span class="lineNum">    1035 </span>            : 
+<span class="lineNum">    1036 </span>            :     bool tryAttachStub();
+<span class="lineNum">    1037 </span>            :     bool tryAttachIdempotentStub();
+<span class="lineNum">    1038 </span>            : 
+<span class="lineNum">    1039 </span>            :     bool shouldUnlinkPreliminaryObjectStubs() const {
+<span class="lineNum">    1040 </span>            :         return preliminaryObjectAction_ == PreliminaryObjectAction::Unlink;
+<span class="lineNum">    1041 </span>            :     }
+<span class="lineNum">    1042 </span>            :     bool shouldNotePreliminaryObjectStub() const {
+<span class="lineNum">    1043 </span>            :         return preliminaryObjectAction_ == PreliminaryObjectAction::NotePreliminary;
+<span class="lineNum">    1044 </span>            :     }
+<span class="lineNum">    1045 </span>            : };
+<span class="lineNum">    1046 </span>            : 
+<span class="lineNum">    1047 </span>            : // GetNameIRGenerator generates CacheIR for a GetName IC.
+<span class="lineNum">    1048 </span><span class="lineCov">          1 : class MOZ_RAII GetNameIRGenerator : public IRGenerator</span>
+<span class="lineNum">    1049 </span>            : {
+<span class="lineNum">    1050 </span>            :     HandleObject env_;
+<span class="lineNum">    1051 </span>            :     HandlePropertyName name_;
+<span class="lineNum">    1052 </span>            : 
+<span class="lineNum">    1053 </span>            :     bool tryAttachGlobalNameValue(ObjOperandId objId, HandleId id);
+<span class="lineNum">    1054 </span>            :     bool tryAttachGlobalNameGetter(ObjOperandId objId, HandleId id);
+<span class="lineNum">    1055 </span>            :     bool tryAttachEnvironmentName(ObjOperandId objId, HandleId id);
+<span class="lineNum">    1056 </span>            : 
+<span class="lineNum">    1057 </span>            :   public:
+<span class="lineNum">    1058 </span>            :     GetNameIRGenerator(JSContext* cx, HandleScript script, jsbytecode* pc,
+<span class="lineNum">    1059 </span>            :                        HandleObject env, HandlePropertyName name);
+<span class="lineNum">    1060 </span>            : 
+<span class="lineNum">    1061 </span>            :     bool tryAttachStub();
+<span class="lineNum">    1062 </span>            : };
+<span class="lineNum">    1063 </span>            : 
+<span class="lineNum">    1064 </span>            : // Information used by SetProp/SetElem stubs to check/update property types.
+<span class="lineNum">    1065 </span><span class="lineCov">          1 : class MOZ_RAII PropertyTypeCheckInfo</span>
+<span class="lineNum">    1066 </span>            : {
+<span class="lineNum">    1067 </span>            :     RootedObjectGroup group_;
+<span class="lineNum">    1068 </span>            :     RootedId id_;
+<span class="lineNum">    1069 </span>            :     bool needsTypeBarrier_;
+<span class="lineNum">    1070 </span>            : 
+<span class="lineNum">    1071 </span>            :     PropertyTypeCheckInfo(const PropertyTypeCheckInfo&amp;) = delete;
+<span class="lineNum">    1072 </span>            :     void operator=(const PropertyTypeCheckInfo&amp;) = delete;
+<span class="lineNum">    1073 </span>            : 
+<span class="lineNum">    1074 </span>            :   public:
+<span class="lineNum">    1075 </span>            :     PropertyTypeCheckInfo(JSContext* cx, bool needsTypeBarrier)
+<span class="lineNum">    1076 </span><span class="lineCov">          1 :       : group_(cx), id_(cx), needsTypeBarrier_(needsTypeBarrier)</span>
+<span class="lineNum">    1077 </span>            :     {}
+<span class="lineNum">    1078 </span>            : 
+<span class="lineNum">    1079 </span>            :     bool needsTypeBarrier() const { return needsTypeBarrier_; }
+<span class="lineNum">    1080 </span><span class="lineCov">          1 :     bool isSet() const { return group_ != nullptr; }</span>
+<span class="lineNum">    1081 </span><span class="lineCov">          1 :     ObjectGroup* group() const { MOZ_ASSERT(isSet()); return group_; }</span>
+<span class="lineNum">    1082 </span><span class="lineCov">          1 :     jsid id() const { MOZ_ASSERT(isSet()); return id_; }</span>
+<span class="lineNum">    1083 </span>            : 
+<span class="lineNum">    1084 </span>            :     void set(ObjectGroup* group, jsid id) {
+<span class="lineNum">    1085 </span>            :         MOZ_ASSERT(!group_);
+<span class="lineNum">    1086 </span>            :         MOZ_ASSERT(group);
+<span class="lineNum">    1087 </span><span class="lineCov">          1 :         if (needsTypeBarrier_) {</span>
+<span class="lineNum">    1088 </span><span class="lineCov">          1 :             group_ = group;</span>
+<span class="lineNum">    1089 </span><span class="lineCov">          1 :             id_ = id;</span>
+<span class="lineNum">    1090 </span>            :         }
+<span class="lineNum">    1091 </span>            :     }
+<span class="lineNum">    1092 </span>            : };
+<span class="lineNum">    1093 </span>            : 
+<span class="lineNum">    1094 </span>            : // SetPropIRGenerator generates CacheIR for a SetProp IC.
+<span class="lineNum">    1095 </span><span class="lineCov">          1 : class MOZ_RAII SetPropIRGenerator : public IRGenerator</span>
+<span class="lineNum">    1096 </span>            : {
+<span class="lineNum">    1097 </span>            :     HandleValue lhsVal_;
+<span class="lineNum">    1098 </span>            :     HandleValue idVal_;
+<span class="lineNum">    1099 </span>            :     HandleValue rhsVal_;
+<span class="lineNum">    1100 </span>            :     bool* isTemporarilyUnoptimizable_;
+<span class="lineNum">    1101 </span>            :     PropertyTypeCheckInfo typeCheckInfo_;
+<span class="lineNum">    1102 </span>            : 
+<span class="lineNum">    1103 </span>            :     enum class PreliminaryObjectAction { None, Unlink, NotePreliminary };
+<span class="lineNum">    1104 </span>            :     PreliminaryObjectAction preliminaryObjectAction_;
+<span class="lineNum">    1105 </span>            :     bool attachedTypedArrayOOBStub_;
+<span class="lineNum">    1106 </span>            : 
+<span class="lineNum">    1107 </span>            :     bool maybeHasExtraIndexedProps_;
+<span class="lineNum">    1108 </span>            : 
+<span class="lineNum">    1109 </span>            :     ValOperandId setElemKeyValueId() const {
+<span class="lineNum">    1110 </span>            :         MOZ_ASSERT(cacheKind_ == CacheKind::SetElem);
+<span class="lineNum">    1111 </span>            :         return ValOperandId(1);
+<span class="lineNum">    1112 </span>            :     }
+<span class="lineNum">    1113 </span>            :     ValOperandId rhsValueId() const {
+<span class="lineNum">    1114 </span>            :         if (cacheKind_ == CacheKind::SetProp)
+<span class="lineNum">    1115 </span>            :             return ValOperandId(1);
+<span class="lineNum">    1116 </span>            :         MOZ_ASSERT(cacheKind_ == CacheKind::SetElem);
+<span class="lineNum">    1117 </span>            :         return ValOperandId(2);
+<span class="lineNum">    1118 </span>            :     }
+<span class="lineNum">    1119 </span>            : 
+<span class="lineNum">    1120 </span>            :     // If this is a SetElem cache, emit instructions to guard the incoming Value
+<span class="lineNum">    1121 </span>            :     // matches |id|.
+<span class="lineNum">    1122 </span>            :     void maybeEmitIdGuard(jsid id);
+<span class="lineNum">    1123 </span>            : 
+<span class="lineNum">    1124 </span>            :     bool tryAttachNativeSetSlot(HandleObject obj, ObjOperandId objId, HandleId id,
+<span class="lineNum">    1125 </span>            :                                  ValOperandId rhsId);
+<span class="lineNum">    1126 </span>            :     bool tryAttachUnboxedExpandoSetSlot(HandleObject obj, ObjOperandId objId, HandleId id,
+<span class="lineNum">    1127 </span>            :                                         ValOperandId rhsId);
+<span class="lineNum">    1128 </span>            :     bool tryAttachUnboxedProperty(HandleObject obj, ObjOperandId objId, HandleId id,
+<span class="lineNum">    1129 </span>            :                                   ValOperandId rhsId);
+<span class="lineNum">    1130 </span>            :     bool tryAttachTypedObjectProperty(HandleObject obj, ObjOperandId objId, HandleId id,
+<span class="lineNum">    1131 </span>            :                                       ValOperandId rhsId);
+<span class="lineNum">    1132 </span>            :     bool tryAttachSetter(HandleObject obj, ObjOperandId objId, HandleId id,
+<span class="lineNum">    1133 </span>            :                          ValOperandId rhsId);
+<span class="lineNum">    1134 </span>            :     bool tryAttachSetArrayLength(HandleObject obj, ObjOperandId objId, HandleId id,
+<span class="lineNum">    1135 </span>            :                                  ValOperandId rhsId);
+<span class="lineNum">    1136 </span>            : 
+<span class="lineNum">    1137 </span>            :     bool tryAttachSetDenseElement(HandleObject obj, ObjOperandId objId, uint32_t index,
+<span class="lineNum">    1138 </span>            :                                   Int32OperandId indexId, ValOperandId rhsId);
+<span class="lineNum">    1139 </span>            :     bool tryAttachSetUnboxedArrayElement(HandleObject obj, ObjOperandId objId, uint32_t index,
+<span class="lineNum">    1140 </span>            :                                          Int32OperandId indexId, ValOperandId rhsId);    
+<span class="lineNum">    1141 </span>            :     bool tryAttachSetTypedElement(HandleObject obj, ObjOperandId objId, uint32_t index,
+<span class="lineNum">    1142 </span>            :                                   Int32OperandId indexId, ValOperandId rhsId);
+<span class="lineNum">    1143 </span>            : 
+<span class="lineNum">    1144 </span>            :     bool tryAttachSetDenseElementHole(HandleObject obj, ObjOperandId objId, uint32_t index,
+<span class="lineNum">    1145 </span>            :                                       Int32OperandId indexId, ValOperandId rhsId);
+<span class="lineNum">    1146 </span>            :     bool tryAttachSetUnboxedArrayElementHole(HandleObject obj, ObjOperandId objId, uint32_t index,
+<span class="lineNum">    1147 </span>            :                                              Int32OperandId indexId, ValOperandId rhsId);
+<span class="lineNum">    1148 </span>            : 
+<span class="lineNum">    1149 </span>            :     bool tryAttachGenericProxy(HandleObject obj, ObjOperandId objId, HandleId id,
+<span class="lineNum">    1150 </span>            :                                ValOperandId rhsId, bool handleDOMProxies);
+<span class="lineNum">    1151 </span>            :     bool tryAttachDOMProxyShadowed(HandleObject obj, ObjOperandId objId, HandleId id,
+<span class="lineNum">    1152 </span>            :                                    ValOperandId rhsId);
+<span class="lineNum">    1153 </span>            :     bool tryAttachDOMProxyUnshadowed(HandleObject obj, ObjOperandId objId, HandleId id,
+<span class="lineNum">    1154 </span>            :                                      ValOperandId rhsId);
+<span class="lineNum">    1155 </span>            :     bool tryAttachProxy(HandleObject obj, ObjOperandId objId, HandleId id, ValOperandId rhsId);
+<span class="lineNum">    1156 </span>            :     bool tryAttachProxyElement(HandleObject obj, ObjOperandId objId, ValOperandId rhsId);
+<span class="lineNum">    1157 </span>            : 
+<span class="lineNum">    1158 </span>            :     void trackAttached(const char* name);
+<span class="lineNum">    1159 </span>            : 
+<span class="lineNum">    1160 </span>            :   public:
+<span class="lineNum">    1161 </span>            :     SetPropIRGenerator(JSContext* cx, HandleScript script, jsbytecode* pc, CacheKind cacheKind,
+<span class="lineNum">    1162 </span>            :                        bool* isTemporarilyUnoptimizable, HandleValue lhsVal, HandleValue idVal,
+<span class="lineNum">    1163 </span>            :                        HandleValue rhsVal, bool needsTypeBarrier = true,
+<span class="lineNum">    1164 </span>            :                        bool maybeHasExtraIndexedProps = true);
+<span class="lineNum">    1165 </span>            : 
+<span class="lineNum">    1166 </span>            :     bool tryAttachStub();
+<span class="lineNum">    1167 </span>            :     bool tryAttachAddSlotStub(HandleObjectGroup oldGroup, HandleShape oldShape);
+<span class="lineNum">    1168 </span>            :     void trackNotAttached();
+<span class="lineNum">    1169 </span>            : 
+<span class="lineNum">    1170 </span>            :     bool shouldUnlinkPreliminaryObjectStubs() const {
+<span class="lineNum">    1171 </span>            :         return preliminaryObjectAction_ == PreliminaryObjectAction::Unlink;
+<span class="lineNum">    1172 </span>            :     }
+<span class="lineNum">    1173 </span>            :     bool shouldNotePreliminaryObjectStub() const {
+<span class="lineNum">    1174 </span>            :         return preliminaryObjectAction_ == PreliminaryObjectAction::NotePreliminary;
+<span class="lineNum">    1175 </span>            :     }
+<span class="lineNum">    1176 </span>            : 
+<span class="lineNum">    1177 </span>            :     const PropertyTypeCheckInfo* typeCheckInfo() const {
+<span class="lineNum">    1178 </span>            :         return &amp;typeCheckInfo_;
+<span class="lineNum">    1179 </span>            :     }
+<span class="lineNum">    1180 </span>            : 
+<span class="lineNum">    1181 </span>            :     bool attachedTypedArrayOOBStub() const {
+<span class="lineNum">    1182 </span>            :         return attachedTypedArrayOOBStub_;
+<span class="lineNum">    1183 </span>            :     }
+<span class="lineNum">    1184 </span>            : };
+<span class="lineNum">    1185 </span>            : 
+<span class="lineNum">    1186 </span>            : // InIRGenerator generates CacheIR for a In IC.
+<span class="lineNum">    1187 </span><span class="lineCov">          1 : class MOZ_RAII InIRGenerator : public IRGenerator</span>
+<span class="lineNum">    1188 </span>            : {
+<span class="lineNum">    1189 </span>            :     HandleValue key_;
+<span class="lineNum">    1190 </span>            :     HandleObject obj_;
+<span class="lineNum">    1191 </span>            : 
+<span class="lineNum">    1192 </span>            :     bool tryAttachDenseIn(uint32_t index, Int32OperandId indexId,
+<span class="lineNum">    1193 </span>            :                           HandleObject obj, ObjOperandId objId);
+<span class="lineNum">    1194 </span>            :     bool tryAttachDenseInHole(uint32_t index, Int32OperandId indexId,
+<span class="lineNum">    1195 </span>            :                               HandleObject obj, ObjOperandId objId);
+<span class="lineNum">    1196 </span>            :     bool tryAttachNativeIn(HandleId key, ValOperandId keyId,
+<span class="lineNum">    1197 </span>            :                            HandleObject obj, ObjOperandId objId);
+<span class="lineNum">    1198 </span>            :     bool tryAttachNativeInDoesNotExist(HandleId key, ValOperandId keyId,
+<span class="lineNum">    1199 </span>            :                                        HandleObject obj, ObjOperandId objId);
+<span class="lineNum">    1200 </span>            : 
+<span class="lineNum">    1201 </span>            :     void trackAttached(const char* name);
+<span class="lineNum">    1202 </span>            :     void trackNotAttached();
+<span class="lineNum">    1203 </span>            : 
+<span class="lineNum">    1204 </span>            :   public:
+<span class="lineNum">    1205 </span>            :     InIRGenerator(JSContext* cx, HandleScript, jsbytecode* pc, HandleValue key, HandleObject obj);
+<span class="lineNum">    1206 </span>            : 
+<span class="lineNum">    1207 </span>            :     bool tryAttachStub();
+<span class="lineNum">    1208 </span>            : };
+<span class="lineNum">    1209 </span>            : 
+<span class="lineNum">    1210 </span>            : } // namespace jit
+<span class="lineNum">    1211 </span>            : } // namespace js
+<span class="lineNum">    1212 </span>            : 
+<span class="lineNum">    1213 </span>            : #endif /* jit_CacheIR_h */
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

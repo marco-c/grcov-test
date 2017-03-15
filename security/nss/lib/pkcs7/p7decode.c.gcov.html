@@ -1,0 +1,1998 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/nss/lib/pkcs7/p7decode.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">security/nss/lib/pkcs7</a> - p7decode.c<span style="font-size: 80%;"> (source / <a href="p7decode.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">135</td>
+            <td class="headerCovTableEntry">562</td>
+            <td class="headerCovTableEntryLo">24.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">9</td>
+            <td class="headerCovTableEntry">25</td>
+            <td class="headerCovTableEntryLo">36.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public</a>
+<span class="lineNum">       2 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       3 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : /*
+<span class="lineNum">       6 </span>            :  * PKCS7 decoding, verification.
+<span class="lineNum">       7 </span>            :  */
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &quot;p7local.h&quot;
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;cert.h&quot;
+<span class="lineNum">      12 </span>            : /* XXX do not want to have to include */
+<span class="lineNum">      13 </span>            : #include &quot;certdb.h&quot; /* certdb.h -- the trust stuff needed by */
+<span class="lineNum">      14 </span>            :                     /* the add certificate code needs to get */
+<span class="lineNum">      15 </span>            :                     /* rewritten/abstracted and then this */
+<span class="lineNum">      16 </span>            :                     /* include should be removed! */
+<span class="lineNum">      17 </span>            : /*#include &quot;cdbhdl.h&quot; */
+<span class="lineNum">      18 </span>            : #include &quot;cryptohi.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;key.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;secasn1.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;secitem.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;secoid.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;pk11func.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;prtime.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;secerr.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;sechash.h&quot; /* for HASH_GetHashObject() */
+<span class="lineNum">      27 </span>            : #include &quot;secder.h&quot;
+<span class="lineNum">      28 </span>            : #include &quot;secpkcs5.h&quot;
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : struct sec_pkcs7_decoder_worker {
+<span class="lineNum">      31 </span>            :     int depth;
+<span class="lineNum">      32 </span>            :     int digcnt;
+<span class="lineNum">      33 </span>            :     void **digcxs;
+<span class="lineNum">      34 </span>            :     const SECHashObject **digobjs;
+<span class="lineNum">      35 </span>            :     sec_PKCS7CipherObject *decryptobj;
+<span class="lineNum">      36 </span>            :     PRBool saw_contents;
+<span class="lineNum">      37 </span>            : };
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            : struct SEC_PKCS7DecoderContextStr {
+<span class="lineNum">      40 </span>            :     SEC_ASN1DecoderContext *dcx;
+<span class="lineNum">      41 </span>            :     SEC_PKCS7ContentInfo *cinfo;
+<span class="lineNum">      42 </span>            :     SEC_PKCS7DecoderContentCallback cb;
+<span class="lineNum">      43 </span>            :     void *cb_arg;
+<span class="lineNum">      44 </span>            :     SECKEYGetPasswordKey pwfn;
+<span class="lineNum">      45 </span>            :     void *pwfn_arg;
+<span class="lineNum">      46 </span>            :     struct sec_pkcs7_decoder_worker worker;
+<span class="lineNum">      47 </span>            :     PLArenaPool *tmp_poolp;
+<span class="lineNum">      48 </span>            :     int error;
+<span class="lineNum">      49 </span>            :     SEC_PKCS7GetDecryptKeyCallback dkcb;
+<span class="lineNum">      50 </span>            :     void *dkcb_arg;
+<span class="lineNum">      51 </span>            :     SEC_PKCS7DecryptionAllowedCallback decrypt_allowed_cb;
+<span class="lineNum">      52 </span>            : };
+<span class="lineNum">      53 </span>            : 
+<span class="lineNum">      54 </span>            : /*
+<span class="lineNum">      55 </span>            :  * Handle one worker, decrypting and digesting the data as necessary.
+<span class="lineNum">      56 </span>            :  *
+<span class="lineNum">      57 </span>            :  * XXX If/when we support nested contents, this probably needs to be
+<span class="lineNum">      58 </span>            :  * revised somewhat to get passed the content-info (which unfortunately
+<span class="lineNum">      59 </span>            :  * can be two different types depending on whether it is encrypted or not)
+<span class="lineNum">      60 </span>            :  * corresponding to the given worker.
+<a name="61"><span class="lineNum">      61 </span>            :  */</a>
+<span class="lineNum">      62 </span>            : static void
+<span class="lineNum">      63 </span><span class="lineCov">          1 : sec_pkcs7_decoder_work_data(SEC_PKCS7DecoderContext *p7dcx,</span>
+<span class="lineNum">      64 </span>            :                             struct sec_pkcs7_decoder_worker *worker,
+<span class="lineNum">      65 </span>            :                             const unsigned char *data, unsigned long len,
+<span class="lineNum">      66 </span>            :                             PRBool final)
+<span class="lineNum">      67 </span>            : {
+<span class="lineNum">      68 </span><span class="lineCov">          1 :     unsigned char *buf = NULL;</span>
+<span class="lineNum">      69 </span>            :     SECStatus rv;
+<span class="lineNum">      70 </span>            :     int i;
+<span class="lineNum">      71 </span>            : 
+<span class="lineNum">      72 </span>            :     /*
+<span class="lineNum">      73 </span>            :      * We should really have data to process, or we should be trying
+<span class="lineNum">      74 </span>            :      * to finish/flush the last block.  (This is an overly paranoid
+<span class="lineNum">      75 </span>            :      * check since all callers are in this file and simple inspection
+<span class="lineNum">      76 </span>            :      * proves they do it right.  But it could find a bug in future
+<span class="lineNum">      77 </span>            :      * modifications/development, that is why it is here.)
+<span class="lineNum">      78 </span>            :      */
+<span class="lineNum">      79 </span>            :     PORT_Assert((data != NULL &amp;&amp; len) || final);
+<span class="lineNum">      80 </span>            : 
+<span class="lineNum">      81 </span>            :     /*
+<span class="lineNum">      82 </span>            :      * Decrypt this chunk.
+<span class="lineNum">      83 </span>            :      *
+<span class="lineNum">      84 </span>            :      * XXX If we get an error, we do not want to do the digest or callback,
+<span class="lineNum">      85 </span>            :      * but we want to keep decoding.  Or maybe we want to stop decoding
+<span class="lineNum">      86 </span>            :      * altogether if there is a callback, because obviously we are not
+<span class="lineNum">      87 </span>            :      * sending the data back and they want to know that.
+<span class="lineNum">      88 </span>            :      */
+<span class="lineNum">      89 </span><span class="lineCov">          1 :     if (worker-&gt;decryptobj != NULL) {</span>
+<span class="lineNum">      90 </span>            :         /* XXX the following lengths should all be longs? */
+<span class="lineNum">      91 </span>            :         unsigned int inlen;  /* length of data being decrypted */
+<span class="lineNum">      92 </span>            :         unsigned int outlen; /* length of decrypted data */
+<span class="lineNum">      93 </span>            :         unsigned int buflen; /* length available for decrypted data */
+<span class="lineNum">      94 </span>            :         SECItem *plain;
+<span class="lineNum">      95 </span>            : 
+<span class="lineNum">      96 </span><span class="lineCov">          1 :         inlen = len;</span>
+<span class="lineNum">      97 </span><span class="lineCov">          1 :         buflen = sec_PKCS7DecryptLength(worker-&gt;decryptobj, inlen, final);</span>
+<span class="lineNum">      98 </span><span class="lineCov">          1 :         if (buflen == 0) {</span>
+<span class="lineNum">      99 </span><span class="lineNoCov">          0 :             if (inlen == 0) /* no input and no output */</span>
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :                 return;</span>
+<span class="lineNum">     101 </span>            :             /*
+<span class="lineNum">     102 </span>            :              * No output is expected, but the input data may be buffered
+<span class="lineNum">     103 </span>            :              * so we still have to call Decrypt.
+<span class="lineNum">     104 </span>            :              */
+<span class="lineNum">     105 </span><span class="lineNoCov">          0 :             rv = sec_PKCS7Decrypt(worker-&gt;decryptobj, NULL, NULL, 0,</span>
+<span class="lineNum">     106 </span>            :                                   data, inlen, final);
+<span class="lineNum">     107 </span><span class="lineNoCov">          0 :             if (rv != SECSuccess) {</span>
+<span class="lineNum">     108 </span><span class="lineNoCov">          0 :                 p7dcx-&gt;error = PORT_GetError();</span>
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 :                 return; /* XXX indicate error? */</span>
+<span class="lineNum">     110 </span>            :             }
+<span class="lineNum">     111 </span>            :             return;
+<span class="lineNum">     112 </span>            :         }
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span><span class="lineCov">          1 :         if (p7dcx-&gt;cb != NULL) {</span>
+<span class="lineNum">     115 </span><span class="lineCov">          1 :             buf = (unsigned char *)PORT_Alloc(buflen);</span>
+<span class="lineNum">     116 </span><span class="lineCov">          1 :             plain = NULL;</span>
+<span class="lineNum">     117 </span>            :         } else {
+<span class="lineNum">     118 </span>            :             unsigned long oldlen;
+<span class="lineNum">     119 </span>            : 
+<span class="lineNum">     120 </span>            :             /*
+<span class="lineNum">     121 </span>            :              * XXX This assumes one level of content only.
+<span class="lineNum">     122 </span>            :              * See comment above about nested content types.
+<span class="lineNum">     123 </span>            :              * XXX Also, it should work for signedAndEnvelopedData, too!
+<span class="lineNum">     124 </span>            :              */
+<span class="lineNum">     125 </span><span class="lineNoCov">          0 :             plain = &amp;(p7dcx-&gt;cinfo-&gt;content.envelopedData-&gt;encContentInfo.plainContent);</span>
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 :             oldlen = plain-&gt;len;</span>
+<span class="lineNum">     128 </span><span class="lineNoCov">          0 :             if (oldlen == 0) {</span>
+<span class="lineNum">     129 </span><span class="lineNoCov">          0 :                 buf = (unsigned char *)PORT_ArenaAlloc(p7dcx-&gt;cinfo-&gt;poolp,</span>
+<span class="lineNum">     130 </span>            :                                                        buflen);
+<span class="lineNum">     131 </span>            :             } else {
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :                 buf = (unsigned char *)PORT_ArenaGrow(p7dcx-&gt;cinfo-&gt;poolp,</span>
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :                                                       plain-&gt;data,</span>
+<span class="lineNum">     134 </span>            :                                                       oldlen, oldlen + buflen);
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 :                 if (buf != NULL)</span>
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 :                     buf += oldlen;</span>
+<span class="lineNum">     137 </span>            :             }
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 :             plain-&gt;data = buf;</span>
+<span class="lineNum">     139 </span>            :         }
+<span class="lineNum">     140 </span><span class="lineCov">          1 :         if (buf == NULL) {</span>
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :             p7dcx-&gt;error = SEC_ERROR_NO_MEMORY;</span>
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :             return; /* XXX indicate error? */</span>
+<span class="lineNum">     143 </span>            :         }
+<span class="lineNum">     144 </span><span class="lineCov">          1 :         rv = sec_PKCS7Decrypt(worker-&gt;decryptobj, buf, &amp;outlen, buflen,</span>
+<span class="lineNum">     145 </span>            :                               data, inlen, final);
+<span class="lineNum">     146 </span><span class="lineCov">          1 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 :             p7dcx-&gt;error = PORT_GetError();</span>
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 :             return; /* XXX indicate error? */</span>
+<span class="lineNum">     149 </span>            :         }
+<span class="lineNum">     150 </span><span class="lineCov">          1 :         if (plain != NULL) {</span>
+<span class="lineNum">     151 </span>            :             PORT_Assert(final || outlen == buflen);
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :             plain-&gt;len += outlen;</span>
+<span class="lineNum">     153 </span>            :         }
+<span class="lineNum">     154 </span><span class="lineCov">          1 :         data = buf;</span>
+<span class="lineNum">     155 </span><span class="lineCov">          1 :         len = outlen;</span>
+<span class="lineNum">     156 </span>            :     }
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span>            :     /*
+<span class="lineNum">     159 </span>            :      * Update the running digests.
+<span class="lineNum">     160 </span>            :      */
+<span class="lineNum">     161 </span><span class="lineCov">          1 :     if (len) {</span>
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :         for (i = 0; i &lt; worker-&gt;digcnt; i++) {</span>
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :             (*worker-&gt;digobjs[i]-&gt;update)(worker-&gt;digcxs[i], data, len);</span>
+<span class="lineNum">     164 </span>            :         }
+<span class="lineNum">     165 </span>            :     }
+<span class="lineNum">     166 </span>            : 
+<span class="lineNum">     167 </span>            :     /*
+<span class="lineNum">     168 </span>            :      * Pass back the contents bytes, and free the temporary buffer.
+<span class="lineNum">     169 </span>            :      */
+<span class="lineNum">     170 </span><span class="lineCov">          1 :     if (p7dcx-&gt;cb != NULL) {</span>
+<span class="lineNum">     171 </span><span class="lineCov">          1 :         if (len)</span>
+<span class="lineNum">     172 </span><span class="lineCov">          1 :             (*p7dcx-&gt;cb)(p7dcx-&gt;cb_arg, (const char *)data, len);</span>
+<span class="lineNum">     173 </span><span class="lineCov">          1 :         if (worker-&gt;decryptobj != NULL) {</span>
+<span class="lineNum">     174 </span>            :             PORT_Assert(buf != NULL);
+<span class="lineNum">     175 </span><span class="lineCov">          1 :             PORT_Free(buf);</span>
+<span class="lineNum">     176 </span>            :         }
+<span class="lineNum">     177 </span>            :     }
+<span class="lineNum">     178 </span>            : }
+<a name="179"><span class="lineNum">     179 </span>            : </a>
+<span class="lineNum">     180 </span>            : static void
+<span class="lineNum">     181 </span><span class="lineCov">          1 : sec_pkcs7_decoder_filter(void *arg, const char *data, unsigned long len,</span>
+<span class="lineNum">     182 </span>            :                          int depth, SEC_ASN1EncodingPart data_kind)
+<span class="lineNum">     183 </span>            : {
+<span class="lineNum">     184 </span>            :     SEC_PKCS7DecoderContext *p7dcx;
+<span class="lineNum">     185 </span>            :     struct sec_pkcs7_decoder_worker *worker;
+<span class="lineNum">     186 </span>            : 
+<span class="lineNum">     187 </span>            :     /*
+<span class="lineNum">     188 </span>            :      * Since we do not handle any nested contents, the only bytes we
+<span class="lineNum">     189 </span>            :      * are really interested in are the actual contents bytes (not
+<span class="lineNum">     190 </span>            :      * the identifier, length, or end-of-contents bytes).  If we were
+<span class="lineNum">     191 </span>            :      * handling nested types we would probably need to do something
+<span class="lineNum">     192 </span>            :      * smarter based on depth and data_kind.
+<span class="lineNum">     193 </span>            :      */
+<span class="lineNum">     194 </span><span class="lineCov">          1 :     if (data_kind != SEC_ASN1_Contents)</span>
+<span class="lineNum">     195 </span>            :         return;
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span>            :     /*
+<span class="lineNum">     198 </span>            :      * The ASN.1 decoder should not even call us with a length of 0.
+<span class="lineNum">     199 </span>            :      * Just being paranoid.
+<span class="lineNum">     200 </span>            :      */
+<span class="lineNum">     201 </span>            :     PORT_Assert(len);
+<span class="lineNum">     202 </span><span class="lineCov">          1 :     if (len == 0)</span>
+<span class="lineNum">     203 </span>            :         return;
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span><span class="lineCov">          1 :     p7dcx = (SEC_PKCS7DecoderContext *)arg;</span>
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span>            :     /*
+<span class="lineNum">     208 </span>            :      * Handling nested contents would mean that there is a chain
+<span class="lineNum">     209 </span>            :      * of workers -- one per each level of content.  The following
+<span class="lineNum">     210 </span>            :      * would start with the first worker and loop over them.
+<span class="lineNum">     211 </span>            :      */
+<span class="lineNum">     212 </span><span class="lineCov">          1 :     worker = &amp;(p7dcx-&gt;worker);</span>
+<span class="lineNum">     213 </span>            : 
+<span class="lineNum">     214 </span><span class="lineCov">          1 :     worker-&gt;saw_contents = PR_TRUE;</span>
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span><span class="lineCov">          1 :     sec_pkcs7_decoder_work_data(p7dcx, worker,</span>
+<span class="lineNum">     217 </span>            :                                 (const unsigned char *)data, len, PR_FALSE);
+<span class="lineNum">     218 </span>            : }
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span>            : /*
+<span class="lineNum">     221 </span>            :  * Create digest contexts for each algorithm in &quot;digestalgs&quot;.
+<span class="lineNum">     222 </span>            :  * No algorithms is not an error, we just do not do anything.
+<span class="lineNum">     223 </span>            :  * An error (like trouble allocating memory), marks the error
+<span class="lineNum">     224 </span>            :  * in &quot;p7dcx&quot; and returns SECFailure, which means that our caller
+<span class="lineNum">     225 </span>            :  * should just give up altogether.
+<a name="226"><span class="lineNum">     226 </span>            :  */</a>
+<span class="lineNum">     227 </span>            : static SECStatus
+<span class="lineNum">     228 </span><span class="lineNoCov">          0 : sec_pkcs7_decoder_start_digests(SEC_PKCS7DecoderContext *p7dcx, int depth,</span>
+<span class="lineNum">     229 </span>            :                                 SECAlgorithmID **digestalgs)
+<span class="lineNum">     230 </span>            : {
+<span class="lineNum">     231 </span>            :     int i, digcnt;
+<span class="lineNum">     232 </span>            : 
+<span class="lineNum">     233 </span><span class="lineNoCov">          0 :     if (digestalgs == NULL)</span>
+<span class="lineNum">     234 </span>            :         return SECSuccess;
+<span class="lineNum">     235 </span>            : 
+<span class="lineNum">     236 </span>            :     /*
+<span class="lineNum">     237 </span>            :      * Count the algorithms.
+<span class="lineNum">     238 </span>            :      */
+<span class="lineNum">     239 </span>            :     digcnt = 0;
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 :     while (digestalgs[digcnt] != NULL)</span>
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :         digcnt++;</span>
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span>            :     /*
+<span class="lineNum">     244 </span>            :      * No algorithms means no work to do.
+<span class="lineNum">     245 </span>            :      * Just act as if there were no algorithms specified.
+<span class="lineNum">     246 </span>            :      */
+<span class="lineNum">     247 </span><span class="lineNoCov">          0 :     if (digcnt == 0)</span>
+<span class="lineNum">     248 </span>            :         return SECSuccess;
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 :     p7dcx-&gt;worker.digcxs = (void **)PORT_ArenaAlloc(p7dcx-&gt;tmp_poolp,</span>
+<span class="lineNum">     251 </span>            :                                                     digcnt * sizeof(void *));
+<span class="lineNum">     252 </span><span class="lineNoCov">          0 :     p7dcx-&gt;worker.digobjs = (const SECHashObject **)PORT_ArenaAlloc(p7dcx-&gt;tmp_poolp,</span>
+<span class="lineNum">     253 </span>            :                                                                     digcnt * sizeof(SECHashObject *));
+<span class="lineNum">     254 </span><span class="lineNoCov">          0 :     if (p7dcx-&gt;worker.digcxs == NULL || p7dcx-&gt;worker.digobjs == NULL) {</span>
+<span class="lineNum">     255 </span><span class="lineNoCov">          0 :         p7dcx-&gt;error = SEC_ERROR_NO_MEMORY;</span>
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     257 </span>            :     }
+<span class="lineNum">     258 </span>            : 
+<span class="lineNum">     259 </span><span class="lineNoCov">          0 :     p7dcx-&gt;worker.depth = depth;</span>
+<span class="lineNum">     260 </span><span class="lineNoCov">          0 :     p7dcx-&gt;worker.digcnt = 0;</span>
+<span class="lineNum">     261 </span>            : 
+<span class="lineNum">     262 </span>            :     /*
+<span class="lineNum">     263 </span>            :      * Create a digest context for each algorithm.
+<span class="lineNum">     264 </span>            :      */
+<span class="lineNum">     265 </span><span class="lineNoCov">          0 :     for (i = 0; i &lt; digcnt; i++) {</span>
+<span class="lineNum">     266 </span><span class="lineNoCov">          0 :         SECAlgorithmID *algid = digestalgs[i];</span>
+<span class="lineNum">     267 </span><span class="lineNoCov">          0 :         SECOidTag oidTag = SECOID_FindOIDTag(&amp;(algid-&gt;algorithm));</span>
+<span class="lineNum">     268 </span><span class="lineNoCov">          0 :         const SECHashObject *digobj = HASH_GetHashObjectByOidTag(oidTag);</span>
+<span class="lineNum">     269 </span>            :         void *digcx;
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span>            :         /*
+<span class="lineNum">     272 </span>            :          * Skip any algorithm we do not even recognize; obviously,
+<span class="lineNum">     273 </span>            :          * this could be a problem, but if it is critical then the
+<span class="lineNum">     274 </span>            :          * result will just be that the signature does not verify.
+<span class="lineNum">     275 </span>            :          * We do not necessarily want to error out here, because
+<span class="lineNum">     276 </span>            :          * the particular algorithm may not actually be important,
+<span class="lineNum">     277 </span>            :          * but we cannot know that until later.
+<span class="lineNum">     278 </span>            :          */
+<span class="lineNum">     279 </span><span class="lineNoCov">          0 :         if (digobj == NULL) {</span>
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 :             p7dcx-&gt;worker.digcnt--;</span>
+<span class="lineNum">     281 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     282 </span>            :         }
+<span class="lineNum">     283 </span>            : 
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 :         digcx = (*digobj-&gt;create)();</span>
+<span class="lineNum">     285 </span><span class="lineNoCov">          0 :         if (digcx != NULL) {</span>
+<span class="lineNum">     286 </span><span class="lineNoCov">          0 :             (*digobj-&gt;begin)(digcx);</span>
+<span class="lineNum">     287 </span><span class="lineNoCov">          0 :             p7dcx-&gt;worker.digobjs[p7dcx-&gt;worker.digcnt] = digobj;</span>
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :             p7dcx-&gt;worker.digcxs[p7dcx-&gt;worker.digcnt] = digcx;</span>
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :             p7dcx-&gt;worker.digcnt++;</span>
+<span class="lineNum">     290 </span>            :         }
+<span class="lineNum">     291 </span>            :     }
+<span class="lineNum">     292 </span>            : 
+<span class="lineNum">     293 </span><span class="lineNoCov">          0 :     if (p7dcx-&gt;worker.digcnt != 0)</span>
+<span class="lineNum">     294 </span><span class="lineNoCov">          0 :         SEC_ASN1DecoderSetFilterProc(p7dcx-&gt;dcx,</span>
+<span class="lineNum">     295 </span>            :                                      sec_pkcs7_decoder_filter,
+<span class="lineNum">     296 </span>            :                                      p7dcx,
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :                                      (PRBool)(p7dcx-&gt;cb != NULL));</span>
+<span class="lineNum">     298 </span>            :     return SECSuccess;
+<span class="lineNum">     299 </span>            : }
+<span class="lineNum">     300 </span>            : 
+<span class="lineNum">     301 </span>            : /*
+<span class="lineNum">     302 </span>            :  * Close out all of the digest contexts, storing the results in &quot;digestsp&quot;.
+<a name="303"><span class="lineNum">     303 </span>            :  */</a>
+<span class="lineNum">     304 </span>            : static SECStatus
+<span class="lineNum">     305 </span><span class="lineNoCov">          0 : sec_pkcs7_decoder_finish_digests(SEC_PKCS7DecoderContext *p7dcx,</span>
+<span class="lineNum">     306 </span>            :                                  PLArenaPool *poolp,
+<span class="lineNum">     307 </span>            :                                  SECItem ***digestsp)
+<span class="lineNum">     308 </span>            : {
+<span class="lineNum">     309 </span>            :     struct sec_pkcs7_decoder_worker *worker;
+<span class="lineNum">     310 </span>            :     const SECHashObject *digobj;
+<span class="lineNum">     311 </span>            :     void *digcx;
+<span class="lineNum">     312 </span>            :     SECItem **digests, *digest;
+<span class="lineNum">     313 </span>            :     int i;
+<span class="lineNum">     314 </span>            :     void *mark;
+<span class="lineNum">     315 </span>            : 
+<span class="lineNum">     316 </span>            :     /*
+<span class="lineNum">     317 </span>            :      * XXX Handling nested contents would mean that there is a chain
+<span class="lineNum">     318 </span>            :      * of workers -- one per each level of content.  The following
+<span class="lineNum">     319 </span>            :      * would want to find the last worker in the chain.
+<span class="lineNum">     320 </span>            :      */
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :     worker = &amp;(p7dcx-&gt;worker);</span>
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span>            :     /*
+<span class="lineNum">     324 </span>            :      * If no digests, then we have nothing to do.
+<span class="lineNum">     325 </span>            :      */
+<span class="lineNum">     326 </span><span class="lineNoCov">          0 :     if (worker-&gt;digcnt == 0)</span>
+<span class="lineNum">     327 </span>            :         return SECSuccess;
+<span class="lineNum">     328 </span>            : 
+<span class="lineNum">     329 </span>            :     /*
+<span class="lineNum">     330 </span>            :      * No matter what happens after this, we want to stop filtering.
+<span class="lineNum">     331 </span>            :      * XXX If we handle nested contents, we only want to stop filtering
+<span class="lineNum">     332 </span>            :      * if we are finishing off the *last* worker.
+<span class="lineNum">     333 </span>            :      */
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :     SEC_ASN1DecoderClearFilterProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     335 </span>            : 
+<span class="lineNum">     336 </span>            :     /*
+<span class="lineNum">     337 </span>            :      * If we ended up with no contents, just destroy each
+<span class="lineNum">     338 </span>            :      * digest context -- they are meaningless and potentially
+<span class="lineNum">     339 </span>            :      * confusing, because their presence would imply some content
+<span class="lineNum">     340 </span>            :      * was digested.
+<span class="lineNum">     341 </span>            :      */
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 :     if (!worker-&gt;saw_contents) {</span>
+<span class="lineNum">     343 </span><span class="lineNoCov">          0 :         for (i = 0; i &lt; worker-&gt;digcnt; i++) {</span>
+<span class="lineNum">     344 </span><span class="lineNoCov">          0 :             digcx = worker-&gt;digcxs[i];</span>
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 :             digobj = worker-&gt;digobjs[i];</span>
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :             (*digobj-&gt;destroy)(digcx, PR_TRUE);</span>
+<span class="lineNum">     347 </span>            :         }
+<span class="lineNum">     348 </span>            :         return SECSuccess;
+<span class="lineNum">     349 </span>            :     }
+<span class="lineNum">     350 </span>            : 
+<span class="lineNum">     351 </span><span class="lineNoCov">          0 :     mark = PORT_ArenaMark(poolp);</span>
+<span class="lineNum">     352 </span>            : 
+<span class="lineNum">     353 </span>            :     /*
+<span class="lineNum">     354 </span>            :      * Close out each digest context, saving digest away.
+<span class="lineNum">     355 </span>            :      */
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :     digests =</span>
+<span class="lineNum">     357 </span><span class="lineNoCov">          0 :         (SECItem **)PORT_ArenaAlloc(poolp, (worker-&gt;digcnt + 1) * sizeof(SECItem *));</span>
+<span class="lineNum">     358 </span><span class="lineNoCov">          0 :     digest = (SECItem *)PORT_ArenaAlloc(poolp, worker-&gt;digcnt * sizeof(SECItem));</span>
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 :     if (digests == NULL || digest == NULL) {</span>
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 :         p7dcx-&gt;error = PORT_GetError();</span>
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 :         PORT_ArenaRelease(poolp, mark);</span>
+<span class="lineNum">     362 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     363 </span>            :     }
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span><span class="lineNoCov">          0 :     for (i = 0; i &lt; worker-&gt;digcnt; i++, digest++) {</span>
+<span class="lineNum">     366 </span><span class="lineNoCov">          0 :         digcx = worker-&gt;digcxs[i];</span>
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 :         digobj = worker-&gt;digobjs[i];</span>
+<span class="lineNum">     368 </span>            : 
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :         digest-&gt;data = (unsigned char *)PORT_ArenaAlloc(poolp, digobj-&gt;length);</span>
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :         if (digest-&gt;data == NULL) {</span>
+<span class="lineNum">     371 </span><span class="lineNoCov">          0 :             p7dcx-&gt;error = PORT_GetError();</span>
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :             PORT_ArenaRelease(poolp, mark);</span>
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">     374 </span>            :         }
+<span class="lineNum">     375 </span>            : 
+<span class="lineNum">     376 </span><span class="lineNoCov">          0 :         digest-&gt;len = digobj-&gt;length;</span>
+<span class="lineNum">     377 </span><span class="lineNoCov">          0 :         (*digobj-&gt;end)(digcx, digest-&gt;data, &amp;(digest-&gt;len), digest-&gt;len);</span>
+<span class="lineNum">     378 </span><span class="lineNoCov">          0 :         (*digobj-&gt;destroy)(digcx, PR_TRUE);</span>
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span><span class="lineNoCov">          0 :         digests[i] = digest;</span>
+<span class="lineNum">     381 </span>            :     }
+<span class="lineNum">     382 </span><span class="lineNoCov">          0 :     digests[i] = NULL;</span>
+<span class="lineNum">     383 </span><span class="lineNoCov">          0 :     *digestsp = digests;</span>
+<span class="lineNum">     384 </span>            : 
+<span class="lineNum">     385 </span><span class="lineNoCov">          0 :     PORT_ArenaUnmark(poolp, mark);</span>
+<span class="lineNum">     386 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     387 </span>            : }
+<span class="lineNum">     388 </span>            : 
+<span class="lineNum">     389 </span>            : /*
+<span class="lineNum">     390 </span>            :  * XXX Need comment explaining following helper function (which is used
+<span class="lineNum">     391 </span>            :  * by sec_pkcs7_decoder_start_decrypt).
+<span class="lineNum">     392 </span>            :  */
+<a name="393"><span class="lineNum">     393 </span>            : </a>
+<span class="lineNum">     394 </span>            : static PK11SymKey *
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 : sec_pkcs7_decoder_get_recipient_key(SEC_PKCS7DecoderContext *p7dcx,</span>
+<span class="lineNum">     396 </span>            :                                     SEC_PKCS7RecipientInfo **recipientinfos,
+<span class="lineNum">     397 </span>            :                                     SEC_PKCS7EncryptedContentInfo *enccinfo)
+<span class="lineNum">     398 </span>            : {
+<span class="lineNum">     399 </span>            :     SEC_PKCS7RecipientInfo *ri;
+<span class="lineNum">     400 </span><span class="lineNoCov">          0 :     CERTCertificate *cert = NULL;</span>
+<span class="lineNum">     401 </span><span class="lineNoCov">          0 :     SECKEYPrivateKey *privkey = NULL;</span>
+<span class="lineNum">     402 </span><span class="lineNoCov">          0 :     PK11SymKey *bulkkey = NULL;</span>
+<span class="lineNum">     403 </span>            :     SECOidTag keyalgtag, bulkalgtag, encalgtag;
+<span class="lineNum">     404 </span><span class="lineNoCov">          0 :     PK11SlotInfo *slot = NULL;</span>
+<span class="lineNum">     405 </span>            : 
+<span class="lineNum">     406 </span><span class="lineNoCov">          0 :     if (recipientinfos == NULL || recipientinfos[0] == NULL) {</span>
+<span class="lineNum">     407 </span><span class="lineNoCov">          0 :         p7dcx-&gt;error = SEC_ERROR_NOT_A_RECIPIENT;</span>
+<span class="lineNum">     408 </span><span class="lineNoCov">          0 :         goto no_key_found;</span>
+<span class="lineNum">     409 </span>            :     }
+<span class="lineNum">     410 </span>            : 
+<span class="lineNum">     411 </span><span class="lineNoCov">          0 :     cert = PK11_FindCertAndKeyByRecipientList(&amp;slot, recipientinfos, &amp;ri,</span>
+<span class="lineNum">     412 </span>            :                                               &amp;privkey, p7dcx-&gt;pwfn_arg);
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 :     if (cert == NULL) {</span>
+<span class="lineNum">     414 </span><span class="lineNoCov">          0 :         p7dcx-&gt;error = SEC_ERROR_NOT_A_RECIPIENT;</span>
+<span class="lineNum">     415 </span><span class="lineNoCov">          0 :         goto no_key_found;</span>
+<span class="lineNum">     416 </span>            :     }
+<span class="lineNum">     417 </span>            : 
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 :     ri-&gt;cert = cert; /* so we can find it later */</span>
+<span class="lineNum">     419 </span>            :     PORT_Assert(privkey != NULL);
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span><span class="lineNoCov">          0 :     keyalgtag = SECOID_GetAlgorithmTag(&amp;(cert-&gt;subjectPublicKeyInfo.algorithm));</span>
+<span class="lineNum">     422 </span><span class="lineNoCov">          0 :     encalgtag = SECOID_GetAlgorithmTag(&amp;(ri-&gt;keyEncAlg));</span>
+<span class="lineNum">     423 </span><span class="lineNoCov">          0 :     if (keyalgtag != encalgtag) {</span>
+<span class="lineNum">     424 </span><span class="lineNoCov">          0 :         p7dcx-&gt;error = SEC_ERROR_PKCS7_KEYALG_MISMATCH;</span>
+<span class="lineNum">     425 </span><span class="lineNoCov">          0 :         goto no_key_found;</span>
+<span class="lineNum">     426 </span>            :     }
+<span class="lineNum">     427 </span><span class="lineNoCov">          0 :     bulkalgtag = SECOID_GetAlgorithmTag(&amp;(enccinfo-&gt;contentEncAlg));</span>
+<span class="lineNum">     428 </span>            : 
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 :     switch (encalgtag) {</span>
+<span class="lineNum">     430 </span>            :         case SEC_OID_PKCS1_RSA_ENCRYPTION:
+<span class="lineNum">     431 </span><span class="lineNoCov">          0 :             bulkkey = PK11_PubUnwrapSymKey(privkey, &amp;ri-&gt;encKey,</span>
+<span class="lineNum">     432 </span>            :                                            PK11_AlgtagToMechanism(bulkalgtag),
+<span class="lineNum">     433 </span>            :                                            CKA_DECRYPT, 0);
+<span class="lineNum">     434 </span><span class="lineNoCov">          0 :             if (bulkkey == NULL) {</span>
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :                 p7dcx-&gt;error = PORT_GetError();</span>
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :                 PORT_SetError(0);</span>
+<span class="lineNum">     437 </span><span class="lineNoCov">          0 :                 goto no_key_found;</span>
+<span class="lineNum">     438 </span>            :             }
+<span class="lineNum">     439 </span>            :             break;
+<span class="lineNum">     440 </span>            :         default:
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :             p7dcx-&gt;error = SEC_ERROR_UNSUPPORTED_KEYALG;</span>
+<span class="lineNum">     442 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     443 </span>            :     }
+<span class="lineNum">     444 </span>            : 
+<span class="lineNum">     445 </span>            : no_key_found:
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :     if (privkey != NULL)</span>
+<span class="lineNum">     447 </span><span class="lineNoCov">          0 :         SECKEY_DestroyPrivateKey(privkey);</span>
+<span class="lineNum">     448 </span><span class="lineNoCov">          0 :     if (slot != NULL)</span>
+<span class="lineNum">     449 </span><span class="lineNoCov">          0 :         PK11_FreeSlot(slot);</span>
+<span class="lineNum">     450 </span>            : 
+<span class="lineNum">     451 </span><span class="lineNoCov">          0 :     return bulkkey;</span>
+<span class="lineNum">     452 </span>            : }
+<span class="lineNum">     453 </span>            : 
+<span class="lineNum">     454 </span>            : /*
+<span class="lineNum">     455 </span>            :  * XXX The following comment is old -- the function used to only handle
+<span class="lineNum">     456 </span>            :  * EnvelopedData or SignedAndEnvelopedData but now handles EncryptedData
+<span class="lineNum">     457 </span>            :  * as well (and it had all of the code of the helper function above
+<span class="lineNum">     458 </span>            :  * built into it), though the comment was left as is.  Fix it...
+<span class="lineNum">     459 </span>            :  *
+<span class="lineNum">     460 </span>            :  * We are just about to decode the content of an EnvelopedData.
+<span class="lineNum">     461 </span>            :  * Set up a decryption context so we can decrypt as we go.
+<span class="lineNum">     462 </span>            :  * Presumably we are one of the recipients listed in &quot;recipientinfos&quot;.
+<span class="lineNum">     463 </span>            :  * (XXX And if we are not, or if we have trouble, what should we do?
+<span class="lineNum">     464 </span>            :  *  It would be nice to let the decoding still work.  Maybe it should
+<span class="lineNum">     465 </span>            :  *  be an error if there is a content callback, but not an error otherwise?)
+<span class="lineNum">     466 </span>            :  * The encryption key and related information can be found in &quot;enccinfo&quot;.
+<a name="467"><span class="lineNum">     467 </span>            :  */</a>
+<span class="lineNum">     468 </span>            : static SECStatus
+<span class="lineNum">     469 </span><span class="lineCov">          1 : sec_pkcs7_decoder_start_decrypt(SEC_PKCS7DecoderContext *p7dcx, int depth,</span>
+<span class="lineNum">     470 </span>            :                                 SEC_PKCS7RecipientInfo **recipientinfos,
+<span class="lineNum">     471 </span>            :                                 SEC_PKCS7EncryptedContentInfo *enccinfo,
+<span class="lineNum">     472 </span>            :                                 PK11SymKey **copy_key_for_signature)
+<span class="lineNum">     473 </span>            : {
+<span class="lineNum">     474 </span><span class="lineCov">          1 :     PK11SymKey *bulkkey = NULL;</span>
+<span class="lineNum">     475 </span>            :     sec_PKCS7CipherObject *decryptobj;
+<span class="lineNum">     476 </span>            : 
+<span class="lineNum">     477 </span>            :     /*
+<span class="lineNum">     478 </span>            :      * If a callback is supplied to retrieve the encryption key,
+<span class="lineNum">     479 </span>            :      * for instance, for Encrypted Content infos, then retrieve
+<span class="lineNum">     480 </span>            :      * the bulkkey from the callback.  Otherwise, assume that
+<span class="lineNum">     481 </span>            :      * we are processing Enveloped or SignedAndEnveloped data
+<span class="lineNum">     482 </span>            :      * content infos.
+<span class="lineNum">     483 </span>            :      *
+<span class="lineNum">     484 </span>            :      * XXX Put an assert here?
+<span class="lineNum">     485 </span>            :      */
+<span class="lineNum">     486 </span><span class="lineCov">          1 :     if (SEC_PKCS7ContentType(p7dcx-&gt;cinfo) == SEC_OID_PKCS7_ENCRYPTED_DATA) {</span>
+<span class="lineNum">     487 </span><span class="lineCov">          1 :         if (p7dcx-&gt;dkcb != NULL) {</span>
+<span class="lineNum">     488 </span><span class="lineCov">          1 :             bulkkey = (*p7dcx-&gt;dkcb)(p7dcx-&gt;dkcb_arg,</span>
+<span class="lineNum">     489 </span>            :                                      &amp;(enccinfo-&gt;contentEncAlg));
+<span class="lineNum">     490 </span>            :         }
+<span class="lineNum">     491 </span><span class="lineCov">          1 :         enccinfo-&gt;keysize = 0;</span>
+<span class="lineNum">     492 </span>            :     } else {
+<span class="lineNum">     493 </span><span class="lineNoCov">          0 :         bulkkey = sec_pkcs7_decoder_get_recipient_key(p7dcx, recipientinfos,</span>
+<span class="lineNum">     494 </span>            :                                                       enccinfo);
+<span class="lineNum">     495 </span><span class="lineNoCov">          0 :         if (bulkkey == NULL)</span>
+<span class="lineNum">     496 </span>            :             goto no_decryption;
+<span class="lineNum">     497 </span><span class="lineNoCov">          0 :         enccinfo-&gt;keysize = PK11_GetKeyStrength(bulkkey,</span>
+<span class="lineNum">     498 </span>            :                                                 &amp;(enccinfo-&gt;contentEncAlg));
+<span class="lineNum">     499 </span>            :     }
+<span class="lineNum">     500 </span>            : 
+<span class="lineNum">     501 </span>            :     /*
+<span class="lineNum">     502 </span>            :      * XXX I think following should set error in p7dcx and clear set error
+<span class="lineNum">     503 </span>            :      * (as used to be done here, or as is done in get_receipient_key above.
+<span class="lineNum">     504 </span>            :      */
+<span class="lineNum">     505 </span><span class="lineCov">          1 :     if (bulkkey == NULL) {</span>
+<span class="lineNum">     506 </span>            :         goto no_decryption;
+<span class="lineNum">     507 </span>            :     }
+<span class="lineNum">     508 </span>            : 
+<span class="lineNum">     509 </span>            :     /*
+<span class="lineNum">     510 </span>            :      * We want to make sure decryption is allowed.  This is done via
+<span class="lineNum">     511 </span>            :      * a callback specified in SEC_PKCS7DecoderStart().
+<span class="lineNum">     512 </span>            :      */
+<span class="lineNum">     513 </span><span class="lineCov">          1 :     if (p7dcx-&gt;decrypt_allowed_cb) {</span>
+<span class="lineNum">     514 </span><span class="lineCov">          1 :         if ((*p7dcx-&gt;decrypt_allowed_cb)(&amp;(enccinfo-&gt;contentEncAlg),</span>
+<span class="lineNum">     515 </span>            :                                          bulkkey) == PR_FALSE) {
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :             p7dcx-&gt;error = SEC_ERROR_DECRYPTION_DISALLOWED;</span>
+<span class="lineNum">     517 </span><span class="lineNoCov">          0 :             goto no_decryption;</span>
+<span class="lineNum">     518 </span>            :         }
+<span class="lineNum">     519 </span>            :     } else {
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 :         p7dcx-&gt;error = SEC_ERROR_DECRYPTION_DISALLOWED;</span>
+<span class="lineNum">     521 </span><span class="lineNoCov">          0 :         goto no_decryption;</span>
+<span class="lineNum">     522 </span>            :     }
+<span class="lineNum">     523 </span>            : 
+<span class="lineNum">     524 </span>            :     /*
+<span class="lineNum">     525 </span>            :      * When decrypting a signedAndEnvelopedData, the signature also has
+<span class="lineNum">     526 </span>            :      * to be decrypted with the bulk encryption key; to avoid having to
+<span class="lineNum">     527 </span>            :      * get it all over again later (and do another potentially expensive
+<span class="lineNum">     528 </span>            :      * RSA operation), copy it for later signature verification to use.
+<span class="lineNum">     529 </span>            :      */
+<span class="lineNum">     530 </span><span class="lineCov">          1 :     if (copy_key_for_signature != NULL)</span>
+<span class="lineNum">     531 </span><span class="lineNoCov">          0 :         *copy_key_for_signature = PK11_ReferenceSymKey(bulkkey);</span>
+<span class="lineNum">     532 </span>            : 
+<span class="lineNum">     533 </span>            :     /*
+<span class="lineNum">     534 </span>            :      * Now we have the bulk encryption key (in bulkkey) and the
+<span class="lineNum">     535 </span>            :      * the algorithm (in enccinfo-&gt;contentEncAlg).  Using those,
+<span class="lineNum">     536 </span>            :      * create a decryption context.
+<span class="lineNum">     537 </span>            :      */
+<span class="lineNum">     538 </span><span class="lineCov">          1 :     decryptobj = sec_PKCS7CreateDecryptObject(bulkkey,</span>
+<span class="lineNum">     539 </span>            :                                               &amp;(enccinfo-&gt;contentEncAlg));
+<span class="lineNum">     540 </span>            : 
+<span class="lineNum">     541 </span>            :     /*
+<span class="lineNum">     542 </span>            :      * We are done with (this) bulkkey now.
+<span class="lineNum">     543 </span>            :      */
+<span class="lineNum">     544 </span><span class="lineCov">          1 :     PK11_FreeSymKey(bulkkey);</span>
+<span class="lineNum">     545 </span>            : 
+<span class="lineNum">     546 </span><span class="lineCov">          1 :     if (decryptobj == NULL) {</span>
+<span class="lineNum">     547 </span><span class="lineNoCov">          0 :         p7dcx-&gt;error = PORT_GetError();</span>
+<span class="lineNum">     548 </span><span class="lineNoCov">          0 :         PORT_SetError(0);</span>
+<span class="lineNum">     549 </span><span class="lineNoCov">          0 :         goto no_decryption;</span>
+<span class="lineNum">     550 </span>            :     }
+<span class="lineNum">     551 </span>            : 
+<span class="lineNum">     552 </span><span class="lineCov">          1 :     SEC_ASN1DecoderSetFilterProc(p7dcx-&gt;dcx,</span>
+<span class="lineNum">     553 </span>            :                                  sec_pkcs7_decoder_filter,
+<span class="lineNum">     554 </span>            :                                  p7dcx,
+<span class="lineNum">     555 </span><span class="lineCov">          1 :                                  (PRBool)(p7dcx-&gt;cb != NULL));</span>
+<span class="lineNum">     556 </span>            : 
+<span class="lineNum">     557 </span><span class="lineCov">          1 :     p7dcx-&gt;worker.depth = depth;</span>
+<span class="lineNum">     558 </span><span class="lineCov">          1 :     p7dcx-&gt;worker.decryptobj = decryptobj;</span>
+<span class="lineNum">     559 </span>            : 
+<span class="lineNum">     560 </span><span class="lineCov">          1 :     return SECSuccess;</span>
+<span class="lineNum">     561 </span>            : 
+<span class="lineNum">     562 </span>            : no_decryption:
+<span class="lineNum">     563 </span>            :     /*
+<span class="lineNum">     564 </span>            :      * For some reason (error set already, if appropriate), we cannot
+<span class="lineNum">     565 </span>            :      * decrypt the content.  I am not sure what exactly is the right
+<span class="lineNum">     566 </span>            :      * thing to do here; in some cases we want to just stop, and in
+<span class="lineNum">     567 </span>            :      * others we want to let the decoding finish even though we cannot
+<span class="lineNum">     568 </span>            :      * decrypt the content.  My current thinking is that if the caller
+<span class="lineNum">     569 </span>            :      * set up a content callback, then they are really interested in
+<span class="lineNum">     570 </span>            :      * getting (decrypted) content, and if they cannot they will want
+<span class="lineNum">     571 </span>            :      * to know about it.  However, if no callback was specified, then
+<span class="lineNum">     572 </span>            :      * maybe it is not important that the decryption failed.
+<span class="lineNum">     573 </span>            :      */
+<span class="lineNum">     574 </span><span class="lineNoCov">          0 :     if (p7dcx-&gt;cb != NULL)</span>
+<span class="lineNum">     575 </span>            :         return SECFailure;
+<span class="lineNum">     576 </span>            :     else
+<span class="lineNum">     577 </span><span class="lineNoCov">          0 :         return SECSuccess; /* Let the decoding continue. */</span>
+<span class="lineNum">     578 </span>            : }
+<a name="579"><span class="lineNum">     579 </span>            : </a>
+<span class="lineNum">     580 </span>            : static SECStatus
+<span class="lineNum">     581 </span><span class="lineCov">          1 : sec_pkcs7_decoder_finish_decrypt(SEC_PKCS7DecoderContext *p7dcx,</span>
+<span class="lineNum">     582 </span>            :                                  PLArenaPool *poolp,
+<span class="lineNum">     583 </span>            :                                  SEC_PKCS7EncryptedContentInfo *enccinfo)
+<span class="lineNum">     584 </span>            : {
+<span class="lineNum">     585 </span>            :     struct sec_pkcs7_decoder_worker *worker;
+<span class="lineNum">     586 </span>            : 
+<span class="lineNum">     587 </span>            :     /*
+<span class="lineNum">     588 </span>            :      * XXX Handling nested contents would mean that there is a chain
+<span class="lineNum">     589 </span>            :      * of workers -- one per each level of content.  The following
+<span class="lineNum">     590 </span>            :      * would want to find the last worker in the chain.
+<span class="lineNum">     591 </span>            :      */
+<span class="lineNum">     592 </span><span class="lineCov">          1 :     worker = &amp;(p7dcx-&gt;worker);</span>
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span>            :     /*
+<span class="lineNum">     595 </span>            :      * If no decryption context, then we have nothing to do.
+<span class="lineNum">     596 </span>            :      */
+<span class="lineNum">     597 </span><span class="lineCov">          1 :     if (worker-&gt;decryptobj == NULL)</span>
+<span class="lineNum">     598 </span>            :         return SECSuccess;
+<span class="lineNum">     599 </span>            : 
+<span class="lineNum">     600 </span>            :     /*
+<span class="lineNum">     601 </span>            :      * No matter what happens after this, we want to stop filtering.
+<span class="lineNum">     602 </span>            :      * XXX If we handle nested contents, we only want to stop filtering
+<span class="lineNum">     603 </span>            :      * if we are finishing off the *last* worker.
+<span class="lineNum">     604 </span>            :      */
+<span class="lineNum">     605 </span><span class="lineCov">          1 :     SEC_ASN1DecoderClearFilterProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     606 </span>            : 
+<span class="lineNum">     607 </span>            :     /*
+<span class="lineNum">     608 </span>            :      * Handle the last block.
+<span class="lineNum">     609 </span>            :      */
+<span class="lineNum">     610 </span><span class="lineCov">          1 :     sec_pkcs7_decoder_work_data(p7dcx, worker, NULL, 0, PR_TRUE);</span>
+<span class="lineNum">     611 </span>            : 
+<span class="lineNum">     612 </span>            :     /*
+<span class="lineNum">     613 </span>            :      * All done, destroy it.
+<span class="lineNum">     614 </span>            :      */
+<span class="lineNum">     615 </span><span class="lineCov">          1 :     sec_PKCS7DestroyDecryptObject(worker-&gt;decryptobj);</span>
+<span class="lineNum">     616 </span><span class="lineCov">          1 :     worker-&gt;decryptobj = NULL;</span>
+<span class="lineNum">     617 </span>            : 
+<span class="lineNum">     618 </span>            :     return SECSuccess;
+<span class="lineNum">     619 </span>            : }
+<a name="620"><span class="lineNum">     620 </span>            : </a>
+<span class="lineNum">     621 </span>            : static void
+<span class="lineNum">     622 </span><span class="lineCov">          1 : sec_pkcs7_decoder_notify(void *arg, PRBool before, void *dest, int depth)</span>
+<span class="lineNum">     623 </span>            : {
+<span class="lineNum">     624 </span>            :     SEC_PKCS7DecoderContext *p7dcx;
+<span class="lineNum">     625 </span>            :     SEC_PKCS7ContentInfo *cinfo;
+<span class="lineNum">     626 </span>            :     SEC_PKCS7SignedData *sigd;
+<span class="lineNum">     627 </span>            :     SEC_PKCS7EnvelopedData *envd;
+<span class="lineNum">     628 </span>            :     SEC_PKCS7SignedAndEnvelopedData *saed;
+<span class="lineNum">     629 </span>            :     SEC_PKCS7EncryptedData *encd;
+<span class="lineNum">     630 </span>            :     SEC_PKCS7DigestedData *digd;
+<span class="lineNum">     631 </span>            :     PRBool after;
+<span class="lineNum">     632 </span>            :     SECStatus rv;
+<span class="lineNum">     633 </span>            : 
+<span class="lineNum">     634 </span>            :     /*
+<span class="lineNum">     635 </span>            :      * Just to make the code easier to read, create an &quot;after&quot; variable
+<span class="lineNum">     636 </span>            :      * that is equivalent to &quot;not before&quot;.
+<span class="lineNum">     637 </span>            :      * (This used to be just the statement &quot;after = !before&quot;, but that
+<span class="lineNum">     638 </span>            :      * causes a warning on the mac; to avoid that, we do it the long way.)
+<span class="lineNum">     639 </span>            :      */
+<span class="lineNum">     640 </span><span class="lineCov">          1 :     if (before)</span>
+<span class="lineNum">     641 </span>            :         after = PR_FALSE;
+<span class="lineNum">     642 </span>            :     else
+<span class="lineNum">     643 </span><span class="lineCov">          1 :         after = PR_TRUE;</span>
+<span class="lineNum">     644 </span>            : 
+<span class="lineNum">     645 </span><span class="lineCov">          1 :     p7dcx = (SEC_PKCS7DecoderContext *)arg;</span>
+<span class="lineNum">     646 </span><span class="lineCov">          1 :     if (!p7dcx) {</span>
+<span class="lineNum">     647 </span>            :         return;
+<span class="lineNum">     648 </span>            :     }
+<span class="lineNum">     649 </span>            : 
+<span class="lineNum">     650 </span><span class="lineCov">          1 :     cinfo = p7dcx-&gt;cinfo;</span>
+<span class="lineNum">     651 </span>            : 
+<span class="lineNum">     652 </span><span class="lineCov">          1 :     if (!cinfo) {</span>
+<span class="lineNum">     653 </span>            :         return;
+<span class="lineNum">     654 </span>            :     }
+<span class="lineNum">     655 </span>            : 
+<span class="lineNum">     656 </span><span class="lineCov">          1 :     if (cinfo-&gt;contentTypeTag == NULL) {</span>
+<span class="lineNum">     657 </span><span class="lineCov">          1 :         if (after &amp;&amp; dest == &amp;(cinfo-&gt;contentType))</span>
+<span class="lineNum">     658 </span><span class="lineCov">          1 :             cinfo-&gt;contentTypeTag = SECOID_FindOID(&amp;(cinfo-&gt;contentType));</span>
+<span class="lineNum">     659 </span>            :         return;
+<span class="lineNum">     660 </span>            :     }
+<span class="lineNum">     661 </span>            : 
+<span class="lineNum">     662 </span><span class="lineCov">          1 :     switch (cinfo-&gt;contentTypeTag-&gt;offset) {</span>
+<span class="lineNum">     663 </span>            :         case SEC_OID_PKCS7_SIGNED_DATA:
+<span class="lineNum">     664 </span><span class="lineNoCov">          0 :             sigd = cinfo-&gt;content.signedData;</span>
+<span class="lineNum">     665 </span><span class="lineNoCov">          0 :             if (sigd == NULL)</span>
+<span class="lineNum">     666 </span>            :                 break;
+<span class="lineNum">     667 </span>            : 
+<span class="lineNum">     668 </span><span class="lineNoCov">          0 :             if (sigd-&gt;contentInfo.contentTypeTag == NULL) {</span>
+<span class="lineNum">     669 </span><span class="lineNoCov">          0 :                 if (after &amp;&amp; dest == &amp;(sigd-&gt;contentInfo.contentType))</span>
+<span class="lineNum">     670 </span><span class="lineNoCov">          0 :                     sigd-&gt;contentInfo.contentTypeTag =</span>
+<span class="lineNum">     671 </span><span class="lineNoCov">          0 :                         SECOID_FindOID(&amp;(sigd-&gt;contentInfo.contentType));</span>
+<span class="lineNum">     672 </span>            :                 break;
+<span class="lineNum">     673 </span>            :             }
+<span class="lineNum">     674 </span>            : 
+<span class="lineNum">     675 </span>            :             /*
+<span class="lineNum">     676 </span>            :              * We only set up a filtering digest if the content is
+<span class="lineNum">     677 </span>            :              * plain DATA; anything else needs more work because a
+<span class="lineNum">     678 </span>            :              * second pass is required to produce a DER encoding from
+<span class="lineNum">     679 </span>            :              * an input that can be BER encoded.  (This is a requirement
+<span class="lineNum">     680 </span>            :              * of PKCS7 that is unfortunate, but there you have it.)
+<span class="lineNum">     681 </span>            :              *
+<span class="lineNum">     682 </span>            :              * XXX Also, since we stop here if this is not DATA, the
+<span class="lineNum">     683 </span>            :              * inner content is not getting processed at all.  Someday
+<span class="lineNum">     684 </span>            :              * we may want to fix that.
+<span class="lineNum">     685 </span>            :              */
+<span class="lineNum">     686 </span><span class="lineNoCov">          0 :             if (sigd-&gt;contentInfo.contentTypeTag-&gt;offset != SEC_OID_PKCS7_DATA) {</span>
+<span class="lineNum">     687 </span>            :                 /* XXX Set an error in p7dcx-&gt;error */
+<span class="lineNum">     688 </span><span class="lineNoCov">          0 :                 SEC_ASN1DecoderClearNotifyProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     689 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     690 </span>            :             }
+<span class="lineNum">     691 </span>            : 
+<span class="lineNum">     692 </span>            :             /*
+<span class="lineNum">     693 </span>            :              * Just before the content, we want to set up a digest context
+<span class="lineNum">     694 </span>            :              * for each digest algorithm listed, and start a filter which
+<span class="lineNum">     695 </span>            :              * will run all of the contents bytes through that digest.
+<span class="lineNum">     696 </span>            :              */
+<span class="lineNum">     697 </span><span class="lineNoCov">          0 :             if (before &amp;&amp; dest == &amp;(sigd-&gt;contentInfo.content)) {</span>
+<span class="lineNum">     698 </span><span class="lineNoCov">          0 :                 rv = sec_pkcs7_decoder_start_digests(p7dcx, depth,</span>
+<span class="lineNum">     699 </span>            :                                                      sigd-&gt;digestAlgorithms);
+<span class="lineNum">     700 </span><span class="lineNoCov">          0 :                 if (rv != SECSuccess)</span>
+<span class="lineNum">     701 </span><span class="lineNoCov">          0 :                     SEC_ASN1DecoderClearNotifyProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     702 </span>            : 
+<span class="lineNum">     703 </span>            :                 break;
+<span class="lineNum">     704 </span>            :             }
+<span class="lineNum">     705 </span>            : 
+<span class="lineNum">     706 </span>            :             /*
+<span class="lineNum">     707 </span>            :              * XXX To handle nested types, here is where we would want
+<span class="lineNum">     708 </span>            :              * to check for inner boundaries that need handling.
+<span class="lineNum">     709 </span>            :              */
+<span class="lineNum">     710 </span>            : 
+<span class="lineNum">     711 </span>            :             /*
+<span class="lineNum">     712 </span>            :              * Are we done?
+<span class="lineNum">     713 </span>            :              */
+<span class="lineNum">     714 </span><span class="lineNoCov">          0 :             if (after &amp;&amp; dest == &amp;(sigd-&gt;contentInfo.content)) {</span>
+<span class="lineNum">     715 </span>            :                 /*
+<span class="lineNum">     716 </span>            :                  * Close out the digest contexts.  We ignore any error
+<span class="lineNum">     717 </span>            :                  * because we are stopping anyway; the error status left
+<span class="lineNum">     718 </span>            :                  * behind in p7dcx will be seen by outer functions.
+<span class="lineNum">     719 </span>            :                  */
+<span class="lineNum">     720 </span><span class="lineNoCov">          0 :                 (void)sec_pkcs7_decoder_finish_digests(p7dcx, cinfo-&gt;poolp,</span>
+<span class="lineNum">     721 </span>            :                                                        &amp;(sigd-&gt;digests));
+<span class="lineNum">     722 </span>            : 
+<span class="lineNum">     723 </span>            :                 /*
+<span class="lineNum">     724 </span>            :                  * XXX To handle nested contents, we would need to remove
+<span class="lineNum">     725 </span>            :                  * the worker from the chain (and free it).
+<span class="lineNum">     726 </span>            :                  */
+<span class="lineNum">     727 </span>            : 
+<span class="lineNum">     728 </span>            :                 /*
+<span class="lineNum">     729 </span>            :                  * Stop notify.
+<span class="lineNum">     730 </span>            :                  */
+<span class="lineNum">     731 </span><span class="lineNoCov">          0 :                 SEC_ASN1DecoderClearNotifyProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     732 </span>            :             }
+<span class="lineNum">     733 </span>            :             break;
+<span class="lineNum">     734 </span>            : 
+<span class="lineNum">     735 </span>            :         case SEC_OID_PKCS7_ENVELOPED_DATA:
+<span class="lineNum">     736 </span><span class="lineNoCov">          0 :             envd = cinfo-&gt;content.envelopedData;</span>
+<span class="lineNum">     737 </span><span class="lineNoCov">          0 :             if (envd == NULL)</span>
+<span class="lineNum">     738 </span>            :                 break;
+<span class="lineNum">     739 </span>            : 
+<span class="lineNum">     740 </span><span class="lineNoCov">          0 :             if (envd-&gt;encContentInfo.contentTypeTag == NULL) {</span>
+<span class="lineNum">     741 </span><span class="lineNoCov">          0 :                 if (after &amp;&amp; dest == &amp;(envd-&gt;encContentInfo.contentType))</span>
+<span class="lineNum">     742 </span><span class="lineNoCov">          0 :                     envd-&gt;encContentInfo.contentTypeTag =</span>
+<span class="lineNum">     743 </span><span class="lineNoCov">          0 :                         SECOID_FindOID(&amp;(envd-&gt;encContentInfo.contentType));</span>
+<span class="lineNum">     744 </span>            :                 break;
+<span class="lineNum">     745 </span>            :             }
+<span class="lineNum">     746 </span>            : 
+<span class="lineNum">     747 </span>            :             /*
+<span class="lineNum">     748 </span>            :              * Just before the content, we want to set up a decryption
+<span class="lineNum">     749 </span>            :              * context, and start a filter which will run all of the
+<span class="lineNum">     750 </span>            :              * contents bytes through it to determine the plain content.
+<span class="lineNum">     751 </span>            :              */
+<span class="lineNum">     752 </span><span class="lineNoCov">          0 :             if (before &amp;&amp; dest == &amp;(envd-&gt;encContentInfo.encContent)) {</span>
+<span class="lineNum">     753 </span><span class="lineNoCov">          0 :                 rv = sec_pkcs7_decoder_start_decrypt(p7dcx, depth,</span>
+<span class="lineNum">     754 </span>            :                                                      envd-&gt;recipientInfos,
+<span class="lineNum">     755 </span>            :                                                      &amp;(envd-&gt;encContentInfo),
+<span class="lineNum">     756 </span>            :                                                      NULL);
+<span class="lineNum">     757 </span><span class="lineNoCov">          0 :                 if (rv != SECSuccess)</span>
+<span class="lineNum">     758 </span><span class="lineNoCov">          0 :                     SEC_ASN1DecoderClearNotifyProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     759 </span>            : 
+<span class="lineNum">     760 </span>            :                 break;
+<span class="lineNum">     761 </span>            :             }
+<span class="lineNum">     762 </span>            : 
+<span class="lineNum">     763 </span>            :             /*
+<span class="lineNum">     764 </span>            :              * Are we done?
+<span class="lineNum">     765 </span>            :              */
+<span class="lineNum">     766 </span><span class="lineNoCov">          0 :             if (after &amp;&amp; dest == &amp;(envd-&gt;encContentInfo.encContent)) {</span>
+<span class="lineNum">     767 </span>            :                 /*
+<span class="lineNum">     768 </span>            :              * Close out the decryption context.  We ignore any error
+<span class="lineNum">     769 </span>            :              * because we are stopping anyway; the error status left
+<span class="lineNum">     770 </span>            :              * behind in p7dcx will be seen by outer functions.
+<span class="lineNum">     771 </span>            :              */
+<span class="lineNum">     772 </span><span class="lineNoCov">          0 :                 (void)sec_pkcs7_decoder_finish_decrypt(p7dcx, cinfo-&gt;poolp,</span>
+<span class="lineNum">     773 </span>            :                                                        &amp;(envd-&gt;encContentInfo));
+<span class="lineNum">     774 </span>            : 
+<span class="lineNum">     775 </span>            :                 /*
+<span class="lineNum">     776 </span>            :                  * XXX To handle nested contents, we would need to remove
+<span class="lineNum">     777 </span>            :                  * the worker from the chain (and free it).
+<span class="lineNum">     778 </span>            :                  */
+<span class="lineNum">     779 </span>            : 
+<span class="lineNum">     780 </span>            :                 /*
+<span class="lineNum">     781 </span>            :                  * Stop notify.
+<span class="lineNum">     782 </span>            :                  */
+<span class="lineNum">     783 </span><span class="lineNoCov">          0 :                 SEC_ASN1DecoderClearNotifyProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     784 </span>            :             }
+<span class="lineNum">     785 </span>            :             break;
+<span class="lineNum">     786 </span>            : 
+<span class="lineNum">     787 </span>            :         case SEC_OID_PKCS7_SIGNED_ENVELOPED_DATA:
+<span class="lineNum">     788 </span><span class="lineNoCov">          0 :             saed = cinfo-&gt;content.signedAndEnvelopedData;</span>
+<span class="lineNum">     789 </span><span class="lineNoCov">          0 :             if (saed == NULL)</span>
+<span class="lineNum">     790 </span>            :                 break;
+<span class="lineNum">     791 </span>            : 
+<span class="lineNum">     792 </span><span class="lineNoCov">          0 :             if (saed-&gt;encContentInfo.contentTypeTag == NULL) {</span>
+<span class="lineNum">     793 </span><span class="lineNoCov">          0 :                 if (after &amp;&amp; dest == &amp;(saed-&gt;encContentInfo.contentType))</span>
+<span class="lineNum">     794 </span><span class="lineNoCov">          0 :                     saed-&gt;encContentInfo.contentTypeTag =</span>
+<span class="lineNum">     795 </span><span class="lineNoCov">          0 :                         SECOID_FindOID(&amp;(saed-&gt;encContentInfo.contentType));</span>
+<span class="lineNum">     796 </span>            :                 break;
+<span class="lineNum">     797 </span>            :             }
+<span class="lineNum">     798 </span>            : 
+<span class="lineNum">     799 </span>            :             /*
+<span class="lineNum">     800 </span>            :              * Just before the content, we want to set up a decryption
+<span class="lineNum">     801 </span>            :              * context *and* digest contexts, and start a filter which
+<span class="lineNum">     802 </span>            :              * will run all of the contents bytes through both.
+<span class="lineNum">     803 </span>            :              */
+<span class="lineNum">     804 </span><span class="lineNoCov">          0 :             if (before &amp;&amp; dest == &amp;(saed-&gt;encContentInfo.encContent)) {</span>
+<span class="lineNum">     805 </span><span class="lineNoCov">          0 :                 rv = sec_pkcs7_decoder_start_decrypt(p7dcx, depth,</span>
+<span class="lineNum">     806 </span>            :                                                      saed-&gt;recipientInfos,
+<span class="lineNum">     807 </span>            :                                                      &amp;(saed-&gt;encContentInfo),
+<span class="lineNum">     808 </span>            :                                                      &amp;(saed-&gt;sigKey));
+<span class="lineNum">     809 </span><span class="lineNoCov">          0 :                 if (rv == SECSuccess)</span>
+<span class="lineNum">     810 </span><span class="lineNoCov">          0 :                     rv = sec_pkcs7_decoder_start_digests(p7dcx, depth,</span>
+<span class="lineNum">     811 </span>            :                                                          saed-&gt;digestAlgorithms);
+<span class="lineNum">     812 </span><span class="lineNoCov">          0 :                 if (rv != SECSuccess)</span>
+<span class="lineNum">     813 </span><span class="lineNoCov">          0 :                     SEC_ASN1DecoderClearNotifyProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     814 </span>            : 
+<span class="lineNum">     815 </span>            :                 break;
+<span class="lineNum">     816 </span>            :             }
+<span class="lineNum">     817 </span>            : 
+<span class="lineNum">     818 </span>            :             /*
+<span class="lineNum">     819 </span>            :              * Are we done?
+<span class="lineNum">     820 </span>            :              */
+<span class="lineNum">     821 </span><span class="lineNoCov">          0 :             if (after &amp;&amp; dest == &amp;(saed-&gt;encContentInfo.encContent)) {</span>
+<span class="lineNum">     822 </span>            :                 /*
+<span class="lineNum">     823 </span>            :                  * Close out the decryption and digests contexts.
+<span class="lineNum">     824 </span>            :                  * We ignore any errors because we are stopping anyway;
+<span class="lineNum">     825 </span>            :                  * the error status left behind in p7dcx will be seen by
+<span class="lineNum">     826 </span>            :                  * outer functions.
+<span class="lineNum">     827 </span>            :                  *
+<span class="lineNum">     828 </span>            :                  * Note that the decrypt stuff must be called first;
+<span class="lineNum">     829 </span>            :                  * it may have a last buffer to do which in turn has
+<span class="lineNum">     830 </span>            :                  * to be added to the digest.
+<span class="lineNum">     831 </span>            :                  */
+<span class="lineNum">     832 </span><span class="lineNoCov">          0 :                 (void)sec_pkcs7_decoder_finish_decrypt(p7dcx, cinfo-&gt;poolp,</span>
+<span class="lineNum">     833 </span>            :                                                        &amp;(saed-&gt;encContentInfo));
+<span class="lineNum">     834 </span><span class="lineNoCov">          0 :                 (void)sec_pkcs7_decoder_finish_digests(p7dcx, cinfo-&gt;poolp,</span>
+<span class="lineNum">     835 </span>            :                                                        &amp;(saed-&gt;digests));
+<span class="lineNum">     836 </span>            : 
+<span class="lineNum">     837 </span>            :                 /*
+<span class="lineNum">     838 </span>            :                  * XXX To handle nested contents, we would need to remove
+<span class="lineNum">     839 </span>            :                  * the worker from the chain (and free it).
+<span class="lineNum">     840 </span>            :                  */
+<span class="lineNum">     841 </span>            : 
+<span class="lineNum">     842 </span>            :                 /*
+<span class="lineNum">     843 </span>            :                  * Stop notify.
+<span class="lineNum">     844 </span>            :                  */
+<span class="lineNum">     845 </span><span class="lineNoCov">          0 :                 SEC_ASN1DecoderClearNotifyProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     846 </span>            :             }
+<span class="lineNum">     847 </span>            :             break;
+<span class="lineNum">     848 </span>            : 
+<span class="lineNum">     849 </span>            :         case SEC_OID_PKCS7_DIGESTED_DATA:
+<span class="lineNum">     850 </span><span class="lineNoCov">          0 :             digd = cinfo-&gt;content.digestedData;</span>
+<span class="lineNum">     851 </span>            : 
+<span class="lineNum">     852 </span>            :             /*
+<span class="lineNum">     853 </span>            :              * XXX Want to do the digest or not?  Maybe future enhancement...
+<span class="lineNum">     854 </span>            :              */
+<span class="lineNum">     855 </span><span class="lineNoCov">          0 :             if (before &amp;&amp; dest == &amp;(digd-&gt;contentInfo.content.data)) {</span>
+<span class="lineNum">     856 </span><span class="lineNoCov">          0 :                 SEC_ASN1DecoderSetFilterProc(p7dcx-&gt;dcx, sec_pkcs7_decoder_filter,</span>
+<span class="lineNum">     857 </span>            :                                              p7dcx,
+<span class="lineNum">     858 </span><span class="lineNoCov">          0 :                                              (PRBool)(p7dcx-&gt;cb != NULL));</span>
+<span class="lineNum">     859 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     860 </span>            :             }
+<span class="lineNum">     861 </span>            : 
+<span class="lineNum">     862 </span>            :             /*
+<span class="lineNum">     863 </span>            :              * Are we done?
+<span class="lineNum">     864 </span>            :              */
+<span class="lineNum">     865 </span><span class="lineNoCov">          0 :             if (after &amp;&amp; dest == &amp;(digd-&gt;contentInfo.content.data)) {</span>
+<span class="lineNum">     866 </span><span class="lineNoCov">          0 :                 SEC_ASN1DecoderClearFilterProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     867 </span>            :             }
+<span class="lineNum">     868 </span>            :             break;
+<span class="lineNum">     869 </span>            : 
+<span class="lineNum">     870 </span>            :         case SEC_OID_PKCS7_ENCRYPTED_DATA:
+<span class="lineNum">     871 </span><span class="lineCov">          1 :             encd = cinfo-&gt;content.encryptedData;</span>
+<span class="lineNum">     872 </span>            : 
+<span class="lineNum">     873 </span><span class="lineCov">          1 :             if (!encd) {</span>
+<span class="lineNum">     874 </span>            :                 break;
+<span class="lineNum">     875 </span>            :             }
+<span class="lineNum">     876 </span>            : 
+<span class="lineNum">     877 </span>            :             /*
+<span class="lineNum">     878 </span>            :              * XXX If the decryption key callback is set, we want to start
+<span class="lineNum">     879 </span>            :              * the decryption.  If the callback is not set, we will treat the
+<span class="lineNum">     880 </span>            :              * content as plain data, since we do not have the key.
+<span class="lineNum">     881 </span>            :              *
+<span class="lineNum">     882 </span>            :              * Is this the proper thing to do?
+<span class="lineNum">     883 </span>            :              */
+<span class="lineNum">     884 </span><span class="lineCov">          1 :             if (before &amp;&amp; dest == &amp;(encd-&gt;encContentInfo.encContent)) {</span>
+<span class="lineNum">     885 </span>            :                 /*
+<span class="lineNum">     886 </span>            :                  * Start the encryption process if the decryption key callback
+<span class="lineNum">     887 </span>            :                  * is present.  Otherwise, treat the content like plain data.
+<span class="lineNum">     888 </span>            :                  */
+<span class="lineNum">     889 </span><span class="lineCov">          1 :                 rv = SECSuccess;</span>
+<span class="lineNum">     890 </span><span class="lineCov">          1 :                 if (p7dcx-&gt;dkcb != NULL) {</span>
+<span class="lineNum">     891 </span><span class="lineCov">          1 :                     rv = sec_pkcs7_decoder_start_decrypt(p7dcx, depth, NULL,</span>
+<span class="lineNum">     892 </span>            :                                                          &amp;(encd-&gt;encContentInfo),
+<span class="lineNum">     893 </span>            :                                                          NULL);
+<span class="lineNum">     894 </span>            :                 }
+<span class="lineNum">     895 </span>            : 
+<span class="lineNum">     896 </span><span class="lineCov">          1 :                 if (rv != SECSuccess)</span>
+<span class="lineNum">     897 </span><span class="lineNoCov">          0 :                     SEC_ASN1DecoderClearNotifyProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     898 </span>            : 
+<span class="lineNum">     899 </span>            :                 break;
+<span class="lineNum">     900 </span>            :             }
+<span class="lineNum">     901 </span>            : 
+<span class="lineNum">     902 </span>            :             /*
+<span class="lineNum">     903 </span>            :              * Are we done?
+<span class="lineNum">     904 </span>            :              */
+<span class="lineNum">     905 </span><span class="lineCov">          1 :             if (after &amp;&amp; dest == &amp;(encd-&gt;encContentInfo.encContent)) {</span>
+<span class="lineNum">     906 </span>            :                 /*
+<span class="lineNum">     907 </span>            :                  * Close out the decryption context.  We ignore any error
+<span class="lineNum">     908 </span>            :                  * because we are stopping anyway; the error status left
+<span class="lineNum">     909 </span>            :                  * behind in p7dcx will be seen by outer functions.
+<span class="lineNum">     910 </span>            :                  */
+<span class="lineNum">     911 </span><span class="lineCov">          1 :                 (void)sec_pkcs7_decoder_finish_decrypt(p7dcx, cinfo-&gt;poolp,</span>
+<span class="lineNum">     912 </span>            :                                                        &amp;(encd-&gt;encContentInfo));
+<span class="lineNum">     913 </span>            : 
+<span class="lineNum">     914 </span>            :                 /*
+<span class="lineNum">     915 </span>            :                  * Stop notify.
+<span class="lineNum">     916 </span>            :                  */
+<span class="lineNum">     917 </span><span class="lineCov">          1 :                 SEC_ASN1DecoderClearNotifyProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     918 </span>            :             }
+<span class="lineNum">     919 </span>            :             break;
+<span class="lineNum">     920 </span>            : 
+<span class="lineNum">     921 </span>            :         case SEC_OID_PKCS7_DATA:
+<span class="lineNum">     922 </span>            :             /*
+<span class="lineNum">     923 </span>            :              * If a output callback has been specified, we want to set the filter
+<span class="lineNum">     924 </span>            :              * to call the callback.  This is taken care of in
+<span class="lineNum">     925 </span>            :              * sec_pkcs7_decoder_start_decrypt() or
+<span class="lineNum">     926 </span>            :              * sec_pkcs7_decoder_start_digests() for the other content types.
+<span class="lineNum">     927 </span>            :              */
+<span class="lineNum">     928 </span>            : 
+<span class="lineNum">     929 </span><span class="lineCov">          1 :             if (before &amp;&amp; dest == &amp;(cinfo-&gt;content.data)) {</span>
+<span class="lineNum">     930 </span>            : 
+<span class="lineNum">     931 </span>            :                 /*
+<span class="lineNum">     932 </span>            :                  * Set the filter proc up.
+<span class="lineNum">     933 </span>            :                  */
+<span class="lineNum">     934 </span><span class="lineCov">          1 :                 SEC_ASN1DecoderSetFilterProc(p7dcx-&gt;dcx,</span>
+<span class="lineNum">     935 </span>            :                                              sec_pkcs7_decoder_filter,
+<span class="lineNum">     936 </span>            :                                              p7dcx,
+<span class="lineNum">     937 </span><span class="lineCov">          1 :                                              (PRBool)(p7dcx-&gt;cb != NULL));</span>
+<span class="lineNum">     938 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">     939 </span>            :             }
+<span class="lineNum">     940 </span>            : 
+<span class="lineNum">     941 </span><span class="lineCov">          1 :             if (after &amp;&amp; dest == &amp;(cinfo-&gt;content.data)) {</span>
+<span class="lineNum">     942 </span>            :                 /*
+<span class="lineNum">     943 </span>            :                  * Time to clean up after ourself, stop the Notify and Filter
+<span class="lineNum">     944 </span>            :                  * procedures.
+<span class="lineNum">     945 </span>            :                  */
+<span class="lineNum">     946 </span><span class="lineCov">          1 :                 SEC_ASN1DecoderClearNotifyProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     947 </span><span class="lineCov">          1 :                 SEC_ASN1DecoderClearFilterProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     948 </span>            :             }
+<span class="lineNum">     949 </span>            :             break;
+<span class="lineNum">     950 </span>            : 
+<span class="lineNum">     951 </span>            :         default:
+<span class="lineNum">     952 </span><span class="lineNoCov">          0 :             SEC_ASN1DecoderClearNotifyProc(p7dcx-&gt;dcx);</span>
+<span class="lineNum">     953 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     954 </span>            :     }
+<span class="lineNum">     955 </span>            : }
+<a name="956"><span class="lineNum">     956 </span>            : </a>
+<span class="lineNum">     957 </span>            : SEC_PKCS7DecoderContext *
+<span class="lineNum">     958 </span><span class="lineCov">          1 : SEC_PKCS7DecoderStart(SEC_PKCS7DecoderContentCallback cb, void *cb_arg,</span>
+<span class="lineNum">     959 </span>            :                       SECKEYGetPasswordKey pwfn, void *pwfn_arg,
+<span class="lineNum">     960 </span>            :                       SEC_PKCS7GetDecryptKeyCallback decrypt_key_cb,
+<span class="lineNum">     961 </span>            :                       void *decrypt_key_cb_arg,
+<span class="lineNum">     962 </span>            :                       SEC_PKCS7DecryptionAllowedCallback decrypt_allowed_cb)
+<span class="lineNum">     963 </span>            : {
+<span class="lineNum">     964 </span>            :     SEC_PKCS7DecoderContext *p7dcx;
+<span class="lineNum">     965 </span>            :     SEC_ASN1DecoderContext *dcx;
+<span class="lineNum">     966 </span>            :     SEC_PKCS7ContentInfo *cinfo;
+<span class="lineNum">     967 </span>            :     PLArenaPool *poolp;
+<span class="lineNum">     968 </span>            : 
+<span class="lineNum">     969 </span><span class="lineCov">          1 :     poolp = PORT_NewArena(1024); /* XXX what is right value? */</span>
+<span class="lineNum">     970 </span><span class="lineCov">          1 :     if (poolp == NULL)</span>
+<span class="lineNum">     971 </span>            :         return NULL;
+<span class="lineNum">     972 </span>            : 
+<span class="lineNum">     973 </span><span class="lineCov">          1 :     cinfo = (SEC_PKCS7ContentInfo *)PORT_ArenaZAlloc(poolp, sizeof(*cinfo));</span>
+<span class="lineNum">     974 </span><span class="lineCov">          1 :     if (cinfo == NULL) {</span>
+<span class="lineNum">     975 </span><span class="lineNoCov">          0 :         PORT_FreeArena(poolp, PR_FALSE);</span>
+<span class="lineNum">     976 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     977 </span>            :     }
+<span class="lineNum">     978 </span>            : 
+<span class="lineNum">     979 </span><span class="lineCov">          1 :     cinfo-&gt;poolp = poolp;</span>
+<span class="lineNum">     980 </span><span class="lineCov">          1 :     cinfo-&gt;pwfn = pwfn;</span>
+<span class="lineNum">     981 </span><span class="lineCov">          1 :     cinfo-&gt;pwfn_arg = pwfn_arg;</span>
+<span class="lineNum">     982 </span><span class="lineCov">          1 :     cinfo-&gt;created = PR_FALSE;</span>
+<span class="lineNum">     983 </span><span class="lineCov">          1 :     cinfo-&gt;refCount = 1;</span>
+<span class="lineNum">     984 </span>            : 
+<span class="lineNum">     985 </span><span class="lineCov">          1 :     p7dcx =</span>
+<span class="lineNum">     986 </span>            :         (SEC_PKCS7DecoderContext *)PORT_ZAlloc(sizeof(SEC_PKCS7DecoderContext));
+<span class="lineNum">     987 </span><span class="lineCov">          1 :     if (p7dcx == NULL) {</span>
+<span class="lineNum">     988 </span><span class="lineNoCov">          0 :         PORT_FreeArena(poolp, PR_FALSE);</span>
+<span class="lineNum">     989 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     990 </span>            :     }
+<span class="lineNum">     991 </span>            : 
+<span class="lineNum">     992 </span><span class="lineCov">          1 :     p7dcx-&gt;tmp_poolp = PORT_NewArena(1024); /* XXX what is right value? */</span>
+<span class="lineNum">     993 </span><span class="lineCov">          1 :     if (p7dcx-&gt;tmp_poolp == NULL) {</span>
+<span class="lineNum">     994 </span><span class="lineNoCov">          0 :         PORT_Free(p7dcx);</span>
+<span class="lineNum">     995 </span><span class="lineNoCov">          0 :         PORT_FreeArena(poolp, PR_FALSE);</span>
+<span class="lineNum">     996 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     997 </span>            :     }
+<span class="lineNum">     998 </span>            : 
+<span class="lineNum">     999 </span><span class="lineCov">          1 :     dcx = SEC_ASN1DecoderStart(poolp, cinfo, sec_PKCS7ContentInfoTemplate);</span>
+<span class="lineNum">    1000 </span><span class="lineCov">          1 :     if (dcx == NULL) {</span>
+<span class="lineNum">    1001 </span><span class="lineNoCov">          0 :         PORT_FreeArena(p7dcx-&gt;tmp_poolp, PR_FALSE);</span>
+<span class="lineNum">    1002 </span><span class="lineNoCov">          0 :         PORT_Free(p7dcx);</span>
+<span class="lineNum">    1003 </span><span class="lineNoCov">          0 :         PORT_FreeArena(poolp, PR_FALSE);</span>
+<span class="lineNum">    1004 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">    1005 </span>            :     }
+<span class="lineNum">    1006 </span>            : 
+<span class="lineNum">    1007 </span><span class="lineCov">          1 :     SEC_ASN1DecoderSetNotifyProc(dcx, sec_pkcs7_decoder_notify, p7dcx);</span>
+<span class="lineNum">    1008 </span>            : 
+<span class="lineNum">    1009 </span><span class="lineCov">          1 :     p7dcx-&gt;dcx = dcx;</span>
+<span class="lineNum">    1010 </span><span class="lineCov">          1 :     p7dcx-&gt;cinfo = cinfo;</span>
+<span class="lineNum">    1011 </span><span class="lineCov">          1 :     p7dcx-&gt;cb = cb;</span>
+<span class="lineNum">    1012 </span><span class="lineCov">          1 :     p7dcx-&gt;cb_arg = cb_arg;</span>
+<span class="lineNum">    1013 </span><span class="lineCov">          1 :     p7dcx-&gt;pwfn = pwfn;</span>
+<span class="lineNum">    1014 </span><span class="lineCov">          1 :     p7dcx-&gt;pwfn_arg = pwfn_arg;</span>
+<span class="lineNum">    1015 </span><span class="lineCov">          1 :     p7dcx-&gt;dkcb = decrypt_key_cb;</span>
+<span class="lineNum">    1016 </span><span class="lineCov">          1 :     p7dcx-&gt;dkcb_arg = decrypt_key_cb_arg;</span>
+<span class="lineNum">    1017 </span><span class="lineCov">          1 :     p7dcx-&gt;decrypt_allowed_cb = decrypt_allowed_cb;</span>
+<span class="lineNum">    1018 </span>            : 
+<span class="lineNum">    1019 </span><span class="lineCov">          1 :     return p7dcx;</span>
+<span class="lineNum">    1020 </span>            : }
+<span class="lineNum">    1021 </span>            : 
+<span class="lineNum">    1022 </span>            : /*
+<span class="lineNum">    1023 </span>            :  * Do the next chunk of PKCS7 decoding.  If there is a problem, set
+<span class="lineNum">    1024 </span>            :  * an error and return a failure status.  Note that in the case of
+<span class="lineNum">    1025 </span>            :  * an error, this routine is still prepared to be called again and
+<span class="lineNum">    1026 </span>            :  * again in case that is the easiest route for our caller to take.
+<span class="lineNum">    1027 </span>            :  * We simply detect it and do not do anything except keep setting
+<span class="lineNum">    1028 </span>            :  * that error in case our caller has not noticed it yet...
+<a name="1029"><span class="lineNum">    1029 </span>            :  */</a>
+<span class="lineNum">    1030 </span>            : SECStatus
+<span class="lineNum">    1031 </span><span class="lineCov">          1 : SEC_PKCS7DecoderUpdate(SEC_PKCS7DecoderContext *p7dcx,</span>
+<span class="lineNum">    1032 </span>            :                        const char *buf, unsigned long len)
+<span class="lineNum">    1033 </span>            : {
+<span class="lineNum">    1034 </span><span class="lineCov">          1 :     if (p7dcx-&gt;cinfo != NULL &amp;&amp; p7dcx-&gt;dcx != NULL) {</span>
+<span class="lineNum">    1035 </span>            :         PORT_Assert(p7dcx-&gt;error == 0);
+<span class="lineNum">    1036 </span><span class="lineCov">          1 :         if (p7dcx-&gt;error == 0) {</span>
+<span class="lineNum">    1037 </span><span class="lineCov">          1 :             if (SEC_ASN1DecoderUpdate(p7dcx-&gt;dcx, buf, len) != SECSuccess) {</span>
+<span class="lineNum">    1038 </span><span class="lineCov">          1 :                 p7dcx-&gt;error = PORT_GetError();</span>
+<span class="lineNum">    1039 </span>            :                 PORT_Assert(p7dcx-&gt;error);
+<span class="lineNum">    1040 </span><span class="lineCov">          1 :                 if (p7dcx-&gt;error == 0)</span>
+<span class="lineNum">    1041 </span><span class="lineNoCov">          0 :                     p7dcx-&gt;error = -1;</span>
+<span class="lineNum">    1042 </span>            :             }
+<span class="lineNum">    1043 </span>            :         }
+<span class="lineNum">    1044 </span>            :     }
+<span class="lineNum">    1045 </span>            : 
+<span class="lineNum">    1046 </span><span class="lineCov">          1 :     if (p7dcx-&gt;error) {</span>
+<span class="lineNum">    1047 </span><span class="lineCov">          1 :         if (p7dcx-&gt;dcx != NULL) {</span>
+<span class="lineNum">    1048 </span><span class="lineCov">          1 :             (void)SEC_ASN1DecoderFinish(p7dcx-&gt;dcx);</span>
+<span class="lineNum">    1049 </span><span class="lineCov">          1 :             p7dcx-&gt;dcx = NULL;</span>
+<span class="lineNum">    1050 </span>            :         }
+<span class="lineNum">    1051 </span><span class="lineCov">          1 :         if (p7dcx-&gt;cinfo != NULL) {</span>
+<span class="lineNum">    1052 </span><span class="lineCov">          1 :             SEC_PKCS7DestroyContentInfo(p7dcx-&gt;cinfo);</span>
+<span class="lineNum">    1053 </span><span class="lineCov">          1 :             p7dcx-&gt;cinfo = NULL;</span>
+<span class="lineNum">    1054 </span>            :         }
+<span class="lineNum">    1055 </span><span class="lineCov">          1 :         PORT_SetError(p7dcx-&gt;error);</span>
+<span class="lineNum">    1056 </span><span class="lineCov">          1 :         return SECFailure;</span>
+<span class="lineNum">    1057 </span>            :     }
+<span class="lineNum">    1058 </span>            : 
+<span class="lineNum">    1059 </span>            :     return SECSuccess;
+<span class="lineNum">    1060 </span>            : }
+<a name="1061"><span class="lineNum">    1061 </span>            : </a>
+<span class="lineNum">    1062 </span>            : SEC_PKCS7ContentInfo *
+<span class="lineNum">    1063 </span><span class="lineCov">          1 : SEC_PKCS7DecoderFinish(SEC_PKCS7DecoderContext *p7dcx)</span>
+<span class="lineNum">    1064 </span>            : {
+<span class="lineNum">    1065 </span>            :     SEC_PKCS7ContentInfo *cinfo;
+<span class="lineNum">    1066 </span>            : 
+<span class="lineNum">    1067 </span><span class="lineCov">          1 :     cinfo = p7dcx-&gt;cinfo;</span>
+<span class="lineNum">    1068 </span><span class="lineCov">          1 :     if (p7dcx-&gt;dcx != NULL) {</span>
+<span class="lineNum">    1069 </span><span class="lineCov">          1 :         if (SEC_ASN1DecoderFinish(p7dcx-&gt;dcx) != SECSuccess) {</span>
+<span class="lineNum">    1070 </span><span class="lineNoCov">          0 :             SEC_PKCS7DestroyContentInfo(cinfo);</span>
+<span class="lineNum">    1071 </span><span class="lineNoCov">          0 :             cinfo = NULL;</span>
+<span class="lineNum">    1072 </span>            :         }
+<span class="lineNum">    1073 </span>            :     }
+<span class="lineNum">    1074 </span>            :     /* free any NSS data structures */
+<span class="lineNum">    1075 </span><span class="lineCov">          1 :     if (p7dcx-&gt;worker.decryptobj) {</span>
+<span class="lineNum">    1076 </span><span class="lineCov">          1 :         sec_PKCS7DestroyDecryptObject(p7dcx-&gt;worker.decryptobj);</span>
+<span class="lineNum">    1077 </span>            :     }
+<span class="lineNum">    1078 </span><span class="lineCov">          1 :     PORT_FreeArena(p7dcx-&gt;tmp_poolp, PR_FALSE);</span>
+<span class="lineNum">    1079 </span><span class="lineCov">          1 :     PORT_Free(p7dcx);</span>
+<span class="lineNum">    1080 </span><span class="lineCov">          1 :     return cinfo;</span>
+<span class="lineNum">    1081 </span>            : }
+<a name="1082"><span class="lineNum">    1082 </span>            : </a>
+<span class="lineNum">    1083 </span>            : SEC_PKCS7ContentInfo *
+<span class="lineNum">    1084 </span><span class="lineNoCov">          0 : SEC_PKCS7DecodeItem(SECItem *p7item,</span>
+<span class="lineNum">    1085 </span>            :                     SEC_PKCS7DecoderContentCallback cb, void *cb_arg,
+<span class="lineNum">    1086 </span>            :                     SECKEYGetPasswordKey pwfn, void *pwfn_arg,
+<span class="lineNum">    1087 </span>            :                     SEC_PKCS7GetDecryptKeyCallback decrypt_key_cb,
+<span class="lineNum">    1088 </span>            :                     void *decrypt_key_cb_arg,
+<span class="lineNum">    1089 </span>            :                     SEC_PKCS7DecryptionAllowedCallback decrypt_allowed_cb)
+<span class="lineNum">    1090 </span>            : {
+<span class="lineNum">    1091 </span>            :     SEC_PKCS7DecoderContext *p7dcx;
+<span class="lineNum">    1092 </span>            : 
+<span class="lineNum">    1093 </span><span class="lineNoCov">          0 :     p7dcx = SEC_PKCS7DecoderStart(cb, cb_arg, pwfn, pwfn_arg, decrypt_key_cb,</span>
+<span class="lineNum">    1094 </span>            :                                   decrypt_key_cb_arg, decrypt_allowed_cb);
+<span class="lineNum">    1095 </span><span class="lineNoCov">          0 :     if (!p7dcx) {</span>
+<span class="lineNum">    1096 </span>            :         /* error code is set */
+<span class="lineNum">    1097 </span>            :         return NULL;
+<span class="lineNum">    1098 </span>            :     }
+<span class="lineNum">    1099 </span><span class="lineNoCov">          0 :     (void)SEC_PKCS7DecoderUpdate(p7dcx, (char *)p7item-&gt;data, p7item-&gt;len);</span>
+<span class="lineNum">    1100 </span><span class="lineNoCov">          0 :     return SEC_PKCS7DecoderFinish(p7dcx);</span>
+<span class="lineNum">    1101 </span>            : }
+<span class="lineNum">    1102 </span>            : 
+<span class="lineNum">    1103 </span>            : /*
+<span class="lineNum">    1104 </span>            :  * Abort the ASN.1 stream. Used by pkcs 12
+<a name="1105"><span class="lineNum">    1105 </span>            :  */</a>
+<span class="lineNum">    1106 </span>            : void
+<span class="lineNum">    1107 </span><span class="lineCov">          1 : SEC_PKCS7DecoderAbort(SEC_PKCS7DecoderContext *p7dcx, int error)</span>
+<span class="lineNum">    1108 </span>            : {
+<span class="lineNum">    1109 </span>            :     PORT_Assert(p7dcx);
+<span class="lineNum">    1110 </span><span class="lineCov">          1 :     SEC_ASN1DecoderAbort(p7dcx-&gt;dcx, error);</span>
+<span class="lineNum">    1111 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">    1112 </span>            : 
+<span class="lineNum">    1113 </span>            : /*
+<span class="lineNum">    1114 </span>            :  * If the thing contains any certs or crls return true; false otherwise.
+<a name="1115"><span class="lineNum">    1115 </span>            :  */</a>
+<span class="lineNum">    1116 </span>            : PRBool
+<span class="lineNum">    1117 </span><span class="lineNoCov">          0 : SEC_PKCS7ContainsCertsOrCrls(SEC_PKCS7ContentInfo *cinfo)</span>
+<span class="lineNum">    1118 </span>            : {
+<span class="lineNum">    1119 </span>            :     SECOidTag kind;
+<span class="lineNum">    1120 </span>            :     SECItem **certs;
+<span class="lineNum">    1121 </span>            :     CERTSignedCrl **crls;
+<span class="lineNum">    1122 </span>            : 
+<span class="lineNum">    1123 </span><span class="lineNoCov">          0 :     kind = SEC_PKCS7ContentType(cinfo);</span>
+<span class="lineNum">    1124 </span><span class="lineNoCov">          0 :     switch (kind) {</span>
+<span class="lineNum">    1125 </span>            :         default:
+<span class="lineNum">    1126 </span>            :         case SEC_OID_PKCS7_DATA:
+<span class="lineNum">    1127 </span>            :         case SEC_OID_PKCS7_DIGESTED_DATA:
+<span class="lineNum">    1128 </span>            :         case SEC_OID_PKCS7_ENVELOPED_DATA:
+<span class="lineNum">    1129 </span>            :         case SEC_OID_PKCS7_ENCRYPTED_DATA:
+<span class="lineNum">    1130 </span>            :             return PR_FALSE;
+<span class="lineNum">    1131 </span>            :         case SEC_OID_PKCS7_SIGNED_DATA:
+<span class="lineNum">    1132 </span><span class="lineNoCov">          0 :             certs = cinfo-&gt;content.signedData-&gt;rawCerts;</span>
+<span class="lineNum">    1133 </span><span class="lineNoCov">          0 :             crls = cinfo-&gt;content.signedData-&gt;crls;</span>
+<span class="lineNum">    1134 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">    1135 </span>            :         case SEC_OID_PKCS7_SIGNED_ENVELOPED_DATA:
+<span class="lineNum">    1136 </span><span class="lineNoCov">          0 :             certs = cinfo-&gt;content.signedAndEnvelopedData-&gt;rawCerts;</span>
+<span class="lineNum">    1137 </span><span class="lineNoCov">          0 :             crls = cinfo-&gt;content.signedAndEnvelopedData-&gt;crls;</span>
+<span class="lineNum">    1138 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">    1139 </span>            :     }
+<span class="lineNum">    1140 </span>            : 
+<span class="lineNum">    1141 </span>            :     /*
+<span class="lineNum">    1142 </span>            :      * I know this could be collapsed, but I was in a mood to be explicit.
+<span class="lineNum">    1143 </span>            :      */
+<span class="lineNum">    1144 </span><span class="lineNoCov">          0 :     if (certs != NULL &amp;&amp; certs[0] != NULL)</span>
+<span class="lineNum">    1145 </span>            :         return PR_TRUE;
+<span class="lineNum">    1146 </span><span class="lineNoCov">          0 :     else if (crls != NULL &amp;&amp; crls[0] != NULL)</span>
+<span class="lineNum">    1147 </span>            :         return PR_TRUE;
+<span class="lineNum">    1148 </span>            :     else
+<span class="lineNum">    1149 </span><span class="lineNoCov">          0 :         return PR_FALSE;</span>
+<span class="lineNum">    1150 </span>            : }
+<span class="lineNum">    1151 </span>            : 
+<span class="lineNum">    1152 </span>            : /* return the content length...could use GetContent, however we
+<span class="lineNum">    1153 </span>            :  * need the encrypted content length
+<a name="1154"><span class="lineNum">    1154 </span>            :  */</a>
+<span class="lineNum">    1155 </span>            : PRBool
+<span class="lineNum">    1156 </span><span class="lineNoCov">          0 : SEC_PKCS7IsContentEmpty(SEC_PKCS7ContentInfo *cinfo, unsigned int minLen)</span>
+<span class="lineNum">    1157 </span>            : {
+<span class="lineNum">    1158 </span><span class="lineNoCov">          0 :     SECItem *item = NULL;</span>
+<span class="lineNum">    1159 </span>            : 
+<span class="lineNum">    1160 </span><span class="lineNoCov">          0 :     if (cinfo == NULL) {</span>
+<span class="lineNum">    1161 </span>            :         return PR_TRUE;
+<span class="lineNum">    1162 </span>            :     }
+<span class="lineNum">    1163 </span>            : 
+<span class="lineNum">    1164 </span><span class="lineNoCov">          0 :     switch (SEC_PKCS7ContentType(cinfo)) {</span>
+<span class="lineNum">    1165 </span>            :         case SEC_OID_PKCS7_DATA:
+<span class="lineNum">    1166 </span><span class="lineNoCov">          0 :             item = cinfo-&gt;content.data;</span>
+<span class="lineNum">    1167 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">    1168 </span>            :         case SEC_OID_PKCS7_ENCRYPTED_DATA:
+<span class="lineNum">    1169 </span><span class="lineNoCov">          0 :             item = &amp;cinfo-&gt;content.encryptedData-&gt;encContentInfo.encContent;</span>
+<span class="lineNum">    1170 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">    1171 </span>            :         default:
+<span class="lineNum">    1172 </span>            :             /* add other types */
+<span class="lineNum">    1173 </span>            :             return PR_FALSE;
+<span class="lineNum">    1174 </span>            :     }
+<span class="lineNum">    1175 </span>            : 
+<span class="lineNum">    1176 </span><span class="lineNoCov">          0 :     if (!item) {</span>
+<span class="lineNum">    1177 </span>            :         return PR_TRUE;
+<span class="lineNum">    1178 </span><span class="lineNoCov">          0 :     } else if (item-&gt;len &lt;= minLen) {</span>
+<span class="lineNum">    1179 </span>            :         return PR_TRUE;
+<span class="lineNum">    1180 </span>            :     }
+<span class="lineNum">    1181 </span>            : 
+<span class="lineNum">    1182 </span><span class="lineNoCov">          0 :     return PR_FALSE;</span>
+<span class="lineNum">    1183 </span>            : }
+<a name="1184"><span class="lineNum">    1184 </span>            : </a>
+<span class="lineNum">    1185 </span>            : PRBool
+<span class="lineNum">    1186 </span><span class="lineNoCov">          0 : SEC_PKCS7ContentIsEncrypted(SEC_PKCS7ContentInfo *cinfo)</span>
+<span class="lineNum">    1187 </span>            : {
+<span class="lineNum">    1188 </span>            :     SECOidTag kind;
+<span class="lineNum">    1189 </span>            : 
+<span class="lineNum">    1190 </span><span class="lineNoCov">          0 :     kind = SEC_PKCS7ContentType(cinfo);</span>
+<span class="lineNum">    1191 </span>            :     switch (kind) {
+<span class="lineNum">    1192 </span>            :         default:
+<span class="lineNum">    1193 </span>            :         case SEC_OID_PKCS7_DATA:
+<span class="lineNum">    1194 </span>            :         case SEC_OID_PKCS7_DIGESTED_DATA:
+<span class="lineNum">    1195 </span>            :         case SEC_OID_PKCS7_SIGNED_DATA:
+<span class="lineNum">    1196 </span>            :             return PR_FALSE;
+<span class="lineNum">    1197 </span>            :         case SEC_OID_PKCS7_ENCRYPTED_DATA:
+<span class="lineNum">    1198 </span>            :         case SEC_OID_PKCS7_ENVELOPED_DATA:
+<span class="lineNum">    1199 </span>            :         case SEC_OID_PKCS7_SIGNED_ENVELOPED_DATA:
+<span class="lineNum">    1200 </span><span class="lineNoCov">          0 :             return PR_TRUE;</span>
+<span class="lineNum">    1201 </span>            :     }
+<span class="lineNum">    1202 </span>            : }
+<span class="lineNum">    1203 </span>            : 
+<span class="lineNum">    1204 </span>            : /*
+<span class="lineNum">    1205 </span>            :  * If the PKCS7 content has a signature (not just *could* have a signature)
+<span class="lineNum">    1206 </span>            :  * return true; false otherwise.  This can/should be called before calling
+<span class="lineNum">    1207 </span>            :  * VerifySignature, which will always indicate failure if no signature is
+<span class="lineNum">    1208 </span>            :  * present, but that does not mean there even was a signature!
+<span class="lineNum">    1209 </span>            :  * Note that the content itself can be empty (detached content was sent
+<span class="lineNum">    1210 </span>            :  * another way); it is the presence of the signature that matters.
+<a name="1211"><span class="lineNum">    1211 </span>            :  */</a>
+<span class="lineNum">    1212 </span>            : PRBool
+<span class="lineNum">    1213 </span><span class="lineNoCov">          0 : SEC_PKCS7ContentIsSigned(SEC_PKCS7ContentInfo *cinfo)</span>
+<span class="lineNum">    1214 </span>            : {
+<span class="lineNum">    1215 </span>            :     SECOidTag kind;
+<span class="lineNum">    1216 </span>            :     SEC_PKCS7SignerInfo **signerinfos;
+<span class="lineNum">    1217 </span>            : 
+<span class="lineNum">    1218 </span><span class="lineNoCov">          0 :     kind = SEC_PKCS7ContentType(cinfo);</span>
+<span class="lineNum">    1219 </span><span class="lineNoCov">          0 :     switch (kind) {</span>
+<span class="lineNum">    1220 </span>            :         default:
+<span class="lineNum">    1221 </span>            :         case SEC_OID_PKCS7_DATA:
+<span class="lineNum">    1222 </span>            :         case SEC_OID_PKCS7_DIGESTED_DATA:
+<span class="lineNum">    1223 </span>            :         case SEC_OID_PKCS7_ENVELOPED_DATA:
+<span class="lineNum">    1224 </span>            :         case SEC_OID_PKCS7_ENCRYPTED_DATA:
+<span class="lineNum">    1225 </span>            :             return PR_FALSE;
+<span class="lineNum">    1226 </span>            :         case SEC_OID_PKCS7_SIGNED_DATA:
+<span class="lineNum">    1227 </span><span class="lineNoCov">          0 :             signerinfos = cinfo-&gt;content.signedData-&gt;signerInfos;</span>
+<span class="lineNum">    1228 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">    1229 </span>            :         case SEC_OID_PKCS7_SIGNED_ENVELOPED_DATA:
+<span class="lineNum">    1230 </span><span class="lineNoCov">          0 :             signerinfos = cinfo-&gt;content.signedAndEnvelopedData-&gt;signerInfos;</span>
+<span class="lineNum">    1231 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">    1232 </span>            :     }
+<span class="lineNum">    1233 </span>            : 
+<span class="lineNum">    1234 </span>            :     /*
+<span class="lineNum">    1235 </span>            :      * I know this could be collapsed; but I kind of think it will get
+<span class="lineNum">    1236 </span>            :      * more complicated before I am finished, so...
+<span class="lineNum">    1237 </span>            :      */
+<span class="lineNum">    1238 </span><span class="lineNoCov">          0 :     if (signerinfos != NULL &amp;&amp; signerinfos[0] != NULL)</span>
+<span class="lineNum">    1239 </span>            :         return PR_TRUE;
+<span class="lineNum">    1240 </span>            :     else
+<span class="lineNum">    1241 </span><span class="lineNoCov">          0 :         return PR_FALSE;</span>
+<span class="lineNum">    1242 </span>            : }
+<span class="lineNum">    1243 </span>            : 
+<span class="lineNum">    1244 </span>            : /*
+<span class="lineNum">    1245 </span>            :  * sec_pkcs7_verify_signature
+<span class="lineNum">    1246 </span>            :  *
+<span class="lineNum">    1247 </span>            :  *      Look at a PKCS7 contentInfo and check if the signature is good.
+<span class="lineNum">    1248 </span>            :  *      The digest was either calculated earlier (and is stored in the
+<span class="lineNum">    1249 </span>            :  *      contentInfo itself) or is passed in via &quot;detached_digest&quot;.
+<span class="lineNum">    1250 </span>            :  *
+<span class="lineNum">    1251 </span>            :  *      The verification checks that the signing cert is valid and trusted
+<span class="lineNum">    1252 </span>            :  *      for the purpose specified by &quot;certusage&quot; at
+<span class="lineNum">    1253 </span>            :  *      - &quot;*atTime&quot; if &quot;atTime&quot; is not null, or
+<span class="lineNum">    1254 </span>            :  *      - the signing time if the signing time is available in &quot;cinfo&quot;, or
+<span class="lineNum">    1255 </span>            :  *      - the current time (as returned by PR_Now).
+<span class="lineNum">    1256 </span>            :  *
+<span class="lineNum">    1257 </span>            :  *      In addition, if &quot;keepcerts&quot; is true, add any new certificates found
+<span class="lineNum">    1258 </span>            :  *      into our local database.
+<span class="lineNum">    1259 </span>            :  *
+<span class="lineNum">    1260 </span>            :  * XXX Each place which returns PR_FALSE should be sure to have a good
+<span class="lineNum">    1261 </span>            :  * error set for inspection by the caller.  Alternatively, we could create
+<span class="lineNum">    1262 </span>            :  * an enumeration of success and each type of failure and return that
+<span class="lineNum">    1263 </span>            :  * instead of a boolean.  For now, the default in a bad situation is to
+<span class="lineNum">    1264 </span>            :  * set the error to SEC_ERROR_PKCS7_BAD_SIGNATURE.  But this should be
+<span class="lineNum">    1265 </span>            :  * reviewed; better (more specific) errors should be possible (to distinguish
+<span class="lineNum">    1266 </span>            :  * a signature failure from a badly-formed pkcs7 signedData, for example).
+<span class="lineNum">    1267 </span>            :  * Some of the errors should probably just be SEC_ERROR_BAD_SIGNATURE,
+<span class="lineNum">    1268 </span>            :  * but that has a less helpful error string associated with it right now;
+<span class="lineNum">    1269 </span>            :  * if/when that changes, review and change these as needed.
+<span class="lineNum">    1270 </span>            :  *
+<span class="lineNum">    1271 </span>            :  * XXX This is broken wrt signedAndEnvelopedData.  In that case, the
+<span class="lineNum">    1272 </span>            :  * message digest is doubly encrypted -- first encrypted with the signer
+<span class="lineNum">    1273 </span>            :  * private key but then again encrypted with the bulk encryption key used
+<span class="lineNum">    1274 </span>            :  * to encrypt the content.  So before we can pass the digest to VerifyDigest,
+<span class="lineNum">    1275 </span>            :  * we need to decrypt it with the bulk encryption key.  Also, in this case,
+<span class="lineNum">    1276 </span>            :  * there should be NO authenticatedAttributes (signerinfo-&gt;authAttr should
+<span class="lineNum">    1277 </span>            :  * be NULL).
+<a name="1278"><span class="lineNum">    1278 </span>            :  */</a>
+<span class="lineNum">    1279 </span>            : static PRBool
+<span class="lineNum">    1280 </span><span class="lineNoCov">          0 : sec_pkcs7_verify_signature(SEC_PKCS7ContentInfo *cinfo,</span>
+<span class="lineNum">    1281 </span>            :                            SECCertUsage certusage,
+<span class="lineNum">    1282 </span>            :                            const SECItem *detached_digest,
+<span class="lineNum">    1283 </span>            :                            HASH_HashType digest_type,
+<span class="lineNum">    1284 </span>            :                            PRBool keepcerts,
+<span class="lineNum">    1285 </span>            :                            const PRTime *atTime)
+<span class="lineNum">    1286 </span>            : {
+<span class="lineNum">    1287 </span>            :     SECAlgorithmID **digestalgs, *bulkid;
+<span class="lineNum">    1288 </span>            :     const SECItem *digest;
+<span class="lineNum">    1289 </span>            :     SECItem **digests;
+<span class="lineNum">    1290 </span>            :     SECItem **rawcerts;
+<span class="lineNum">    1291 </span>            :     SEC_PKCS7SignerInfo **signerinfos, *signerinfo;
+<span class="lineNum">    1292 </span>            :     CERTCertificate *cert, **certs;
+<span class="lineNum">    1293 </span>            :     PRBool goodsig;
+<span class="lineNum">    1294 </span>            :     CERTCertDBHandle *certdb, *defaultdb;
+<span class="lineNum">    1295 </span>            :     SECOidTag encTag, digestTag;
+<span class="lineNum">    1296 </span>            :     HASH_HashType found_type;
+<span class="lineNum">    1297 </span>            :     int i, certcount;
+<span class="lineNum">    1298 </span>            :     SECKEYPublicKey *publickey;
+<span class="lineNum">    1299 </span>            :     SECItem *content_type;
+<span class="lineNum">    1300 </span>            :     PK11SymKey *sigkey;
+<span class="lineNum">    1301 </span>            :     SECItem *encoded_stime;
+<span class="lineNum">    1302 </span>            :     PRTime stime;
+<span class="lineNum">    1303 </span>            :     PRTime verificationTime;
+<span class="lineNum">    1304 </span>            :     SECStatus rv;
+<span class="lineNum">    1305 </span>            : 
+<span class="lineNum">    1306 </span>            :     /*
+<span class="lineNum">    1307 </span>            :      * Everything needed in order to &quot;goto done&quot; safely.
+<span class="lineNum">    1308 </span>            :      */
+<span class="lineNum">    1309 </span><span class="lineNoCov">          0 :     goodsig = PR_FALSE;</span>
+<span class="lineNum">    1310 </span><span class="lineNoCov">          0 :     certcount = 0;</span>
+<span class="lineNum">    1311 </span><span class="lineNoCov">          0 :     cert = NULL;</span>
+<span class="lineNum">    1312 </span><span class="lineNoCov">          0 :     certs = NULL;</span>
+<span class="lineNum">    1313 </span><span class="lineNoCov">          0 :     certdb = NULL;</span>
+<span class="lineNum">    1314 </span><span class="lineNoCov">          0 :     defaultdb = CERT_GetDefaultCertDB();</span>
+<span class="lineNum">    1315 </span><span class="lineNoCov">          0 :     publickey = NULL;</span>
+<span class="lineNum">    1316 </span>            : 
+<span class="lineNum">    1317 </span><span class="lineNoCov">          0 :     if (!SEC_PKCS7ContentIsSigned(cinfo)) {</span>
+<span class="lineNum">    1318 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_PKCS7_BAD_SIGNATURE);</span>
+<span class="lineNum">    1319 </span><span class="lineNoCov">          0 :         goto done;</span>
+<span class="lineNum">    1320 </span>            :     }
+<span class="lineNum">    1321 </span>            : 
+<span class="lineNum">    1322 </span>            :     PORT_Assert(cinfo-&gt;contentTypeTag != NULL);
+<span class="lineNum">    1323 </span>            : 
+<span class="lineNum">    1324 </span><span class="lineNoCov">          0 :     switch (cinfo-&gt;contentTypeTag-&gt;offset) {</span>
+<span class="lineNum">    1325 </span>            :         default:
+<span class="lineNum">    1326 </span>            :         case SEC_OID_PKCS7_DATA:
+<span class="lineNum">    1327 </span>            :         case SEC_OID_PKCS7_DIGESTED_DATA:
+<span class="lineNum">    1328 </span>            :         case SEC_OID_PKCS7_ENVELOPED_DATA:
+<span class="lineNum">    1329 </span>            :         case SEC_OID_PKCS7_ENCRYPTED_DATA:
+<span class="lineNum">    1330 </span>            :             /* Could only get here if SEC_PKCS7ContentIsSigned is broken. */
+<span class="lineNum">    1331 </span>            :             PORT_Assert(0);
+<span class="lineNum">    1332 </span>            :         case SEC_OID_PKCS7_SIGNED_DATA: {
+<span class="lineNum">    1333 </span>            :             SEC_PKCS7SignedData *sdp;
+<span class="lineNum">    1334 </span>            : 
+<span class="lineNum">    1335 </span><span class="lineNoCov">          0 :             sdp = cinfo-&gt;content.signedData;</span>
+<span class="lineNum">    1336 </span><span class="lineNoCov">          0 :             digestalgs = sdp-&gt;digestAlgorithms;</span>
+<span class="lineNum">    1337 </span><span class="lineNoCov">          0 :             digests = sdp-&gt;digests;</span>
+<span class="lineNum">    1338 </span><span class="lineNoCov">          0 :             rawcerts = sdp-&gt;rawCerts;</span>
+<span class="lineNum">    1339 </span><span class="lineNoCov">          0 :             signerinfos = sdp-&gt;signerInfos;</span>
+<span class="lineNum">    1340 </span><span class="lineNoCov">          0 :             content_type = &amp;(sdp-&gt;contentInfo.contentType);</span>
+<span class="lineNum">    1341 </span><span class="lineNoCov">          0 :             sigkey = NULL;</span>
+<span class="lineNum">    1342 </span><span class="lineNoCov">          0 :             bulkid = NULL;</span>
+<span class="lineNum">    1343 </span><span class="lineNoCov">          0 :         } break;</span>
+<span class="lineNum">    1344 </span>            :         case SEC_OID_PKCS7_SIGNED_ENVELOPED_DATA: {
+<span class="lineNum">    1345 </span>            :             SEC_PKCS7SignedAndEnvelopedData *saedp;
+<span class="lineNum">    1346 </span>            : 
+<span class="lineNum">    1347 </span><span class="lineNoCov">          0 :             saedp = cinfo-&gt;content.signedAndEnvelopedData;</span>
+<span class="lineNum">    1348 </span><span class="lineNoCov">          0 :             digestalgs = saedp-&gt;digestAlgorithms;</span>
+<span class="lineNum">    1349 </span><span class="lineNoCov">          0 :             digests = saedp-&gt;digests;</span>
+<span class="lineNum">    1350 </span><span class="lineNoCov">          0 :             rawcerts = saedp-&gt;rawCerts;</span>
+<span class="lineNum">    1351 </span><span class="lineNoCov">          0 :             signerinfos = saedp-&gt;signerInfos;</span>
+<span class="lineNum">    1352 </span><span class="lineNoCov">          0 :             content_type = &amp;(saedp-&gt;encContentInfo.contentType);</span>
+<span class="lineNum">    1353 </span><span class="lineNoCov">          0 :             sigkey = saedp-&gt;sigKey;</span>
+<span class="lineNum">    1354 </span><span class="lineNoCov">          0 :             bulkid = &amp;(saedp-&gt;encContentInfo.contentEncAlg);</span>
+<span class="lineNum">    1355 </span><span class="lineNoCov">          0 :         } break;</span>
+<span class="lineNum">    1356 </span>            :     }
+<span class="lineNum">    1357 </span>            : 
+<span class="lineNum">    1358 </span><span class="lineNoCov">          0 :     if ((signerinfos == NULL) || (signerinfos[0] == NULL)) {</span>
+<span class="lineNum">    1359 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_PKCS7_BAD_SIGNATURE);</span>
+<span class="lineNum">    1360 </span><span class="lineNoCov">          0 :         goto done;</span>
+<span class="lineNum">    1361 </span>            :     }
+<span class="lineNum">    1362 </span>            : 
+<span class="lineNum">    1363 </span>            :     /*
+<span class="lineNum">    1364 </span>            :      * XXX Need to handle multiple signatures; checking them is easy,
+<span class="lineNum">    1365 </span>            :      * but what should be the semantics here (like, return value)?
+<span class="lineNum">    1366 </span>            :      */
+<span class="lineNum">    1367 </span><span class="lineNoCov">          0 :     if (signerinfos[1] != NULL) {</span>
+<span class="lineNum">    1368 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_PKCS7_BAD_SIGNATURE);</span>
+<span class="lineNum">    1369 </span><span class="lineNoCov">          0 :         goto done;</span>
+<span class="lineNum">    1370 </span>            :     }
+<span class="lineNum">    1371 </span>            : 
+<span class="lineNum">    1372 </span><span class="lineNoCov">          0 :     signerinfo = signerinfos[0];</span>
+<span class="lineNum">    1373 </span>            : 
+<span class="lineNum">    1374 </span>            :     /*
+<span class="lineNum">    1375 </span>            :      * XXX I would like to just pass the issuerAndSN, along with the rawcerts
+<span class="lineNum">    1376 </span>            :      * and crls, to some function that did all of this certificate stuff
+<span class="lineNum">    1377 </span>            :      * (open/close the database if necessary, verifying the certs, etc.)
+<span class="lineNum">    1378 </span>            :      * and gave me back a cert pointer if all was good.
+<span class="lineNum">    1379 </span>            :      */
+<span class="lineNum">    1380 </span><span class="lineNoCov">          0 :     certdb = defaultdb;</span>
+<span class="lineNum">    1381 </span><span class="lineNoCov">          0 :     if (certdb == NULL) {</span>
+<span class="lineNum">    1382 </span>            :         goto done;
+<span class="lineNum">    1383 </span>            :     }
+<span class="lineNum">    1384 </span>            : 
+<span class="lineNum">    1385 </span><span class="lineNoCov">          0 :     certcount = 0;</span>
+<span class="lineNum">    1386 </span><span class="lineNoCov">          0 :     if (rawcerts != NULL) {</span>
+<span class="lineNum">    1387 </span><span class="lineNoCov">          0 :         for (; rawcerts[certcount] != NULL; certcount++) {</span>
+<span class="lineNum">    1388 </span>            :             /* just counting */
+<span class="lineNum">    1389 </span>            :         }
+<span class="lineNum">    1390 </span>            :     }
+<span class="lineNum">    1391 </span>            : 
+<span class="lineNum">    1392 </span>            :     /*
+<span class="lineNum">    1393 </span>            :      * Note that the result of this is that each cert in &quot;certs&quot;
+<span class="lineNum">    1394 </span>            :      * needs to be destroyed.
+<span class="lineNum">    1395 </span>            :      */
+<span class="lineNum">    1396 </span><span class="lineNoCov">          0 :     rv = CERT_ImportCerts(certdb, certusage, certcount, rawcerts, &amp;certs,</span>
+<span class="lineNum">    1397 </span>            :                           keepcerts, PR_FALSE, NULL);
+<span class="lineNum">    1398 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">    1399 </span>            :         goto done;
+<span class="lineNum">    1400 </span>            :     }
+<span class="lineNum">    1401 </span>            : 
+<span class="lineNum">    1402 </span>            :     /*
+<span class="lineNum">    1403 </span>            :      * This cert will also need to be freed, but since we save it
+<span class="lineNum">    1404 </span>            :      * in signerinfo for later, we do not want to destroy it when
+<span class="lineNum">    1405 </span>            :      * we leave this function -- we let the clean-up of the entire
+<span class="lineNum">    1406 </span>            :      * cinfo structure later do the destroy of this cert.
+<span class="lineNum">    1407 </span>            :      */
+<span class="lineNum">    1408 </span><span class="lineNoCov">          0 :     cert = CERT_FindCertByIssuerAndSN(certdb, signerinfo-&gt;issuerAndSN);</span>
+<span class="lineNum">    1409 </span><span class="lineNoCov">          0 :     if (cert == NULL) {</span>
+<span class="lineNum">    1410 </span>            :         goto done;
+<span class="lineNum">    1411 </span>            :     }
+<span class="lineNum">    1412 </span>            : 
+<span class="lineNum">    1413 </span><span class="lineNoCov">          0 :     signerinfo-&gt;cert = cert;</span>
+<span class="lineNum">    1414 </span>            : 
+<span class="lineNum">    1415 </span>            :     /*
+<span class="lineNum">    1416 </span>            :      * Get and convert the signing time; if available, it will be used
+<span class="lineNum">    1417 </span>            :      * both on the cert verification and for importing the sender
+<span class="lineNum">    1418 </span>            :      * email profile.
+<span class="lineNum">    1419 </span>            :      */
+<span class="lineNum">    1420 </span><span class="lineNoCov">          0 :     encoded_stime = SEC_PKCS7GetSigningTime(cinfo);</span>
+<span class="lineNum">    1421 </span><span class="lineNoCov">          0 :     if (encoded_stime != NULL) {</span>
+<span class="lineNum">    1422 </span><span class="lineNoCov">          0 :         if (DER_DecodeTimeChoice(&amp;stime, encoded_stime) != SECSuccess)</span>
+<span class="lineNum">    1423 </span><span class="lineNoCov">          0 :             encoded_stime = NULL; /* conversion failed, so pretend none */</span>
+<span class="lineNum">    1424 </span>            :     }
+<span class="lineNum">    1425 </span>            : 
+<span class="lineNum">    1426 </span>            :     /*
+<span class="lineNum">    1427 </span>            :      * XXX  This uses the signing time, if available.  Additionally, we
+<span class="lineNum">    1428 </span>            :      * might want to, if there is no signing time, get the message time
+<span class="lineNum">    1429 </span>            :      * from the mail header itself, and use that.  That would require
+<span class="lineNum">    1430 </span>            :      * a change to our interface though, and for S/MIME callers to pass
+<span class="lineNum">    1431 </span>            :      * in a time (and for non-S/MIME callers to pass in nothing, or
+<span class="lineNum">    1432 </span>            :      * maybe make them pass in the current time, always?).
+<span class="lineNum">    1433 </span>            :      */
+<span class="lineNum">    1434 </span><span class="lineNoCov">          0 :     if (atTime) {</span>
+<span class="lineNum">    1435 </span><span class="lineNoCov">          0 :         verificationTime = *atTime;</span>
+<span class="lineNum">    1436 </span><span class="lineNoCov">          0 :     } else if (encoded_stime != NULL) {</span>
+<span class="lineNum">    1437 </span><span class="lineNoCov">          0 :         verificationTime = stime;</span>
+<span class="lineNum">    1438 </span>            :     } else {
+<span class="lineNum">    1439 </span><span class="lineNoCov">          0 :         verificationTime = PR_Now();</span>
+<span class="lineNum">    1440 </span>            :     }
+<span class="lineNum">    1441 </span><span class="lineNoCov">          0 :     if (CERT_VerifyCert(certdb, cert, PR_TRUE, certusage, verificationTime,</span>
+<span class="lineNum">    1442 </span>            :                         cinfo-&gt;pwfn_arg, NULL) != SECSuccess) {
+<span class="lineNum">    1443 </span>            :         /*
+<span class="lineNum">    1444 </span>            :          * XXX Give the user an option to check the signature anyway?
+<span class="lineNum">    1445 </span>            :          * If we want to do this, need to give a way to leave and display
+<span class="lineNum">    1446 </span>            :          * some dialog and get the answer and come back through (or do
+<span class="lineNum">    1447 </span>            :          * the rest of what we do below elsewhere, maybe by putting it
+<span class="lineNum">    1448 </span>            :          * in a function that we call below and could call from a dialog
+<span class="lineNum">    1449 </span>            :          * finish handler).
+<span class="lineNum">    1450 </span>            :          */
+<span class="lineNum">    1451 </span>            :         goto savecert;
+<span class="lineNum">    1452 </span>            :     }
+<span class="lineNum">    1453 </span>            : 
+<span class="lineNum">    1454 </span><span class="lineNoCov">          0 :     publickey = CERT_ExtractPublicKey(cert);</span>
+<span class="lineNum">    1455 </span><span class="lineNoCov">          0 :     if (publickey == NULL)</span>
+<span class="lineNum">    1456 </span>            :         goto done;
+<span class="lineNum">    1457 </span>            : 
+<span class="lineNum">    1458 </span>            :     /*
+<span class="lineNum">    1459 </span>            :      * XXX No!  If digests is empty, see if we can create it now by
+<span class="lineNum">    1460 </span>            :      * digesting the contents.  This is necessary if we want to allow
+<span class="lineNum">    1461 </span>            :      * somebody to do a simple decode (without filtering, etc.) and
+<span class="lineNum">    1462 </span>            :      * then later call us here to do the verification.
+<span class="lineNum">    1463 </span>            :      * OR, we can just specify that the interface to this routine
+<span class="lineNum">    1464 </span>            :      * *requires* that the digest(s) be done before calling and either
+<span class="lineNum">    1465 </span>            :      * stashed in the struct itself or passed in explicitly (as would
+<span class="lineNum">    1466 </span>            :      * be done for detached contents).
+<span class="lineNum">    1467 </span>            :      */
+<span class="lineNum">    1468 </span><span class="lineNoCov">          0 :     if ((digests == NULL || digests[0] == NULL) &amp;&amp; (detached_digest == NULL || detached_digest-&gt;data == NULL))</span>
+<span class="lineNum">    1469 </span>            :         goto done;
+<span class="lineNum">    1470 </span>            : 
+<span class="lineNum">    1471 </span>            :     /*
+<span class="lineNum">    1472 </span>            :      * Find and confirm digest algorithm.
+<span class="lineNum">    1473 </span>            :      */
+<span class="lineNum">    1474 </span><span class="lineNoCov">          0 :     digestTag = SECOID_FindOIDTag(&amp;(signerinfo-&gt;digestAlg.algorithm));</span>
+<span class="lineNum">    1475 </span>            : 
+<span class="lineNum">    1476 </span>            :     /* make sure we understand the digest type first */
+<span class="lineNum">    1477 </span><span class="lineNoCov">          0 :     found_type = HASH_GetHashTypeByOidTag(digestTag);</span>
+<span class="lineNum">    1478 </span><span class="lineNoCov">          0 :     if ((digestTag == SEC_OID_UNKNOWN) || (found_type == HASH_AlgNULL)) {</span>
+<span class="lineNum">    1479 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_PKCS7_BAD_SIGNATURE);</span>
+<span class="lineNum">    1480 </span><span class="lineNoCov">          0 :         goto done;</span>
+<span class="lineNum">    1481 </span>            :     }
+<span class="lineNum">    1482 </span>            : 
+<span class="lineNum">    1483 </span><span class="lineNoCov">          0 :     if (detached_digest != NULL) {</span>
+<span class="lineNum">    1484 </span><span class="lineNoCov">          0 :         unsigned int hashLen = HASH_ResultLen(found_type);</span>
+<span class="lineNum">    1485 </span>            : 
+<span class="lineNum">    1486 </span><span class="lineNoCov">          0 :         if (digest_type != found_type ||</span>
+<span class="lineNum">    1487 </span><span class="lineNoCov">          0 :             detached_digest-&gt;len != hashLen) {</span>
+<span class="lineNum">    1488 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_PKCS7_BAD_SIGNATURE);</span>
+<span class="lineNum">    1489 </span><span class="lineNoCov">          0 :             goto done;</span>
+<span class="lineNum">    1490 </span>            :         }
+<span class="lineNum">    1491 </span>            :         digest = detached_digest;
+<span class="lineNum">    1492 </span>            :     } else {
+<span class="lineNum">    1493 </span>            :         PORT_Assert(digestalgs != NULL &amp;&amp; digestalgs[0] != NULL);
+<span class="lineNum">    1494 </span><span class="lineNoCov">          0 :         if (digestalgs == NULL || digestalgs[0] == NULL) {</span>
+<span class="lineNum">    1495 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_PKCS7_BAD_SIGNATURE);</span>
+<span class="lineNum">    1496 </span><span class="lineNoCov">          0 :             goto done;</span>
+<span class="lineNum">    1497 </span>            :         }
+<span class="lineNum">    1498 </span>            : 
+<span class="lineNum">    1499 </span>            :         /*
+<span class="lineNum">    1500 </span>            :          * pick digest matching signerinfo-&gt;digestAlg from digests
+<span class="lineNum">    1501 </span>            :          */
+<span class="lineNum">    1502 </span><span class="lineNoCov">          0 :         for (i = 0; digestalgs[i] != NULL; i++) {</span>
+<span class="lineNum">    1503 </span><span class="lineNoCov">          0 :             if (SECOID_FindOIDTag(&amp;(digestalgs[i]-&gt;algorithm)) == digestTag)</span>
+<span class="lineNum">    1504 </span>            :                 break;
+<span class="lineNum">    1505 </span>            :         }
+<span class="lineNum">    1506 </span><span class="lineNoCov">          0 :         if (digestalgs[i] == NULL) {</span>
+<span class="lineNum">    1507 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_PKCS7_BAD_SIGNATURE);</span>
+<span class="lineNum">    1508 </span><span class="lineNoCov">          0 :             goto done;</span>
+<span class="lineNum">    1509 </span>            :         }
+<span class="lineNum">    1510 </span>            : 
+<span class="lineNum">    1511 </span><span class="lineNoCov">          0 :         digest = digests[i];</span>
+<span class="lineNum">    1512 </span>            :     }
+<span class="lineNum">    1513 </span>            : 
+<span class="lineNum">    1514 </span><span class="lineNoCov">          0 :     encTag = SECOID_FindOIDTag(&amp;(signerinfo-&gt;digestEncAlg.algorithm));</span>
+<span class="lineNum">    1515 </span><span class="lineNoCov">          0 :     if (encTag == SEC_OID_UNKNOWN) {</span>
+<span class="lineNum">    1516 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_PKCS7_BAD_SIGNATURE);</span>
+<span class="lineNum">    1517 </span><span class="lineNoCov">          0 :         goto done;</span>
+<span class="lineNum">    1518 </span>            :     }
+<span class="lineNum">    1519 </span>            : 
+<span class="lineNum">    1520 </span><span class="lineNoCov">          0 :     if (signerinfo-&gt;authAttr != NULL) {</span>
+<span class="lineNum">    1521 </span>            :         SEC_PKCS7Attribute *attr;
+<span class="lineNum">    1522 </span>            :         SECItem *value;
+<span class="lineNum">    1523 </span>            :         SECItem encoded_attrs;
+<span class="lineNum">    1524 </span>            : 
+<span class="lineNum">    1525 </span>            :         /*
+<span class="lineNum">    1526 </span>            :          * We have a sigkey only for signedAndEnvelopedData, which is
+<span class="lineNum">    1527 </span>            :          * not supposed to have any authenticated attributes.
+<span class="lineNum">    1528 </span>            :          */
+<span class="lineNum">    1529 </span><span class="lineNoCov">          0 :         if (sigkey != NULL) {</span>
+<span class="lineNum">    1530 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_PKCS7_BAD_SIGNATURE);</span>
+<span class="lineNum">    1531 </span><span class="lineNoCov">          0 :             goto done;</span>
+<span class="lineNum">    1532 </span>            :         }
+<span class="lineNum">    1533 </span>            : 
+<span class="lineNum">    1534 </span>            :         /*
+<span class="lineNum">    1535 </span>            :          * PKCS #7 says that if there are any authenticated attributes,
+<span class="lineNum">    1536 </span>            :          * then there must be one for content type which matches the
+<span class="lineNum">    1537 </span>            :          * content type of the content being signed, and there must
+<span class="lineNum">    1538 </span>            :          * be one for message digest which matches our message digest.
+<span class="lineNum">    1539 </span>            :          * So check these things first.
+<span class="lineNum">    1540 </span>            :          * XXX Might be nice to have a compare-attribute-value function
+<span class="lineNum">    1541 </span>            :          * which could collapse the following nicely.
+<span class="lineNum">    1542 </span>            :          */
+<span class="lineNum">    1543 </span><span class="lineNoCov">          0 :         attr = sec_PKCS7FindAttribute(signerinfo-&gt;authAttr,</span>
+<span class="lineNum">    1544 </span>            :                                       SEC_OID_PKCS9_CONTENT_TYPE, PR_TRUE);
+<span class="lineNum">    1545 </span><span class="lineNoCov">          0 :         value = sec_PKCS7AttributeValue(attr);</span>
+<span class="lineNum">    1546 </span><span class="lineNoCov">          0 :         if (value == NULL || value-&gt;len != content_type-&gt;len) {</span>
+<span class="lineNum">    1547 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_PKCS7_BAD_SIGNATURE);</span>
+<span class="lineNum">    1548 </span><span class="lineNoCov">          0 :             goto done;</span>
+<span class="lineNum">    1549 </span>            :         }
+<span class="lineNum">    1550 </span><span class="lineNoCov">          0 :         if (PORT_Memcmp(value-&gt;data, content_type-&gt;data, value-&gt;len) != 0) {</span>
+<span class="lineNum">    1551 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_PKCS7_BAD_SIGNATURE);</span>
+<span class="lineNum">    1552 </span><span class="lineNoCov">          0 :             goto done;</span>
+<span class="lineNum">    1553 </span>            :         }
+<span class="lineNum">    1554 </span>            : 
+<span class="lineNum">    1555 </span><span class="lineNoCov">          0 :         attr = sec_PKCS7FindAttribute(signerinfo-&gt;authAttr,</span>
+<span class="lineNum">    1556 </span>            :                                       SEC_OID_PKCS9_MESSAGE_DIGEST, PR_TRUE);
+<span class="lineNum">    1557 </span><span class="lineNoCov">          0 :         value = sec_PKCS7AttributeValue(attr);</span>
+<span class="lineNum">    1558 </span><span class="lineNoCov">          0 :         if (value == NULL || value-&gt;len != digest-&gt;len) {</span>
+<span class="lineNum">    1559 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_PKCS7_BAD_SIGNATURE);</span>
+<span class="lineNum">    1560 </span><span class="lineNoCov">          0 :             goto done;</span>
+<span class="lineNum">    1561 </span>            :         }
+<span class="lineNum">    1562 </span><span class="lineNoCov">          0 :         if (PORT_Memcmp(value-&gt;data, digest-&gt;data, value-&gt;len) != 0) {</span>
+<span class="lineNum">    1563 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_PKCS7_BAD_SIGNATURE);</span>
+<span class="lineNum">    1564 </span><span class="lineNoCov">          0 :             goto done;</span>
+<span class="lineNum">    1565 </span>            :         }
+<span class="lineNum">    1566 </span>            : 
+<span class="lineNum">    1567 </span>            :         /*
+<span class="lineNum">    1568 </span>            :          * Okay, we met the constraints of the basic attributes.
+<span class="lineNum">    1569 </span>            :          * Now check the signature, which is based on a digest of
+<span class="lineNum">    1570 </span>            :          * the DER-encoded authenticated attributes.  So, first we
+<span class="lineNum">    1571 </span>            :          * encode and then we digest/verify.
+<span class="lineNum">    1572 </span>            :          */
+<span class="lineNum">    1573 </span><span class="lineNoCov">          0 :         encoded_attrs.data = NULL;</span>
+<span class="lineNum">    1574 </span><span class="lineNoCov">          0 :         encoded_attrs.len = 0;</span>
+<span class="lineNum">    1575 </span><span class="lineNoCov">          0 :         if (sec_PKCS7EncodeAttributes(NULL, &amp;encoded_attrs,</span>
+<span class="lineNum">    1576 </span><span class="lineNoCov">          0 :                                       &amp;(signerinfo-&gt;authAttr)) == NULL)</span>
+<span class="lineNum">    1577 </span>            :             goto done;
+<span class="lineNum">    1578 </span>            : 
+<span class="lineNum">    1579 </span><span class="lineNoCov">          0 :         if (encoded_attrs.data == NULL || encoded_attrs.len == 0) {</span>
+<span class="lineNum">    1580 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_PKCS7_BAD_SIGNATURE);</span>
+<span class="lineNum">    1581 </span><span class="lineNoCov">          0 :             goto done;</span>
+<span class="lineNum">    1582 </span>            :         }
+<span class="lineNum">    1583 </span>            : 
+<span class="lineNum">    1584 </span><span class="lineNoCov">          0 :         goodsig = (PRBool)(VFY_VerifyDataDirect(encoded_attrs.data,</span>
+<span class="lineNum">    1585 </span>            :                                                 encoded_attrs.len,
+<span class="lineNum">    1586 </span><span class="lineNoCov">          0 :                                                 publickey, &amp;(signerinfo-&gt;encDigest),</span>
+<span class="lineNum">    1587 </span>            :                                                 encTag, digestTag, NULL,
+<span class="lineNum">    1588 </span>            :                                                 cinfo-&gt;pwfn_arg) == SECSuccess);
+<span class="lineNum">    1589 </span><span class="lineNoCov">          0 :         PORT_Free(encoded_attrs.data);</span>
+<span class="lineNum">    1590 </span>            :     } else {
+<span class="lineNum">    1591 </span>            :         SECItem *sig;
+<span class="lineNum">    1592 </span>            :         SECItem holder;
+<span class="lineNum">    1593 </span>            :         SECStatus rv;
+<span class="lineNum">    1594 </span>            : 
+<span class="lineNum">    1595 </span>            :         /*
+<span class="lineNum">    1596 </span>            :          * No authenticated attributes.
+<span class="lineNum">    1597 </span>            :          * The signature is based on the plain message digest.
+<span class="lineNum">    1598 </span>            :          */
+<span class="lineNum">    1599 </span>            : 
+<span class="lineNum">    1600 </span><span class="lineNoCov">          0 :         sig = &amp;(signerinfo-&gt;encDigest);</span>
+<span class="lineNum">    1601 </span><span class="lineNoCov">          0 :         if (sig-&gt;len == 0) { /* bad signature */</span>
+<span class="lineNum">    1602 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_PKCS7_BAD_SIGNATURE);</span>
+<span class="lineNum">    1603 </span><span class="lineNoCov">          0 :             goto done;</span>
+<span class="lineNum">    1604 </span>            :         }
+<span class="lineNum">    1605 </span>            : 
+<span class="lineNum">    1606 </span><span class="lineNoCov">          0 :         if (sigkey != NULL) {</span>
+<span class="lineNum">    1607 </span>            :             sec_PKCS7CipherObject *decryptobj;
+<span class="lineNum">    1608 </span>            :             unsigned int buflen;
+<span class="lineNum">    1609 </span>            : 
+<span class="lineNum">    1610 </span>            :             /*
+<span class="lineNum">    1611 </span>            :              * For signedAndEnvelopedData, we first must decrypt the encrypted
+<span class="lineNum">    1612 </span>            :              * digest with the bulk encryption key.  The result is the normal
+<span class="lineNum">    1613 </span>            :              * encrypted digest (aka the signature).
+<span class="lineNum">    1614 </span>            :              */
+<span class="lineNum">    1615 </span><span class="lineNoCov">          0 :             decryptobj = sec_PKCS7CreateDecryptObject(sigkey, bulkid);</span>
+<span class="lineNum">    1616 </span><span class="lineNoCov">          0 :             if (decryptobj == NULL)</span>
+<span class="lineNum">    1617 </span>            :                 goto done;
+<span class="lineNum">    1618 </span>            : 
+<span class="lineNum">    1619 </span><span class="lineNoCov">          0 :             buflen = sec_PKCS7DecryptLength(decryptobj, sig-&gt;len, PR_TRUE);</span>
+<span class="lineNum">    1620 </span>            :             PORT_Assert(buflen);
+<span class="lineNum">    1621 </span><span class="lineNoCov">          0 :             if (buflen == 0) { /* something is wrong */</span>
+<span class="lineNum">    1622 </span><span class="lineNoCov">          0 :                 sec_PKCS7DestroyDecryptObject(decryptobj);</span>
+<span class="lineNum">    1623 </span><span class="lineNoCov">          0 :                 goto done;</span>
+<span class="lineNum">    1624 </span>            :             }
+<span class="lineNum">    1625 </span>            : 
+<span class="lineNum">    1626 </span><span class="lineNoCov">          0 :             holder.data = (unsigned char *)PORT_Alloc(buflen);</span>
+<span class="lineNum">    1627 </span><span class="lineNoCov">          0 :             if (holder.data == NULL) {</span>
+<span class="lineNum">    1628 </span><span class="lineNoCov">          0 :                 sec_PKCS7DestroyDecryptObject(decryptobj);</span>
+<span class="lineNum">    1629 </span><span class="lineNoCov">          0 :                 goto done;</span>
+<span class="lineNum">    1630 </span>            :             }
+<span class="lineNum">    1631 </span>            : 
+<span class="lineNum">    1632 </span><span class="lineNoCov">          0 :             rv = sec_PKCS7Decrypt(decryptobj, holder.data, &amp;holder.len, buflen,</span>
+<span class="lineNum">    1633 </span><span class="lineNoCov">          0 :                                   sig-&gt;data, sig-&gt;len, PR_TRUE);</span>
+<span class="lineNum">    1634 </span><span class="lineNoCov">          0 :             sec_PKCS7DestroyDecryptObject(decryptobj);</span>
+<span class="lineNum">    1635 </span><span class="lineNoCov">          0 :             if (rv != SECSuccess) {</span>
+<span class="lineNum">    1636 </span>            :                 goto done;
+<span class="lineNum">    1637 </span>            :             }
+<span class="lineNum">    1638 </span>            : 
+<span class="lineNum">    1639 </span>            :             sig = &amp;holder;
+<span class="lineNum">    1640 </span>            :         }
+<span class="lineNum">    1641 </span>            : 
+<span class="lineNum">    1642 </span><span class="lineNoCov">          0 :         goodsig = (PRBool)(VFY_VerifyDigestDirect(digest, publickey, sig,</span>
+<span class="lineNum">    1643 </span>            :                                                   encTag, digestTag, cinfo-&gt;pwfn_arg) == SECSuccess);
+<span class="lineNum">    1644 </span>            : 
+<span class="lineNum">    1645 </span><span class="lineNoCov">          0 :         if (sigkey != NULL) {</span>
+<span class="lineNum">    1646 </span>            :             PORT_Assert(sig == &amp;holder);
+<span class="lineNum">    1647 </span><span class="lineNoCov">          0 :             PORT_ZFree(holder.data, holder.len);</span>
+<span class="lineNum">    1648 </span>            :         }
+<span class="lineNum">    1649 </span>            :     }
+<span class="lineNum">    1650 </span>            : 
+<span class="lineNum">    1651 </span><span class="lineNoCov">          0 :     if (!goodsig) {</span>
+<span class="lineNum">    1652 </span>            :         /*
+<span class="lineNum">    1653 </span>            :          * XXX Change the generic error into our specific one, because
+<span class="lineNum">    1654 </span>            :          * in that case we get a better explanation out of the Security
+<span class="lineNum">    1655 </span>            :          * Advisor.  This is really a bug in our error strings (the
+<span class="lineNum">    1656 </span>            :          * &quot;generic&quot; error has a lousy/wrong message associated with it
+<span class="lineNum">    1657 </span>            :          * which assumes the signature verification was done for the
+<span class="lineNum">    1658 </span>            :          * purposes of checking the issuer signature on a certificate)
+<span class="lineNum">    1659 </span>            :          * but this is at least an easy workaround and/or in the
+<span class="lineNum">    1660 </span>            :          * Security Advisor, which specifically checks for the error
+<span class="lineNum">    1661 </span>            :          * SEC_ERROR_PKCS7_BAD_SIGNATURE and gives more explanation
+<span class="lineNum">    1662 </span>            :          * in that case but does not similarly check for
+<span class="lineNum">    1663 </span>            :          * SEC_ERROR_BAD_SIGNATURE.  It probably should, but then would
+<span class="lineNum">    1664 </span>            :          * probably say the wrong thing in the case that it *was* the
+<span class="lineNum">    1665 </span>            :          * certificate signature check that failed during the cert
+<span class="lineNum">    1666 </span>            :          * verification done above.  Our error handling is really a mess.
+<span class="lineNum">    1667 </span>            :          */
+<span class="lineNum">    1668 </span><span class="lineNoCov">          0 :         if (PORT_GetError() == SEC_ERROR_BAD_SIGNATURE)</span>
+<span class="lineNum">    1669 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_PKCS7_BAD_SIGNATURE);</span>
+<span class="lineNum">    1670 </span>            :     }
+<span class="lineNum">    1671 </span>            : 
+<span class="lineNum">    1672 </span>            : savecert:
+<span class="lineNum">    1673 </span>            :     /*
+<span class="lineNum">    1674 </span>            :      * Only save the smime profile if we are checking an email message and
+<span class="lineNum">    1675 </span>            :      * the cert has an email address in it.
+<span class="lineNum">    1676 </span>            :      */
+<span class="lineNum">    1677 </span><span class="lineNoCov">          0 :     if (cert-&gt;emailAddr &amp;&amp; cert-&gt;emailAddr[0] &amp;&amp;</span>
+<span class="lineNum">    1678 </span><span class="lineNoCov">          0 :         ((certusage == certUsageEmailSigner) ||</span>
+<span class="lineNum">    1679 </span>            :          (certusage == certUsageEmailRecipient))) {
+<span class="lineNum">    1680 </span><span class="lineNoCov">          0 :         SECItem *profile = NULL;</span>
+<span class="lineNum">    1681 </span>            :         int save_error;
+<span class="lineNum">    1682 </span>            : 
+<span class="lineNum">    1683 </span>            :         /*
+<span class="lineNum">    1684 </span>            :          * Remember the current error set because we do not care about
+<span class="lineNum">    1685 </span>            :          * anything set by the functions we are about to call.
+<span class="lineNum">    1686 </span>            :          */
+<span class="lineNum">    1687 </span><span class="lineNoCov">          0 :         save_error = PORT_GetError();</span>
+<span class="lineNum">    1688 </span>            : 
+<span class="lineNum">    1689 </span><span class="lineNoCov">          0 :         if (goodsig &amp;&amp; (signerinfo-&gt;authAttr != NULL)) {</span>
+<span class="lineNum">    1690 </span>            :             /*
+<span class="lineNum">    1691 </span>            :              * If the signature is good, then we can save the S/MIME profile,
+<span class="lineNum">    1692 </span>            :              * if we have one.
+<span class="lineNum">    1693 </span>            :              */
+<span class="lineNum">    1694 </span>            :             SEC_PKCS7Attribute *attr;
+<span class="lineNum">    1695 </span>            : 
+<span class="lineNum">    1696 </span><span class="lineNoCov">          0 :             attr = sec_PKCS7FindAttribute(signerinfo-&gt;authAttr,</span>
+<span class="lineNum">    1697 </span>            :                                           SEC_OID_PKCS9_SMIME_CAPABILITIES,
+<span class="lineNum">    1698 </span>            :                                           PR_TRUE);
+<span class="lineNum">    1699 </span><span class="lineNoCov">          0 :             profile = sec_PKCS7AttributeValue(attr);</span>
+<span class="lineNum">    1700 </span>            :         }
+<span class="lineNum">    1701 </span>            : 
+<span class="lineNum">    1702 </span><span class="lineNoCov">          0 :         rv = CERT_SaveSMimeProfile(cert, profile, encoded_stime);</span>
+<span class="lineNum">    1703 </span>            : 
+<span class="lineNum">    1704 </span>            :         /*
+<span class="lineNum">    1705 </span>            :          * Restore the saved error in case the calls above set a new
+<span class="lineNum">    1706 </span>            :          * one that we do not actually care about.
+<span class="lineNum">    1707 </span>            :          */
+<span class="lineNum">    1708 </span><span class="lineNoCov">          0 :         PORT_SetError(save_error);</span>
+<span class="lineNum">    1709 </span>            : 
+<span class="lineNum">    1710 </span>            :         /*
+<span class="lineNum">    1711 </span>            :          * XXX Failure is not indicated anywhere -- the signature
+<span class="lineNum">    1712 </span>            :          * verification itself is unaffected by whether or not the
+<span class="lineNum">    1713 </span>            :          * profile was successfully saved.
+<span class="lineNum">    1714 </span>            :          */
+<span class="lineNum">    1715 </span>            :     }
+<span class="lineNum">    1716 </span>            : 
+<span class="lineNum">    1717 </span>            : done:
+<span class="lineNum">    1718 </span>            : 
+<span class="lineNum">    1719 </span>            :     /*
+<span class="lineNum">    1720 </span>            :      * See comment above about why we do not want to destroy cert
+<span class="lineNum">    1721 </span>            :      * itself here.
+<span class="lineNum">    1722 </span>            :      */
+<span class="lineNum">    1723 </span>            : 
+<span class="lineNum">    1724 </span><span class="lineNoCov">          0 :     if (certs != NULL)</span>
+<span class="lineNum">    1725 </span><span class="lineNoCov">          0 :         CERT_DestroyCertArray(certs, certcount);</span>
+<span class="lineNum">    1726 </span>            : 
+<span class="lineNum">    1727 </span><span class="lineNoCov">          0 :     if (publickey != NULL)</span>
+<span class="lineNum">    1728 </span><span class="lineNoCov">          0 :         SECKEY_DestroyPublicKey(publickey);</span>
+<span class="lineNum">    1729 </span>            : 
+<span class="lineNum">    1730 </span><span class="lineNoCov">          0 :     return goodsig;</span>
+<span class="lineNum">    1731 </span>            : }
+<span class="lineNum">    1732 </span>            : 
+<span class="lineNum">    1733 </span>            : /*
+<span class="lineNum">    1734 </span>            :  * SEC_PKCS7VerifySignature
+<span class="lineNum">    1735 </span>            :  *      Look at a PKCS7 contentInfo and check if the signature is good.
+<span class="lineNum">    1736 </span>            :  *      The verification checks that the signing cert is valid and trusted
+<span class="lineNum">    1737 </span>            :  *      for the purpose specified by &quot;certusage&quot;.
+<span class="lineNum">    1738 </span>            :  *
+<span class="lineNum">    1739 </span>            :  *      In addition, if &quot;keepcerts&quot; is true, add any new certificates found
+<span class="lineNum">    1740 </span>            :  *      into our local database.
+<a name="1741"><span class="lineNum">    1741 </span>            :  */</a>
+<span class="lineNum">    1742 </span>            : PRBool
+<span class="lineNum">    1743 </span><span class="lineNoCov">          0 : SEC_PKCS7VerifySignature(SEC_PKCS7ContentInfo *cinfo,</span>
+<span class="lineNum">    1744 </span>            :                          SECCertUsage certusage,
+<span class="lineNum">    1745 </span>            :                          PRBool keepcerts)
+<span class="lineNum">    1746 </span>            : {
+<span class="lineNum">    1747 </span><span class="lineNoCov">          0 :     return sec_pkcs7_verify_signature(cinfo, certusage,</span>
+<span class="lineNum">    1748 </span>            :                                       NULL, HASH_AlgNULL, keepcerts, NULL);
+<span class="lineNum">    1749 </span>            : }
+<span class="lineNum">    1750 </span>            : 
+<span class="lineNum">    1751 </span>            : /*
+<span class="lineNum">    1752 </span>            :  * SEC_PKCS7VerifyDetachedSignature
+<span class="lineNum">    1753 </span>            :  *      Look at a PKCS7 contentInfo and check if the signature matches
+<span class="lineNum">    1754 </span>            :  *      a passed-in digest (calculated, supposedly, from detached contents).
+<span class="lineNum">    1755 </span>            :  *      The verification checks that the signing cert is valid and trusted
+<span class="lineNum">    1756 </span>            :  *      for the purpose specified by &quot;certusage&quot;.
+<span class="lineNum">    1757 </span>            :  *
+<span class="lineNum">    1758 </span>            :  *      In addition, if &quot;keepcerts&quot; is true, add any new certificates found
+<span class="lineNum">    1759 </span>            :  *      into our local database.
+<a name="1760"><span class="lineNum">    1760 </span>            :  */</a>
+<span class="lineNum">    1761 </span>            : PRBool
+<span class="lineNum">    1762 </span><span class="lineNoCov">          0 : SEC_PKCS7VerifyDetachedSignature(SEC_PKCS7ContentInfo *cinfo,</span>
+<span class="lineNum">    1763 </span>            :                                  SECCertUsage certusage,
+<span class="lineNum">    1764 </span>            :                                  const SECItem *detached_digest,
+<span class="lineNum">    1765 </span>            :                                  HASH_HashType digest_type,
+<span class="lineNum">    1766 </span>            :                                  PRBool keepcerts)
+<span class="lineNum">    1767 </span>            : {
+<span class="lineNum">    1768 </span><span class="lineNoCov">          0 :     return sec_pkcs7_verify_signature(cinfo, certusage,</span>
+<span class="lineNum">    1769 </span>            :                                       detached_digest, digest_type,
+<span class="lineNum">    1770 </span>            :                                       keepcerts, NULL);
+<span class="lineNum">    1771 </span>            : }
+<span class="lineNum">    1772 </span>            : 
+<span class="lineNum">    1773 </span>            : /*
+<span class="lineNum">    1774 </span>            :  * SEC_PKCS7VerifyDetachedSignatureAtTime
+<span class="lineNum">    1775 </span>            :  *      Look at a PKCS7 contentInfo and check if the signature matches
+<span class="lineNum">    1776 </span>            :  *      a passed-in digest (calculated, supposedly, from detached contents).
+<span class="lineNum">    1777 </span>            :  *      The verification checks that the signing cert is valid and trusted
+<span class="lineNum">    1778 </span>            :  *      for the purpose specified by &quot;certusage&quot; at time &quot;atTime&quot;.
+<span class="lineNum">    1779 </span>            :  *
+<span class="lineNum">    1780 </span>            :  *      In addition, if &quot;keepcerts&quot; is true, add any new certificates found
+<span class="lineNum">    1781 </span>            :  *      into our local database.
+<a name="1782"><span class="lineNum">    1782 </span>            :  */</a>
+<span class="lineNum">    1783 </span>            : PRBool
+<span class="lineNum">    1784 </span><span class="lineNoCov">          0 : SEC_PKCS7VerifyDetachedSignatureAtTime(SEC_PKCS7ContentInfo *cinfo,</span>
+<span class="lineNum">    1785 </span>            :                                        SECCertUsage certusage,
+<span class="lineNum">    1786 </span>            :                                        const SECItem *detached_digest,
+<span class="lineNum">    1787 </span>            :                                        HASH_HashType digest_type,
+<span class="lineNum">    1788 </span>            :                                        PRBool keepcerts,
+<span class="lineNum">    1789 </span>            :                                        PRTime atTime)
+<span class="lineNum">    1790 </span>            : {
+<span class="lineNum">    1791 </span><span class="lineNoCov">          0 :     return sec_pkcs7_verify_signature(cinfo, certusage,</span>
+<span class="lineNum">    1792 </span>            :                                       detached_digest, digest_type,
+<span class="lineNum">    1793 </span>            :                                       keepcerts, &amp;atTime);
+<span class="lineNum">    1794 </span>            : }
+<span class="lineNum">    1795 </span>            : 
+<span class="lineNum">    1796 </span>            : /*
+<span class="lineNum">    1797 </span>            :  * Return the asked-for portion of the name of the signer of a PKCS7
+<span class="lineNum">    1798 </span>            :  * signed object.
+<span class="lineNum">    1799 </span>            :  *
+<span class="lineNum">    1800 </span>            :  * Returns a pointer to allocated memory, which must be freed.
+<span class="lineNum">    1801 </span>            :  * A NULL return value is an error.
+<span class="lineNum">    1802 </span>            :  */
+<span class="lineNum">    1803 </span>            : 
+<span class="lineNum">    1804 </span>            : #define sec_common_name 1
+<span class="lineNum">    1805 </span>            : #define sec_email_address 2
+<a name="1806"><span class="lineNum">    1806 </span>            : </a>
+<span class="lineNum">    1807 </span>            : static char *
+<span class="lineNum">    1808 </span><span class="lineNoCov">          0 : sec_pkcs7_get_signer_cert_info(SEC_PKCS7ContentInfo *cinfo, int selector)</span>
+<span class="lineNum">    1809 </span>            : {
+<span class="lineNum">    1810 </span>            :     SECOidTag kind;
+<span class="lineNum">    1811 </span>            :     SEC_PKCS7SignerInfo **signerinfos;
+<span class="lineNum">    1812 </span>            :     CERTCertificate *signercert;
+<span class="lineNum">    1813 </span>            :     char *container;
+<span class="lineNum">    1814 </span>            : 
+<span class="lineNum">    1815 </span><span class="lineNoCov">          0 :     kind = SEC_PKCS7ContentType(cinfo);</span>
+<span class="lineNum">    1816 </span><span class="lineNoCov">          0 :     switch (kind) {</span>
+<span class="lineNum">    1817 </span>            :         default:
+<span class="lineNum">    1818 </span>            :         case SEC_OID_PKCS7_DATA:
+<span class="lineNum">    1819 </span>            :         case SEC_OID_PKCS7_DIGESTED_DATA:
+<span class="lineNum">    1820 </span>            :         case SEC_OID_PKCS7_ENVELOPED_DATA:
+<span class="lineNum">    1821 </span>            :         case SEC_OID_PKCS7_ENCRYPTED_DATA:
+<span class="lineNum">    1822 </span>            :             PORT_Assert(0);
+<span class="lineNum">    1823 </span>            :             return NULL;
+<span class="lineNum">    1824 </span>            :         case SEC_OID_PKCS7_SIGNED_DATA: {
+<span class="lineNum">    1825 </span>            :             SEC_PKCS7SignedData *sdp;
+<span class="lineNum">    1826 </span>            : 
+<span class="lineNum">    1827 </span><span class="lineNoCov">          0 :             sdp = cinfo-&gt;content.signedData;</span>
+<span class="lineNum">    1828 </span><span class="lineNoCov">          0 :             signerinfos = sdp-&gt;signerInfos;</span>
+<span class="lineNum">    1829 </span><span class="lineNoCov">          0 :         } break;</span>
+<span class="lineNum">    1830 </span>            :         case SEC_OID_PKCS7_SIGNED_ENVELOPED_DATA: {
+<span class="lineNum">    1831 </span>            :             SEC_PKCS7SignedAndEnvelopedData *saedp;
+<span class="lineNum">    1832 </span>            : 
+<span class="lineNum">    1833 </span><span class="lineNoCov">          0 :             saedp = cinfo-&gt;content.signedAndEnvelopedData;</span>
+<span class="lineNum">    1834 </span><span class="lineNoCov">          0 :             signerinfos = saedp-&gt;signerInfos;</span>
+<span class="lineNum">    1835 </span><span class="lineNoCov">          0 :         } break;</span>
+<span class="lineNum">    1836 </span>            :     }
+<span class="lineNum">    1837 </span>            : 
+<span class="lineNum">    1838 </span><span class="lineNoCov">          0 :     if (signerinfos == NULL || signerinfos[0] == NULL)</span>
+<span class="lineNum">    1839 </span>            :         return NULL;
+<span class="lineNum">    1840 </span>            : 
+<span class="lineNum">    1841 </span><span class="lineNoCov">          0 :     signercert = signerinfos[0]-&gt;cert;</span>
+<span class="lineNum">    1842 </span>            : 
+<span class="lineNum">    1843 </span>            :     /*
+<span class="lineNum">    1844 </span>            :      * No cert there; see if we can find one by calling verify ourselves.
+<span class="lineNum">    1845 </span>            :      */
+<span class="lineNum">    1846 </span><span class="lineNoCov">          0 :     if (signercert == NULL) {</span>
+<span class="lineNum">    1847 </span>            :         /*
+<span class="lineNum">    1848 </span>            :          * The cert usage does not matter in this case, because we do not
+<span class="lineNum">    1849 </span>            :          * actually care about the verification itself, but we have to pick
+<span class="lineNum">    1850 </span>            :          * some valid usage to pass in.
+<span class="lineNum">    1851 </span>            :          */
+<span class="lineNum">    1852 </span><span class="lineNoCov">          0 :         (void)sec_pkcs7_verify_signature(cinfo, certUsageEmailSigner,</span>
+<span class="lineNum">    1853 </span>            :                                          NULL, HASH_AlgNULL, PR_FALSE, NULL);
+<span class="lineNum">    1854 </span><span class="lineNoCov">          0 :         signercert = signerinfos[0]-&gt;cert;</span>
+<span class="lineNum">    1855 </span><span class="lineNoCov">          0 :         if (signercert == NULL)</span>
+<span class="lineNum">    1856 </span>            :             return NULL;
+<span class="lineNum">    1857 </span>            :     }
+<span class="lineNum">    1858 </span>            : 
+<span class="lineNum">    1859 </span><span class="lineNoCov">          0 :     switch (selector) {</span>
+<span class="lineNum">    1860 </span>            :         case sec_common_name:
+<span class="lineNum">    1861 </span><span class="lineNoCov">          0 :             container = CERT_GetCommonName(&amp;signercert-&gt;subject);</span>
+<span class="lineNum">    1862 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">    1863 </span>            :         case sec_email_address:
+<span class="lineNum">    1864 </span><span class="lineNoCov">          0 :             if (signercert-&gt;emailAddr &amp;&amp; signercert-&gt;emailAddr[0]) {</span>
+<span class="lineNum">    1865 </span><span class="lineNoCov">          0 :                 container = PORT_Strdup(signercert-&gt;emailAddr);</span>
+<span class="lineNum">    1866 </span>            :             } else {
+<span class="lineNum">    1867 </span>            :                 container = NULL;
+<span class="lineNum">    1868 </span>            :             }
+<span class="lineNum">    1869 </span>            :             break;
+<span class="lineNum">    1870 </span>            :         default:
+<span class="lineNum">    1871 </span>            :             PORT_Assert(0);
+<span class="lineNum">    1872 </span>            :             container = NULL;
+<span class="lineNum">    1873 </span>            :             break;
+<span class="lineNum">    1874 </span>            :     }
+<span class="lineNum">    1875 </span>            : 
+<span class="lineNum">    1876 </span><span class="lineNoCov">          0 :     return container;</span>
+<span class="lineNum">    1877 </span>            : }
+<a name="1878"><span class="lineNum">    1878 </span>            : </a>
+<span class="lineNum">    1879 </span>            : char *
+<span class="lineNum">    1880 </span><span class="lineNoCov">          0 : SEC_PKCS7GetSignerCommonName(SEC_PKCS7ContentInfo *cinfo)</span>
+<span class="lineNum">    1881 </span>            : {
+<span class="lineNum">    1882 </span><span class="lineNoCov">          0 :     return sec_pkcs7_get_signer_cert_info(cinfo, sec_common_name);</span>
+<span class="lineNum">    1883 </span>            : }
+<a name="1884"><span class="lineNum">    1884 </span>            : </a>
+<span class="lineNum">    1885 </span>            : char *
+<span class="lineNum">    1886 </span><span class="lineNoCov">          0 : SEC_PKCS7GetSignerEmailAddress(SEC_PKCS7ContentInfo *cinfo)</span>
+<span class="lineNum">    1887 </span>            : {
+<span class="lineNum">    1888 </span><span class="lineNoCov">          0 :     return sec_pkcs7_get_signer_cert_info(cinfo, sec_email_address);</span>
+<span class="lineNum">    1889 </span>            : }
+<span class="lineNum">    1890 </span>            : 
+<span class="lineNum">    1891 </span>            : /*
+<span class="lineNum">    1892 </span>            :  * Return the signing time, in UTCTime format, of a PKCS7 contentInfo.
+<a name="1893"><span class="lineNum">    1893 </span>            :  */</a>
+<span class="lineNum">    1894 </span>            : SECItem *
+<span class="lineNum">    1895 </span><span class="lineNoCov">          0 : SEC_PKCS7GetSigningTime(SEC_PKCS7ContentInfo *cinfo)</span>
+<span class="lineNum">    1896 </span>            : {
+<span class="lineNum">    1897 </span>            :     SEC_PKCS7SignerInfo **signerinfos;
+<span class="lineNum">    1898 </span>            :     SEC_PKCS7Attribute *attr;
+<span class="lineNum">    1899 </span>            : 
+<span class="lineNum">    1900 </span><span class="lineNoCov">          0 :     if (SEC_PKCS7ContentType(cinfo) != SEC_OID_PKCS7_SIGNED_DATA)</span>
+<span class="lineNum">    1901 </span>            :         return NULL;
+<span class="lineNum">    1902 </span>            : 
+<span class="lineNum">    1903 </span><span class="lineNoCov">          0 :     signerinfos = cinfo-&gt;content.signedData-&gt;signerInfos;</span>
+<span class="lineNum">    1904 </span>            : 
+<span class="lineNum">    1905 </span>            :     /*
+<span class="lineNum">    1906 </span>            :      * No signature, or more than one, means no deal.
+<span class="lineNum">    1907 </span>            :      */
+<span class="lineNum">    1908 </span><span class="lineNoCov">          0 :     if (signerinfos == NULL || signerinfos[0] == NULL || signerinfos[1] != NULL)</span>
+<span class="lineNum">    1909 </span>            :         return NULL;
+<span class="lineNum">    1910 </span>            : 
+<span class="lineNum">    1911 </span><span class="lineNoCov">          0 :     attr = sec_PKCS7FindAttribute(signerinfos[0]-&gt;authAttr,</span>
+<span class="lineNum">    1912 </span>            :                                   SEC_OID_PKCS9_SIGNING_TIME, PR_TRUE);
+<span class="lineNum">    1913 </span><span class="lineNoCov">          0 :     return sec_PKCS7AttributeValue(attr);</span>
+<span class="lineNum">    1914 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

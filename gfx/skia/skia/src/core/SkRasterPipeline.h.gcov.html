@@ -1,0 +1,241 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gfx/skia/skia/src/core/SkRasterPipeline.h</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">gfx/skia/skia/src/core</a> - SkRasterPipeline.h<span style="font-size: 80%;"> (source / <a href="SkRasterPipeline.h.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">3</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">2</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  * Copyright 2016 Google Inc.
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  * Use of this source code is governed by a BSD-style license that can be
+<span class="lineNum">       5 </span>            :  * found in the LICENSE file.
+<span class="lineNum">       6 </span>            :  */
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #ifndef SkRasterPipeline_DEFINED
+<span class="lineNum">       9 </span>            : #define SkRasterPipeline_DEFINED
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;SkNx.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;SkTArray.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;SkTypes.h&quot;
+<span class="lineNum">      14 </span>            : 
+<span class="lineNum">      15 </span>            : /**
+<span class="lineNum">      16 </span>            :  * SkRasterPipeline provides a cheap way to chain together a pixel processing pipeline.
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * It's particularly designed for situations where the potential pipeline is extremely
+<span class="lineNum">      19 </span>            :  * combinatoric: {N dst formats} x {M source formats} x {K mask formats} x {C transfer modes} ...
+<span class="lineNum">      20 </span>            :  * No one wants to write specialized routines for all those combinations, and if we did, we'd
+<span class="lineNum">      21 </span>            :  * end up bloating our code size dramatically.  SkRasterPipeline stages can be chained together
+<span class="lineNum">      22 </span>            :  * at runtime, so we can scale this problem linearly rather than combinatorically.
+<span class="lineNum">      23 </span>            :  *
+<span class="lineNum">      24 </span>            :  * Each stage is represented by a function conforming to a common interface, SkRasterPipeline::Fn,
+<span class="lineNum">      25 </span>            :  * and by an arbitrary context pointer.  Fn's arguments, and sometimes custom calling convention,
+<span class="lineNum">      26 </span>            :  * are designed to maximize the amount of data we can pass along the pipeline cheaply.
+<span class="lineNum">      27 </span>            :  * On many machines all arguments stay in registers the entire time.
+<span class="lineNum">      28 </span>            :  *
+<span class="lineNum">      29 </span>            :  * The meaning of the arguments to Fn are sometimes fixed:
+<span class="lineNum">      30 </span>            :  *    - The Stage* always represents the current stage, mainly providing access to ctx().
+<span class="lineNum">      31 </span>            :  *    - The first size_t is always the destination x coordinate.
+<span class="lineNum">      32 </span>            :  *      (If you need y, put it in your context.)
+<span class="lineNum">      33 </span>            :  *    - The second size_t is always tail: 0 when working on a full 4-pixel slab,
+<span class="lineNum">      34 </span>            :  *      or 1..3 when using only the bottom 1..3 lanes of each register.
+<span class="lineNum">      35 </span>            :  *    - By the time the shader's done, the first four vectors should hold source red,
+<span class="lineNum">      36 </span>            :  *      green, blue, and alpha, up to 4 pixels' worth each.
+<span class="lineNum">      37 </span>            :  *
+<span class="lineNum">      38 </span>            :  * Sometimes arguments are flexible:
+<span class="lineNum">      39 </span>            :  *    - In the shader, the first four vectors can be used for anything, e.g. sample coordinates.
+<span class="lineNum">      40 </span>            :  *    - The last four vectors are scratch registers that can be used to communicate between
+<span class="lineNum">      41 </span>            :  *      stages; transfer modes use these to hold the original destination pixel components.
+<span class="lineNum">      42 </span>            :  *
+<span class="lineNum">      43 </span>            :  * On some platforms the last four vectors are slower to work with than the other arguments.
+<span class="lineNum">      44 </span>            :  *
+<span class="lineNum">      45 </span>            :  * When done mutating its arguments and/or context, a stage can either:
+<span class="lineNum">      46 </span>            :  *   1) call st-&gt;next() with its mutated arguments, chaining to the next stage of the pipeline; or
+<span class="lineNum">      47 </span>            :  *   2) return, indicating the pipeline is complete for these pixels.
+<span class="lineNum">      48 </span>            :  *
+<span class="lineNum">      49 </span>            :  * Some stages that typically return are those that write a color to a destination pointer,
+<span class="lineNum">      50 </span>            :  * but any stage can short-circuit the rest of the pipeline by returning instead of calling next().
+<span class="lineNum">      51 </span>            :  */
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span>            : // TODO: There may be a better place to stuff tail, e.g. in the bottom alignment bits of
+<a name="54"><span class="lineNum">      54 </span>            : // the Stage*.  This mostly matters on 64-bit Windows where every register is precious.</a>
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span><span class="lineNoCov">          0 : class SkRasterPipeline {</span>
+<span class="lineNum">      57 </span>            : public:
+<span class="lineNum">      58 </span>            :     struct Stage;
+<span class="lineNum">      59 </span>            :     using Fn = void(SK_VECTORCALL *)(Stage*, size_t, size_t, Sk4f,Sk4f,Sk4f,Sk4f,
+<span class="lineNum">      60 </span>            :                                                              Sk4f,Sk4f,Sk4f,Sk4f);
+<span class="lineNum">      61 </span>            :     struct Stage {
+<span class="lineNum">      62 </span>            :         template &lt;typename T&gt;
+<span class="lineNum">      63 </span>            :         T ctx() { return static_cast&lt;T&gt;(fCtx); }
+<span class="lineNum">      64 </span>            : 
+<span class="lineNum">      65 </span>            :         void SK_VECTORCALL next(size_t x, size_t tail, Sk4f v0, Sk4f v1, Sk4f v2, Sk4f v3,
+<span class="lineNum">      66 </span>            :                                                        Sk4f v4, Sk4f v5, Sk4f v6, Sk4f v7) {
+<span class="lineNum">      67 </span>            :             // Stages are logically a pipeline, and physically are contiguous in an array.
+<span class="lineNum">      68 </span>            :             // To get to the next stage, we just increment our pointer to the next array element.
+<span class="lineNum">      69 </span><span class="lineNoCov">          0 :             fNext(this+1, x,tail, v0,v1,v2,v3, v4,v5,v6,v7);</span>
+<span class="lineNum">      70 </span>            :         }
+<span class="lineNum">      71 </span>            : 
+<span class="lineNum">      72 </span>            :         // It makes next() a good bit cheaper if we hold the next function to call here,
+<span class="lineNum">      73 </span>            :         // rather than logically simpler choice of the function implementing this stage.
+<span class="lineNum">      74 </span>            :         Fn fNext;
+<span class="lineNum">      75 </span>            :         void* fCtx;
+<span class="lineNum">      76 </span>            :     };
+<span class="lineNum">      77 </span>            : 
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span>            :     SkRasterPipeline();
+<span class="lineNum">      80 </span>            : 
+<span class="lineNum">      81 </span>            :     // Run the pipeline constructed with append(), walking x through [x,x+n),
+<span class="lineNum">      82 </span>            :     // generally in 4-pixel steps, with perhaps one jagged tail step.
+<span class="lineNum">      83 </span>            :     void run(size_t x, size_t n);
+<span class="lineNum">      84 </span>            :     void run(size_t n) { this-&gt;run(0, n); }
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span>            :     enum StockStage {
+<span class="lineNum">      87 </span>            :         store_565,
+<span class="lineNum">      88 </span>            :         store_srgb,
+<span class="lineNum">      89 </span>            :         store_f16,
+<span class="lineNum">      90 </span>            : 
+<span class="lineNum">      91 </span>            :         load_s_565,
+<span class="lineNum">      92 </span>            :         load_s_srgb,
+<span class="lineNum">      93 </span>            :         load_s_f16,
+<span class="lineNum">      94 </span>            : 
+<span class="lineNum">      95 </span>            :         load_d_565,
+<span class="lineNum">      96 </span>            :         load_d_srgb,
+<span class="lineNum">      97 </span>            :         load_d_f16,
+<span class="lineNum">      98 </span>            : 
+<span class="lineNum">      99 </span>            :         scale_u8,
+<span class="lineNum">     100 </span>            : 
+<span class="lineNum">     101 </span>            :         lerp_u8,
+<span class="lineNum">     102 </span>            :         lerp_565,
+<span class="lineNum">     103 </span>            :         lerp_constant_float,
+<span class="lineNum">     104 </span>            : 
+<span class="lineNum">     105 </span>            :         constant_color,
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span>            :         dst,
+<span class="lineNum">     108 </span>            :         dstatop,
+<span class="lineNum">     109 </span>            :         dstin,
+<span class="lineNum">     110 </span>            :         dstout,
+<span class="lineNum">     111 </span>            :         dstover,
+<span class="lineNum">     112 </span>            :         srcatop,
+<span class="lineNum">     113 </span>            :         srcin,
+<span class="lineNum">     114 </span>            :         srcout,
+<span class="lineNum">     115 </span>            :         srcover,
+<span class="lineNum">     116 </span>            :         clear,
+<span class="lineNum">     117 </span>            :         modulate,
+<span class="lineNum">     118 </span>            :         multiply,
+<span class="lineNum">     119 </span>            :         plus_,
+<span class="lineNum">     120 </span>            :         screen,
+<span class="lineNum">     121 </span>            :         xor_,
+<span class="lineNum">     122 </span>            :         colorburn,
+<span class="lineNum">     123 </span>            :         colordodge,
+<span class="lineNum">     124 </span>            :         darken,
+<span class="lineNum">     125 </span>            :         difference,
+<span class="lineNum">     126 </span>            :         exclusion,
+<span class="lineNum">     127 </span>            :         hardlight,
+<span class="lineNum">     128 </span>            :         lighten,
+<span class="lineNum">     129 </span>            :         overlay,
+<span class="lineNum">     130 </span>            :         softlight,
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span>            :         kNumStockStages,
+<span class="lineNum">     133 </span>            :     };
+<span class="lineNum">     134 </span>            :     void append(StockStage, void* = nullptr);
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 :     void append(StockStage stage, const void* ctx) { this-&gt;append(stage, const_cast&lt;void*&gt;(ctx)); }</span>
+<span class="lineNum">     136 </span>            : 
+<span class="lineNum">     137 </span>            : 
+<span class="lineNum">     138 </span>            :     // Append all stages to this pipeline.
+<span class="lineNum">     139 </span>            :     void extend(const SkRasterPipeline&amp;);
+<span class="lineNum">     140 </span>            : 
+<span class="lineNum">     141 </span>            : private:
+<span class="lineNum">     142 </span>            :     using Stages = SkSTArray&lt;10, Stage, /*MEM_COPY=*/true&gt;;
+<span class="lineNum">     143 </span>            : 
+<span class="lineNum">     144 </span>            :     void append(Fn body, Fn tail, void*);
+<span class="lineNum">     145 </span>            : 
+<span class="lineNum">     146 </span>            :     // This no-op default makes fBodyStart and fTailStart unconditionally safe to call,
+<span class="lineNum">     147 </span>            :     // and is always the last stage's fNext as a sort of safety net to make sure even a
+<span class="lineNum">     148 </span>            :     // buggy pipeline can't walk off its own end.
+<span class="lineNum">     149 </span>            :     static void SK_VECTORCALL JustReturn(Stage*, size_t, size_t, Sk4f,Sk4f,Sk4f,Sk4f,
+<span class="lineNum">     150 </span>            :                                                                  Sk4f,Sk4f,Sk4f,Sk4f);
+<span class="lineNum">     151 </span>            :     Stages fBody,
+<span class="lineNum">     152 </span>            :            fTail;
+<span class="lineNum">     153 </span>            :     Fn fBodyStart = &amp;JustReturn,
+<span class="lineNum">     154 </span>            :        fTailStart = &amp;JustReturn;
+<span class="lineNum">     155 </span>            : };
+<span class="lineNum">     156 </span>            : 
+<span class="lineNum">     157 </span>            : #endif//SkRasterPipeline_DEFINED
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

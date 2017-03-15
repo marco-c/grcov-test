@@ -1,0 +1,1026 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - uriloader/prefetch/nsPrefetchService.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">uriloader/prefetch</a> - nsPrefetchService.cpp<span style="font-size: 80%;"> (source / <a href="nsPrefetchService.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">233</td>
+            <td class="headerCovTableEntry">329</td>
+            <td class="headerCovTableEntryLo">70.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">31</td>
+            <td class="headerCovTableEntry">38</td>
+            <td class="headerCovTableEntryMed">81.6 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       3 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       4 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       5 </span>            : 
+<span class="lineNum">       6 </span>            : #include &quot;nsPrefetchService.h&quot;
+<span class="lineNum">       7 </span>            : #include &quot;nsICacheEntry.h&quot;
+<span class="lineNum">       8 </span>            : #include &quot;nsIServiceManager.h&quot;
+<span class="lineNum">       9 </span>            : #include &quot;nsICategoryManager.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;nsIObserverService.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;nsIWebProgress.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;nsCURILoader.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;nsICacheInfoChannel.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;nsIHttpChannel.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;nsIURL.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;nsISimpleEnumerator.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;nsISupportsPriority.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;nsNetUtil.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;nsString.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;nsXPIDLString.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;nsReadableUtils.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;nsStreamUtils.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;nsAutoPtr.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;prtime.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;mozilla/Logging.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;plstr.h&quot;
+<span class="lineNum">      27 </span>            : #include &quot;nsIAsyncVerifyRedirectCallback.h&quot;
+<span class="lineNum">      28 </span>            : #include &quot;mozilla/Preferences.h&quot;
+<span class="lineNum">      29 </span>            : #include &quot;mozilla/Attributes.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;mozilla/CORSMode.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;mozilla/dom/HTMLLinkElement.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;nsIDOMNode.h&quot;
+<span class="lineNum">      33 </span>            : #include &quot;nsINode.h&quot;
+<span class="lineNum">      34 </span>            : #include &quot;nsIDocument.h&quot;
+<span class="lineNum">      35 </span>            : #include &quot;nsContentUtils.h&quot;
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            : using namespace mozilla;
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            : //
+<span class="lineNum">      40 </span>            : // To enable logging (see mozilla/Logging.h for full details):
+<span class="lineNum">      41 </span>            : //
+<span class="lineNum">      42 </span>            : //    set MOZ_LOG=nsPrefetch:5
+<span class="lineNum">      43 </span>            : //    set MOZ_LOG_FILE=prefetch.log
+<span class="lineNum">      44 </span>            : //
+<span class="lineNum">      45 </span>            : // this enables LogLevel::Debug level information and places all output in
+<span class="lineNum">      46 </span>            : // the file prefetch.log
+<span class="lineNum">      47 </span>            : //
+<span class="lineNum">      48 </span>            : static LazyLogModule gPrefetchLog(&quot;nsPrefetch&quot;);
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            : #undef LOG
+<span class="lineNum">      51 </span>            : #define LOG(args) MOZ_LOG(gPrefetchLog, mozilla::LogLevel::Debug, args)
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span>            : #undef LOG_ENABLED
+<span class="lineNum">      54 </span>            : #define LOG_ENABLED() MOZ_LOG_TEST(gPrefetchLog, mozilla::LogLevel::Debug)
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span>            : #define PREFETCH_PREF &quot;network.prefetch-next&quot;
+<span class="lineNum">      57 </span>            : #define PARALLELISM_PREF &quot;network.prefetch-next.parallelism&quot;
+<span class="lineNum">      58 </span>            : #define AGGRESSIVE_PREF &quot;network.prefetch-next.aggressive&quot;
+<span class="lineNum">      59 </span>            : 
+<span class="lineNum">      60 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">      61 </span>            : // helpers
+<span class="lineNum">      62 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">      63 </span>            : 
+<span class="lineNum">      64 </span>            : static inline uint32_t
+<span class="lineNum">      65 </span>            : PRTimeToSeconds(PRTime t_usec)
+<span class="lineNum">      66 </span>            : {
+<span class="lineNum">      67 </span><span class="lineCov">          1 :     PRTime usec_per_sec = PR_USEC_PER_SEC;</span>
+<span class="lineNum">      68 </span><span class="lineCov">          1 :     return uint32_t(t_usec /= usec_per_sec);</span>
+<span class="lineNum">      69 </span>            : }
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span>            : #define NowInSeconds() PRTimeToSeconds(PR_Now())
+<span class="lineNum">      72 </span>            : 
+<span class="lineNum">      73 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">      74 </span>            : // nsPrefetchNode &lt;public&gt;
+<a name="75"><span class="lineNum">      75 </span>            : //-----------------------------------------------------------------------------</a>
+<span class="lineNum">      76 </span>            : 
+<span class="lineNum">      77 </span><span class="lineCov">          1 : nsPrefetchNode::nsPrefetchNode(nsPrefetchService *aService,</span>
+<span class="lineNum">      78 </span>            :                                nsIURI *aURI,
+<span class="lineNum">      79 </span>            :                                nsIURI *aReferrerURI,
+<span class="lineNum">      80 </span>            :                                nsIDOMNode *aSource)
+<span class="lineNum">      81 </span>            :     : mURI(aURI)
+<span class="lineNum">      82 </span>            :     , mReferrerURI(aReferrerURI)
+<span class="lineNum">      83 </span>            :     , mService(aService)
+<span class="lineNum">      84 </span>            :     , mChannel(nullptr)
+<span class="lineNum">      85 </span>            :     , mBytesRead(0)
+<span class="lineNum">      86 </span><span class="lineCov">          1 :     , mShouldFireLoadEvent(false)</span>
+<span class="lineNum">      87 </span>            : {
+<span class="lineNum">      88 </span><span class="lineCov">          1 :     nsCOMPtr&lt;nsIWeakReference&gt; source = do_GetWeakReference(aSource);</span>
+<span class="lineNum">      89 </span><span class="lineCov">          1 :     mSources.AppendElement(source);</span>
+<span class="lineNum">      90 </span><span class="lineCov">          1 : }</span>
+<a name="91"><span class="lineNum">      91 </span>            : </a>
+<span class="lineNum">      92 </span>            : nsresult
+<span class="lineNum">      93 </span><span class="lineCov">          1 : nsPrefetchNode::OpenChannel()</span>
+<span class="lineNum">      94 </span>            : {
+<span class="lineNum">      95 </span><span class="lineCov">          1 :     if (mSources.IsEmpty()) {</span>
+<span class="lineNum">      96 </span>            :         // Don't attempt to prefetch if we don't have a source node
+<span class="lineNum">      97 </span>            :         // (which should never happen).
+<span class="lineNum">      98 </span>            :         return NS_ERROR_FAILURE;
+<span class="lineNum">      99 </span>            :     }
+<span class="lineNum">     100 </span>            :     nsCOMPtr&lt;nsINode&gt; source;
+<span class="lineNum">     101 </span><span class="lineCov">          1 :     while (!mSources.IsEmpty() &amp;&amp; !(source = do_QueryReferent(mSources.ElementAt(0)))) {</span>
+<span class="lineNum">     102 </span>            :         // If source is null remove it.
+<span class="lineNum">     103 </span>            :         // (which should never happen).
+<span class="lineNum">     104 </span><span class="lineNoCov">          0 :         mSources.RemoveElementAt(0);</span>
+<span class="lineNum">     105 </span>            :     }
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span><span class="lineCov">          1 :     if (!source) {</span>
+<span class="lineNum">     108 </span>            :         // Don't attempt to prefetch if we don't have a source node
+<span class="lineNum">     109 </span>            :         // (which should never happen).
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span>            :         return NS_ERROR_FAILURE;
+<span class="lineNum">     112 </span>            :     }
+<span class="lineNum">     113 </span><span class="lineCov">          1 :     nsCOMPtr&lt;nsILoadGroup&gt; loadGroup = source-&gt;OwnerDoc()-&gt;GetDocumentLoadGroup();</span>
+<span class="lineNum">     114 </span><span class="lineCov">          1 :     CORSMode corsMode = CORS_NONE;</span>
+<span class="lineNum">     115 </span><span class="lineCov">          1 :     net::ReferrerPolicy referrerPolicy = net::RP_Unset;</span>
+<span class="lineNum">     116 </span><span class="lineCov">          1 :     if (source-&gt;IsHTMLElement(nsGkAtoms::link)) {</span>
+<span class="lineNum">     117 </span><span class="lineCov">          1 :       dom::HTMLLinkElement* link = static_cast&lt;dom::HTMLLinkElement*&gt;(source.get());</span>
+<span class="lineNum">     118 </span><span class="lineCov">          1 :       corsMode = link-&gt;GetCORSMode();</span>
+<span class="lineNum">     119 </span><span class="lineCov">          1 :       referrerPolicy = link-&gt;GetLinkReferrerPolicy();</span>
+<span class="lineNum">     120 </span>            :     }
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span><span class="lineCov">          1 :     if (referrerPolicy == net::RP_Unset) {</span>
+<span class="lineNum">     123 </span><span class="lineCov">          1 :       referrerPolicy = source-&gt;OwnerDoc()-&gt;GetReferrerPolicy();</span>
+<span class="lineNum">     124 </span>            :     }
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span>            :     uint32_t securityFlags;
+<span class="lineNum">     127 </span><span class="lineCov">          1 :     if (corsMode == CORS_NONE) {</span>
+<span class="lineNum">     128 </span>            :       securityFlags = nsILoadInfo::SEC_ALLOW_CROSS_ORIGIN_DATA_INHERITS;
+<span class="lineNum">     129 </span>            :     } else {
+<span class="lineNum">     130 </span><span class="lineCov">          1 :       securityFlags = nsILoadInfo::SEC_REQUIRE_CORS_DATA_INHERITS;</span>
+<span class="lineNum">     131 </span><span class="lineCov">          1 :       if (corsMode == CORS_USE_CREDENTIALS) {</span>
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :         securityFlags |= nsILoadInfo::SEC_COOKIES_INCLUDE;</span>
+<span class="lineNum">     133 </span>            :       }
+<span class="lineNum">     134 </span>            :     }
+<span class="lineNum">     135 </span><span class="lineCov">          1 :     nsresult rv = NS_NewChannelInternal(getter_AddRefs(mChannel),</span>
+<span class="lineNum">     136 </span>            :                                         mURI,
+<span class="lineNum">     137 </span>            :                                         source,
+<span class="lineNum">     138 </span>            :                                         source-&gt;NodePrincipal(),
+<span class="lineNum">     139 </span>            :                                         nullptr,   //aTriggeringPrincipal
+<span class="lineNum">     140 </span>            :                                         securityFlags,
+<span class="lineNum">     141 </span>            :                                         nsIContentPolicy::TYPE_OTHER,
+<span class="lineNum">     142 </span>            :                                         loadGroup, // aLoadGroup
+<span class="lineNum">     143 </span>            :                                         this,      // aCallbacks
+<span class="lineNum">     144 </span>            :                                         nsIRequest::LOAD_BACKGROUND |
+<span class="lineNum">     145 </span><span class="lineCov">          1 :                                         nsICachingChannel::LOAD_ONLY_IF_MODIFIED);</span>
+<span class="lineNum">     146 </span>            : 
+<span class="lineNum">     147 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     148 </span>            : 
+<span class="lineNum">     149 </span>            :     // configure HTTP specific stuff
+<span class="lineNum">     150 </span>            :     nsCOMPtr&lt;nsIHttpChannel&gt; httpChannel =
+<span class="lineNum">     151 </span><span class="lineCov">          1 :         do_QueryInterface(mChannel);</span>
+<span class="lineNum">     152 </span><span class="lineCov">          1 :     if (httpChannel) {</span>
+<span class="lineNum">     153 </span><span class="lineCov">          1 :         rv = httpChannel-&gt;SetReferrerWithPolicy(mReferrerURI, referrerPolicy);</span>
+<span class="lineNum">     154 </span>            :         MOZ_ASSERT(NS_SUCCEEDED(rv));
+<span class="lineNum">     155 </span>            :         rv = httpChannel-&gt;SetRequestHeader(NS_LITERAL_CSTRING(&quot;X-Moz&quot;),
+<span class="lineNum">     156 </span>            :                                            NS_LITERAL_CSTRING(&quot;prefetch&quot;),
+<span class="lineNum">     157 </span><span class="lineCov">          1 :                                            false);</span>
+<span class="lineNum">     158 </span>            :         MOZ_ASSERT(NS_SUCCEEDED(rv));
+<span class="lineNum">     159 </span>            :     }
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span>            :     // Reduce the priority of prefetch network requests.
+<span class="lineNum">     162 </span><span class="lineCov">          1 :     nsCOMPtr&lt;nsISupportsPriority&gt; priorityChannel = do_QueryInterface(mChannel);</span>
+<span class="lineNum">     163 </span><span class="lineCov">          1 :     if (priorityChannel) {</span>
+<span class="lineNum">     164 </span><span class="lineCov">          1 :       priorityChannel-&gt;AdjustPriority(nsISupportsPriority::PRIORITY_LOWEST);</span>
+<span class="lineNum">     165 </span>            :     }
+<span class="lineNum">     166 </span>            : 
+<span class="lineNum">     167 </span><span class="lineCov">          1 :     rv = mChannel-&gt;AsyncOpen2(this);</span>
+<span class="lineNum">     168 </span><span class="lineCov">          1 :     if (NS_WARN_IF(NS_FAILED(rv))) {</span>
+<span class="lineNum">     169 </span>            :       // Drop the ref to the channel, because we don't want to end up with
+<span class="lineNum">     170 </span>            :       // cycles through it.
+<span class="lineNum">     171 </span><span class="lineNoCov">          0 :       mChannel = nullptr;</span>
+<span class="lineNum">     172 </span>            :     }
+<span class="lineNum">     173 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">     174 </span>            : }
+<a name="175"><span class="lineNum">     175 </span>            : </a>
+<span class="lineNum">     176 </span>            : nsresult
+<span class="lineNum">     177 </span><span class="lineCov">          1 : nsPrefetchNode::CancelChannel(nsresult error)</span>
+<span class="lineNum">     178 </span>            : {
+<span class="lineNum">     179 </span><span class="lineCov">          1 :     mChannel-&gt;Cancel(error);</span>
+<span class="lineNum">     180 </span><span class="lineCov">          1 :     mChannel = nullptr;</span>
+<span class="lineNum">     181 </span>            : 
+<span class="lineNum">     182 </span><span class="lineCov">          1 :     return NS_OK;</span>
+<span class="lineNum">     183 </span>            : }
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">     186 </span>            : // nsPrefetchNode::nsISupports
+<a name="187"><span class="lineNum">     187 </span>            : //-----------------------------------------------------------------------------</a>
+<span class="lineNum">     188 </span>            : 
+<span class="lineNum">     189 </span><span class="lineCov">          1 : NS_IMPL_ISUPPORTS(nsPrefetchNode,</span>
+<span class="lineNum">     190 </span>            :                   nsIRequestObserver,
+<span class="lineNum">     191 </span>            :                   nsIStreamListener,
+<span class="lineNum">     192 </span>            :                   nsIInterfaceRequestor,
+<span class="lineNum">     193 </span>            :                   nsIChannelEventSink,
+<span class="lineNum">     194 </span>            :                   nsIRedirectResultListener)
+<span class="lineNum">     195 </span>            : 
+<span class="lineNum">     196 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">     197 </span>            : // nsPrefetchNode::nsIStreamListener
+<span class="lineNum">     198 </span>            : //-----------------------------------------------------------------------------
+<a name="199"><span class="lineNum">     199 </span>            : </a>
+<span class="lineNum">     200 </span>            : NS_IMETHODIMP
+<span class="lineNum">     201 </span><span class="lineCov">          1 : nsPrefetchNode::OnStartRequest(nsIRequest *aRequest,</span>
+<span class="lineNum">     202 </span>            :                                nsISupports *aContext)
+<span class="lineNum">     203 </span>            : {
+<span class="lineNum">     204 </span>            :     nsresult rv;
+<span class="lineNum">     205 </span>            : 
+<span class="lineNum">     206 </span>            :     nsCOMPtr&lt;nsIHttpChannel&gt; httpChannel =
+<span class="lineNum">     207 </span><span class="lineCov">          1 :         do_QueryInterface(aRequest, &amp;rv);</span>
+<span class="lineNum">     208 </span><span class="lineCov">          1 :     if (NS_FAILED(rv)) return rv;</span>
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span>            :     // if the load is cross origin without CORS, or the CORS access is rejected,
+<span class="lineNum">     211 </span>            :     // always fire load event to avoid leaking site information.
+<span class="lineNum">     212 </span><span class="lineCov">          1 :     nsCOMPtr&lt;nsILoadInfo&gt; loadInfo = httpChannel-&gt;GetLoadInfo();</span>
+<span class="lineNum">     213 </span><span class="lineCov">          1 :     if (loadInfo) {</span>
+<span class="lineNum">     214 </span><span class="lineCov">          1 :         mShouldFireLoadEvent = loadInfo-&gt;GetTainting() == LoadTainting::Opaque ||</span>
+<span class="lineNum">     215 </span><span class="lineCov">          1 :                                (loadInfo-&gt;GetTainting() == LoadTainting::CORS &amp;&amp;</span>
+<span class="lineNum">     216 </span><span class="lineCov">          1 :                                 (NS_FAILED(httpChannel-&gt;GetStatus(&amp;rv)) ||</span>
+<span class="lineNum">     217 </span><span class="lineCov">          1 :                                  NS_FAILED(rv)));</span>
+<span class="lineNum">     218 </span>            :     }
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span>            :     // no need to prefetch http error page
+<span class="lineNum">     221 </span>            :     bool requestSucceeded;
+<span class="lineNum">     222 </span><span class="lineCov">          1 :     if (NS_FAILED(httpChannel-&gt;GetRequestSucceeded(&amp;requestSucceeded)) ||</span>
+<span class="lineNum">     223 </span><span class="lineCov">          1 :         !requestSucceeded) {</span>
+<span class="lineNum">     224 </span>            :       return NS_BINDING_ABORTED;
+<span class="lineNum">     225 </span>            :     }
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span>            :     nsCOMPtr&lt;nsICacheInfoChannel&gt; cacheInfoChannel =
+<span class="lineNum">     228 </span><span class="lineCov">          1 :         do_QueryInterface(aRequest, &amp;rv);</span>
+<span class="lineNum">     229 </span><span class="lineCov">          1 :     if (NS_FAILED(rv)) return rv;</span>
+<span class="lineNum">     230 </span>            :  
+<span class="lineNum">     231 </span>            :     // no need to prefetch a document that is already in the cache
+<span class="lineNum">     232 </span>            :     bool fromCache;
+<span class="lineNum">     233 </span><span class="lineCov">          1 :     if (NS_SUCCEEDED(cacheInfoChannel-&gt;IsFromCache(&amp;fromCache)) &amp;&amp;</span>
+<span class="lineNum">     234 </span>            :         fromCache) {
+<span class="lineNum">     235 </span><span class="lineCov">          1 :         LOG((&quot;document is already in the cache; canceling prefetch\n&quot;));</span>
+<span class="lineNum">     236 </span>            :         // although it's canceled we still want to fire load event
+<span class="lineNum">     237 </span><span class="lineCov">          1 :         mShouldFireLoadEvent = true;</span>
+<span class="lineNum">     238 </span><span class="lineCov">          1 :         return NS_BINDING_ABORTED;</span>
+<span class="lineNum">     239 </span>            :     }
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span>            :     //
+<span class="lineNum">     242 </span>            :     // no need to prefetch a document that must be requested fresh each
+<span class="lineNum">     243 </span>            :     // and every time.
+<span class="lineNum">     244 </span>            :     //
+<span class="lineNum">     245 </span>            :     uint32_t expTime;
+<span class="lineNum">     246 </span><span class="lineCov">          1 :     if (NS_SUCCEEDED(cacheInfoChannel-&gt;GetCacheTokenExpirationTime(&amp;expTime))) {</span>
+<span class="lineNum">     247 </span><span class="lineCov">          1 :         if (NowInSeconds() &gt;= expTime) {</span>
+<span class="lineNum">     248 </span><span class="lineCov">          1 :             LOG((&quot;document cannot be reused from cache; &quot;</span>
+<span class="lineNum">     249 </span>            :                  &quot;canceling prefetch\n&quot;));
+<span class="lineNum">     250 </span>            :             return NS_BINDING_ABORTED;
+<span class="lineNum">     251 </span>            :         }
+<span class="lineNum">     252 </span>            :     }
+<span class="lineNum">     253 </span>            : 
+<span class="lineNum">     254 </span>            :     return NS_OK;
+<span class="lineNum">     255 </span>            : }
+<a name="256"><span class="lineNum">     256 </span>            : </a>
+<span class="lineNum">     257 </span>            : NS_IMETHODIMP
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 : nsPrefetchNode::OnDataAvailable(nsIRequest *aRequest,</span>
+<span class="lineNum">     259 </span>            :                                 nsISupports *aContext,
+<span class="lineNum">     260 </span>            :                                 nsIInputStream *aStream,
+<span class="lineNum">     261 </span>            :                                 uint64_t aOffset,
+<span class="lineNum">     262 </span>            :                                 uint32_t aCount)
+<span class="lineNum">     263 </span>            : {
+<span class="lineNum">     264 </span><span class="lineNoCov">          0 :     uint32_t bytesRead = 0;</span>
+<span class="lineNum">     265 </span><span class="lineNoCov">          0 :     aStream-&gt;ReadSegments(NS_DiscardSegment, nullptr, aCount, &amp;bytesRead);</span>
+<span class="lineNum">     266 </span><span class="lineNoCov">          0 :     mBytesRead += bytesRead;</span>
+<span class="lineNum">     267 </span><span class="lineNoCov">          0 :     LOG((&quot;prefetched %u bytes [offset=%&quot; PRIu64 &quot;]\n&quot;, bytesRead, aOffset));</span>
+<span class="lineNum">     268 </span><span class="lineNoCov">          0 :     return NS_OK;</span>
+<span class="lineNum">     269 </span>            : }
+<span class="lineNum">     270 </span>            : 
+<a name="271"><span class="lineNum">     271 </span>            : </a>
+<span class="lineNum">     272 </span>            : NS_IMETHODIMP
+<span class="lineNum">     273 </span><span class="lineCov">          1 : nsPrefetchNode::OnStopRequest(nsIRequest *aRequest,</span>
+<span class="lineNum">     274 </span>            :                               nsISupports *aContext,
+<span class="lineNum">     275 </span>            :                               nsresult aStatus)
+<span class="lineNum">     276 </span>            : {
+<span class="lineNum">     277 </span><span class="lineCov">          1 :     LOG((&quot;done prefetching [status=%&quot; PRIx32 &quot;]\n&quot;, static_cast&lt;uint32_t&gt;(aStatus)));</span>
+<span class="lineNum">     278 </span>            : 
+<span class="lineNum">     279 </span><span class="lineCov">          1 :     if (mBytesRead == 0 &amp;&amp; aStatus == NS_OK &amp;&amp; mChannel) {</span>
+<span class="lineNum">     280 </span>            :         // we didn't need to read (because LOAD_ONLY_IF_MODIFIED was
+<span class="lineNum">     281 </span>            :         // specified), but the object should report loadedSize as if it
+<span class="lineNum">     282 </span>            :         // did.
+<span class="lineNum">     283 </span><span class="lineCov">          1 :         mChannel-&gt;GetContentLength(&amp;mBytesRead);</span>
+<span class="lineNum">     284 </span>            :     }
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span><span class="lineCov">          1 :     mService-&gt;NotifyLoadCompleted(this);</span>
+<span class="lineNum">     287 </span><span class="lineCov">          1 :     mService-&gt;DispatchEvent(this, mShouldFireLoadEvent || NS_SUCCEEDED(aStatus));</span>
+<span class="lineNum">     288 </span><span class="lineCov">          1 :     mService-&gt;ProcessNextURI(this);</span>
+<span class="lineNum">     289 </span><span class="lineCov">          1 :     return NS_OK;</span>
+<span class="lineNum">     290 </span>            : }
+<span class="lineNum">     291 </span>            : 
+<span class="lineNum">     292 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">     293 </span>            : // nsPrefetchNode::nsIInterfaceRequestor
+<span class="lineNum">     294 </span>            : //-----------------------------------------------------------------------------
+<a name="295"><span class="lineNum">     295 </span>            : </a>
+<span class="lineNum">     296 </span>            : NS_IMETHODIMP
+<span class="lineNum">     297 </span><span class="lineCov">          1 : nsPrefetchNode::GetInterface(const nsIID &amp;aIID, void **aResult)</span>
+<span class="lineNum">     298 </span>            : {
+<span class="lineNum">     299 </span><span class="lineCov">          1 :     if (aIID.Equals(NS_GET_IID(nsIChannelEventSink))) {</span>
+<span class="lineNum">     300 </span>            :         NS_ADDREF_THIS();
+<span class="lineNum">     301 </span><span class="lineCov">          1 :         *aResult = static_cast&lt;nsIChannelEventSink *&gt;(this);</span>
+<span class="lineNum">     302 </span><span class="lineCov">          1 :         return NS_OK;</span>
+<span class="lineNum">     303 </span>            :     }
+<span class="lineNum">     304 </span>            : 
+<span class="lineNum">     305 </span><span class="lineCov">          1 :     if (aIID.Equals(NS_GET_IID(nsIRedirectResultListener))) {</span>
+<span class="lineNum">     306 </span>            :         NS_ADDREF_THIS();
+<span class="lineNum">     307 </span><span class="lineCov">          1 :         *aResult = static_cast&lt;nsIRedirectResultListener *&gt;(this);</span>
+<span class="lineNum">     308 </span><span class="lineCov">          1 :         return NS_OK;</span>
+<span class="lineNum">     309 </span>            :     }
+<span class="lineNum">     310 </span>            : 
+<span class="lineNum">     311 </span>            :     return NS_ERROR_NO_INTERFACE;
+<span class="lineNum">     312 </span>            : }
+<span class="lineNum">     313 </span>            : 
+<span class="lineNum">     314 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">     315 </span>            : // nsPrefetchNode::nsIChannelEventSink
+<span class="lineNum">     316 </span>            : //-----------------------------------------------------------------------------
+<a name="317"><span class="lineNum">     317 </span>            : </a>
+<span class="lineNum">     318 </span>            : NS_IMETHODIMP
+<span class="lineNum">     319 </span><span class="lineCov">          1 : nsPrefetchNode::AsyncOnChannelRedirect(nsIChannel *aOldChannel,</span>
+<span class="lineNum">     320 </span>            :                                        nsIChannel *aNewChannel,
+<span class="lineNum">     321 </span>            :                                        uint32_t aFlags,
+<span class="lineNum">     322 </span>            :                                        nsIAsyncVerifyRedirectCallback *callback)
+<span class="lineNum">     323 </span>            : {
+<span class="lineNum">     324 </span>            :     nsCOMPtr&lt;nsIURI&gt; newURI;
+<span class="lineNum">     325 </span><span class="lineCov">          1 :     nsresult rv = aNewChannel-&gt;GetURI(getter_AddRefs(newURI));</span>
+<span class="lineNum">     326 </span><span class="lineCov">          1 :     if (NS_FAILED(rv))</span>
+<span class="lineNum">     327 </span>            :         return rv;
+<span class="lineNum">     328 </span>            : 
+<span class="lineNum">     329 </span>            :     bool match;
+<span class="lineNum">     330 </span><span class="lineCov">          1 :     rv = newURI-&gt;SchemeIs(&quot;http&quot;, &amp;match); </span>
+<span class="lineNum">     331 </span><span class="lineCov">          1 :     if (NS_FAILED(rv) || !match) {</span>
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :         rv = newURI-&gt;SchemeIs(&quot;https&quot;, &amp;match); </span>
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :         if (NS_FAILED(rv) || !match) {</span>
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :             LOG((&quot;rejected: URL is not of type http/https\n&quot;));</span>
+<span class="lineNum">     335 </span>            :             return NS_ERROR_ABORT;
+<span class="lineNum">     336 </span>            :         }
+<span class="lineNum">     337 </span>            :     }
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span>            :     // HTTP request headers are not automatically forwarded to the new channel.
+<span class="lineNum">     340 </span><span class="lineCov">          1 :     nsCOMPtr&lt;nsIHttpChannel&gt; httpChannel = do_QueryInterface(aNewChannel);</span>
+<span class="lineNum">     341 </span><span class="lineCov">          1 :     NS_ENSURE_STATE(httpChannel);</span>
+<span class="lineNum">     342 </span>            : 
+<span class="lineNum">     343 </span>            :     rv = httpChannel-&gt;SetRequestHeader(NS_LITERAL_CSTRING(&quot;X-Moz&quot;),
+<span class="lineNum">     344 </span>            :                                        NS_LITERAL_CSTRING(&quot;prefetch&quot;),
+<span class="lineNum">     345 </span><span class="lineCov">          1 :                                        false);</span>
+<span class="lineNum">     346 </span>            :     MOZ_ASSERT(NS_SUCCEEDED(rv));
+<span class="lineNum">     347 </span>            : 
+<span class="lineNum">     348 </span>            :     // Assign to mChannel after we get notification about success of the
+<span class="lineNum">     349 </span>            :     // redirect in OnRedirectResult.
+<span class="lineNum">     350 </span><span class="lineCov">          1 :     mRedirectChannel = aNewChannel;</span>
+<span class="lineNum">     351 </span>            : 
+<span class="lineNum">     352 </span><span class="lineCov">          1 :     callback-&gt;OnRedirectVerifyCallback(NS_OK);</span>
+<span class="lineNum">     353 </span><span class="lineCov">          1 :     return NS_OK;</span>
+<span class="lineNum">     354 </span>            : }
+<span class="lineNum">     355 </span>            : 
+<span class="lineNum">     356 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">     357 </span>            : // nsPrefetchNode::nsIRedirectResultListener
+<span class="lineNum">     358 </span>            : //-----------------------------------------------------------------------------
+<a name="359"><span class="lineNum">     359 </span>            : </a>
+<span class="lineNum">     360 </span>            : NS_IMETHODIMP
+<span class="lineNum">     361 </span><span class="lineCov">          1 : nsPrefetchNode::OnRedirectResult(bool proceeding)</span>
+<span class="lineNum">     362 </span>            : {
+<span class="lineNum">     363 </span><span class="lineCov">          1 :     if (proceeding &amp;&amp; mRedirectChannel)</span>
+<span class="lineNum">     364 </span><span class="lineCov">          1 :         mChannel = mRedirectChannel;</span>
+<span class="lineNum">     365 </span>            : 
+<span class="lineNum">     366 </span><span class="lineCov">          1 :     mRedirectChannel = nullptr;</span>
+<span class="lineNum">     367 </span>            : 
+<span class="lineNum">     368 </span><span class="lineCov">          1 :     return NS_OK;</span>
+<span class="lineNum">     369 </span>            : }
+<span class="lineNum">     370 </span>            : 
+<span class="lineNum">     371 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">     372 </span>            : // nsPrefetchService &lt;public&gt;
+<a name="373"><span class="lineNum">     373 </span>            : //-----------------------------------------------------------------------------</a>
+<span class="lineNum">     374 </span>            : 
+<span class="lineNum">     375 </span><span class="lineCov">          1 : nsPrefetchService::nsPrefetchService()</span>
+<span class="lineNum">     376 </span>            :     : mMaxParallelism(6)
+<span class="lineNum">     377 </span>            :     , mStopCount(0)
+<span class="lineNum">     378 </span>            :     , mHaveProcessed(false)
+<span class="lineNum">     379 </span>            :     , mDisabled(true)
+<span class="lineNum">     380 </span><span class="lineCov">          1 :     , mAggressive(false)</span>
+<span class="lineNum">     381 </span>            : {
+<a name="382"><span class="lineNum">     382 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     383 </span>            : 
+<span class="lineNum">     384 </span><span class="lineCov">          1 : nsPrefetchService::~nsPrefetchService()</span>
+<span class="lineNum">     385 </span>            : {
+<span class="lineNum">     386 </span><span class="lineCov">          1 :     Preferences::RemoveObserver(this, PREFETCH_PREF);</span>
+<span class="lineNum">     387 </span><span class="lineCov">          1 :     Preferences::RemoveObserver(this, PARALLELISM_PREF);</span>
+<span class="lineNum">     388 </span><span class="lineCov">          1 :     Preferences::RemoveObserver(this, AGGRESSIVE_PREF);</span>
+<span class="lineNum">     389 </span>            :     // cannot reach destructor if prefetch in progress (listener owns reference
+<span class="lineNum">     390 </span>            :     // to this service)
+<span class="lineNum">     391 </span><span class="lineCov">          1 :     EmptyQueue();</span>
+<span class="lineNum">     392 </span><span class="lineCov">          1 : }</span>
+<a name="393"><span class="lineNum">     393 </span>            : </a>
+<span class="lineNum">     394 </span>            : nsresult
+<span class="lineNum">     395 </span><span class="lineCov">          1 : nsPrefetchService::Init()</span>
+<span class="lineNum">     396 </span>            : {
+<span class="lineNum">     397 </span>            :     nsresult rv;
+<span class="lineNum">     398 </span>            : 
+<span class="lineNum">     399 </span>            :     // read prefs and hook up pref observer
+<span class="lineNum">     400 </span><span class="lineCov">          1 :     mDisabled = !Preferences::GetBool(PREFETCH_PREF, !mDisabled);</span>
+<span class="lineNum">     401 </span><span class="lineCov">          1 :     Preferences::AddWeakObserver(this, PREFETCH_PREF);</span>
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span><span class="lineCov">          1 :     mMaxParallelism = Preferences::GetInt(PARALLELISM_PREF, mMaxParallelism);</span>
+<span class="lineNum">     404 </span><span class="lineCov">          1 :     if (mMaxParallelism &lt; 1) {</span>
+<span class="lineNum">     405 </span><span class="lineNoCov">          0 :         mMaxParallelism = 1;</span>
+<span class="lineNum">     406 </span>            :     }
+<span class="lineNum">     407 </span><span class="lineCov">          1 :     Preferences::AddWeakObserver(this, PARALLELISM_PREF);</span>
+<span class="lineNum">     408 </span>            : 
+<span class="lineNum">     409 </span><span class="lineCov">          1 :     mAggressive = Preferences::GetBool(AGGRESSIVE_PREF, false);</span>
+<span class="lineNum">     410 </span><span class="lineCov">          1 :     Preferences::AddWeakObserver(this, AGGRESSIVE_PREF);</span>
+<span class="lineNum">     411 </span>            : 
+<span class="lineNum">     412 </span>            :     // Observe xpcom-shutdown event
+<span class="lineNum">     413 </span>            :     nsCOMPtr&lt;nsIObserverService&gt; observerService =
+<span class="lineNum">     414 </span><span class="lineCov">          1 :       mozilla::services::GetObserverService();</span>
+<span class="lineNum">     415 </span><span class="lineCov">          1 :     if (!observerService)</span>
+<span class="lineNum">     416 </span>            :       return NS_ERROR_FAILURE;
+<span class="lineNum">     417 </span>            : 
+<span class="lineNum">     418 </span><span class="lineCov">          1 :     rv = observerService-&gt;AddObserver(this, NS_XPCOM_SHUTDOWN_OBSERVER_ID, true);</span>
+<span class="lineNum">     419 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span><span class="lineCov">          1 :     if (!mDisabled)</span>
+<span class="lineNum">     422 </span><span class="lineCov">          1 :         AddProgressListener();</span>
+<span class="lineNum">     423 </span>            : 
+<span class="lineNum">     424 </span>            :     return NS_OK;
+<span class="lineNum">     425 </span>            : }
+<a name="426"><span class="lineNum">     426 </span>            : </a>
+<span class="lineNum">     427 </span>            : void
+<span class="lineNum">     428 </span><span class="lineCov">          1 : nsPrefetchService::ProcessNextURI(nsPrefetchNode *aFinished)</span>
+<span class="lineNum">     429 </span>            : {
+<span class="lineNum">     430 </span>            :     nsresult rv;
+<span class="lineNum">     431 </span>            : 
+<span class="lineNum">     432 </span><span class="lineCov">          1 :     if (aFinished) {</span>
+<span class="lineNum">     433 </span><span class="lineCov">          1 :         mCurrentNodes.RemoveElement(aFinished);</span>
+<span class="lineNum">     434 </span>            :     }
+<span class="lineNum">     435 </span>            : 
+<span class="lineNum">     436 </span><span class="lineCov">          1 :     if (mCurrentNodes.Length() &gt;= static_cast&lt;uint32_t&gt;(mMaxParallelism)) {</span>
+<span class="lineNum">     437 </span>            :         // We already have enough prefetches going on, so hold off
+<span class="lineNum">     438 </span>            :         // for now.
+<span class="lineNum">     439 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     440 </span>            :     }
+<span class="lineNum">     441 </span>            : 
+<span class="lineNum">     442 </span><span class="lineCov">          1 :     do {</span>
+<span class="lineNum">     443 </span><span class="lineCov">          1 :         if (mQueue.empty()) {</span>
+<span class="lineNum">     444 </span>            :           break;
+<span class="lineNum">     445 </span>            :         }
+<span class="lineNum">     446 </span><span class="lineCov">          1 :         RefPtr&lt;nsPrefetchNode&gt; node = mQueue.front().forget();</span>
+<span class="lineNum">     447 </span><span class="lineCov">          1 :         mQueue.pop_front();</span>
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span><span class="lineCov">          1 :         if (LOG_ENABLED()) {</span>
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 :             LOG((&quot;ProcessNextURI [%s]\n&quot;,</span>
+<span class="lineNum">     451 </span>            :                  node-&gt;mURI-&gt;GetSpecOrDefault().get())); }
+<span class="lineNum">     452 </span>            : 
+<span class="lineNum">     453 </span>            :         //
+<span class="lineNum">     454 </span>            :         // if opening the channel fails (e.g. security check returns an error),
+<span class="lineNum">     455 </span>            :         // send an error event and then just skip to the next uri
+<span class="lineNum">     456 </span>            :         //
+<span class="lineNum">     457 </span><span class="lineCov">          1 :         rv = node-&gt;OpenChannel();</span>
+<span class="lineNum">     458 </span><span class="lineCov">          1 :         if (NS_SUCCEEDED(rv)) {</span>
+<span class="lineNum">     459 </span><span class="lineCov">          1 :             mCurrentNodes.AppendElement(node);</span>
+<span class="lineNum">     460 </span>            :         } else {
+<span class="lineNum">     461 </span><span class="lineNoCov">          0 :           DispatchEvent(node, false);</span>
+<span class="lineNum">     462 </span><span class="lineCov">          1 :         }</span>
+<span class="lineNum">     463 </span>            :     }
+<span class="lineNum">     464 </span><span class="lineCov">          1 :     while (NS_FAILED(rv));</span>
+<span class="lineNum">     465 </span>            : }
+<a name="466"><span class="lineNum">     466 </span>            : </a>
+<span class="lineNum">     467 </span>            : void
+<span class="lineNum">     468 </span><span class="lineCov">          1 : nsPrefetchService::NotifyLoadRequested(nsPrefetchNode *node)</span>
+<span class="lineNum">     469 </span>            : {
+<span class="lineNum">     470 </span>            :     nsCOMPtr&lt;nsIObserverService&gt; observerService =
+<span class="lineNum">     471 </span><span class="lineCov">          1 :       mozilla::services::GetObserverService();</span>
+<span class="lineNum">     472 </span><span class="lineCov">          1 :     if (!observerService)</span>
+<span class="lineNum">     473 </span><span class="lineCov">          1 :       return;</span>
+<span class="lineNum">     474 </span>            : 
+<span class="lineNum">     475 </span>            :     observerService-&gt;NotifyObservers(static_cast&lt;nsIStreamListener*&gt;(node),
+<span class="lineNum">     476 </span><span class="lineCov">          1 :                                      &quot;prefetch-load-requested&quot;, nullptr);</span>
+<span class="lineNum">     477 </span>            : }
+<a name="478"><span class="lineNum">     478 </span>            : </a>
+<span class="lineNum">     479 </span>            : void
+<span class="lineNum">     480 </span><span class="lineCov">          1 : nsPrefetchService::NotifyLoadCompleted(nsPrefetchNode *node)</span>
+<span class="lineNum">     481 </span>            : {
+<span class="lineNum">     482 </span>            :     nsCOMPtr&lt;nsIObserverService&gt; observerService =
+<span class="lineNum">     483 </span><span class="lineCov">          1 :       mozilla::services::GetObserverService();</span>
+<span class="lineNum">     484 </span><span class="lineCov">          1 :     if (!observerService)</span>
+<span class="lineNum">     485 </span><span class="lineCov">          1 :       return;</span>
+<span class="lineNum">     486 </span>            : 
+<span class="lineNum">     487 </span>            :     observerService-&gt;NotifyObservers(static_cast&lt;nsIStreamListener*&gt;(node),
+<span class="lineNum">     488 </span><span class="lineCov">          1 :                                      &quot;prefetch-load-completed&quot;, nullptr);</span>
+<span class="lineNum">     489 </span>            : }
+<a name="490"><span class="lineNum">     490 </span>            : </a>
+<span class="lineNum">     491 </span>            : void
+<span class="lineNum">     492 </span><span class="lineCov">          1 : nsPrefetchService::DispatchEvent(nsPrefetchNode *node, bool aSuccess)</span>
+<span class="lineNum">     493 </span>            : {
+<span class="lineNum">     494 </span><span class="lineCov">          1 :     for (uint32_t i = 0; i &lt; node-&gt;mSources.Length(); i++) {</span>
+<span class="lineNum">     495 </span><span class="lineCov">          1 :       nsCOMPtr&lt;nsINode&gt; domNode = do_QueryReferent(node-&gt;mSources.ElementAt(i));</span>
+<span class="lineNum">     496 </span><span class="lineCov">          1 :       if (domNode &amp;&amp; domNode-&gt;IsInComposedDoc()) {</span>
+<span class="lineNum">     497 </span>            :         nsContentUtils::DispatchTrustedEvent(domNode-&gt;OwnerDoc(),
+<span class="lineNum">     498 </span>            :                                              domNode,
+<span class="lineNum">     499 </span>            :                                              aSuccess ?
+<span class="lineNum">     500 </span>            :                                               NS_LITERAL_STRING(&quot;load&quot;) :
+<span class="lineNum">     501 </span>            :                                               NS_LITERAL_STRING(&quot;error&quot;),
+<span class="lineNum">     502 </span>            :                                              /* aCanBubble = */ false,
+<span class="lineNum">     503 </span><span class="lineCov">          1 :                                              /* aCancelable = */ false);</span>
+<span class="lineNum">     504 </span>            :       }
+<span class="lineNum">     505 </span>            :     }
+<span class="lineNum">     506 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     507 </span>            : 
+<span class="lineNum">     508 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">     509 </span>            : // nsPrefetchService &lt;private&gt;
+<span class="lineNum">     510 </span>            : //-----------------------------------------------------------------------------
+<a name="511"><span class="lineNum">     511 </span>            : </a>
+<span class="lineNum">     512 </span>            : void
+<span class="lineNum">     513 </span><span class="lineCov">          1 : nsPrefetchService::AddProgressListener()</span>
+<span class="lineNum">     514 </span>            : {
+<span class="lineNum">     515 </span>            :     // Register as an observer for the document loader  
+<span class="lineNum">     516 </span>            :     nsCOMPtr&lt;nsIWebProgress&gt; progress = 
+<span class="lineNum">     517 </span><span class="lineCov">          1 :         do_GetService(NS_DOCUMENTLOADER_SERVICE_CONTRACTID);</span>
+<span class="lineNum">     518 </span><span class="lineCov">          1 :     if (progress)</span>
+<span class="lineNum">     519 </span><span class="lineCov">          1 :         progress-&gt;AddProgressListener(this, nsIWebProgress::NOTIFY_STATE_DOCUMENT);</span>
+<span class="lineNum">     520 </span><span class="lineCov">          1 : }</span>
+<a name="521"><span class="lineNum">     521 </span>            : </a>
+<span class="lineNum">     522 </span>            : void
+<span class="lineNum">     523 </span><span class="lineNoCov">          0 : nsPrefetchService::RemoveProgressListener()</span>
+<span class="lineNum">     524 </span>            : {
+<span class="lineNum">     525 </span>            :     // Register as an observer for the document loader  
+<span class="lineNum">     526 </span>            :     nsCOMPtr&lt;nsIWebProgress&gt; progress =
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :         do_GetService(NS_DOCUMENTLOADER_SERVICE_CONTRACTID);</span>
+<span class="lineNum">     528 </span><span class="lineNoCov">          0 :     if (progress)</span>
+<span class="lineNum">     529 </span><span class="lineNoCov">          0 :         progress-&gt;RemoveProgressListener(this);</span>
+<span class="lineNum">     530 </span><span class="lineNoCov">          0 : }</span>
+<a name="531"><span class="lineNum">     531 </span>            : </a>
+<span class="lineNum">     532 </span>            : nsresult
+<span class="lineNum">     533 </span><span class="lineCov">          1 : nsPrefetchService::EnqueueURI(nsIURI *aURI,</span>
+<span class="lineNum">     534 </span>            :                               nsIURI *aReferrerURI,
+<span class="lineNum">     535 </span>            :                               nsIDOMNode *aSource,
+<span class="lineNum">     536 </span>            :                               nsPrefetchNode **aNode)
+<span class="lineNum">     537 </span>            : {
+<span class="lineNum">     538 </span>            :     RefPtr&lt;nsPrefetchNode&gt; node = new nsPrefetchNode(this, aURI, aReferrerURI,
+<span class="lineNum">     539 </span><span class="lineCov">          1 :                                                      aSource);</span>
+<span class="lineNum">     540 </span><span class="lineCov">          1 :     mQueue.push_back(node);</span>
+<span class="lineNum">     541 </span>            :     node.forget(aNode);
+<span class="lineNum">     542 </span><span class="lineCov">          1 :     return NS_OK;</span>
+<span class="lineNum">     543 </span>            : }
+<a name="544"><span class="lineNum">     544 </span>            : </a>
+<span class="lineNum">     545 </span>            : void
+<span class="lineNum">     546 </span><span class="lineCov">          1 : nsPrefetchService::EmptyQueue()</span>
+<span class="lineNum">     547 </span>            : {
+<span class="lineNum">     548 </span><span class="lineCov">          1 :     while (!mQueue.empty()) {</span>
+<span class="lineNum">     549 </span><span class="lineNoCov">          0 :         mQueue.pop_back();</span>
+<span class="lineNum">     550 </span>            :     }
+<span class="lineNum">     551 </span><span class="lineCov">          1 : }</span>
+<a name="552"><span class="lineNum">     552 </span>            : </a>
+<span class="lineNum">     553 </span>            : void
+<span class="lineNum">     554 </span><span class="lineCov">          1 : nsPrefetchService::StartPrefetching()</span>
+<span class="lineNum">     555 </span>            : {
+<span class="lineNum">     556 </span>            :     //
+<span class="lineNum">     557 </span>            :     // at initialization time we might miss the first DOCUMENT START
+<span class="lineNum">     558 </span>            :     // notification, so we have to be careful to avoid letting our
+<span class="lineNum">     559 </span>            :     // stop count go negative.
+<span class="lineNum">     560 </span>            :     //
+<span class="lineNum">     561 </span><span class="lineCov">          1 :     if (mStopCount &gt; 0)</span>
+<span class="lineNum">     562 </span><span class="lineCov">          1 :         mStopCount--;</span>
+<span class="lineNum">     563 </span>            : 
+<span class="lineNum">     564 </span><span class="lineCov">          1 :     LOG((&quot;StartPrefetching [stopcount=%d]\n&quot;, mStopCount));</span>
+<span class="lineNum">     565 </span>            : 
+<span class="lineNum">     566 </span>            :     // only start prefetching after we've received enough DOCUMENT
+<span class="lineNum">     567 </span>            :     // STOP notifications.  we do this inorder to defer prefetching
+<span class="lineNum">     568 </span>            :     // until after all sub-frames have finished loading.
+<span class="lineNum">     569 </span><span class="lineCov">          1 :     if (!mStopCount) {</span>
+<span class="lineNum">     570 </span><span class="lineCov">          1 :         mHaveProcessed = true;</span>
+<span class="lineNum">     571 </span><span class="lineCov">          1 :         while (!mQueue.empty() &amp;&amp; mCurrentNodes.Length() &lt; static_cast&lt;uint32_t&gt;(mMaxParallelism)) {</span>
+<span class="lineNum">     572 </span><span class="lineNoCov">          0 :             ProcessNextURI(nullptr);</span>
+<span class="lineNum">     573 </span>            :         }
+<span class="lineNum">     574 </span>            :     }
+<span class="lineNum">     575 </span><span class="lineCov">          1 : }</span>
+<a name="576"><span class="lineNum">     576 </span>            : </a>
+<span class="lineNum">     577 </span>            : void
+<span class="lineNum">     578 </span><span class="lineCov">          1 : nsPrefetchService::StopPrefetching()</span>
+<span class="lineNum">     579 </span>            : {
+<span class="lineNum">     580 </span><span class="lineCov">          1 :     mStopCount++;</span>
+<span class="lineNum">     581 </span>            : 
+<span class="lineNum">     582 </span><span class="lineCov">          1 :     LOG((&quot;StopPrefetching [stopcount=%d]\n&quot;, mStopCount));</span>
+<span class="lineNum">     583 </span>            : 
+<span class="lineNum">     584 </span>            :     // only kill the prefetch queue if we are actively prefetching right now
+<span class="lineNum">     585 </span><span class="lineCov">          1 :     if (mCurrentNodes.IsEmpty()) {</span>
+<span class="lineNum">     586 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     587 </span>            :     }
+<span class="lineNum">     588 </span>            : 
+<span class="lineNum">     589 </span><span class="lineNoCov">          0 :     for (uint32_t i = 0; i &lt; mCurrentNodes.Length(); ++i) {</span>
+<span class="lineNum">     590 </span><span class="lineNoCov">          0 :         mCurrentNodes[i]-&gt;CancelChannel(NS_BINDING_ABORTED);</span>
+<span class="lineNum">     591 </span>            :     }
+<span class="lineNum">     592 </span><span class="lineNoCov">          0 :     mCurrentNodes.Clear();</span>
+<span class="lineNum">     593 </span><span class="lineNoCov">          0 :     EmptyQueue();</span>
+<span class="lineNum">     594 </span>            : }
+<span class="lineNum">     595 </span>            : 
+<span class="lineNum">     596 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">     597 </span>            : // nsPrefetchService::nsISupports
+<a name="598"><span class="lineNum">     598 </span>            : //-----------------------------------------------------------------------------</a>
+<span class="lineNum">     599 </span>            : 
+<span class="lineNum">     600 </span><span class="lineCov">          1 : NS_IMPL_ISUPPORTS(nsPrefetchService,</span>
+<span class="lineNum">     601 </span>            :                   nsIPrefetchService,
+<span class="lineNum">     602 </span>            :                   nsIWebProgressListener,
+<span class="lineNum">     603 </span>            :                   nsIObserver,
+<span class="lineNum">     604 </span>            :                   nsISupportsWeakReference)
+<span class="lineNum">     605 </span>            : 
+<span class="lineNum">     606 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">     607 </span>            : // nsPrefetchService::nsIPrefetchService
+<span class="lineNum">     608 </span>            : //-----------------------------------------------------------------------------
+<a name="609"><span class="lineNum">     609 </span>            : </a>
+<span class="lineNum">     610 </span>            : nsresult
+<span class="lineNum">     611 </span><span class="lineCov">          1 : nsPrefetchService::Prefetch(nsIURI *aURI,</span>
+<span class="lineNum">     612 </span>            :                             nsIURI *aReferrerURI,
+<span class="lineNum">     613 </span>            :                             nsIDOMNode *aSource,
+<span class="lineNum">     614 </span>            :                             bool aExplicit)
+<span class="lineNum">     615 </span>            : {
+<span class="lineNum">     616 </span>            :     nsresult rv;
+<span class="lineNum">     617 </span>            : 
+<span class="lineNum">     618 </span><span class="lineCov">          1 :     NS_ENSURE_ARG_POINTER(aURI);</span>
+<span class="lineNum">     619 </span><span class="lineCov">          1 :     NS_ENSURE_ARG_POINTER(aReferrerURI);</span>
+<span class="lineNum">     620 </span>            : 
+<span class="lineNum">     621 </span><span class="lineCov">          1 :     if (LOG_ENABLED()) {</span>
+<span class="lineNum">     622 </span><span class="lineNoCov">          0 :         LOG((&quot;PrefetchURI [%s]\n&quot;, aURI-&gt;GetSpecOrDefault().get()));</span>
+<span class="lineNum">     623 </span>            :     }
+<span class="lineNum">     624 </span>            : 
+<span class="lineNum">     625 </span><span class="lineCov">          1 :     if (mDisabled) {</span>
+<span class="lineNum">     626 </span><span class="lineNoCov">          0 :         LOG((&quot;rejected: prefetch service is disabled\n&quot;));</span>
+<span class="lineNum">     627 </span>            :         return NS_ERROR_ABORT;
+<span class="lineNum">     628 </span>            :     }
+<span class="lineNum">     629 </span>            : 
+<span class="lineNum">     630 </span>            :     //
+<span class="lineNum">     631 </span>            :     // XXX we should really be asking the protocol handler if it supports
+<span class="lineNum">     632 </span>            :     // caching, so we can determine if there is any value to prefetching.
+<span class="lineNum">     633 </span>            :     // for now, we'll only prefetch http links since we know that's the 
+<span class="lineNum">     634 </span>            :     // most common case.  ignore https links since https content only goes
+<span class="lineNum">     635 </span>            :     // into the memory cache.
+<span class="lineNum">     636 </span>            :     //
+<span class="lineNum">     637 </span>            :     // XXX we might want to either leverage nsIProtocolHandler::protocolFlags
+<span class="lineNum">     638 </span>            :     // or possibly nsIRequest::loadFlags to determine if this URI should be
+<span class="lineNum">     639 </span>            :     // prefetched.
+<span class="lineNum">     640 </span>            :     //
+<span class="lineNum">     641 </span>            :     bool match;
+<span class="lineNum">     642 </span><span class="lineCov">          1 :     rv = aURI-&gt;SchemeIs(&quot;http&quot;, &amp;match); </span>
+<span class="lineNum">     643 </span><span class="lineCov">          1 :     if (NS_FAILED(rv) || !match) {</span>
+<span class="lineNum">     644 </span><span class="lineNoCov">          0 :         rv = aURI-&gt;SchemeIs(&quot;https&quot;, &amp;match); </span>
+<span class="lineNum">     645 </span><span class="lineNoCov">          0 :         if (NS_FAILED(rv) || !match) {</span>
+<span class="lineNum">     646 </span><span class="lineNoCov">          0 :             LOG((&quot;rejected: URL is not of type http/https\n&quot;));</span>
+<span class="lineNum">     647 </span>            :             return NS_ERROR_ABORT;
+<span class="lineNum">     648 </span>            :         }
+<span class="lineNum">     649 </span>            :     }
+<span class="lineNum">     650 </span>            : 
+<span class="lineNum">     651 </span>            :     // 
+<span class="lineNum">     652 </span>            :     // the referrer URI must be http:
+<span class="lineNum">     653 </span>            :     //
+<span class="lineNum">     654 </span><span class="lineCov">          1 :     rv = aReferrerURI-&gt;SchemeIs(&quot;http&quot;, &amp;match);</span>
+<span class="lineNum">     655 </span><span class="lineCov">          1 :     if (NS_FAILED(rv) || !match) {</span>
+<span class="lineNum">     656 </span><span class="lineNoCov">          0 :         rv = aReferrerURI-&gt;SchemeIs(&quot;https&quot;, &amp;match);</span>
+<span class="lineNum">     657 </span><span class="lineNoCov">          0 :         if (NS_FAILED(rv) || !match) {</span>
+<span class="lineNum">     658 </span><span class="lineNoCov">          0 :             LOG((&quot;rejected: referrer URL is neither http nor https\n&quot;));</span>
+<span class="lineNum">     659 </span>            :             return NS_ERROR_ABORT;
+<span class="lineNum">     660 </span>            :         }
+<span class="lineNum">     661 </span>            :     }
+<span class="lineNum">     662 </span>            : 
+<span class="lineNum">     663 </span>            :     // skip URLs that contain query strings, except URLs for which prefetching
+<span class="lineNum">     664 </span>            :     // has been explicitly requested.
+<span class="lineNum">     665 </span><span class="lineCov">          1 :     if (!aExplicit) {</span>
+<span class="lineNum">     666 </span><span class="lineNoCov">          0 :         nsCOMPtr&lt;nsIURL&gt; url(do_QueryInterface(aURI, &amp;rv));</span>
+<span class="lineNum">     667 </span><span class="lineNoCov">          0 :         if (NS_FAILED(rv)) return rv;</span>
+<span class="lineNum">     668 </span><span class="lineNoCov">          0 :         nsAutoCString query;</span>
+<span class="lineNum">     669 </span><span class="lineNoCov">          0 :         rv = url-&gt;GetQuery(query);</span>
+<span class="lineNum">     670 </span><span class="lineNoCov">          0 :         if (NS_FAILED(rv) || !query.IsEmpty()) {</span>
+<span class="lineNum">     671 </span><span class="lineNoCov">          0 :             LOG((&quot;rejected: URL has a query string\n&quot;));</span>
+<span class="lineNum">     672 </span><span class="lineNoCov">          0 :             return NS_ERROR_ABORT;</span>
+<span class="lineNum">     673 </span>            :         }
+<span class="lineNum">     674 </span>            :     }
+<span class="lineNum">     675 </span>            : 
+<span class="lineNum">     676 </span>            :     //
+<span class="lineNum">     677 </span>            :     // Check whether it is being prefetched.
+<span class="lineNum">     678 </span>            :     //
+<span class="lineNum">     679 </span><span class="lineCov">          1 :     for (uint32_t i = 0; i &lt; mCurrentNodes.Length(); ++i) {</span>
+<span class="lineNum">     680 </span>            :         bool equals;
+<span class="lineNum">     681 </span><span class="lineNoCov">          0 :         if (NS_SUCCEEDED(mCurrentNodes[i]-&gt;mURI-&gt;Equals(aURI, &amp;equals)) &amp;&amp;</span>
+<span class="lineNum">     682 </span>            :             equals) {
+<span class="lineNum">     683 </span><span class="lineNoCov">          0 :             nsCOMPtr&lt;nsIWeakReference&gt; source = do_GetWeakReference(aSource);</span>
+<span class="lineNum">     684 </span><span class="lineNoCov">          0 :             if (mCurrentNodes[i]-&gt;mSources.IndexOf(source) ==</span>
+<span class="lineNum">     685 </span><span class="lineNoCov">          0 :                 mCurrentNodes[i]-&gt;mSources.NoIndex) {</span>
+<span class="lineNum">     686 </span><span class="lineNoCov">          0 :                 LOG((&quot;URL is already being prefetched, add a new reference &quot;</span>
+<span class="lineNum">     687 </span>            :                      &quot;document\n&quot;));
+<span class="lineNum">     688 </span><span class="lineNoCov">          0 :                 mCurrentNodes[i]-&gt;mSources.AppendElement(source);</span>
+<span class="lineNum">     689 </span><span class="lineNoCov">          0 :                 return NS_OK;</span>
+<span class="lineNum">     690 </span>            :             } else {
+<span class="lineNum">     691 </span><span class="lineNoCov">          0 :                 LOG((&quot;URL is already being prefetched by this document&quot;));</span>
+<span class="lineNum">     692 </span>            :                 return NS_ERROR_ABORT;
+<span class="lineNum">     693 </span>            :             }
+<span class="lineNum">     694 </span>            :         }
+<span class="lineNum">     695 </span>            :     }
+<span class="lineNum">     696 </span>            : 
+<span class="lineNum">     697 </span>            :     //
+<span class="lineNum">     698 </span>            :     // Check whether it is on the prefetch queue.
+<span class="lineNum">     699 </span>            :     //
+<span class="lineNum">     700 </span><span class="lineCov">          1 :     for (std::deque&lt;RefPtr&lt;nsPrefetchNode&gt;&gt;::iterator nodeIt = mQueue.begin();</span>
+<span class="lineNum">     701 </span><span class="lineCov">          1 :          nodeIt != mQueue.end(); nodeIt++) {</span>
+<span class="lineNum">     702 </span>            :         bool equals;
+<span class="lineNum">     703 </span><span class="lineNoCov">          0 :         RefPtr&lt;nsPrefetchNode&gt; node = nodeIt-&gt;get();</span>
+<span class="lineNum">     704 </span><span class="lineNoCov">          0 :         if (NS_SUCCEEDED(node-&gt;mURI-&gt;Equals(aURI, &amp;equals)) &amp;&amp; equals) {</span>
+<span class="lineNum">     705 </span><span class="lineNoCov">          0 :             nsCOMPtr&lt;nsIWeakReference&gt; source = do_GetWeakReference(aSource);</span>
+<span class="lineNum">     706 </span><span class="lineNoCov">          0 :             if (node-&gt;mSources.IndexOf(source) ==</span>
+<span class="lineNum">     707 </span><span class="lineNoCov">          0 :                 node-&gt;mSources.NoIndex) {</span>
+<span class="lineNum">     708 </span><span class="lineNoCov">          0 :                 LOG((&quot;URL is already being prefetched, add a new reference &quot;</span>
+<span class="lineNum">     709 </span>            :                      &quot;document\n&quot;));
+<span class="lineNum">     710 </span><span class="lineNoCov">          0 :                 node-&gt;mSources.AppendElement(do_GetWeakReference(aSource));</span>
+<span class="lineNum">     711 </span><span class="lineNoCov">          0 :                 return NS_OK;</span>
+<span class="lineNum">     712 </span>            :             } else {
+<span class="lineNum">     713 </span><span class="lineNoCov">          0 :                 LOG((&quot;URL is already being prefetched by this document&quot;));</span>
+<span class="lineNum">     714 </span>            :                 return NS_ERROR_ABORT;
+<span class="lineNum">     715 </span>            :             }
+<span class="lineNum">     716 </span>            :      
+<span class="lineNum">     717 </span>            :         }
+<span class="lineNum">     718 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     719 </span>            : 
+<span class="lineNum">     720 </span>            :     RefPtr&lt;nsPrefetchNode&gt; enqueuedNode;
+<span class="lineNum">     721 </span>            :     rv = EnqueueURI(aURI, aReferrerURI, aSource,
+<span class="lineNum">     722 </span><span class="lineCov">          1 :                     getter_AddRefs(enqueuedNode));</span>
+<span class="lineNum">     723 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     724 </span>            : 
+<span class="lineNum">     725 </span><span class="lineCov">          1 :     NotifyLoadRequested(enqueuedNode);</span>
+<span class="lineNum">     726 </span>            : 
+<span class="lineNum">     727 </span>            :     // if there are no pages loading, kick off the request immediately
+<span class="lineNum">     728 </span><span class="lineCov">          1 :     if (mStopCount == 0 &amp;&amp; mHaveProcessed) {</span>
+<span class="lineNum">     729 </span><span class="lineCov">          1 :         ProcessNextURI(nullptr);</span>
+<span class="lineNum">     730 </span>            :     }
+<span class="lineNum">     731 </span>            : 
+<span class="lineNum">     732 </span><span class="lineCov">          1 :     return NS_OK;</span>
+<span class="lineNum">     733 </span>            : }
+<a name="734"><span class="lineNum">     734 </span>            : </a>
+<span class="lineNum">     735 </span>            : NS_IMETHODIMP
+<span class="lineNum">     736 </span><span class="lineCov">          1 : nsPrefetchService::CancelPrefetchURI(nsIURI* aURI,</span>
+<span class="lineNum">     737 </span>            :                                      nsIDOMNode* aSource)
+<span class="lineNum">     738 </span>            : {
+<span class="lineNum">     739 </span><span class="lineCov">          1 :     NS_ENSURE_ARG_POINTER(aURI);</span>
+<span class="lineNum">     740 </span>            : 
+<span class="lineNum">     741 </span><span class="lineCov">          1 :     if (LOG_ENABLED()) {</span>
+<span class="lineNum">     742 </span><span class="lineNoCov">          0 :         LOG((&quot;CancelPrefetchURI [%s]\n&quot;, aURI-&gt;GetSpecOrDefault().get()));</span>
+<span class="lineNum">     743 </span>            :     }
+<span class="lineNum">     744 </span>            : 
+<span class="lineNum">     745 </span>            :     //
+<span class="lineNum">     746 </span>            :     // look in current prefetches
+<span class="lineNum">     747 </span>            :     //
+<span class="lineNum">     748 </span><span class="lineCov">          1 :     for (uint32_t i = 0; i &lt; mCurrentNodes.Length(); ++i) {</span>
+<span class="lineNum">     749 </span>            :         bool equals;
+<span class="lineNum">     750 </span><span class="lineCov">          1 :         if (NS_SUCCEEDED(mCurrentNodes[i]-&gt;mURI-&gt;Equals(aURI, &amp;equals)) &amp;&amp;</span>
+<span class="lineNum">     751 </span>            :             equals) {
+<span class="lineNum">     752 </span><span class="lineCov">          1 :             nsCOMPtr&lt;nsIWeakReference&gt; source = do_GetWeakReference(aSource);</span>
+<span class="lineNum">     753 </span><span class="lineCov">          1 :             if (mCurrentNodes[i]-&gt;mSources.IndexOf(source) !=</span>
+<span class="lineNum">     754 </span><span class="lineCov">          1 :                 mCurrentNodes[i]-&gt;mSources.NoIndex) {</span>
+<span class="lineNum">     755 </span><span class="lineCov">          1 :                 mCurrentNodes[i]-&gt;mSources.RemoveElement(source);</span>
+<span class="lineNum">     756 </span><span class="lineCov">          1 :                 if (mCurrentNodes[i]-&gt;mSources.IsEmpty()) {</span>
+<span class="lineNum">     757 </span><span class="lineCov">          1 :                     mCurrentNodes[i]-&gt;CancelChannel(NS_BINDING_ABORTED);</span>
+<span class="lineNum">     758 </span><span class="lineCov">          1 :                     mCurrentNodes.RemoveElementAt(i);</span>
+<span class="lineNum">     759 </span>            :                 }
+<span class="lineNum">     760 </span>            :                 return NS_OK;
+<span class="lineNum">     761 </span>            :             }
+<span class="lineNum">     762 </span>            :             return NS_ERROR_FAILURE;
+<span class="lineNum">     763 </span>            :         }
+<span class="lineNum">     764 </span>            :     }
+<span class="lineNum">     765 </span>            : 
+<span class="lineNum">     766 </span>            :     //
+<span class="lineNum">     767 </span>            :     // look into the prefetch queue
+<span class="lineNum">     768 </span>            :     //
+<span class="lineNum">     769 </span><span class="lineCov">          1 :     for (std::deque&lt;RefPtr&lt;nsPrefetchNode&gt;&gt;::iterator nodeIt = mQueue.begin();</span>
+<span class="lineNum">     770 </span><span class="lineCov">          1 :          nodeIt != mQueue.end(); nodeIt++) {</span>
+<span class="lineNum">     771 </span>            :         bool equals;
+<span class="lineNum">     772 </span><span class="lineNoCov">          0 :         RefPtr&lt;nsPrefetchNode&gt; node = nodeIt-&gt;get();</span>
+<span class="lineNum">     773 </span><span class="lineNoCov">          0 :         if (NS_SUCCEEDED(node-&gt;mURI-&gt;Equals(aURI, &amp;equals)) &amp;&amp; equals) {</span>
+<span class="lineNum">     774 </span><span class="lineNoCov">          0 :             nsCOMPtr&lt;nsIWeakReference&gt; source = do_GetWeakReference(aSource);</span>
+<span class="lineNum">     775 </span><span class="lineNoCov">          0 :             if (node-&gt;mSources.IndexOf(source) !=</span>
+<span class="lineNum">     776 </span><span class="lineNoCov">          0 :                 node-&gt;mSources.NoIndex) {</span>
+<span class="lineNum">     777 </span>            : 
+<span class="lineNum">     778 </span>            : #ifdef DEBUG
+<span class="lineNum">     779 </span>            :                 int32_t inx = node-&gt;mSources.IndexOf(source);
+<span class="lineNum">     780 </span>            :                 nsCOMPtr&lt;nsIDOMNode&gt; domNode =
+<span class="lineNum">     781 </span>            :                     do_QueryReferent(node-&gt;mSources.ElementAt(inx));
+<span class="lineNum">     782 </span>            :                 MOZ_ASSERT(domNode);
+<span class="lineNum">     783 </span>            : #endif
+<span class="lineNum">     784 </span>            : 
+<span class="lineNum">     785 </span><span class="lineNoCov">          0 :                 node-&gt;mSources.RemoveElement(source);</span>
+<span class="lineNum">     786 </span><span class="lineNoCov">          0 :                 if (node-&gt;mSources.IsEmpty()) {</span>
+<span class="lineNum">     787 </span><span class="lineNoCov">          0 :                     mQueue.erase(nodeIt);</span>
+<span class="lineNum">     788 </span>            :                 }
+<span class="lineNum">     789 </span>            :                 return NS_OK;
+<span class="lineNum">     790 </span>            :             }
+<span class="lineNum">     791 </span>            :             return NS_ERROR_FAILURE;
+<span class="lineNum">     792 </span>            :         }
+<span class="lineNum">     793 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     794 </span>            : 
+<span class="lineNum">     795 </span>            :     // not found!
+<span class="lineNum">     796 </span><span class="lineCov">          1 :     return NS_ERROR_FAILURE;</span>
+<span class="lineNum">     797 </span>            : }
+<a name="798"><span class="lineNum">     798 </span>            : </a>
+<span class="lineNum">     799 </span>            : NS_IMETHODIMP
+<span class="lineNum">     800 </span><span class="lineCov">          1 : nsPrefetchService::PrefetchURI(nsIURI *aURI,</span>
+<span class="lineNum">     801 </span>            :                                nsIURI *aReferrerURI,
+<span class="lineNum">     802 </span>            :                                nsIDOMNode *aSource,
+<span class="lineNum">     803 </span>            :                                bool aExplicit)
+<span class="lineNum">     804 </span>            : {
+<span class="lineNum">     805 </span><span class="lineCov">          1 :     return Prefetch(aURI, aReferrerURI, aSource, aExplicit);</span>
+<span class="lineNum">     806 </span>            : }
+<a name="807"><span class="lineNum">     807 </span>            : </a>
+<span class="lineNum">     808 </span>            : NS_IMETHODIMP
+<span class="lineNum">     809 </span><span class="lineNoCov">          0 : nsPrefetchService::HasMoreElements(bool *aHasMore)</span>
+<span class="lineNum">     810 </span>            : {
+<span class="lineNum">     811 </span><span class="lineNoCov">          0 :     *aHasMore = (mCurrentNodes.Length() || !mQueue.empty());</span>
+<span class="lineNum">     812 </span><span class="lineNoCov">          0 :     return NS_OK;</span>
+<span class="lineNum">     813 </span>            : }
+<span class="lineNum">     814 </span>            : 
+<span class="lineNum">     815 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">     816 </span>            : // nsPrefetchService::nsIWebProgressListener
+<span class="lineNum">     817 </span>            : //-----------------------------------------------------------------------------
+<a name="818"><span class="lineNum">     818 </span>            : </a>
+<span class="lineNum">     819 </span>            : NS_IMETHODIMP
+<span class="lineNum">     820 </span><span class="lineNoCov">          0 : nsPrefetchService::OnProgressChange(nsIWebProgress *aProgress,</span>
+<span class="lineNum">     821 </span>            :                                   nsIRequest *aRequest, 
+<span class="lineNum">     822 </span>            :                                   int32_t curSelfProgress, 
+<span class="lineNum">     823 </span>            :                                   int32_t maxSelfProgress, 
+<span class="lineNum">     824 </span>            :                                   int32_t curTotalProgress, 
+<span class="lineNum">     825 </span>            :                                   int32_t maxTotalProgress)
+<span class="lineNum">     826 </span>            : {
+<span class="lineNum">     827 </span>            :     NS_NOTREACHED(&quot;notification excluded in AddProgressListener(...)&quot;);
+<span class="lineNum">     828 </span><span class="lineNoCov">          0 :     return NS_OK;</span>
+<span class="lineNum">     829 </span>            : }
+<a name="830"><span class="lineNum">     830 </span>            : </a>
+<span class="lineNum">     831 </span>            : NS_IMETHODIMP 
+<span class="lineNum">     832 </span><span class="lineCov">          1 : nsPrefetchService::OnStateChange(nsIWebProgress* aWebProgress, </span>
+<span class="lineNum">     833 </span>            :                                  nsIRequest *aRequest, 
+<span class="lineNum">     834 </span>            :                                  uint32_t progressStateFlags, 
+<span class="lineNum">     835 </span>            :                                  nsresult aStatus)
+<span class="lineNum">     836 </span>            : {
+<span class="lineNum">     837 </span><span class="lineCov">          1 :     if (mAggressive) {</span>
+<span class="lineNum">     838 </span><span class="lineCov">          1 :         LOG((&quot;Document load state is ignored in aggressive mode&quot;));</span>
+<span class="lineNum">     839 </span>            :         return NS_OK;
+<span class="lineNum">     840 </span>            :     }
+<span class="lineNum">     841 </span>            : 
+<span class="lineNum">     842 </span><span class="lineCov">          1 :     if (progressStateFlags &amp; STATE_IS_DOCUMENT) {</span>
+<span class="lineNum">     843 </span><span class="lineCov">          1 :         if (progressStateFlags &amp; STATE_STOP)</span>
+<span class="lineNum">     844 </span><span class="lineCov">          1 :             StartPrefetching();</span>
+<span class="lineNum">     845 </span><span class="lineCov">          1 :         else if (progressStateFlags &amp; STATE_START)</span>
+<span class="lineNum">     846 </span><span class="lineCov">          1 :             StopPrefetching();</span>
+<span class="lineNum">     847 </span>            :     }
+<span class="lineNum">     848 </span>            :             
+<span class="lineNum">     849 </span>            :     return NS_OK;
+<span class="lineNum">     850 </span>            : }
+<span class="lineNum">     851 </span>            : 
+<a name="852"><span class="lineNum">     852 </span>            : </a>
+<span class="lineNum">     853 </span>            : NS_IMETHODIMP
+<span class="lineNum">     854 </span><span class="lineNoCov">          0 : nsPrefetchService::OnLocationChange(nsIWebProgress* aWebProgress,</span>
+<span class="lineNum">     855 </span>            :                                     nsIRequest* aRequest,
+<span class="lineNum">     856 </span>            :                                     nsIURI *location,
+<span class="lineNum">     857 </span>            :                                     uint32_t aFlags)
+<span class="lineNum">     858 </span>            : {
+<span class="lineNum">     859 </span>            :     NS_NOTREACHED(&quot;notification excluded in AddProgressListener(...)&quot;);
+<span class="lineNum">     860 </span><span class="lineNoCov">          0 :     return NS_OK;</span>
+<span class="lineNum">     861 </span>            : }
+<a name="862"><span class="lineNum">     862 </span>            : </a>
+<span class="lineNum">     863 </span>            : NS_IMETHODIMP 
+<span class="lineNum">     864 </span><span class="lineNoCov">          0 : nsPrefetchService::OnStatusChange(nsIWebProgress* aWebProgress,</span>
+<span class="lineNum">     865 </span>            :                                   nsIRequest* aRequest,
+<span class="lineNum">     866 </span>            :                                   nsresult aStatus,
+<span class="lineNum">     867 </span>            :                                   const char16_t* aMessage)
+<span class="lineNum">     868 </span>            : {
+<span class="lineNum">     869 </span>            :     NS_NOTREACHED(&quot;notification excluded in AddProgressListener(...)&quot;);
+<span class="lineNum">     870 </span><span class="lineNoCov">          0 :     return NS_OK;</span>
+<span class="lineNum">     871 </span>            : }
+<a name="872"><span class="lineNum">     872 </span>            : </a>
+<span class="lineNum">     873 </span>            : NS_IMETHODIMP 
+<span class="lineNum">     874 </span><span class="lineNoCov">          0 : nsPrefetchService::OnSecurityChange(nsIWebProgress *aWebProgress, </span>
+<span class="lineNum">     875 </span>            :                                     nsIRequest *aRequest, 
+<span class="lineNum">     876 </span>            :                                     uint32_t state)
+<span class="lineNum">     877 </span>            : {
+<span class="lineNum">     878 </span>            :     NS_NOTREACHED(&quot;notification excluded in AddProgressListener(...)&quot;);
+<span class="lineNum">     879 </span><span class="lineNoCov">          0 :     return NS_OK;</span>
+<span class="lineNum">     880 </span>            : }
+<span class="lineNum">     881 </span>            : 
+<span class="lineNum">     882 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">     883 </span>            : // nsPrefetchService::nsIObserver
+<span class="lineNum">     884 </span>            : //-----------------------------------------------------------------------------
+<a name="885"><span class="lineNum">     885 </span>            : </a>
+<span class="lineNum">     886 </span>            : NS_IMETHODIMP
+<span class="lineNum">     887 </span><span class="lineCov">          1 : nsPrefetchService::Observe(nsISupports     *aSubject,</span>
+<span class="lineNum">     888 </span>            :                            const char      *aTopic,
+<span class="lineNum">     889 </span>            :                            const char16_t *aData)
+<span class="lineNum">     890 </span>            : {
+<span class="lineNum">     891 </span><span class="lineCov">          1 :     LOG((&quot;nsPrefetchService::Observe [topic=%s]\n&quot;, aTopic));</span>
+<span class="lineNum">     892 </span>            : 
+<span class="lineNum">     893 </span><span class="lineCov">          1 :     if (!strcmp(aTopic, NS_XPCOM_SHUTDOWN_OBSERVER_ID)) {</span>
+<span class="lineNum">     894 </span><span class="lineCov">          1 :         StopPrefetching();</span>
+<span class="lineNum">     895 </span><span class="lineCov">          1 :         EmptyQueue();</span>
+<span class="lineNum">     896 </span><span class="lineCov">          1 :         mDisabled = true;</span>
+<span class="lineNum">     897 </span>            :     }
+<span class="lineNum">     898 </span><span class="lineCov">          1 :     else if (!strcmp(aTopic, NS_PREFBRANCH_PREFCHANGE_TOPIC_ID)) {</span>
+<span class="lineNum">     899 </span><span class="lineCov">          1 :         const nsCString converted = NS_ConvertUTF16toUTF8(aData);</span>
+<span class="lineNum">     900 </span><span class="lineCov">          1 :         const char* pref = converted.get();</span>
+<span class="lineNum">     901 </span><span class="lineCov">          1 :         if (!strcmp(pref, PREFETCH_PREF)) {</span>
+<span class="lineNum">     902 </span><span class="lineNoCov">          0 :             if (Preferences::GetBool(PREFETCH_PREF, false)) {</span>
+<span class="lineNum">     903 </span><span class="lineNoCov">          0 :                 if (mDisabled) {</span>
+<span class="lineNum">     904 </span><span class="lineNoCov">          0 :                     LOG((&quot;enabling prefetching\n&quot;));</span>
+<span class="lineNum">     905 </span><span class="lineNoCov">          0 :                     mDisabled = false;</span>
+<span class="lineNum">     906 </span><span class="lineNoCov">          0 :                     AddProgressListener();</span>
+<span class="lineNum">     907 </span>            :                 }
+<span class="lineNum">     908 </span>            :             } else {
+<span class="lineNum">     909 </span><span class="lineNoCov">          0 :                 if (!mDisabled) {</span>
+<span class="lineNum">     910 </span><span class="lineNoCov">          0 :                     LOG((&quot;disabling prefetching\n&quot;));</span>
+<span class="lineNum">     911 </span><span class="lineNoCov">          0 :                     StopPrefetching();</span>
+<span class="lineNum">     912 </span><span class="lineNoCov">          0 :                     EmptyQueue();</span>
+<span class="lineNum">     913 </span><span class="lineNoCov">          0 :                     mDisabled = true;</span>
+<span class="lineNum">     914 </span><span class="lineNoCov">          0 :                     RemoveProgressListener();</span>
+<span class="lineNum">     915 </span>            :                 }
+<span class="lineNum">     916 </span>            :             }
+<span class="lineNum">     917 </span><span class="lineCov">          1 :         } else if (!strcmp(pref, PARALLELISM_PREF)) {</span>
+<span class="lineNum">     918 </span><span class="lineNoCov">          0 :             mMaxParallelism = Preferences::GetInt(PARALLELISM_PREF, mMaxParallelism);</span>
+<span class="lineNum">     919 </span><span class="lineNoCov">          0 :             if (mMaxParallelism &lt; 1) {</span>
+<span class="lineNum">     920 </span><span class="lineNoCov">          0 :                 mMaxParallelism = 1;</span>
+<span class="lineNum">     921 </span>            :             }
+<span class="lineNum">     922 </span>            :             // If our parallelism has increased, go ahead and kick off enough
+<span class="lineNum">     923 </span>            :             // prefetches to fill up our allowance. If we're now over our
+<span class="lineNum">     924 </span>            :             // allowance, we'll just silently let some of them finish to get
+<span class="lineNum">     925 </span>            :             // back below our limit.
+<span class="lineNum">     926 </span><span class="lineNoCov">          0 :             while (!mQueue.empty() &amp;&amp; mCurrentNodes.Length() &lt; static_cast&lt;uint32_t&gt;(mMaxParallelism)) {</span>
+<span class="lineNum">     927 </span><span class="lineNoCov">          0 :                 ProcessNextURI(nullptr);</span>
+<span class="lineNum">     928 </span>            :             }
+<span class="lineNum">     929 </span><span class="lineCov">          1 :         } else if (!strcmp(pref, AGGRESSIVE_PREF)) {</span>
+<span class="lineNum">     930 </span><span class="lineCov">          1 :           mAggressive = Preferences::GetBool(AGGRESSIVE_PREF, false);</span>
+<span class="lineNum">     931 </span>            :           // in aggressive mode, clear stop count and start prefetching immediately
+<span class="lineNum">     932 </span><span class="lineCov">          1 :           if (mAggressive) {</span>
+<span class="lineNum">     933 </span><span class="lineCov">          1 :             mStopCount = 0;</span>
+<span class="lineNum">     934 </span><span class="lineCov">          1 :             StartPrefetching();</span>
+<span class="lineNum">     935 </span>            :           }
+<span class="lineNum">     936 </span>            :         }
+<span class="lineNum">     937 </span>            :     }
+<span class="lineNum">     938 </span>            : 
+<span class="lineNum">     939 </span><span class="lineCov">          1 :     return NS_OK;</span>
+<span class="lineNum">     940 </span>            : }
+<span class="lineNum">     941 </span>            : 
+<span class="lineNum">     942 </span>            : // vim: ts=4 sw=4 expandtab
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

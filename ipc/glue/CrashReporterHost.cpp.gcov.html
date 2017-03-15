@@ -1,0 +1,398 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - ipc/glue/CrashReporterHost.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">ipc/glue</a> - CrashReporterHost.cpp<span style="font-size: 80%;"> (source / <a href="CrashReporterHost.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">4</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">1</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* vim: set ts=8 sts=2 et sw=2 tw=80: */
+<span class="lineNum">       3 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #include &quot;CrashReporterHost.h&quot;
+<span class="lineNum">       8 </span>            : #include &quot;CrashReporterMetadataShmem.h&quot;
+<span class="lineNum">       9 </span>            : #include &quot;mozilla/LazyIdleThread.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;mozilla/Sprintf.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;mozilla/SyncRunnable.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;mozilla/Telemetry.h&quot;
+<span class="lineNum">      13 </span>            : #ifdef MOZ_CRASHREPORTER
+<span class="lineNum">      14 </span>            : # include &quot;nsIAsyncShutdown.h&quot;
+<span class="lineNum">      15 </span>            : # include &quot;nsICrashService.h&quot;
+<span class="lineNum">      16 </span>            : #endif
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : namespace mozilla {
+<a name="19"><span class="lineNum">      19 </span>            : namespace ipc {</a>
+<span class="lineNum">      20 </span>            : 
+<span class="lineNum">      21 </span><span class="lineNoCov">          0 : CrashReporterHost::CrashReporterHost(GeckoProcessType aProcessType,</span>
+<span class="lineNum">      22 </span>            :                                      const Shmem&amp; aShmem,
+<span class="lineNum">      23 </span>            :                                      CrashReporter::ThreadId aThreadId)
+<span class="lineNum">      24 </span>            :  : mProcessType(aProcessType),
+<span class="lineNum">      25 </span>            :    mShmem(aShmem),
+<span class="lineNum">      26 </span>            :    mThreadId(aThreadId),
+<span class="lineNum">      27 </span><span class="lineNoCov">          0 :    mStartTime(::time(nullptr)),</span>
+<span class="lineNum">      28 </span><span class="lineNoCov">          0 :    mFinalized(false)</span>
+<span class="lineNum">      29 </span>            : {
+<span class="lineNum">      30 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : #ifdef MOZ_CRASHREPORTER
+<span class="lineNum">      33 </span>            : bool
+<span class="lineNum">      34 </span>            : CrashReporterHost::GenerateCrashReport(base::ProcessId aPid)
+<span class="lineNum">      35 </span>            : {
+<span class="lineNum">      36 </span>            :   if (!TakeCrashedChildMinidump(aPid, nullptr)) {
+<span class="lineNum">      37 </span>            :     return false;
+<span class="lineNum">      38 </span>            :   }
+<span class="lineNum">      39 </span>            :   return FinalizeCrashReport();
+<span class="lineNum">      40 </span>            : }
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : RefPtr&lt;nsIFile&gt;
+<span class="lineNum">      43 </span>            : CrashReporterHost::TakeCrashedChildMinidump(base::ProcessId aPid, uint32_t* aOutSequence)
+<span class="lineNum">      44 </span>            : {
+<span class="lineNum">      45 </span>            :   MOZ_ASSERT(!HasMinidump());
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span>            :   RefPtr&lt;nsIFile&gt; crashDump;
+<span class="lineNum">      48 </span>            :   if (!XRE_TakeMinidumpForChild(aPid, getter_AddRefs(crashDump), aOutSequence)) {
+<span class="lineNum">      49 </span>            :     return nullptr;
+<span class="lineNum">      50 </span>            :   }
+<span class="lineNum">      51 </span>            :   if (!AdoptMinidump(crashDump)) {
+<span class="lineNum">      52 </span>            :     return nullptr;
+<span class="lineNum">      53 </span>            :   }
+<span class="lineNum">      54 </span>            :   return crashDump.get();
+<span class="lineNum">      55 </span>            : }
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            : bool
+<span class="lineNum">      58 </span>            : CrashReporterHost::AdoptMinidump(nsIFile* aFile)
+<span class="lineNum">      59 </span>            : {
+<span class="lineNum">      60 </span>            :   return CrashReporter::GetIDFromMinidump(aFile, mDumpID);
+<span class="lineNum">      61 </span>            : }
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span>            : bool
+<span class="lineNum">      64 </span>            : CrashReporterHost::FinalizeCrashReport()
+<span class="lineNum">      65 </span>            : {
+<span class="lineNum">      66 </span>            :   MOZ_ASSERT(!mFinalized);
+<span class="lineNum">      67 </span>            :   MOZ_ASSERT(HasMinidump());
+<span class="lineNum">      68 </span>            : 
+<span class="lineNum">      69 </span>            :   CrashReporter::AnnotationTable notes;
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span>            :   nsAutoCString type;
+<span class="lineNum">      72 </span>            :   switch (mProcessType) {
+<span class="lineNum">      73 </span>            :     case GeckoProcessType_Content:
+<span class="lineNum">      74 </span>            :       type = NS_LITERAL_CSTRING(&quot;content&quot;);
+<span class="lineNum">      75 </span>            :       break;
+<span class="lineNum">      76 </span>            :     case GeckoProcessType_Plugin:
+<span class="lineNum">      77 </span>            :     case GeckoProcessType_GMPlugin:
+<span class="lineNum">      78 </span>            :       type = NS_LITERAL_CSTRING(&quot;plugin&quot;);
+<span class="lineNum">      79 </span>            :       break;
+<span class="lineNum">      80 </span>            :     case GeckoProcessType_GPU:
+<span class="lineNum">      81 </span>            :       type = NS_LITERAL_CSTRING(&quot;gpu&quot;);
+<span class="lineNum">      82 </span>            :       break;
+<span class="lineNum">      83 </span>            :     default:
+<span class="lineNum">      84 </span>            :       NS_ERROR(&quot;unknown process type&quot;);
+<span class="lineNum">      85 </span>            :       break;
+<span class="lineNum">      86 </span>            :   }
+<span class="lineNum">      87 </span>            :   notes.Put(NS_LITERAL_CSTRING(&quot;ProcessType&quot;), type);
+<span class="lineNum">      88 </span>            : 
+<span class="lineNum">      89 </span>            :   char startTime[32];
+<span class="lineNum">      90 </span>            :   SprintfLiteral(startTime, &quot;%lld&quot;, static_cast&lt;long long&gt;(mStartTime));
+<span class="lineNum">      91 </span>            :   notes.Put(NS_LITERAL_CSTRING(&quot;StartupTime&quot;), nsDependentCString(startTime));
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span>            :   // We might not have shmem (for example, when running crashreporter tests).
+<span class="lineNum">      94 </span>            :   if (mShmem.IsReadable()) {
+<span class="lineNum">      95 </span>            :     CrashReporterMetadataShmem::ReadAppNotes(mShmem, &amp;notes);
+<span class="lineNum">      96 </span>            :   }
+<span class="lineNum">      97 </span>            :   CrashReporter::AppendExtraData(mDumpID, mExtraNotes);
+<span class="lineNum">      98 </span>            :   CrashReporter::AppendExtraData(mDumpID, notes);
+<span class="lineNum">      99 </span>            : 
+<span class="lineNum">     100 </span>            :   // Use mExtraNotes, since NotifyCrashService looks for &quot;PluginHang&quot; which is
+<span class="lineNum">     101 </span>            :   // set in the parent process.
+<span class="lineNum">     102 </span>            :   NotifyCrashService(mProcessType, mDumpID, &amp;mExtraNotes);
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span>            :   mFinalized = true;
+<span class="lineNum">     105 </span>            :   return true;
+<span class="lineNum">     106 </span>            : }
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span>            : /**
+<span class="lineNum">     109 </span>            :  * Runnable used to execute the minidump analyzer program asynchronously after
+<span class="lineNum">     110 </span>            :  * a crash. This should run on a background thread not to block the main thread
+<span class="lineNum">     111 </span>            :  * over the potentially long minidump analysis. Once analysis is over, the
+<span class="lineNum">     112 </span>            :  * crash information will be relayed to the crash manager via another runnable
+<span class="lineNum">     113 </span>            :  * sent to the main thread. Shutdown will be blocked for the duration of the
+<span class="lineNum">     114 </span>            :  * entire process to ensure this information is sent.
+<span class="lineNum">     115 </span>            :  */
+<span class="lineNum">     116 </span>            : class AsyncMinidumpAnalyzer final : public nsIRunnable
+<span class="lineNum">     117 </span>            :                                   , public nsIAsyncShutdownBlocker
+<span class="lineNum">     118 </span>            : {
+<span class="lineNum">     119 </span>            : public:
+<span class="lineNum">     120 </span>            :   /**
+<span class="lineNum">     121 </span>            :    * Create a new minidump analyzer runnable, this will also block shutdown
+<span class="lineNum">     122 </span>            :    * until the associated crash has been added to the crash manager.
+<span class="lineNum">     123 </span>            :    */
+<span class="lineNum">     124 </span>            :   AsyncMinidumpAnalyzer(int32_t aProcessType,
+<span class="lineNum">     125 </span>            :                         int32_t aCrashType,
+<span class="lineNum">     126 </span>            :                         const nsString&amp; aChildDumpID)
+<span class="lineNum">     127 </span>            :     : mProcessType(aProcessType)
+<span class="lineNum">     128 </span>            :     , mCrashType(aCrashType)
+<span class="lineNum">     129 </span>            :     , mChildDumpID(aChildDumpID)
+<span class="lineNum">     130 </span>            :     , mName(NS_LITERAL_STRING(&quot;Crash reporter: blocking on minidump analysis&quot;))
+<span class="lineNum">     131 </span>            :   {
+<span class="lineNum">     132 </span>            :     MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     133 </span>            : 
+<span class="lineNum">     134 </span>            :     nsresult rv = GetShutdownBarrier()-&gt;AddBlocker(
+<span class="lineNum">     135 </span>            :       this, NS_LITERAL_STRING(__FILE__), __LINE__,
+<span class="lineNum">     136 </span>            :       NS_LITERAL_STRING(&quot;Minidump analysis&quot;));
+<span class="lineNum">     137 </span>            :     Unused &lt;&lt; NS_WARN_IF(NS_FAILED(rv));
+<span class="lineNum">     138 </span>            :   }
+<span class="lineNum">     139 </span>            : 
+<span class="lineNum">     140 </span>            :   NS_IMETHOD Run() override
+<span class="lineNum">     141 </span>            :   {
+<span class="lineNum">     142 </span>            :     MOZ_ASSERT(!NS_IsMainThread());
+<span class="lineNum">     143 </span>            : 
+<span class="lineNum">     144 </span>            :     if (mProcessType == nsICrashService::PROCESS_TYPE_CONTENT) {
+<span class="lineNum">     145 </span>            :       CrashReporter::RunMinidumpAnalyzer(mChildDumpID);
+<span class="lineNum">     146 </span>            :     }
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span>            :     // Make a copy of these so we can copy them into the runnable lambda
+<span class="lineNum">     149 </span>            :     int32_t processType = mProcessType;
+<span class="lineNum">     150 </span>            :     int32_t crashType = mCrashType;
+<span class="lineNum">     151 </span>            :     nsString childDumpID(mChildDumpID);
+<span class="lineNum">     152 </span>            :     nsCOMPtr&lt;nsIAsyncShutdownBlocker&gt; self(this);
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span>            :     NS_DispatchToMainThread(NS_NewRunnableFunction([
+<span class="lineNum">     155 </span>            :       self, processType, crashType, childDumpID
+<span class="lineNum">     156 </span>            :     ] {
+<span class="lineNum">     157 </span>            :       nsCOMPtr&lt;nsICrashService&gt; crashService =
+<span class="lineNum">     158 </span>            :         do_GetService(&quot;@mozilla.org/crashservice;1&quot;);
+<span class="lineNum">     159 </span>            :       if (crashService) {
+<span class="lineNum">     160 </span>            :         crashService-&gt;AddCrash(processType, crashType, childDumpID);
+<span class="lineNum">     161 </span>            :       }
+<span class="lineNum">     162 </span>            : 
+<span class="lineNum">     163 </span>            :       nsCOMPtr&lt;nsIAsyncShutdownClient&gt; barrier = GetShutdownBarrier();
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span>            :       if (barrier) {
+<span class="lineNum">     166 </span>            :         barrier-&gt;RemoveBlocker(self);
+<span class="lineNum">     167 </span>            :       }
+<span class="lineNum">     168 </span>            :     }));
+<span class="lineNum">     169 </span>            : 
+<span class="lineNum">     170 </span>            :     return NS_OK;
+<span class="lineNum">     171 </span>            :   }
+<span class="lineNum">     172 </span>            : 
+<span class="lineNum">     173 </span>            :   NS_IMETHOD BlockShutdown(nsIAsyncShutdownClient* aBarrierClient) override
+<span class="lineNum">     174 </span>            :   {
+<span class="lineNum">     175 </span>            :     return NS_OK;
+<span class="lineNum">     176 </span>            :   }
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span>            :   NS_IMETHOD GetName(nsAString&amp; aName) override
+<span class="lineNum">     179 </span>            :   {
+<span class="lineNum">     180 </span>            :     aName = mName;
+<span class="lineNum">     181 </span>            :     return NS_OK;
+<span class="lineNum">     182 </span>            :   }
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span>            :   NS_IMETHOD GetState(nsIPropertyBag**) override
+<span class="lineNum">     185 </span>            :   {
+<span class="lineNum">     186 </span>            :     return NS_OK;
+<span class="lineNum">     187 </span>            :   }
+<span class="lineNum">     188 </span>            : 
+<span class="lineNum">     189 </span>            :   NS_DECL_THREADSAFE_ISUPPORTS
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span>            : private:
+<span class="lineNum">     192 </span>            :   ~AsyncMinidumpAnalyzer() {}
+<span class="lineNum">     193 </span>            : 
+<span class="lineNum">     194 </span>            :   // Returns the profile-before-change shutdown barrier
+<span class="lineNum">     195 </span>            :   static nsCOMPtr&lt;nsIAsyncShutdownClient&gt; GetShutdownBarrier()
+<span class="lineNum">     196 </span>            :   {
+<span class="lineNum">     197 </span>            :     MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span>            :     nsCOMPtr&lt;nsIAsyncShutdownService&gt; svc = services::GetAsyncShutdown();
+<span class="lineNum">     200 </span>            :     nsCOMPtr&lt;nsIAsyncShutdownClient&gt; barrier;
+<span class="lineNum">     201 </span>            :     nsresult rv = svc-&gt;GetProfileBeforeChange(getter_AddRefs(barrier));
+<span class="lineNum">     202 </span>            : 
+<span class="lineNum">     203 </span>            :     if (NS_WARN_IF(NS_FAILED(rv))) {
+<span class="lineNum">     204 </span>            :       return nullptr;
+<span class="lineNum">     205 </span>            :     }
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span>            :     return barrier.forget();
+<span class="lineNum">     208 </span>            :   }
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span>            :   int32_t mProcessType;
+<span class="lineNum">     211 </span>            :   int32_t mCrashType;
+<span class="lineNum">     212 </span>            :   const nsString mChildDumpID;
+<span class="lineNum">     213 </span>            :   const nsString mName;
+<span class="lineNum">     214 </span>            : };
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span>            : NS_IMPL_ISUPPORTS(AsyncMinidumpAnalyzer, nsIRunnable, nsIAsyncShutdownBlocker)
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span>            : /**
+<span class="lineNum">     219 </span>            :  * Add information about a crash to the crash manager. This method runs the
+<span class="lineNum">     220 </span>            :  * various activities required to gather additional information and notify the
+<span class="lineNum">     221 </span>            :  * crash manager asynchronously, since many of them involve I/O or potentially
+<span class="lineNum">     222 </span>            :  * long processing.
+<span class="lineNum">     223 </span>            :  *
+<span class="lineNum">     224 </span>            :  * @param aProcessType The type of process that crashed
+<span class="lineNum">     225 </span>            :  * @param aCrashType The type of crash (crash or hang)
+<span class="lineNum">     226 </span>            :  * @param aChildDumpID A string holding the ID of the dump associated with this
+<span class="lineNum">     227 </span>            :  *        crash
+<span class="lineNum">     228 </span>            :  */
+<span class="lineNum">     229 </span>            : /* static */ void
+<span class="lineNum">     230 </span>            : CrashReporterHost::AsyncAddCrash(int32_t aProcessType,
+<span class="lineNum">     231 </span>            :                                  int32_t aCrashType,
+<span class="lineNum">     232 </span>            :                                  const nsString&amp; aChildDumpID)
+<span class="lineNum">     233 </span>            : {
+<span class="lineNum">     234 </span>            :   MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     235 </span>            : 
+<span class="lineNum">     236 </span>            :   static StaticRefPtr&lt;LazyIdleThread&gt; sBackgroundThread;
+<span class="lineNum">     237 </span>            : 
+<span class="lineNum">     238 </span>            :   if (!sBackgroundThread) {
+<span class="lineNum">     239 </span>            :     // Background thread used for running minidump analysis. It will be
+<span class="lineNum">     240 </span>            :     // destroyed immediately after it's done with the task.
+<span class="lineNum">     241 </span>            :     sBackgroundThread =
+<span class="lineNum">     242 </span>            :       new LazyIdleThread(0, NS_LITERAL_CSTRING(&quot;CrashReporterHost&quot;));
+<span class="lineNum">     243 </span>            :     ClearOnShutdown(&amp;sBackgroundThread);
+<span class="lineNum">     244 </span>            :   }
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span>            :   RefPtr&lt;AsyncMinidumpAnalyzer&gt; task =
+<span class="lineNum">     247 </span>            :     new AsyncMinidumpAnalyzer(aProcessType, aCrashType, aChildDumpID);
+<span class="lineNum">     248 </span>            : 
+<span class="lineNum">     249 </span>            :   Unused &lt;&lt; sBackgroundThread-&gt;Dispatch(task, NS_DISPATCH_NORMAL);
+<span class="lineNum">     250 </span>            : }
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span>            : /* static */ void
+<span class="lineNum">     253 </span>            : CrashReporterHost::NotifyCrashService(GeckoProcessType aProcessType,
+<span class="lineNum">     254 </span>            :                                       const nsString&amp; aChildDumpID,
+<span class="lineNum">     255 </span>            :                                       const AnnotationTable* aNotes)
+<span class="lineNum">     256 </span>            : {
+<span class="lineNum">     257 </span>            :   if (!NS_IsMainThread()) {
+<span class="lineNum">     258 </span>            :     RefPtr&lt;Runnable&gt; runnable = NS_NewRunnableFunction([=] () -&gt; void {
+<span class="lineNum">     259 </span>            :       CrashReporterHost::NotifyCrashService(aProcessType, aChildDumpID, aNotes);
+<span class="lineNum">     260 </span>            :     });
+<span class="lineNum">     261 </span>            :     RefPtr&lt;nsIThread&gt; mainThread = do_GetMainThread();
+<span class="lineNum">     262 </span>            :     SyncRunnable::DispatchToThread(mainThread, runnable);
+<span class="lineNum">     263 </span>            :     return;
+<span class="lineNum">     264 </span>            :   }
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span>            :   MOZ_ASSERT(!aChildDumpID.IsEmpty());
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span>            :   int32_t processType;
+<span class="lineNum">     269 </span>            :   int32_t crashType = nsICrashService::CRASH_TYPE_CRASH;
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span>            :   nsCString telemetryKey;
+<span class="lineNum">     272 </span>            : 
+<span class="lineNum">     273 </span>            :   switch (aProcessType) {
+<span class="lineNum">     274 </span>            :     case GeckoProcessType_Content:
+<span class="lineNum">     275 </span>            :       processType = nsICrashService::PROCESS_TYPE_CONTENT;
+<span class="lineNum">     276 </span>            :       telemetryKey.AssignLiteral(&quot;content&quot;);
+<span class="lineNum">     277 </span>            :       break;
+<span class="lineNum">     278 </span>            :     case GeckoProcessType_Plugin: {
+<span class="lineNum">     279 </span>            :       processType = nsICrashService::PROCESS_TYPE_PLUGIN;
+<span class="lineNum">     280 </span>            :       telemetryKey.AssignLiteral(&quot;plugin&quot;);
+<span class="lineNum">     281 </span>            :       nsAutoCString val;
+<span class="lineNum">     282 </span>            :       if (aNotes-&gt;Get(NS_LITERAL_CSTRING(&quot;PluginHang&quot;), &amp;val) &amp;&amp;
+<span class="lineNum">     283 </span>            :         val.Equals(NS_LITERAL_CSTRING(&quot;1&quot;))) {
+<span class="lineNum">     284 </span>            :         crashType = nsICrashService::CRASH_TYPE_HANG;
+<span class="lineNum">     285 </span>            :         telemetryKey.AssignLiteral(&quot;pluginhang&quot;);
+<span class="lineNum">     286 </span>            :       }
+<span class="lineNum">     287 </span>            :       break;
+<span class="lineNum">     288 </span>            :     }
+<span class="lineNum">     289 </span>            :     case GeckoProcessType_GMPlugin:
+<span class="lineNum">     290 </span>            :       processType = nsICrashService::PROCESS_TYPE_GMPLUGIN;
+<span class="lineNum">     291 </span>            :       telemetryKey.AssignLiteral(&quot;gmplugin&quot;);
+<span class="lineNum">     292 </span>            :       break;
+<span class="lineNum">     293 </span>            :     case GeckoProcessType_GPU:
+<span class="lineNum">     294 </span>            :       processType = nsICrashService::PROCESS_TYPE_GPU;
+<span class="lineNum">     295 </span>            :       telemetryKey.AssignLiteral(&quot;gpu&quot;);
+<span class="lineNum">     296 </span>            :       break;
+<span class="lineNum">     297 </span>            :     default:
+<span class="lineNum">     298 </span>            :       NS_ERROR(&quot;unknown process type&quot;);
+<span class="lineNum">     299 </span>            :       return;
+<span class="lineNum">     300 </span>            :   }
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span>            :   AsyncAddCrash(processType, crashType, aChildDumpID);
+<span class="lineNum">     303 </span>            :   Telemetry::Accumulate(Telemetry::SUBPROCESS_CRASHES_WITH_DUMP, telemetryKey, 1);
+<span class="lineNum">     304 </span>            : }
+<span class="lineNum">     305 </span>            : 
+<span class="lineNum">     306 </span>            : void
+<span class="lineNum">     307 </span>            : CrashReporterHost::AddNote(const nsCString&amp; aKey, const nsCString&amp; aValue)
+<span class="lineNum">     308 </span>            : {
+<span class="lineNum">     309 </span>            :   mExtraNotes.Put(aKey, aValue);
+<span class="lineNum">     310 </span>            : }
+<span class="lineNum">     311 </span>            : #endif
+<span class="lineNum">     312 </span>            : 
+<span class="lineNum">     313 </span>            : } // namespace ipc
+<span class="lineNum">     314 </span>            : } // namespace mozilla
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

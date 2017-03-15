@@ -1,0 +1,509 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/sandbox/chromium/base/bind_internal.h</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">security/sandbox/chromium/base</a> - bind_internal.h<span style="font-size: 80%;"> (source / <a href="bind_internal.h.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">15</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">4</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : // Copyright (c) 2011 The Chromium Authors. All rights reserved.</a>
+<span class="lineNum">       2 </span>            : // Use of this source code is governed by a BSD-style license that can be
+<span class="lineNum">       3 </span>            : // found in the LICENSE file.
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : #ifndef BASE_BIND_INTERNAL_H_
+<span class="lineNum">       6 </span>            : #define BASE_BIND_INTERNAL_H_
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #include &lt;stddef.h&gt;
+<span class="lineNum">       9 </span>            : 
+<span class="lineNum">      10 </span>            : #include &lt;type_traits&gt;
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : #include &quot;base/bind_helpers.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;base/callback_internal.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;base/memory/raw_scoped_refptr_mismatch_checker.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;base/memory/weak_ptr.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;base/template_util.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;base/tuple.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;build/build_config.h&quot;
+<span class="lineNum">      19 </span>            : 
+<span class="lineNum">      20 </span>            : #if defined(OS_WIN)
+<span class="lineNum">      21 </span>            : #include &quot;base/bind_internal_win.h&quot;
+<span class="lineNum">      22 </span>            : #endif
+<span class="lineNum">      23 </span>            : 
+<span class="lineNum">      24 </span>            : namespace base {
+<span class="lineNum">      25 </span>            : namespace internal {
+<span class="lineNum">      26 </span>            : 
+<span class="lineNum">      27 </span>            : // See base/callback.h for user documentation.
+<span class="lineNum">      28 </span>            : //
+<span class="lineNum">      29 </span>            : //
+<span class="lineNum">      30 </span>            : // CONCEPTS:
+<span class="lineNum">      31 </span>            : //  Runnable -- A type (really a type class) that has a single Run() method
+<span class="lineNum">      32 </span>            : //              and a RunType typedef that corresponds to the type of Run().
+<span class="lineNum">      33 </span>            : //              A Runnable can declare that it should treated like a method
+<span class="lineNum">      34 </span>            : //              call by including a typedef named IsMethod.  The value of
+<span class="lineNum">      35 </span>            : //              this typedef is NOT inspected, only the existence.  When a
+<span class="lineNum">      36 </span>            : //              Runnable declares itself a method, Bind() will enforce special
+<span class="lineNum">      37 </span>            : //              refcounting + WeakPtr handling semantics for the first
+<span class="lineNum">      38 </span>            : //              parameter which is expected to be an object.
+<span class="lineNum">      39 </span>            : //  Functor -- A copyable type representing something that should be called.
+<span class="lineNum">      40 </span>            : //             All function pointers, Callback&lt;&gt;, and Runnables are functors
+<span class="lineNum">      41 </span>            : //             even if the invocation syntax differs.
+<span class="lineNum">      42 </span>            : //  RunType -- A function type (as opposed to function _pointer_ type) for
+<span class="lineNum">      43 </span>            : //             a Run() function.  Usually just a convenience typedef.
+<span class="lineNum">      44 </span>            : //  (Bound)Args -- A set of types that stores the arguments.
+<span class="lineNum">      45 </span>            : //
+<span class="lineNum">      46 </span>            : // Types:
+<span class="lineNum">      47 </span>            : //  RunnableAdapter&lt;&gt; -- Wraps the various &quot;function&quot; pointer types into an
+<span class="lineNum">      48 </span>            : //                       object that adheres to the Runnable interface.
+<span class="lineNum">      49 </span>            : //  ForceVoidReturn&lt;&gt; -- Helper class for translating function signatures to
+<span class="lineNum">      50 </span>            : //                       equivalent forms with a &quot;void&quot; return type.
+<span class="lineNum">      51 </span>            : //  FunctorTraits&lt;&gt; -- Type traits used determine the correct RunType and
+<span class="lineNum">      52 </span>            : //                     RunnableType for a Functor.  This is where function
+<span class="lineNum">      53 </span>            : //                     signature adapters are applied.
+<span class="lineNum">      54 </span>            : //  MakeRunnable&lt;&gt; -- Takes a Functor and returns an object in the Runnable
+<span class="lineNum">      55 </span>            : //                    type class that represents the underlying Functor.
+<span class="lineNum">      56 </span>            : //  InvokeHelper&lt;&gt; -- Take a Runnable + arguments and actully invokes it.
+<span class="lineNum">      57 </span>            : //                    Handle the differing syntaxes needed for WeakPtr&lt;&gt;
+<span class="lineNum">      58 </span>            : //                    support, and for ignoring return values.  This is separate
+<span class="lineNum">      59 </span>            : //                    from Invoker to avoid creating multiple version of
+<span class="lineNum">      60 </span>            : //                    Invoker&lt;&gt;.
+<span class="lineNum">      61 </span>            : //  Invoker&lt;&gt; -- Unwraps the curried parameters and executes the Runnable.
+<span class="lineNum">      62 </span>            : //  BindState&lt;&gt; -- Stores the curried parameters, and is the main entry point
+<span class="lineNum">      63 </span>            : //                 into the Bind() system, doing most of the type resolution.
+<span class="lineNum">      64 </span>            : //                 There are ARITY BindState types.
+<span class="lineNum">      65 </span>            : 
+<span class="lineNum">      66 </span>            : // HasNonConstReferenceParam selects true_type when any of the parameters in
+<span class="lineNum">      67 </span>            : // |Sig| is a non-const reference.
+<span class="lineNum">      68 </span>            : // Implementation note: This non-specialized case handles zero-arity case only.
+<span class="lineNum">      69 </span>            : // Non-zero-arity cases should be handled by the specialization below.
+<span class="lineNum">      70 </span>            : template &lt;typename List&gt;
+<span class="lineNum">      71 </span>            : struct HasNonConstReferenceItem : false_type {};
+<span class="lineNum">      72 </span>            : 
+<span class="lineNum">      73 </span>            : // Implementation note: Select true_type if the first parameter is a non-const
+<span class="lineNum">      74 </span>            : // reference.  Otherwise, skip the first parameter and check rest of parameters
+<span class="lineNum">      75 </span>            : // recursively.
+<span class="lineNum">      76 </span>            : template &lt;typename T, typename... Args&gt;
+<span class="lineNum">      77 </span>            : struct HasNonConstReferenceItem&lt;TypeList&lt;T, Args...&gt;&gt;
+<span class="lineNum">      78 </span>            :     : std::conditional&lt;is_non_const_reference&lt;T&gt;::value,
+<span class="lineNum">      79 </span>            :                        true_type,
+<span class="lineNum">      80 </span>            :                        HasNonConstReferenceItem&lt;TypeList&lt;Args...&gt;&gt;&gt;::type {};
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            : // HasRefCountedTypeAsRawPtr selects true_type when any of the |Args| is a raw
+<span class="lineNum">      83 </span>            : // pointer to a RefCounted type.
+<span class="lineNum">      84 </span>            : // Implementation note: This non-specialized case handles zero-arity case only.
+<span class="lineNum">      85 </span>            : // Non-zero-arity cases should be handled by the specialization below.
+<span class="lineNum">      86 </span>            : template &lt;typename... Args&gt;
+<span class="lineNum">      87 </span>            : struct HasRefCountedTypeAsRawPtr : false_type {};
+<span class="lineNum">      88 </span>            : 
+<span class="lineNum">      89 </span>            : // Implementation note: Select true_type if the first parameter is a raw pointer
+<span class="lineNum">      90 </span>            : // to a RefCounted type. Otherwise, skip the first parameter and check rest of
+<span class="lineNum">      91 </span>            : // parameters recursively.
+<span class="lineNum">      92 </span>            : template &lt;typename T, typename... Args&gt;
+<span class="lineNum">      93 </span>            : struct HasRefCountedTypeAsRawPtr&lt;T, Args...&gt;
+<span class="lineNum">      94 </span>            :     : std::conditional&lt;NeedsScopedRefptrButGetsRawPtr&lt;T&gt;::value,
+<span class="lineNum">      95 </span>            :                        true_type,
+<span class="lineNum">      96 </span>            :                        HasRefCountedTypeAsRawPtr&lt;Args...&gt;&gt;::type {};
+<span class="lineNum">      97 </span>            : 
+<span class="lineNum">      98 </span>            : // BindsArrayToFirstArg selects true_type when |is_method| is true and the first
+<span class="lineNum">      99 </span>            : // item of |Args| is an array type.
+<span class="lineNum">     100 </span>            : // Implementation note: This non-specialized case handles !is_method case and
+<span class="lineNum">     101 </span>            : // zero-arity case only.  Other cases should be handled by the specialization
+<span class="lineNum">     102 </span>            : // below.
+<span class="lineNum">     103 </span>            : template &lt;bool is_method, typename... Args&gt;
+<span class="lineNum">     104 </span>            : struct BindsArrayToFirstArg : false_type {};
+<span class="lineNum">     105 </span>            : 
+<span class="lineNum">     106 </span>            : template &lt;typename T, typename... Args&gt;
+<span class="lineNum">     107 </span>            : struct BindsArrayToFirstArg&lt;true, T, Args...&gt; : is_array&lt;T&gt; {};
+<span class="lineNum">     108 </span>            : 
+<span class="lineNum">     109 </span>            : // HasRefCountedParamAsRawPtr is the same to HasRefCountedTypeAsRawPtr except
+<span class="lineNum">     110 </span>            : // when |is_method| is true HasRefCountedParamAsRawPtr skips the first argument.
+<span class="lineNum">     111 </span>            : // Implementation note: This non-specialized case handles !is_method case and
+<span class="lineNum">     112 </span>            : // zero-arity case only.  Other cases should be handled by the specialization
+<span class="lineNum">     113 </span>            : // below.
+<span class="lineNum">     114 </span>            : template &lt;bool is_method, typename... Args&gt;
+<span class="lineNum">     115 </span>            : struct HasRefCountedParamAsRawPtr : HasRefCountedTypeAsRawPtr&lt;Args...&gt; {};
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            : template &lt;typename T, typename... Args&gt;
+<span class="lineNum">     118 </span>            : struct HasRefCountedParamAsRawPtr&lt;true, T, Args...&gt;
+<span class="lineNum">     119 </span>            :     : HasRefCountedTypeAsRawPtr&lt;Args...&gt; {};
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span>            : // RunnableAdapter&lt;&gt;
+<span class="lineNum">     122 </span>            : //
+<span class="lineNum">     123 </span>            : // The RunnableAdapter&lt;&gt; templates provide a uniform interface for invoking
+<span class="lineNum">     124 </span>            : // a function pointer, method pointer, or const method pointer. The adapter
+<span class="lineNum">     125 </span>            : // exposes a Run() method with an appropriate signature. Using this wrapper
+<span class="lineNum">     126 </span>            : // allows for writing code that supports all three pointer types without
+<span class="lineNum">     127 </span>            : // undue repetition.  Without it, a lot of code would need to be repeated 3
+<span class="lineNum">     128 </span>            : // times.
+<span class="lineNum">     129 </span>            : //
+<span class="lineNum">     130 </span>            : // For method pointers and const method pointers the first argument to Run()
+<span class="lineNum">     131 </span>            : // is considered to be the received of the method.  This is similar to STL's
+<span class="lineNum">     132 </span>            : // mem_fun().
+<span class="lineNum">     133 </span>            : //
+<span class="lineNum">     134 </span>            : // This class also exposes a RunType typedef that is the function type of the
+<span class="lineNum">     135 </span>            : // Run() function.
+<span class="lineNum">     136 </span>            : //
+<span class="lineNum">     137 </span>            : // If and only if the wrapper contains a method or const method pointer, an
+<span class="lineNum">     138 </span>            : // IsMethod typedef is exposed.  The existence of this typedef (NOT the value)
+<span class="lineNum">     139 </span>            : // marks that the wrapper should be considered a method wrapper.
+<span class="lineNum">     140 </span>            : 
+<span class="lineNum">     141 </span>            : template &lt;typename Functor&gt;
+<span class="lineNum">     142 </span>            : class RunnableAdapter;
+<span class="lineNum">     143 </span>            : 
+<span class="lineNum">     144 </span>            : // Function.
+<span class="lineNum">     145 </span>            : template &lt;typename R, typename... Args&gt;
+<span class="lineNum">     146 </span>            : class RunnableAdapter&lt;R(*)(Args...)&gt; {
+<span class="lineNum">     147 </span>            :  public:
+<span class="lineNum">     148 </span>            :   // MSVC 2013 doesn't support Type Alias of function types.
+<span class="lineNum">     149 </span>            :   // Revisit this after we update it to newer version.
+<span class="lineNum">     150 </span>            :   typedef R RunType(Args...);
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span>            :   explicit RunnableAdapter(R(*function)(Args...))
+<span class="lineNum">     153 </span>            :       : function_(function) {
+<a name="154"><span class="lineNum">     154 </span>            :   }</a>
+<span class="lineNum">     155 </span>            : 
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :   R Run(typename CallbackParamTraits&lt;Args&gt;::ForwardType... args) {</span>
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :     return function_(CallbackForward(args)...);</span>
+<span class="lineNum">     158 </span>            :   }
+<span class="lineNum">     159 </span>            : 
+<span class="lineNum">     160 </span>            :  private:
+<span class="lineNum">     161 </span>            :   R (*function_)(Args...);
+<span class="lineNum">     162 </span>            : };
+<span class="lineNum">     163 </span>            : 
+<span class="lineNum">     164 </span>            : // Method.
+<span class="lineNum">     165 </span>            : template &lt;typename R, typename T, typename... Args&gt;
+<span class="lineNum">     166 </span>            : class RunnableAdapter&lt;R(T::*)(Args...)&gt; {
+<span class="lineNum">     167 </span>            :  public:
+<span class="lineNum">     168 </span>            :   // MSVC 2013 doesn't support Type Alias of function types.
+<span class="lineNum">     169 </span>            :   // Revisit this after we update it to newer version.
+<span class="lineNum">     170 </span>            :   typedef R RunType(T*, Args...);
+<span class="lineNum">     171 </span>            :   using IsMethod = true_type;
+<span class="lineNum">     172 </span>            : 
+<span class="lineNum">     173 </span>            :   explicit RunnableAdapter(R(T::*method)(Args...))
+<span class="lineNum">     174 </span>            :       : method_(method) {
+<span class="lineNum">     175 </span>            :   }
+<span class="lineNum">     176 </span>            : 
+<span class="lineNum">     177 </span>            :   R Run(T* object, typename CallbackParamTraits&lt;Args&gt;::ForwardType... args) {
+<span class="lineNum">     178 </span>            :     return (object-&gt;*method_)(CallbackForward(args)...);
+<span class="lineNum">     179 </span>            :   }
+<span class="lineNum">     180 </span>            : 
+<span class="lineNum">     181 </span>            :  private:
+<span class="lineNum">     182 </span>            :   R (T::*method_)(Args...);
+<span class="lineNum">     183 </span>            : };
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span>            : // Const Method.
+<span class="lineNum">     186 </span>            : template &lt;typename R, typename T, typename... Args&gt;
+<span class="lineNum">     187 </span>            : class RunnableAdapter&lt;R(T::*)(Args...) const&gt; {
+<span class="lineNum">     188 </span>            :  public:
+<span class="lineNum">     189 </span>            :   using RunType = R(const T*, Args...);
+<span class="lineNum">     190 </span>            :   using IsMethod = true_type;
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span>            :   explicit RunnableAdapter(R(T::*method)(Args...) const)
+<span class="lineNum">     193 </span>            :       : method_(method) {
+<span class="lineNum">     194 </span>            :   }
+<span class="lineNum">     195 </span>            : 
+<span class="lineNum">     196 </span>            :   R Run(const T* object,
+<span class="lineNum">     197 </span>            :         typename CallbackParamTraits&lt;Args&gt;::ForwardType... args) {
+<span class="lineNum">     198 </span>            :     return (object-&gt;*method_)(CallbackForward(args)...);
+<span class="lineNum">     199 </span>            :   }
+<span class="lineNum">     200 </span>            : 
+<span class="lineNum">     201 </span>            :  private:
+<span class="lineNum">     202 </span>            :   R (T::*method_)(Args...) const;
+<span class="lineNum">     203 </span>            : };
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span>            : 
+<span class="lineNum">     206 </span>            : // ForceVoidReturn&lt;&gt;
+<span class="lineNum">     207 </span>            : //
+<span class="lineNum">     208 </span>            : // Set of templates that support forcing the function return type to void.
+<span class="lineNum">     209 </span>            : template &lt;typename Sig&gt;
+<span class="lineNum">     210 </span>            : struct ForceVoidReturn;
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span>            : template &lt;typename R, typename... Args&gt;
+<span class="lineNum">     213 </span>            : struct ForceVoidReturn&lt;R(Args...)&gt; {
+<span class="lineNum">     214 </span>            :   // MSVC 2013 doesn't support Type Alias of function types.
+<span class="lineNum">     215 </span>            :   // Revisit this after we update it to newer version.
+<span class="lineNum">     216 </span>            :   typedef void RunType(Args...);
+<span class="lineNum">     217 </span>            : };
+<span class="lineNum">     218 </span>            : 
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span>            : // FunctorTraits&lt;&gt;
+<span class="lineNum">     221 </span>            : //
+<span class="lineNum">     222 </span>            : // See description at top of file.
+<span class="lineNum">     223 </span>            : template &lt;typename T&gt;
+<span class="lineNum">     224 </span>            : struct FunctorTraits {
+<span class="lineNum">     225 </span>            :   using RunnableType = RunnableAdapter&lt;T&gt;;
+<span class="lineNum">     226 </span>            :   using RunType = typename RunnableType::RunType;
+<span class="lineNum">     227 </span>            : };
+<span class="lineNum">     228 </span>            : 
+<span class="lineNum">     229 </span>            : template &lt;typename T&gt;
+<span class="lineNum">     230 </span>            : struct FunctorTraits&lt;IgnoreResultHelper&lt;T&gt;&gt; {
+<span class="lineNum">     231 </span>            :   using RunnableType = typename FunctorTraits&lt;T&gt;::RunnableType;
+<span class="lineNum">     232 </span>            :   using RunType =
+<span class="lineNum">     233 </span>            :       typename ForceVoidReturn&lt;typename RunnableType::RunType&gt;::RunType;
+<span class="lineNum">     234 </span>            : };
+<span class="lineNum">     235 </span>            : 
+<span class="lineNum">     236 </span>            : template &lt;typename T&gt;
+<span class="lineNum">     237 </span>            : struct FunctorTraits&lt;Callback&lt;T&gt;&gt; {
+<span class="lineNum">     238 </span>            :   using RunnableType = Callback&lt;T&gt; ;
+<span class="lineNum">     239 </span>            :   using RunType = typename Callback&lt;T&gt;::RunType;
+<span class="lineNum">     240 </span>            : };
+<span class="lineNum">     241 </span>            : 
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span>            : // MakeRunnable&lt;&gt;
+<span class="lineNum">     244 </span>            : //
+<span class="lineNum">     245 </span>            : // Converts a passed in functor to a RunnableType using type inference.
+<span class="lineNum">     246 </span>            : 
+<span class="lineNum">     247 </span>            : template &lt;typename T&gt;
+<span class="lineNum">     248 </span>            : typename FunctorTraits&lt;T&gt;::RunnableType MakeRunnable(const T&amp; t) {
+<span class="lineNum">     249 </span><span class="lineNoCov">          0 :   return RunnableAdapter&lt;T&gt;(t);</span>
+<span class="lineNum">     250 </span>            : }
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span>            : template &lt;typename T&gt;
+<span class="lineNum">     253 </span>            : typename FunctorTraits&lt;T&gt;::RunnableType
+<span class="lineNum">     254 </span>            : MakeRunnable(const IgnoreResultHelper&lt;T&gt;&amp; t) {
+<span class="lineNum">     255 </span>            :   return MakeRunnable(t.functor_);
+<span class="lineNum">     256 </span>            : }
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span>            : template &lt;typename T&gt;
+<span class="lineNum">     259 </span>            : const typename FunctorTraits&lt;Callback&lt;T&gt;&gt;::RunnableType&amp;
+<span class="lineNum">     260 </span>            : MakeRunnable(const Callback&lt;T&gt;&amp; t) {
+<span class="lineNum">     261 </span>            :   DCHECK(!t.is_null());
+<span class="lineNum">     262 </span>            :   return t;
+<span class="lineNum">     263 </span>            : }
+<span class="lineNum">     264 </span>            : 
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span>            : // InvokeHelper&lt;&gt;
+<span class="lineNum">     267 </span>            : //
+<span class="lineNum">     268 </span>            : // There are 3 logical InvokeHelper&lt;&gt; specializations: normal, void-return,
+<span class="lineNum">     269 </span>            : // WeakCalls.
+<span class="lineNum">     270 </span>            : //
+<span class="lineNum">     271 </span>            : // The normal type just calls the underlying runnable.
+<span class="lineNum">     272 </span>            : //
+<span class="lineNum">     273 </span>            : // We need a InvokeHelper to handle void return types in order to support
+<span class="lineNum">     274 </span>            : // IgnoreResult().  Normally, if the Runnable's RunType had a void return,
+<span class="lineNum">     275 </span>            : // the template system would just accept &quot;return functor.Run()&quot; ignoring
+<span class="lineNum">     276 </span>            : // the fact that a void function is being used with return. This piece of
+<span class="lineNum">     277 </span>            : // sugar breaks though when the Runnable's RunType is not void.  Thus, we
+<span class="lineNum">     278 </span>            : // need a partial specialization to change the syntax to drop the &quot;return&quot;
+<span class="lineNum">     279 </span>            : // from the invocation call.
+<span class="lineNum">     280 </span>            : //
+<span class="lineNum">     281 </span>            : // WeakCalls similarly need special syntax that is applied to the first
+<span class="lineNum">     282 </span>            : // argument to check if they should no-op themselves.
+<span class="lineNum">     283 </span>            : template &lt;bool IsWeakCall, typename ReturnType, typename Runnable,
+<span class="lineNum">     284 </span>            :           typename ArgsType&gt;
+<span class="lineNum">     285 </span>            : struct InvokeHelper;
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span>            : template &lt;typename ReturnType, typename Runnable, typename... Args&gt;
+<span class="lineNum">     288 </span>            : struct InvokeHelper&lt;false, ReturnType, Runnable, TypeList&lt;Args...&gt;&gt; {
+<span class="lineNum">     289 </span>            :   static ReturnType MakeItSo(Runnable runnable, Args... args) {
+<span class="lineNum">     290 </span>            :     return runnable.Run(CallbackForward(args)...);
+<span class="lineNum">     291 </span>            :   }
+<span class="lineNum">     292 </span>            : };
+<span class="lineNum">     293 </span>            : 
+<a name="294"><span class="lineNum">     294 </span>            : template &lt;typename Runnable, typename... Args&gt;</a>
+<span class="lineNum">     295 </span>            : struct InvokeHelper&lt;false, void, Runnable, TypeList&lt;Args...&gt;&gt; {
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :   static void MakeItSo(Runnable runnable, Args... args) {</span>
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :     runnable.Run(CallbackForward(args)...);</span>
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 :   }</span>
+<span class="lineNum">     299 </span>            : };
+<span class="lineNum">     300 </span>            : 
+<span class="lineNum">     301 </span>            : template &lt;typename Runnable, typename BoundWeakPtr, typename... Args&gt;
+<span class="lineNum">     302 </span>            : struct InvokeHelper&lt;true, void, Runnable, TypeList&lt;BoundWeakPtr, Args...&gt;&gt; {
+<span class="lineNum">     303 </span>            :   static void MakeItSo(Runnable runnable, BoundWeakPtr weak_ptr, Args... args) {
+<span class="lineNum">     304 </span>            :     if (!weak_ptr.get()) {
+<span class="lineNum">     305 </span>            :       return;
+<span class="lineNum">     306 </span>            :     }
+<span class="lineNum">     307 </span>            :     runnable.Run(weak_ptr.get(), CallbackForward(args)...);
+<span class="lineNum">     308 </span>            :   }
+<span class="lineNum">     309 </span>            : };
+<span class="lineNum">     310 </span>            : 
+<span class="lineNum">     311 </span>            : #if !defined(_MSC_VER)
+<span class="lineNum">     312 </span>            : 
+<span class="lineNum">     313 </span>            : template &lt;typename ReturnType, typename Runnable, typename ArgsType&gt;
+<span class="lineNum">     314 </span>            : struct InvokeHelper&lt;true, ReturnType, Runnable, ArgsType&gt; {
+<span class="lineNum">     315 </span>            :   // WeakCalls are only supported for functions with a void return type.
+<span class="lineNum">     316 </span>            :   // Otherwise, the function result would be undefined if the the WeakPtr&lt;&gt;
+<span class="lineNum">     317 </span>            :   // is invalidated.
+<span class="lineNum">     318 </span>            :   static_assert(is_void&lt;ReturnType&gt;::value,
+<span class="lineNum">     319 </span>            :                 &quot;weak_ptrs can only bind to methods without return values&quot;);
+<span class="lineNum">     320 </span>            : };
+<span class="lineNum">     321 </span>            : 
+<span class="lineNum">     322 </span>            : #endif
+<span class="lineNum">     323 </span>            : 
+<span class="lineNum">     324 </span>            : // Invoker&lt;&gt;
+<span class="lineNum">     325 </span>            : //
+<span class="lineNum">     326 </span>            : // See description at the top of the file.
+<span class="lineNum">     327 </span>            : template &lt;typename BoundIndices,
+<span class="lineNum">     328 </span>            :           typename StorageType, typename Unwrappers,
+<span class="lineNum">     329 </span>            :           typename InvokeHelperType, typename UnboundForwardRunType&gt;
+<span class="lineNum">     330 </span>            : struct Invoker;
+<span class="lineNum">     331 </span>            : 
+<span class="lineNum">     332 </span>            : template &lt;size_t... bound_indices,
+<span class="lineNum">     333 </span>            :           typename StorageType,
+<span class="lineNum">     334 </span>            :           typename... Unwrappers,
+<span class="lineNum">     335 </span>            :           typename InvokeHelperType,
+<span class="lineNum">     336 </span>            :           typename R,
+<span class="lineNum">     337 </span>            :           typename... UnboundForwardArgs&gt;
+<span class="lineNum">     338 </span>            : struct Invoker&lt;IndexSequence&lt;bound_indices...&gt;,
+<a name="339"><span class="lineNum">     339 </span>            :                StorageType, TypeList&lt;Unwrappers...&gt;,</a>
+<span class="lineNum">     340 </span>            :                InvokeHelperType, R(UnboundForwardArgs...)&gt; {
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :   static R Run(BindStateBase* base,</span>
+<span class="lineNum">     342 </span>            :                UnboundForwardArgs... unbound_args) {
+<span class="lineNum">     343 </span><span class="lineNoCov">          0 :     StorageType* storage = static_cast&lt;StorageType*&gt;(base);</span>
+<span class="lineNum">     344 </span>            :     // Local references to make debugger stepping easier. If in a debugger,
+<span class="lineNum">     345 </span>            :     // you really want to warp ahead and step through the
+<span class="lineNum">     346 </span>            :     // InvokeHelper&lt;&gt;::MakeItSo() call below.
+<span class="lineNum">     347 </span>            :     return InvokeHelperType::MakeItSo(
+<span class="lineNum">     348 </span>            :         storage-&gt;runnable_,
+<span class="lineNum">     349 </span><span class="lineNoCov">          0 :         Unwrappers::Unwrap(get&lt;bound_indices&gt;(storage-&gt;bound_args_))...,</span>
+<span class="lineNum">     350 </span><span class="lineNoCov">          0 :         CallbackForward(unbound_args)...);</span>
+<span class="lineNum">     351 </span>            :   }
+<span class="lineNum">     352 </span>            : };
+<span class="lineNum">     353 </span>            : 
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span>            : // BindState&lt;&gt;
+<span class="lineNum">     356 </span>            : //
+<span class="lineNum">     357 </span>            : // This stores all the state passed into Bind() and is also where most
+<span class="lineNum">     358 </span>            : // of the template resolution magic occurs.
+<span class="lineNum">     359 </span>            : //
+<span class="lineNum">     360 </span>            : // Runnable is the functor we are binding arguments to.
+<span class="lineNum">     361 </span>            : // RunType is type of the Run() function that the Invoker&lt;&gt; should use.
+<span class="lineNum">     362 </span>            : // Normally, this is the same as the RunType of the Runnable, but it can
+<span class="lineNum">     363 </span>            : // be different if an adapter like IgnoreResult() has been used.
+<span class="lineNum">     364 </span>            : //
+<span class="lineNum">     365 </span>            : // BoundArgs contains the storage type for all the bound arguments.
+<span class="lineNum">     366 </span>            : template &lt;typename Runnable, typename RunType, typename... BoundArgs&gt;
+<span class="lineNum">     367 </span>            : struct BindState;
+<span class="lineNum">     368 </span>            : 
+<span class="lineNum">     369 </span>            : template &lt;typename Runnable,
+<span class="lineNum">     370 </span>            :           typename R,
+<span class="lineNum">     371 </span>            :           typename... Args,
+<span class="lineNum">     372 </span>            :           typename... BoundArgs&gt;
+<span class="lineNum">     373 </span>            : struct BindState&lt;Runnable, R(Args...), BoundArgs...&gt; final
+<span class="lineNum">     374 </span>            :     : public BindStateBase {
+<span class="lineNum">     375 </span>            :  private:
+<span class="lineNum">     376 </span>            :   using StorageType = BindState&lt;Runnable, R(Args...), BoundArgs...&gt;;
+<span class="lineNum">     377 </span>            :   using RunnableType = Runnable;
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span>            :   // true_type if Runnable is a method invocation and the first bound argument
+<span class="lineNum">     380 </span>            :   // is a WeakPtr.
+<span class="lineNum">     381 </span>            :   using IsWeakCall =
+<span class="lineNum">     382 </span>            :       IsWeakMethod&lt;HasIsMethodTag&lt;Runnable&gt;::value, BoundArgs...&gt;;
+<span class="lineNum">     383 </span>            : 
+<span class="lineNum">     384 </span>            :   using BoundIndices = MakeIndexSequence&lt;sizeof...(BoundArgs)&gt;;
+<span class="lineNum">     385 </span>            :   using Unwrappers = TypeList&lt;UnwrapTraits&lt;BoundArgs&gt;...&gt;;
+<span class="lineNum">     386 </span>            :   using UnboundForwardArgs = DropTypeListItem&lt;
+<span class="lineNum">     387 </span>            :       sizeof...(BoundArgs),
+<span class="lineNum">     388 </span>            :       TypeList&lt;typename CallbackParamTraits&lt;Args&gt;::ForwardType...&gt;&gt;;
+<span class="lineNum">     389 </span>            :   using UnboundForwardRunType = MakeFunctionType&lt;R, UnboundForwardArgs&gt;;
+<span class="lineNum">     390 </span>            : 
+<span class="lineNum">     391 </span>            :   using InvokeHelperArgs = ConcatTypeLists&lt;
+<span class="lineNum">     392 </span>            :       TypeList&lt;typename UnwrapTraits&lt;BoundArgs&gt;::ForwardType...&gt;,
+<span class="lineNum">     393 </span>            :       UnboundForwardArgs&gt;;
+<span class="lineNum">     394 </span>            :   using InvokeHelperType =
+<span class="lineNum">     395 </span>            :       InvokeHelper&lt;IsWeakCall::value, R, Runnable, InvokeHelperArgs&gt;;
+<span class="lineNum">     396 </span>            : 
+<span class="lineNum">     397 </span>            :   using UnboundArgs = DropTypeListItem&lt;sizeof...(BoundArgs), TypeList&lt;Args...&gt;&gt;;
+<span class="lineNum">     398 </span>            : 
+<span class="lineNum">     399 </span>            :  public:
+<span class="lineNum">     400 </span>            :   using InvokerType = Invoker&lt;BoundIndices, StorageType, Unwrappers,
+<span class="lineNum">     401 </span>            :                               InvokeHelperType, UnboundForwardRunType&gt;;
+<span class="lineNum">     402 </span>            :   using UnboundRunType = MakeFunctionType&lt;R, UnboundArgs&gt;;
+<span class="lineNum">     403 </span>            : 
+<span class="lineNum">     404 </span>            :   BindState(const Runnable&amp; runnable, const BoundArgs&amp;... bound_args)
+<span class="lineNum">     405 </span>            :       : BindStateBase(&amp;Destroy),
+<span class="lineNum">     406 </span>            :         runnable_(runnable),
+<span class="lineNum">     407 </span>            :         ref_(bound_args...),
+<span class="lineNum">     408 </span><span class="lineNoCov">          0 :         bound_args_(bound_args...) {}</span>
+<span class="lineNum">     409 </span>            : 
+<span class="lineNum">     410 </span>            :   RunnableType runnable_;
+<span class="lineNum">     411 </span>            :   MaybeScopedRefPtr&lt;HasIsMethodTag&lt;Runnable&gt;::value, BoundArgs...&gt; ref_;
+<span class="lineNum">     412 </span>            :   Tuple&lt;BoundArgs...&gt; bound_args_;
+<span class="lineNum">     413 </span>            : 
+<span class="lineNum">     414 </span>            :  private:
+<a name="415"><span class="lineNum">     415 </span><span class="lineNoCov">          0 :   ~BindState() {}</span></a>
+<span class="lineNum">     416 </span>            : 
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :   static void Destroy(BindStateBase* self) {</span>
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 :     delete static_cast&lt;BindState*&gt;(self);</span>
+<span class="lineNum">     419 </span><span class="lineNoCov">          0 :   }</span>
+<span class="lineNum">     420 </span>            : };
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span>            : }  // namespace internal
+<span class="lineNum">     423 </span>            : }  // namespace base
+<span class="lineNum">     424 </span>            : 
+<span class="lineNum">     425 </span>            : #endif  // BASE_BIND_INTERNAL_H_
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

@@ -1,0 +1,222 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/sandbox/linux/broker/SandboxBroker.h</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">security/sandbox/linux/broker</a> - SandboxBroker.h<span style="font-size: 80%;"> (source / <a href="SandboxBroker.h.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">3</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">1</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* vim: set ts=8 sts=2 et sw=2 tw=80: */
+<span class="lineNum">       3 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+<span class="lineNum">       5 </span>            :  * You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #ifndef mozilla_SandboxBroker_h
+<span class="lineNum">       8 </span>            : #define mozilla_SandboxBroker_h
+<span class="lineNum">       9 </span>            : 
+<span class="lineNum">      10 </span>            : #include &quot;mozilla/SandboxBrokerCommon.h&quot;
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : #include &quot;base/platform_thread.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;mozilla/Attributes.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;mozilla/UniquePtr.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;nsDataHashtable.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;nsHashKeys.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;nsString.h&quot;
+<span class="lineNum">      18 </span>            : 
+<span class="lineNum">      19 </span>            : namespace mozilla {
+<span class="lineNum">      20 </span>            : 
+<span class="lineNum">      21 </span>            : namespace ipc {
+<span class="lineNum">      22 </span>            : class FileDescriptor;
+<span class="lineNum">      23 </span>            : }
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : // This class implements a broker for filesystem operations requested
+<span class="lineNum">      26 </span>            : // by a sandboxed child process -- opening files and accessing their
+<span class="lineNum">      27 </span>            : // metadata.  (This is necessary in order to restrict access by path;
+<span class="lineNum">      28 </span>            : // seccomp-bpf can filter only on argument register values, not
+<span class="lineNum">      29 </span>            : // parameters passed in memory like pathnames.)
+<span class="lineNum">      30 </span>            : //
+<span class="lineNum">      31 </span>            : // The broker currently runs on a thread in the parent process (with
+<span class="lineNum">      32 </span>            : // effective uid changed on B2G), which is for memory efficiency
+<span class="lineNum">      33 </span>            : // (compared to forking a process) and simplicity (compared to having
+<span class="lineNum">      34 </span>            : // a separate executable and serializing/deserializing the policy).
+<span class="lineNum">      35 </span>            : //
+<span class="lineNum">      36 </span>            : // See also ../SandboxBrokerClient.h for the corresponding client.
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : class SandboxBroker final
+<span class="lineNum">      39 </span>            :   : private SandboxBrokerCommon
+<span class="lineNum">      40 </span>            :   , public PlatformThread::Delegate
+<span class="lineNum">      41 </span>            : {
+<span class="lineNum">      42 </span>            :  public:
+<span class="lineNum">      43 </span>            :   enum Perms {
+<span class="lineNum">      44 </span>            :     MAY_ACCESS    = 1 &lt;&lt; 0,
+<span class="lineNum">      45 </span>            :     MAY_READ      = 1 &lt;&lt; 1,
+<span class="lineNum">      46 </span>            :     MAY_WRITE     = 1 &lt;&lt; 2,
+<span class="lineNum">      47 </span>            :     MAY_CREATE    = 1 &lt;&lt; 3,
+<span class="lineNum">      48 </span>            :     // This flag is for testing policy changes -- when the client is
+<span class="lineNum">      49 </span>            :     // used with the seccomp-bpf integration, an access to this file
+<span class="lineNum">      50 </span>            :     // will invoke a crash dump with the context of the syscall.
+<span class="lineNum">      51 </span>            :     // (This overrides all other flags.)
+<span class="lineNum">      52 </span>            :     CRASH_INSTEAD = 1 &lt;&lt; 4,
+<span class="lineNum">      53 </span>            :     // Applies to everything below this path, including subdirs created
+<span class="lineNum">      54 </span>            :     // at runtime
+<span class="lineNum">      55 </span>            :     RECURSIVE     = 1 &lt;&lt; 5,
+<span class="lineNum">      56 </span>            :   };
+<span class="lineNum">      57 </span>            :   // Bitwise operations on enum values return ints, so just use int in
+<span class="lineNum">      58 </span>            :   // the hash table type (and below) to avoid cluttering code with casts.
+<span class="lineNum">      59 </span>            :   typedef nsDataHashtable&lt;nsCStringHashKey, int&gt; PathMap;
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span>            :   class Policy {
+<span class="lineNum">      62 </span>            :     PathMap mMap;
+<span class="lineNum">      63 </span>            :   public:
+<span class="lineNum">      64 </span>            :     Policy();
+<span class="lineNum">      65 </span>            :     Policy(const Policy&amp; aOther);
+<span class="lineNum">      66 </span>            :     ~Policy();
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            :     enum AddCondition {
+<span class="lineNum">      69 </span>            :       AddIfExistsNow,
+<span class="lineNum">      70 </span>            :       AddAlways,
+<span class="lineNum">      71 </span>            :     };
+<span class="lineNum">      72 </span>            :     // Typically, files that don't exist at policy creation time don't
+<span class="lineNum">      73 </span>            :     // need to be whitelisted, but this allows adding entries for
+<span class="lineNum">      74 </span>            :     // them if they'll exist later.  See also the overload below.
+<span class="lineNum">      75 </span>            :     void AddPath(int aPerms, const char* aPath, AddCondition aCond);
+<span class="lineNum">      76 </span>            :     // This adds all regular files (not directories) in the tree
+<span class="lineNum">      77 </span>            :     // rooted at the given path.
+<span class="lineNum">      78 </span>            :     void AddTree(int aPerms, const char* aPath);
+<span class="lineNum">      79 </span>            :     // A directory, and all files and directories under it, even those
+<span class="lineNum">      80 </span>            :     // added after creation (the dir itself must exist).
+<span class="lineNum">      81 </span>            :     void AddDir(int aPerms, const char* aPath);
+<span class="lineNum">      82 </span>            :     // All files in a directory with a given prefix; useful for devices.
+<span class="lineNum">      83 </span>            :     void AddFilePrefix(int aPerms, const char* aDir, const char* aPrefix);
+<span class="lineNum">      84 </span>            :     // Everything starting with the given path, even those files/dirs
+<span class="lineNum">      85 </span>            :     // added after creation. The file or directory may or may not exist.
+<span class="lineNum">      86 </span>            :     void AddPrefix(int aPerms, const char* aPath);
+<span class="lineNum">      87 </span>            :     // Adds a file or dir (end with /) if it exists, and a prefix otherwhise.
+<span class="lineNum">      88 </span>            :     void AddDynamic(int aPerms, const char* aPath);
+<a name="89"><span class="lineNum">      89 </span>            :     // Default: add file if it exists when creating policy or if we're</a>
+<span class="lineNum">      90 </span>            :     // conferring permission to create it (log files, etc.).
+<span class="lineNum">      91 </span><span class="lineNoCov">          0 :     void AddPath(int aPerms, const char* aPath) {</span>
+<span class="lineNum">      92 </span>            :       AddPath(aPerms, aPath,
+<span class="lineNum">      93 </span><span class="lineNoCov">          0 :               (aPerms &amp; MAY_CREATE) ? AddAlways : AddIfExistsNow);</span>
+<span class="lineNum">      94 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">      95 </span>            :     int Lookup(const nsACString&amp; aPath) const;
+<span class="lineNum">      96 </span>            :     int Lookup(const char* aPath) const {
+<span class="lineNum">      97 </span>            :       return Lookup(nsDependentCString(aPath));
+<span class="lineNum">      98 </span>            :     }
+<span class="lineNum">      99 </span>            :   private:
+<span class="lineNum">     100 </span>            :     // ValidatePath checks |path| and returns true if these conditions are met
+<span class="lineNum">     101 </span>            :     // * Greater than 0 length
+<span class="lineNum">     102 </span>            :     // * Is an absolute path
+<span class="lineNum">     103 </span>            :     // * No trailing slash
+<span class="lineNum">     104 </span>            :     // * No /../ path traversal
+<span class="lineNum">     105 </span>            :     bool ValidatePath(const char* path) const;
+<span class="lineNum">     106 </span>            :     void AddPrefixInternal(int aPerms, const nsACString&amp; aPath);
+<span class="lineNum">     107 </span>            :   };
+<span class="lineNum">     108 </span>            : 
+<span class="lineNum">     109 </span>            :   // Constructing a broker involves creating a socketpair and a
+<span class="lineNum">     110 </span>            :   // background thread to handle requests, so it can fail.  If this
+<span class="lineNum">     111 </span>            :   // returns nullptr, do not use the value of aClientFdOut.
+<span class="lineNum">     112 </span>            :   static UniquePtr&lt;SandboxBroker&gt;
+<span class="lineNum">     113 </span>            :     Create(UniquePtr&lt;const Policy&gt; aPolicy, int aChildPid,
+<span class="lineNum">     114 </span>            :            ipc::FileDescriptor&amp; aClientFdOut);
+<span class="lineNum">     115 </span>            :   virtual ~SandboxBroker();
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            :  private:
+<span class="lineNum">     118 </span>            :   PlatformThreadHandle mThread;
+<span class="lineNum">     119 </span>            :   int mFileDesc;
+<span class="lineNum">     120 </span>            :   const int mChildPid;
+<span class="lineNum">     121 </span>            :   const UniquePtr&lt;const Policy&gt; mPolicy;
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span>            :   SandboxBroker(UniquePtr&lt;const Policy&gt; aPolicy, int aChildPid,
+<span class="lineNum">     124 </span>            :                 int&amp; aClientFd);
+<span class="lineNum">     125 </span>            :   void ThreadMain(void) override;
+<span class="lineNum">     126 </span>            :   void AuditPermissive(int aOp, int aFlags, int aPerms, const char* aPath);
+<span class="lineNum">     127 </span>            :   void AuditDenial(int aOp, int aFlags, int aPerms, const char* aPath);
+<span class="lineNum">     128 </span>            :   // Remap relative paths to absolute paths.
+<span class="lineNum">     129 </span>            :   size_t ConvertToRealPath(char* aPath, size_t aBufSize, size_t aPathLen);
+<span class="lineNum">     130 </span>            : 
+<span class="lineNum">     131 </span>            :   // Holding a UniquePtr should disallow copying, but to make that explicit:
+<span class="lineNum">     132 </span>            :   SandboxBroker(const SandboxBroker&amp;) = delete;
+<span class="lineNum">     133 </span>            :   void operator=(const SandboxBroker&amp;) = delete;
+<span class="lineNum">     134 </span>            : };
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span>            : } // namespace mozilla
+<span class="lineNum">     137 </span>            : 
+<span class="lineNum">     138 </span>            : #endif // mozilla_SandboxBroker_h
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

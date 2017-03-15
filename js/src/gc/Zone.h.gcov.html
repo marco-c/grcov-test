@@ -1,0 +1,1021 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - js/src/gc/Zone.h</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">js/src/gc</a> - Zone.h<span style="font-size: 80%;"> (source / <a href="Zone.h.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">153</td>
+            <td class="headerCovTableEntry">180</td>
+            <td class="headerCovTableEntryMed">85.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">21</td>
+            <td class="headerCovTableEntry">45</td>
+            <td class="headerCovTableEntryLo">46.7 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-</a>
+<span class="lineNum">       2 </span>            :  * vim: set ts=8 sts=4 et sw=4 tw=99:
+<span class="lineNum">       3 </span>            :  * This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #ifndef gc_Zone_h
+<span class="lineNum">       8 </span>            : #define gc_Zone_h
+<span class="lineNum">       9 </span>            : 
+<span class="lineNum">      10 </span>            : #include &quot;mozilla/Atomics.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;mozilla/MemoryReporting.h&quot;
+<span class="lineNum">      12 </span>            : 
+<span class="lineNum">      13 </span>            : #include &quot;jscntxt.h&quot;
+<span class="lineNum">      14 </span>            : 
+<span class="lineNum">      15 </span>            : #include &quot;ds/SplayTree.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;gc/FindSCCs.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;gc/GCRuntime.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;js/GCHashTable.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;js/TracingAPI.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;vm/MallocProvider.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;vm/TypeInference.h&quot;
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : namespace js {
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : namespace jit {
+<span class="lineNum">      26 </span>            : class JitZone;
+<span class="lineNum">      27 </span>            : } // namespace jit
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : namespace gc {
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : // This class encapsulates the data that determines when we need to do a zone GC.
+<span class="lineNum">      32 </span>            : class ZoneHeapThreshold
+<span class="lineNum">      33 </span>            : {
+<span class="lineNum">      34 </span>            :     // The &quot;growth factor&quot; for computing our next thresholds after a GC.
+<span class="lineNum">      35 </span>            :     GCLockData&lt;double&gt; gcHeapGrowthFactor_;
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            :     // GC trigger threshold for allocations on the GC heap.
+<span class="lineNum">      38 </span>            :     mozilla::Atomic&lt;size_t, mozilla::Relaxed&gt; gcTriggerBytes_;
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            :   public:
+<span class="lineNum">      41 </span>            :     ZoneHeapThreshold()
+<span class="lineNum">      42 </span>            :       : gcHeapGrowthFactor_(3.0),
+<span class="lineNum">      43 </span><span class="lineCov">          1 :         gcTriggerBytes_(0)</span>
+<span class="lineNum">      44 </span>            :     {}
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span><span class="lineNoCov">          0 :     double gcHeapGrowthFactor() const { return gcHeapGrowthFactor_; }</span>
+<span class="lineNum">      47 </span><span class="lineCov">          1 :     size_t gcTriggerBytes() const { return gcTriggerBytes_; }</span>
+<span class="lineNum">      48 </span>            :     double allocTrigger(bool highFrequencyGC) const;
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            :     void updateAfterGC(size_t lastBytes, JSGCInvocationKind gckind,
+<span class="lineNum">      51 </span>            :                        const GCSchedulingTunables&amp; tunables, const GCSchedulingState&amp; state,
+<span class="lineNum">      52 </span>            :                        const AutoLockGC&amp; lock);
+<span class="lineNum">      53 </span>            :     void updateForRemovedArena(const GCSchedulingTunables&amp; tunables);
+<span class="lineNum">      54 </span>            : 
+<span class="lineNum">      55 </span>            :   private:
+<span class="lineNum">      56 </span>            :     static double computeZoneHeapGrowthFactorForHeapSize(size_t lastBytes,
+<span class="lineNum">      57 </span>            :                                                          const GCSchedulingTunables&amp; tunables,
+<span class="lineNum">      58 </span>            :                                                          const GCSchedulingState&amp; state);
+<span class="lineNum">      59 </span>            :     static size_t computeZoneTriggerBytes(double growthFactor, size_t lastBytes,
+<span class="lineNum">      60 </span>            :                                           JSGCInvocationKind gckind,
+<span class="lineNum">      61 </span>            :                                           const GCSchedulingTunables&amp; tunables,
+<span class="lineNum">      62 </span>            :                                           const AutoLockGC&amp; lock);
+<span class="lineNum">      63 </span>            : };
+<span class="lineNum">      64 </span>            : 
+<span class="lineNum">      65 </span><span class="lineCov">          1 : struct ZoneComponentFinder : public ComponentFinder&lt;JS::Zone, ZoneComponentFinder&gt;</span>
+<span class="lineNum">      66 </span>            : {
+<span class="lineNum">      67 </span>            :     ZoneComponentFinder(uintptr_t sl, AutoLockForExclusiveAccess&amp; lock)
+<span class="lineNum">      68 </span><span class="lineCov">          1 :       : ComponentFinder&lt;JS::Zone, ZoneComponentFinder&gt;(sl), lock(lock)</span>
+<span class="lineNum">      69 </span>            :     {}
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span>            :     AutoLockForExclusiveAccess&amp; lock;
+<span class="lineNum">      72 </span>            : };
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span>            : struct UniqueIdGCPolicy {
+<span class="lineNum">      75 </span>            :     static bool needsSweep(Cell** cell, uint64_t* value);
+<span class="lineNum">      76 </span>            : };
+<span class="lineNum">      77 </span>            : 
+<span class="lineNum">      78 </span>            : // Maps a Cell* to a unique, 64bit id.
+<span class="lineNum">      79 </span>            : using UniqueIdMap = GCHashMap&lt;Cell*,
+<span class="lineNum">      80 </span>            :                               uint64_t,
+<span class="lineNum">      81 </span>            :                               PointerHasher&lt;Cell*, 3&gt;,
+<span class="lineNum">      82 </span>            :                               SystemAllocPolicy,
+<span class="lineNum">      83 </span>            :                               UniqueIdGCPolicy&gt;;
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span>            : extern uint64_t NextCellUniqueId(JSRuntime* rt);
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span>            : template &lt;typename T&gt;
+<span class="lineNum">      88 </span>            : class ZoneCellIter;
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span>            : } // namespace gc
+<span class="lineNum">      91 </span>            : } // namespace js
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span>            : namespace JS {
+<span class="lineNum">      94 </span>            : 
+<span class="lineNum">      95 </span>            : // A zone is a collection of compartments. Every compartment belongs to exactly
+<span class="lineNum">      96 </span>            : // one zone. In Firefox, there is roughly one zone per tab along with a system
+<span class="lineNum">      97 </span>            : // zone for everything else. Zones mainly serve as boundaries for garbage
+<span class="lineNum">      98 </span>            : // collection. Unlike compartments, they have no special security properties.
+<span class="lineNum">      99 </span>            : //
+<span class="lineNum">     100 </span>            : // Every GC thing belongs to exactly one zone. GC things from the same zone but
+<span class="lineNum">     101 </span>            : // different compartments can share an arena (4k page). GC things from different
+<span class="lineNum">     102 </span>            : // zones cannot be stored in the same arena. The garbage collector is capable of
+<span class="lineNum">     103 </span>            : // collecting one zone at a time; it cannot collect at the granularity of
+<span class="lineNum">     104 </span>            : // compartments.
+<span class="lineNum">     105 </span>            : //
+<span class="lineNum">     106 </span>            : // GC things are tied to zones and compartments as follows:
+<span class="lineNum">     107 </span>            : //
+<span class="lineNum">     108 </span>            : // - JSObjects belong to a compartment and cannot be shared between
+<span class="lineNum">     109 </span>            : //   compartments. If an object needs to point to a JSObject in a different
+<span class="lineNum">     110 </span>            : //   compartment, regardless of zone, it must go through a cross-compartment
+<span class="lineNum">     111 </span>            : //   wrapper. Each compartment keeps track of its outgoing wrappers in a table.
+<span class="lineNum">     112 </span>            : //   JSObjects find their compartment via their ObjectGroup.
+<span class="lineNum">     113 </span>            : //
+<span class="lineNum">     114 </span>            : // - JSStrings do not belong to any particular compartment, but they do belong
+<span class="lineNum">     115 </span>            : //   to a zone. Thus, two different compartments in the same zone can point to a
+<span class="lineNum">     116 </span>            : //   JSString. When a string needs to be wrapped, we copy it if it's in a
+<span class="lineNum">     117 </span>            : //   different zone and do nothing if it's in the same zone. Thus, transferring
+<span class="lineNum">     118 </span>            : //   strings within a zone is very efficient.
+<span class="lineNum">     119 </span>            : //
+<span class="lineNum">     120 </span>            : // - Shapes and base shapes belong to a zone and are shared between compartments
+<span class="lineNum">     121 </span>            : //   in that zone where possible. Accessor shapes store getter and setter
+<span class="lineNum">     122 </span>            : //   JSObjects which belong to a single compartment, so these shapes and all
+<span class="lineNum">     123 </span>            : //   their descendants can't be shared with other compartments.
+<span class="lineNum">     124 </span>            : //
+<span class="lineNum">     125 </span>            : // - Scripts are also compartment-local and cannot be shared. A script points to
+<span class="lineNum">     126 </span>            : //   its compartment.
+<span class="lineNum">     127 </span>            : //
+<span class="lineNum">     128 </span>            : // - ObjectGroup and JitCode objects belong to a compartment and cannot be
+<span class="lineNum">     129 </span>            : //   shared. There is no mechanism to obtain the compartment from a JitCode
+<span class="lineNum">     130 </span>            : //   object.
+<span class="lineNum">     131 </span>            : //
+<span class="lineNum">     132 </span>            : // A zone remains alive as long as any GC things in the zone are alive. A
+<span class="lineNum">     133 </span>            : // compartment remains alive as long as any JSObjects, scripts, shapes, or base
+<span class="lineNum">     134 </span>            : // shapes within it are alive.
+<span class="lineNum">     135 </span>            : //
+<span class="lineNum">     136 </span>            : // We always guarantee that a zone has at least one live compartment by refusing
+<span class="lineNum">     137 </span>            : // to delete the last compartment in a live zone.
+<span class="lineNum">     138 </span>            : struct Zone : public JS::shadow::Zone,
+<span class="lineNum">     139 </span>            :               public js::gc::GraphNodeBase&lt;JS::Zone&gt;,
+<span class="lineNum">     140 </span>            :               public js::MallocProvider&lt;JS::Zone&gt;
+<span class="lineNum">     141 </span>            : {
+<span class="lineNum">     142 </span>            :     explicit Zone(JSRuntime* rt, js::ZoneGroup* group);
+<span class="lineNum">     143 </span>            :     ~Zone();
+<span class="lineNum">     144 </span>            :     MOZ_MUST_USE bool init(bool isSystem);
+<span class="lineNum">     145 </span>            : 
+<span class="lineNum">     146 </span>            :   private:
+<span class="lineNum">     147 </span>            :     js::ZoneGroup* const group_;
+<span class="lineNum">     148 </span>            :   public:
+<span class="lineNum">     149 </span>            :     js::ZoneGroup* group() const {
+<span class="lineNum">     150 </span>            :         return group_;
+<span class="lineNum">     151 </span>            :     }
+<span class="lineNum">     152 </span>            : 
+<span class="lineNum">     153 </span>            :     // For JIT use.
+<span class="lineNum">     154 </span>            :     static size_t offsetOfGroup() {
+<span class="lineNum">     155 </span>            :         return offsetof(Zone, group_);
+<span class="lineNum">     156 </span>            :     }
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span>            :     void findOutgoingEdges(js::gc::ZoneComponentFinder&amp; finder);
+<span class="lineNum">     159 </span>            : 
+<span class="lineNum">     160 </span>            :     void discardJitCode(js::FreeOp* fop, bool discardBaselineCode = true);
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span>            :     void addSizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf,
+<span class="lineNum">     163 </span>            :                                 size_t* typePool,
+<span class="lineNum">     164 </span>            :                                 size_t* baselineStubsOptimized,
+<span class="lineNum">     165 </span>            :                                 size_t* uniqueIdMap,
+<span class="lineNum">     166 </span>            :                                 size_t* shapeTables,
+<span class="lineNum">     167 </span>            :                                 size_t* atomsMarkBitmaps);
+<span class="lineNum">     168 </span>            : 
+<span class="lineNum">     169 </span>            :     // Iterate over all cells in the zone. See the definition of ZoneCellIter
+<span class="lineNum">     170 </span>            :     // in jsgcinlines.h for the possible arguments and documentation.
+<span class="lineNum">     171 </span>            :     template &lt;typename T, typename... Args&gt;
+<span class="lineNum">     172 </span>            :     js::gc::ZoneCellIter&lt;T&gt; cellIter(Args&amp;&amp;... args) {
+<span class="lineNum">     173 </span><span class="lineCov">          1 :         return js::gc::ZoneCellIter&lt;T&gt;(const_cast&lt;Zone*&gt;(this), mozilla::Forward&lt;Args&gt;(args)...);</span>
+<a name="174"><span class="lineNum">     174 </span>            :     }</a>
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span><span class="lineNoCov">          0 :     MOZ_MUST_USE void* onOutOfMemory(js::AllocFunction allocFunc, size_t nbytes,</span>
+<span class="lineNum">     177 </span>            :                                      void* reallocPtr = nullptr) {
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :         if (!js::CurrentThreadCanAccessRuntime(runtime_))</span>
+<span class="lineNum">     179 </span>            :             return nullptr;
+<span class="lineNum">     180 </span><span class="lineNoCov">          0 :         return runtimeFromActiveCooperatingThread()-&gt;onOutOfMemory(allocFunc, nbytes, reallocPtr);</span>
+<span class="lineNum">     181 </span>            :     }
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :     void reportAllocationOverflow() { js::ReportAllocationOverflow(nullptr); }</span>
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span>            :     void beginSweepTypes(js::FreeOp* fop, bool releaseTypes);
+<span class="lineNum">     185 </span>            : 
+<span class="lineNum">     186 </span>            :     bool hasMarkedCompartments();
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span><span class="lineCov">          1 :     void scheduleGC() { MOZ_ASSERT(!CurrentThreadIsHeapBusy()); gcScheduled_ = true; }</span>
+<span class="lineNum">     189 </span><span class="lineCov">          1 :     void unscheduleGC() { gcScheduled_ = false; }</span>
+<span class="lineNum">     190 </span><span class="lineCov">          1 :     bool isGCScheduled() { return gcScheduled_ &amp;&amp; canCollect(); }</span>
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span><span class="lineCov">          1 :     void setPreservingCode(bool preserving) { gcPreserveCode_ = preserving; }</span>
+<span class="lineNum">     193 </span><span class="lineCov">          1 :     bool isPreservingCode() const { return gcPreserveCode_; }</span>
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span>            :     bool canCollect();
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span>            :     void notifyObservingDebuggers();
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span>            :     enum GCState {
+<span class="lineNum">     200 </span>            :         NoGC,
+<span class="lineNum">     201 </span>            :         Mark,
+<span class="lineNum">     202 </span>            :         MarkGray,
+<span class="lineNum">     203 </span>            :         Sweep,
+<span class="lineNum">     204 </span>            :         Finished,
+<span class="lineNum">     205 </span>            :         Compact
+<span class="lineNum">     206 </span>            :     };
+<span class="lineNum">     207 </span>            :     void setGCState(GCState state) {
+<span class="lineNum">     208 </span>            :         MOZ_ASSERT(CurrentThreadIsHeapBusy());
+<span class="lineNum">     209 </span>            :         MOZ_ASSERT_IF(state != NoGC, canCollect());
+<span class="lineNum">     210 </span><span class="lineCov">          1 :         gcState_ = state;</span>
+<span class="lineNum">     211 </span>            :         if (state == Finished)
+<span class="lineNum">     212 </span><span class="lineCov">          1 :             notifyObservingDebuggers();</span>
+<span class="lineNum">     213 </span>            :     }
+<span class="lineNum">     214 </span>            : 
+<span class="lineNum">     215 </span>            :     bool isCollecting() const {
+<span class="lineNum">     216 </span>            :         MOZ_ASSERT(CurrentThreadCanAccessRuntime(runtimeFromActiveCooperatingThread()));
+<span class="lineNum">     217 </span>            :         return isCollectingFromAnyThread();
+<span class="lineNum">     218 </span>            :     }
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span>            :     bool isCollectingFromAnyThread() const {
+<span class="lineNum">     221 </span><span class="lineCov">          1 :         if (CurrentThreadIsHeapCollecting())</span>
+<span class="lineNum">     222 </span><span class="lineCov">          1 :             return gcState_ != NoGC;</span>
+<span class="lineNum">     223 </span>            :         else
+<span class="lineNum">     224 </span><span class="lineNoCov">          0 :             return needsIncrementalBarrier();</span>
+<span class="lineNum">     225 </span>            :     }
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span>            :     // If this returns true, all object tracing must be done with a GC marking
+<span class="lineNum">     228 </span>            :     // tracer.
+<span class="lineNum">     229 </span>            :     bool requireGCTracer() const {
+<span class="lineNum">     230 </span>            :         JSRuntime* rt = runtimeFromAnyThread();
+<span class="lineNum">     231 </span>            :         return CurrentThreadIsHeapMajorCollecting() &amp;&amp; !rt-&gt;gc.isHeapCompacting() &amp;&amp; gcState_ != NoGC;
+<a name="232"><span class="lineNum">     232 </span>            :     }</a>
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span><span class="lineCov">          1 :     bool isGCMarking() {</span>
+<span class="lineNum">     235 </span><span class="lineCov">          1 :         if (CurrentThreadIsHeapCollecting())</span>
+<span class="lineNum">     236 </span><span class="lineCov">          1 :             return gcState_ == Mark || gcState_ == MarkGray;</span>
+<span class="lineNum">     237 </span>            :         else
+<span class="lineNum">     238 </span><span class="lineCov">          1 :             return needsIncrementalBarrier();</span>
+<span class="lineNum">     239 </span>            :     }
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span><span class="lineCov">          1 :     GCState gcState() const { return gcState_; }</span>
+<span class="lineNum">     242 </span><span class="lineCov">          1 :     bool wasGCStarted() const { return gcState_ != NoGC; }</span>
+<span class="lineNum">     243 </span><span class="lineCov">          1 :     bool isGCMarkingBlack() { return gcState_ == Mark; }</span>
+<span class="lineNum">     244 </span><span class="lineCov">          1 :     bool isGCMarkingGray() { return gcState_ == MarkGray; }</span>
+<span class="lineNum">     245 </span><span class="lineCov">          1 :     bool isGCSweeping() { return gcState_ == Sweep; }</span>
+<span class="lineNum">     246 </span><span class="lineCov">          1 :     bool isGCFinished() { return gcState_ == Finished; }</span>
+<span class="lineNum">     247 </span><span class="lineCov">          1 :     bool isGCCompacting() { return gcState_ == Compact; }</span>
+<span class="lineNum">     248 </span>            :     bool isGCSweepingOrCompacting() { return gcState_ == Sweep || gcState_ == Compact; }
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span>            :     // Get a number that is incremented whenever this zone is collected, and
+<span class="lineNum">     251 </span>            :     // possibly at other times too.
+<span class="lineNum">     252 </span>            :     uint64_t gcNumber();
+<span class="lineNum">     253 </span>            : 
+<span class="lineNum">     254 </span>            :     bool compileBarriers() const { return compileBarriers(needsIncrementalBarrier()); }
+<span class="lineNum">     255 </span>            :     bool compileBarriers(bool needsIncrementalBarrier) const {
+<span class="lineNum">     256 </span>            :         return needsIncrementalBarrier ||
+<span class="lineNum">     257 </span>            :                runtimeFromActiveCooperatingThread()-&gt;hasZealMode(js::gc::ZealMode::VerifierPre);
+<span class="lineNum">     258 </span>            :     }
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span>            :     enum ShouldUpdateJit { DontUpdateJit, UpdateJit };
+<span class="lineNum">     261 </span>            :     void setNeedsIncrementalBarrier(bool needs, ShouldUpdateJit updateJit);
+<span class="lineNum">     262 </span><span class="lineCov">          1 :     const bool* addressOfNeedsIncrementalBarrier() const { return &amp;needsIncrementalBarrier_; }</span>
+<span class="lineNum">     263 </span>            : 
+<span class="lineNum">     264 </span><span class="lineCov">          1 :     js::jit::JitZone* getJitZone(JSContext* cx) { return jitZone_ ? jitZone_ : createJitZone(cx); }</span>
+<span class="lineNum">     265 </span><span class="lineCov">          1 :     js::jit::JitZone* jitZone() { return jitZone_; }</span>
+<span class="lineNum">     266 </span>            : 
+<span class="lineNum">     267 </span><span class="lineCov">          1 :     bool isAtomsZone() const { return runtimeFromAnyThread()-&gt;isAtomsZone(this); }</span>
+<span class="lineNum">     268 </span><span class="lineCov">          1 :     bool isSelfHostingZone() const { return runtimeFromAnyThread()-&gt;isSelfHostingZone(this); }</span>
+<span class="lineNum">     269 </span>            : 
+<span class="lineNum">     270 </span>            :     void prepareForCompacting();
+<span class="lineNum">     271 </span>            : 
+<span class="lineNum">     272 </span>            : #ifdef DEBUG
+<span class="lineNum">     273 </span>            :     // For testing purposes, return the index of the zone group which this zone
+<span class="lineNum">     274 </span>            :     // was swept in in the last GC.
+<span class="lineNum">     275 </span>            :     unsigned lastZoneGroupIndex() { return gcLastZoneGroupIndex; }
+<span class="lineNum">     276 </span>            : #endif
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span>            :     using DebuggerVector = js::Vector&lt;js::Debugger*, 0, js::SystemAllocPolicy&gt;;
+<span class="lineNum">     279 </span>            : 
+<span class="lineNum">     280 </span>            :   private:
+<span class="lineNum">     281 </span>            :     js::ZoneGroupData&lt;DebuggerVector*&gt; debuggers;
+<span class="lineNum">     282 </span>            : 
+<span class="lineNum">     283 </span>            :     void sweepBreakpoints(js::FreeOp* fop);
+<span class="lineNum">     284 </span>            :     void sweepUniqueIds(js::FreeOp* fop);
+<span class="lineNum">     285 </span>            :     void sweepWeakMaps();
+<span class="lineNum">     286 </span>            :     void sweepCompartments(js::FreeOp* fop, bool keepAtleastOne, bool lastGC);
+<span class="lineNum">     287 </span>            : 
+<span class="lineNum">     288 </span>            :     js::jit::JitZone* createJitZone(JSContext* cx);
+<span class="lineNum">     289 </span>            : 
+<span class="lineNum">     290 </span>            :     bool isQueuedForBackgroundSweep() {
+<span class="lineNum">     291 </span>            :         return isOnList();
+<span class="lineNum">     292 </span>            :     }
+<span class="lineNum">     293 </span>            : 
+<span class="lineNum">     294 </span>            :     // Side map for storing a unique ids for cells, independent of address.
+<span class="lineNum">     295 </span>            :     js::ZoneGroupData&lt;js::gc::UniqueIdMap&gt; uniqueIds_;
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span><span class="lineCov">          1 :     js::gc::UniqueIdMap&amp; uniqueIds() { return uniqueIds_.ref(); }</span>
+<span class="lineNum">     298 </span>            : 
+<span class="lineNum">     299 </span>            :   public:
+<span class="lineNum">     300 </span>            :     bool hasDebuggers() const { return debuggers &amp;&amp; debuggers-&gt;length(); }
+<span class="lineNum">     301 </span><span class="lineCov">          1 :     DebuggerVector* getDebuggers() const { return debuggers; }</span>
+<span class="lineNum">     302 </span>            :     DebuggerVector* getOrCreateDebuggers(JSContext* cx);
+<span class="lineNum">     303 </span>            : 
+<span class="lineNum">     304 </span>            :     void clearTables();
+<span class="lineNum">     305 </span>            : 
+<span class="lineNum">     306 </span>            :     /*
+<span class="lineNum">     307 </span>            :      * When true, skip calling the metadata callback. We use this:
+<span class="lineNum">     308 </span>            :      * - to avoid invoking the callback recursively;
+<span class="lineNum">     309 </span>            :      * - to avoid observing lazy prototype setup (which confuses callbacks that
+<span class="lineNum">     310 </span>            :      *   want to use the types being set up!);
+<span class="lineNum">     311 </span>            :      * - to avoid attaching allocation stacks to allocation stack nodes, which
+<span class="lineNum">     312 </span>            :      *   is silly
+<span class="lineNum">     313 </span>            :      * And so on.
+<span class="lineNum">     314 </span>            :      */
+<span class="lineNum">     315 </span>            :     js::ZoneGroupData&lt;bool&gt; suppressAllocationMetadataBuilder;
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span>            :     js::gc::ArenaLists arenas;
+<span class="lineNum">     318 </span>            : 
+<span class="lineNum">     319 </span>            :     js::TypeZone types;
+<span class="lineNum">     320 </span>            : 
+<span class="lineNum">     321 </span>            :   private:
+<span class="lineNum">     322 </span>            :     /* Live weakmaps in this zone. */
+<span class="lineNum">     323 </span>            :     js::ZoneGroupData&lt;mozilla::LinkedList&lt;js::WeakMapBase&gt;&gt; gcWeakMapList_;
+<span class="lineNum">     324 </span>            :   public:
+<span class="lineNum">     325 </span><span class="lineCov">          1 :     mozilla::LinkedList&lt;js::WeakMapBase&gt;&amp; gcWeakMapList() { return gcWeakMapList_.ref(); }</span>
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span>            :     typedef js::Vector&lt;JSCompartment*, 1, js::SystemAllocPolicy&gt; CompartmentVector;
+<span class="lineNum">     328 </span>            : 
+<span class="lineNum">     329 </span>            :   private:
+<span class="lineNum">     330 </span>            :     // The set of compartments in this zone.
+<span class="lineNum">     331 </span>            :     js::ActiveThreadOrGCTaskData&lt;CompartmentVector&gt; compartments_;
+<span class="lineNum">     332 </span>            :   public:
+<span class="lineNum">     333 </span><span class="lineCov">          1 :     CompartmentVector&amp; compartments() { return compartments_.ref(); }</span>
+<span class="lineNum">     334 </span>            : 
+<span class="lineNum">     335 </span>            :     // This zone's gray roots.
+<span class="lineNum">     336 </span>            :     typedef js::Vector&lt;js::gc::Cell*, 0, js::SystemAllocPolicy&gt; GrayRootVector;
+<span class="lineNum">     337 </span>            :   private:
+<span class="lineNum">     338 </span>            :     js::ZoneGroupData&lt;GrayRootVector&gt; gcGrayRoots_;
+<span class="lineNum">     339 </span>            :   public:
+<span class="lineNum">     340 </span><span class="lineCov">          1 :     GrayRootVector&amp; gcGrayRoots() { return gcGrayRoots_.ref(); }</span>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span>            :     // This zone's weak edges found via graph traversal during marking,
+<span class="lineNum">     343 </span>            :     // preserved for re-scanning during sweeping.
+<span class="lineNum">     344 </span>            :     using WeakEdges = js::Vector&lt;js::gc::TenuredCell**, 0, js::SystemAllocPolicy&gt;;
+<span class="lineNum">     345 </span>            :   private:
+<span class="lineNum">     346 </span>            :     js::ZoneGroupData&lt;WeakEdges&gt; gcWeakRefs_;
+<span class="lineNum">     347 </span>            :   public:
+<span class="lineNum">     348 </span><span class="lineCov">          1 :     WeakEdges&amp; gcWeakRefs() { return gcWeakRefs_.ref(); }</span>
+<span class="lineNum">     349 </span>            : 
+<span class="lineNum">     350 </span>            :   private:
+<span class="lineNum">     351 </span>            :     // List of non-ephemeron weak containers to sweep during beginSweepingZoneGroup.
+<span class="lineNum">     352 </span>            :     js::ZoneGroupData&lt;mozilla::LinkedList&lt;WeakCache&lt;void*&gt;&gt;&gt; weakCaches_;
+<span class="lineNum">     353 </span>            :   public:
+<span class="lineNum">     354 </span><span class="lineCov">          1 :     mozilla::LinkedList&lt;WeakCache&lt;void*&gt;&gt;&amp; weakCaches() { return weakCaches_.ref(); }</span>
+<span class="lineNum">     355 </span>            :     void registerWeakCache(WeakCache&lt;void*&gt;* cachep) {
+<span class="lineNum">     356 </span><span class="lineCov">          1 :         weakCaches().insertBack(cachep);</span>
+<span class="lineNum">     357 </span>            :     }
+<span class="lineNum">     358 </span>            : 
+<span class="lineNum">     359 </span>            :   private:
+<span class="lineNum">     360 </span>            :     /*
+<span class="lineNum">     361 </span>            :      * Mapping from not yet marked keys to a vector of all values that the key
+<span class="lineNum">     362 </span>            :      * maps to in any live weak map.
+<span class="lineNum">     363 </span>            :      */
+<span class="lineNum">     364 </span>            :     js::ZoneGroupData&lt;js::gc::WeakKeyTable&gt; gcWeakKeys_;
+<span class="lineNum">     365 </span>            :   public:
+<span class="lineNum">     366 </span><span class="lineCov">          1 :     js::gc::WeakKeyTable&amp; gcWeakKeys() { return gcWeakKeys_.ref(); }</span>
+<span class="lineNum">     367 </span>            : 
+<span class="lineNum">     368 </span>            :   private:
+<span class="lineNum">     369 </span>            :     // A set of edges from this zone to other zones.
+<span class="lineNum">     370 </span>            :     //
+<span class="lineNum">     371 </span>            :     // This is used during GC while calculating zone groups to record edges that
+<span class="lineNum">     372 </span>            :     // can't be determined by examining this zone by itself.
+<span class="lineNum">     373 </span>            :     js::ZoneGroupData&lt;ZoneSet&gt; gcZoneGroupEdges_;
+<span class="lineNum">     374 </span>            : 
+<span class="lineNum">     375 </span>            :     // Zones with dead proxies require an extra scan through the wrapper map,
+<span class="lineNum">     376 </span>            :     // so track whether any dead proxies are known to exist.
+<span class="lineNum">     377 </span>            :     js::ZoneGroupData&lt;bool&gt; hasDeadProxies_;
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span>            :   public:
+<span class="lineNum">     380 </span><span class="lineCov">          1 :     ZoneSet&amp; gcZoneGroupEdges() { return gcZoneGroupEdges_.ref(); }</span>
+<span class="lineNum">     381 </span>            : 
+<span class="lineNum">     382 </span><span class="lineCov">          1 :     bool hasDeadProxies() { return hasDeadProxies_; }</span>
+<span class="lineNum">     383 </span><span class="lineCov">          1 :     void setHasDeadProxies(bool b) { hasDeadProxies_ = b; }</span>
+<span class="lineNum">     384 </span>            : 
+<span class="lineNum">     385 </span>            :     // Keep track of all TypeDescr and related objects in this compartment.
+<span class="lineNum">     386 </span>            :     // This is used by the GC to trace them all first when compacting, since the
+<span class="lineNum">     387 </span>            :     // TypedObject trace hook may access these objects.
+<span class="lineNum">     388 </span>            :     //
+<span class="lineNum">     389 </span>            :     // There are no barriers here - the set contains only tenured objects so no
+<span class="lineNum">     390 </span>            :     // post-barrier is required, and these are weak references so no pre-barrier
+<span class="lineNum">     391 </span>            :     // is required.
+<span class="lineNum">     392 </span>            :     using TypeDescrObjectSet = js::GCHashSet&lt;JSObject*,
+<span class="lineNum">     393 </span>            :                                              js::MovableCellHasher&lt;JSObject*&gt;,
+<span class="lineNum">     394 </span>            :                                              js::SystemAllocPolicy&gt;;
+<span class="lineNum">     395 </span>            :   private:
+<span class="lineNum">     396 </span>            :     js::ZoneGroupData&lt;JS::WeakCache&lt;TypeDescrObjectSet&gt;&gt; typeDescrObjects_;
+<span class="lineNum">     397 </span>            : 
+<span class="lineNum">     398 </span>            :     // Malloc counter to measure memory pressure for GC scheduling. This
+<span class="lineNum">     399 </span>            :     // counter should be used only when it's not possible to know the size of
+<span class="lineNum">     400 </span>            :     // a free.
+<span class="lineNum">     401 </span>            :     js::gc::MemoryCounter&lt;Zone&gt; gcMallocCounter;
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span>            :     // Counter of JIT code executable memory for GC scheduling. Also imprecise,
+<span class="lineNum">     404 </span>            :     // since wasm can generate code that outlives a zone.
+<span class="lineNum">     405 </span>            :     js::gc::MemoryCounter&lt;Zone&gt; jitCodeCounter;
+<span class="lineNum">     406 </span>            : 
+<span class="lineNum">     407 </span>            :   public:
+<span class="lineNum">     408 </span><span class="lineCov">          1 :     JS::WeakCache&lt;TypeDescrObjectSet&gt;&amp; typeDescrObjects() { return typeDescrObjects_.ref(); }</span>
+<span class="lineNum">     409 </span>            : 
+<span class="lineNum">     410 </span>            :     bool addTypeDescrObject(JSContext* cx, HandleObject obj);
+<span class="lineNum">     411 </span>            : 
+<span class="lineNum">     412 </span>            :     bool triggerGCForTooMuchMalloc() {
+<span class="lineNum">     413 </span><span class="lineCov">          1 :         return runtimeFromAnyThread()-&gt;gc.triggerZoneGC(this, JS::gcreason::TOO_MUCH_MALLOC);</span>
+<span class="lineNum">     414 </span>            :     }
+<span class="lineNum">     415 </span>            : 
+<span class="lineNum">     416 </span><span class="lineCov">          1 :     void resetGCMallocBytes() { gcMallocCounter.reset(); }</span>
+<span class="lineNum">     417 </span><span class="lineCov">          1 :     void setGCMaxMallocBytes(size_t value) { gcMallocCounter.setMax(value); }</span>
+<span class="lineNum">     418 </span><span class="lineCov">          1 :     void updateMallocCounter(size_t nbytes) { gcMallocCounter.update(this, nbytes); }</span>
+<span class="lineNum">     419 </span><span class="lineNoCov">          0 :     size_t GCMaxMallocBytes() const { return gcMallocCounter.maxBytes(); }</span>
+<span class="lineNum">     420 </span><span class="lineNoCov">          0 :     size_t GCMallocBytes() const { return gcMallocCounter.bytes(); }</span>
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span><span class="lineCov">          1 :     void updateJitCodeMallocBytes(size_t size) { jitCodeCounter.update(this, size); }</span>
+<span class="lineNum">     423 </span>            : 
+<span class="lineNum">     424 </span>            :     // Resets all the memory counters.
+<span class="lineNum">     425 </span>            :     void resetAllMallocBytes() {
+<span class="lineNum">     426 </span>            :         resetGCMallocBytes();
+<a name="427"><span class="lineNum">     427 </span><span class="lineCov">          1 :         jitCodeCounter.reset();</span></a>
+<span class="lineNum">     428 </span>            :     }
+<span class="lineNum">     429 </span><span class="lineCov">          1 :     bool isTooMuchMalloc() const {</span>
+<span class="lineNum">     430 </span><span class="lineCov">          1 :         return gcMallocCounter.isTooMuchMalloc() ||</span>
+<span class="lineNum">     431 </span><span class="lineCov">          1 :                jitCodeCounter.isTooMuchMalloc();</span>
+<span class="lineNum">     432 </span>            :     }
+<span class="lineNum">     433 </span>            : 
+<span class="lineNum">     434 </span>            :   private:
+<span class="lineNum">     435 </span>            :     // Bitmap of atoms marked by this zone.
+<span class="lineNum">     436 </span>            :     js::ZoneGroupOrGCTaskData&lt;js::SparseBitmap&gt; markedAtoms_;
+<span class="lineNum">     437 </span>            :   public:
+<span class="lineNum">     438 </span><span class="lineCov">          1 :     js::SparseBitmap&amp; markedAtoms() { return markedAtoms_.ref(); }</span>
+<span class="lineNum">     439 </span>            : 
+<span class="lineNum">     440 </span>            :     // Track heap usage under this Zone.
+<span class="lineNum">     441 </span>            :     js::gc::HeapUsage usage;
+<span class="lineNum">     442 </span>            : 
+<span class="lineNum">     443 </span>            :     // Thresholds used to trigger GC.
+<span class="lineNum">     444 </span>            :     js::gc::ZoneHeapThreshold threshold;
+<span class="lineNum">     445 </span>            : 
+<span class="lineNum">     446 </span>            :     // Amount of data to allocate before triggering a new incremental slice for
+<span class="lineNum">     447 </span>            :     // the current GC.
+<span class="lineNum">     448 </span>            :     js::UnprotectedData&lt;size_t&gt; gcDelayBytes;
+<span class="lineNum">     449 </span>            : 
+<span class="lineNum">     450 </span>            :   private:
+<span class="lineNum">     451 </span>            :     // Shared Shape property tree.
+<span class="lineNum">     452 </span>            :     js::ZoneGroupData&lt;js::PropertyTree&gt; propertyTree_;
+<span class="lineNum">     453 </span>            :   public:
+<span class="lineNum">     454 </span><span class="lineCov">          1 :     js::PropertyTree&amp; propertyTree() { return propertyTree_.ref(); }</span>
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span>            :   private:
+<span class="lineNum">     457 </span>            :     // Set of all unowned base shapes in the Zone.
+<span class="lineNum">     458 </span>            :     js::ZoneGroupData&lt;JS::WeakCache&lt;js::BaseShapeSet&gt;&gt; baseShapes_;
+<span class="lineNum">     459 </span>            :   public:
+<span class="lineNum">     460 </span><span class="lineCov">          1 :     JS::WeakCache&lt;js::BaseShapeSet&gt;&amp; baseShapes() { return baseShapes_.ref(); }</span>
+<span class="lineNum">     461 </span>            : 
+<span class="lineNum">     462 </span>            :   private:
+<span class="lineNum">     463 </span>            :     // Set of initial shapes in the Zone. For certain prototypes -- namely,
+<span class="lineNum">     464 </span>            :     // those of various builtin classes -- there are two entries: one for a
+<span class="lineNum">     465 </span>            :     // lookup via TaggedProto, and one for a lookup via JSProtoKey. See
+<span class="lineNum">     466 </span>            :     // InitialShapeProto.
+<span class="lineNum">     467 </span>            :     js::ZoneGroupData&lt;JS::WeakCache&lt;js::InitialShapeSet&gt;&gt; initialShapes_;
+<span class="lineNum">     468 </span>            :   public:
+<span class="lineNum">     469 </span><span class="lineCov">          1 :     JS::WeakCache&lt;js::InitialShapeSet&gt;&amp; initialShapes() { return initialShapes_.ref(); }</span>
+<span class="lineNum">     470 </span>            : 
+<span class="lineNum">     471 </span>            : #ifdef JSGC_HASH_TABLE_CHECKS
+<span class="lineNum">     472 </span>            :     void checkInitialShapesTableAfterMovingGC();
+<span class="lineNum">     473 </span>            :     void checkBaseShapeTableAfterMovingGC();
+<span class="lineNum">     474 </span>            : #endif
+<span class="lineNum">     475 </span>            :     void fixupInitialShapeTable();
+<span class="lineNum">     476 </span>            :     void fixupAfterMovingGC();
+<span class="lineNum">     477 </span>            : 
+<span class="lineNum">     478 </span>            :     // Per-zone data for use by an embedder.
+<span class="lineNum">     479 </span>            :     js::ZoneGroupData&lt;void*&gt; data;
+<span class="lineNum">     480 </span>            : 
+<a name="481"><span class="lineNum">     481 </span>            :     js::ZoneGroupData&lt;bool&gt; isSystem;</a>
+<span class="lineNum">     482 </span>            : 
+<span class="lineNum">     483 </span><span class="lineCov">          1 :     bool usedByHelperThread() {</span>
+<span class="lineNum">     484 </span><span class="lineCov">          1 :         return !isAtomsZone() &amp;&amp; group()-&gt;usedByHelperThread;</span>
+<span class="lineNum">     485 </span>            :     }
+<span class="lineNum">     486 </span>            : 
+<span class="lineNum">     487 </span>            : #ifdef DEBUG
+<span class="lineNum">     488 </span>            :     js::ZoneGroupData&lt;unsigned&gt; gcLastZoneGroupIndex;
+<span class="lineNum">     489 </span>            : #endif
+<span class="lineNum">     490 </span>            : 
+<span class="lineNum">     491 </span>            :     static js::HashNumber UniqueIdToHash(uint64_t uid) {
+<span class="lineNum">     492 </span><span class="lineCov">          1 :         return js::HashNumber(uid &gt;&gt; 32) ^ js::HashNumber(uid &amp; 0xFFFFFFFF);</span>
+<span class="lineNum">     493 </span>            :     }
+<span class="lineNum">     494 </span>            : 
+<span class="lineNum">     495 </span>            :     // Creates a HashNumber based on getUniqueId. Returns false on OOM.
+<span class="lineNum">     496 </span>            :     MOZ_MUST_USE bool getHashCode(js::gc::Cell* cell, js::HashNumber* hashp) {
+<span class="lineNum">     497 </span>            :         uint64_t uid;
+<span class="lineNum">     498 </span>            :         if (!getUniqueId(cell, &amp;uid))
+<span class="lineNum">     499 </span>            :             return false;
+<span class="lineNum">     500 </span>            :         *hashp = UniqueIdToHash(uid);
+<span class="lineNum">     501 </span>            :         return true;
+<span class="lineNum">     502 </span>            :     }
+<span class="lineNum">     503 </span>            : 
+<a name="504"><span class="lineNum">     504 </span>            :     // Puts an existing UID in |uidp|, or creates a new UID for this Cell and</a>
+<span class="lineNum">     505 </span>            :     // puts that into |uidp|. Returns false on OOM.
+<span class="lineNum">     506 </span><span class="lineCov">          1 :     MOZ_MUST_USE bool getUniqueId(js::gc::Cell* cell, uint64_t* uidp) {</span>
+<span class="lineNum">     507 </span>            :         MOZ_ASSERT(uidp);
+<span class="lineNum">     508 </span>            :         MOZ_ASSERT(js::CurrentThreadCanAccessZone(this));
+<span class="lineNum">     509 </span>            : 
+<span class="lineNum">     510 </span>            :         // Get an existing uid, if one has been set.
+<span class="lineNum">     511 </span><span class="lineCov">          1 :         auto p = uniqueIds().lookupForAdd(cell);</span>
+<span class="lineNum">     512 </span><span class="lineCov">          1 :         if (p) {</span>
+<span class="lineNum">     513 </span><span class="lineCov">          1 :             *uidp = p-&gt;value();</span>
+<span class="lineNum">     514 </span><span class="lineCov">          1 :             return true;</span>
+<span class="lineNum">     515 </span>            :         }
+<span class="lineNum">     516 </span>            : 
+<span class="lineNum">     517 </span>            :         // Set a new uid on the cell.
+<span class="lineNum">     518 </span><span class="lineCov">          1 :         *uidp = js::gc::NextCellUniqueId(runtimeFromAnyThread());</span>
+<span class="lineNum">     519 </span><span class="lineCov">          1 :         if (!uniqueIds().add(p, cell, *uidp))</span>
+<span class="lineNum">     520 </span>            :             return false;
+<span class="lineNum">     521 </span>            : 
+<span class="lineNum">     522 </span>            :         // If the cell was in the nursery, hopefully unlikely, then we need to
+<span class="lineNum">     523 </span>            :         // tell the nursery about it so that it can sweep the uid if the thing
+<span class="lineNum">     524 </span>            :         // does not get tenured.
+<span class="lineNum">     525 </span><span class="lineCov">          1 :         if (IsInsideNursery(cell) &amp;&amp; !group()-&gt;nursery().addedUniqueIdToCell(cell)) {</span>
+<span class="lineNum">     526 </span><span class="lineNoCov">          0 :             uniqueIds().remove(cell);</span>
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     528 </span>            :         }
+<span class="lineNum">     529 </span>            : 
+<span class="lineNum">     530 </span>            :         return true;
+<span class="lineNum">     531 </span>            :     }
+<span class="lineNum">     532 </span>            : 
+<span class="lineNum">     533 </span>            :     js::HashNumber getHashCodeInfallible(js::gc::Cell* cell) {
+<span class="lineNum">     534 </span><span class="lineCov">          1 :         return UniqueIdToHash(getUniqueIdInfallible(cell));</span>
+<a name="535"><span class="lineNum">     535 </span>            :     }</a>
+<span class="lineNum">     536 </span>            : 
+<span class="lineNum">     537 </span><span class="lineCov">          1 :     uint64_t getUniqueIdInfallible(js::gc::Cell* cell) {</span>
+<span class="lineNum">     538 </span>            :         uint64_t uid;
+<span class="lineNum">     539 </span>            :         js::AutoEnterOOMUnsafeRegion oomUnsafe;
+<span class="lineNum">     540 </span><span class="lineCov">          1 :         if (!getUniqueId(cell, &amp;uid))</span>
+<span class="lineNum">     541 </span><span class="lineNoCov">          0 :             oomUnsafe.crash(&quot;failed to allocate uid&quot;);</span>
+<span class="lineNum">     542 </span><span class="lineCov">          1 :         return uid;</span>
+<span class="lineNum">     543 </span>            :     }
+<span class="lineNum">     544 </span>            : 
+<span class="lineNum">     545 </span>            :     // Return true if this cell has a UID associated with it.
+<span class="lineNum">     546 </span>            :     MOZ_MUST_USE bool hasUniqueId(js::gc::Cell* cell) {
+<span class="lineNum">     547 </span>            :         MOZ_ASSERT(js::CurrentThreadCanAccessZone(this));
+<span class="lineNum">     548 </span><span class="lineCov">          1 :         return uniqueIds().has(cell);</span>
+<span class="lineNum">     549 </span>            :     }
+<span class="lineNum">     550 </span>            : 
+<span class="lineNum">     551 </span>            :     // Transfer an id from another cell. This must only be called on behalf of a
+<span class="lineNum">     552 </span>            :     // moving GC. This method is infallible.
+<span class="lineNum">     553 </span>            :     void transferUniqueId(js::gc::Cell* tgt, js::gc::Cell* src) {
+<span class="lineNum">     554 </span>            :         MOZ_ASSERT(src != tgt);
+<span class="lineNum">     555 </span>            :         MOZ_ASSERT(!IsInsideNursery(tgt));
+<span class="lineNum">     556 </span>            :         MOZ_ASSERT(CurrentThreadCanAccessRuntime(runtimeFromActiveCooperatingThread()));
+<span class="lineNum">     557 </span>            :         MOZ_ASSERT(js::CurrentThreadCanAccessZone(this));
+<span class="lineNum">     558 </span><span class="lineCov">          1 :         uniqueIds().rekeyIfMoved(src, tgt);</span>
+<span class="lineNum">     559 </span>            :     }
+<span class="lineNum">     560 </span>            : 
+<span class="lineNum">     561 </span>            :     // Remove any unique id associated with this Cell.
+<span class="lineNum">     562 </span>            :     void removeUniqueId(js::gc::Cell* cell) {
+<span class="lineNum">     563 </span>            :         MOZ_ASSERT(js::CurrentThreadCanAccessZone(this));
+<span class="lineNum">     564 </span><span class="lineCov">          1 :         uniqueIds().remove(cell);</span>
+<span class="lineNum">     565 </span>            :     }
+<span class="lineNum">     566 </span>            : 
+<a name="567"><span class="lineNum">     567 </span>            :     // When finished parsing off-thread, transfer any UIDs we created in the</a>
+<span class="lineNum">     568 </span>            :     // off-thread zone into the target zone.
+<span class="lineNum">     569 </span><span class="lineCov">          1 :     void adoptUniqueIds(JS::Zone* source) {</span>
+<span class="lineNum">     570 </span>            :         js::AutoEnterOOMUnsafeRegion oomUnsafe;
+<span class="lineNum">     571 </span><span class="lineCov">          1 :         for (js::gc::UniqueIdMap::Enum e(source-&gt;uniqueIds()); !e.empty(); e.popFront()) {</span>
+<span class="lineNum">     572 </span>            :             MOZ_ASSERT(!uniqueIds().has(e.front().key()));
+<span class="lineNum">     573 </span><span class="lineCov">          1 :             if (!uniqueIds().put(e.front().key(), e.front().value()))</span>
+<span class="lineNum">     574 </span><span class="lineNoCov">          0 :                 oomUnsafe.crash(&quot;failed to transfer unique ids from off-thread&quot;);</span>
+<span class="lineNum">     575 </span><span class="lineCov">          1 :         }</span>
+<span class="lineNum">     576 </span><span class="lineCov">          1 :         source-&gt;uniqueIds().clear();</span>
+<span class="lineNum">     577 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     578 </span>            : 
+<span class="lineNum">     579 </span>            : #ifdef JSGC_HASH_TABLE_CHECKS
+<span class="lineNum">     580 </span>            :     // Assert that the UniqueId table has been redirected successfully.
+<span class="lineNum">     581 </span>            :     void checkUniqueIdTableAfterMovingGC();
+<span class="lineNum">     582 </span>            : #endif
+<span class="lineNum">     583 </span>            : 
+<span class="lineNum">     584 </span>            :     bool keepShapeTables() const {
+<span class="lineNum">     585 </span><span class="lineCov">          1 :         return keepShapeTables_;</span>
+<span class="lineNum">     586 </span>            :     }
+<span class="lineNum">     587 </span>            :     void setKeepShapeTables(bool b) {
+<span class="lineNum">     588 </span><span class="lineCov">          1 :         keepShapeTables_ = b;</span>
+<span class="lineNum">     589 </span>            :     }
+<span class="lineNum">     590 </span>            : 
+<span class="lineNum">     591 </span>            :   private:
+<span class="lineNum">     592 </span>            :     js::ZoneGroupData&lt;js::jit::JitZone*&gt; jitZone_;
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span>            :     js::UnprotectedData&lt;GCState&gt; gcState_;
+<span class="lineNum">     595 </span>            :     js::ActiveThreadData&lt;bool&gt; gcScheduled_;
+<span class="lineNum">     596 </span>            :     js::ZoneGroupData&lt;bool&gt; gcPreserveCode_;
+<span class="lineNum">     597 </span>            :     js::ZoneGroupData&lt;bool&gt; jitUsingBarriers_;
+<span class="lineNum">     598 </span>            :     js::ZoneGroupData&lt;bool&gt; keepShapeTables_;
+<span class="lineNum">     599 </span>            : 
+<span class="lineNum">     600 </span>            :     // Allow zones to be linked into a list
+<span class="lineNum">     601 </span>            :     friend class js::gc::ZoneList;
+<span class="lineNum">     602 </span>            :     static Zone * const NotOnList;
+<span class="lineNum">     603 </span>            :     js::ZoneGroupOrGCTaskData&lt;Zone*&gt; listNext_;
+<span class="lineNum">     604 </span>            :     bool isOnList() const;
+<span class="lineNum">     605 </span>            :     Zone* nextZone() const;
+<span class="lineNum">     606 </span>            : 
+<span class="lineNum">     607 </span>            :     friend bool js::CurrentThreadCanAccessZone(Zone* zone);
+<span class="lineNum">     608 </span>            :     friend class js::gc::GCRuntime;
+<span class="lineNum">     609 </span>            : };
+<span class="lineNum">     610 </span>            : 
+<span class="lineNum">     611 </span>            : } // namespace JS
+<span class="lineNum">     612 </span>            : 
+<span class="lineNum">     613 </span>            : namespace js {
+<span class="lineNum">     614 </span>            : 
+<span class="lineNum">     615 </span>            : // Iterate over all zone groups except those which may be in use by helper
+<span class="lineNum">     616 </span>            : // thread parse tasks.
+<span class="lineNum">     617 </span><span class="lineCov">          1 : class ZoneGroupsIter</span>
+<span class="lineNum">     618 </span>            : {
+<span class="lineNum">     619 </span>            :     gc::AutoEnterIteration iterMarker;
+<span class="lineNum">     620 </span>            :     ZoneGroup** it;
+<span class="lineNum">     621 </span>            :     ZoneGroup** end;
+<a name="622"><span class="lineNum">     622 </span>            : </a>
+<span class="lineNum">     623 </span>            :   public:
+<span class="lineNum">     624 </span><span class="lineCov">          1 :     explicit ZoneGroupsIter(JSRuntime* rt) : iterMarker(&amp;rt-&gt;gc) {</span>
+<span class="lineNum">     625 </span><span class="lineCov">          1 :         it = rt-&gt;gc.groups.ref().begin();</span>
+<span class="lineNum">     626 </span><span class="lineCov">          1 :         end = rt-&gt;gc.groups.ref().end();</span>
+<span class="lineNum">     627 </span>            : 
+<span class="lineNum">     628 </span><span class="lineCov">          1 :         if (!done() &amp;&amp; (*it)-&gt;usedByHelperThread)</span>
+<span class="lineNum">     629 </span><span class="lineNoCov">          0 :             next();</span>
+<span class="lineNum">     630 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     631 </span>            : 
+<a name="632"><span class="lineNum">     632 </span>            :     bool done() const { return it == end; }</a>
+<span class="lineNum">     633 </span>            : 
+<span class="lineNum">     634 </span><span class="lineCov">          1 :     void next() {</span>
+<span class="lineNum">     635 </span>            :         MOZ_ASSERT(!done());
+<span class="lineNum">     636 </span><span class="lineCov">          1 :         do {</span>
+<span class="lineNum">     637 </span><span class="lineCov">          1 :             it++;</span>
+<span class="lineNum">     638 </span><span class="lineCov">          1 :         } while (!done() &amp;&amp; (*it)-&gt;usedByHelperThread);</span>
+<span class="lineNum">     639 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     640 </span>            : 
+<span class="lineNum">     641 </span>            :     ZoneGroup* get() const {
+<span class="lineNum">     642 </span>            :         MOZ_ASSERT(!done());
+<span class="lineNum">     643 </span><span class="lineCov">          1 :         return *it;</span>
+<span class="lineNum">     644 </span>            :     }
+<span class="lineNum">     645 </span>            : 
+<span class="lineNum">     646 </span><span class="lineCov">          1 :     operator ZoneGroup*() const { return get(); }</span>
+<span class="lineNum">     647 </span><span class="lineCov">          1 :     ZoneGroup* operator-&gt;() const { return get(); }</span>
+<span class="lineNum">     648 </span>            : };
+<span class="lineNum">     649 </span>            : 
+<span class="lineNum">     650 </span>            : // Using the atoms zone without holding the exclusive access lock is dangerous
+<span class="lineNum">     651 </span>            : // because worker threads may be using it simultaneously. Therefore, it's
+<span class="lineNum">     652 </span>            : // better to skip the atoms zone when iterating over zones. If you need to
+<span class="lineNum">     653 </span>            : // iterate over the atoms zone, consider taking the exclusive access lock first.
+<span class="lineNum">     654 </span>            : enum ZoneSelector {
+<span class="lineNum">     655 </span>            :     WithAtoms,
+<span class="lineNum">     656 </span>            :     SkipAtoms
+<span class="lineNum">     657 </span>            : };
+<span class="lineNum">     658 </span>            : 
+<span class="lineNum">     659 </span>            : // Iterate over all zones in one zone group.
+<span class="lineNum">     660 </span><span class="lineCov">          1 : class ZonesInGroupIter</span>
+<span class="lineNum">     661 </span>            : {
+<span class="lineNum">     662 </span>            :     gc::AutoEnterIteration iterMarker;
+<span class="lineNum">     663 </span>            :     JS::Zone** it;
+<span class="lineNum">     664 </span>            :     JS::Zone** end;
+<a name="665"><span class="lineNum">     665 </span>            : </a>
+<span class="lineNum">     666 </span>            :   public:
+<span class="lineNum">     667 </span><span class="lineCov">          1 :     explicit ZonesInGroupIter(ZoneGroup* group) : iterMarker(&amp;group-&gt;runtime-&gt;gc) {</span>
+<span class="lineNum">     668 </span><span class="lineCov">          1 :         it = group-&gt;zones().begin();</span>
+<span class="lineNum">     669 </span><span class="lineCov">          1 :         end = group-&gt;zones().end();</span>
+<span class="lineNum">     670 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     671 </span>            : 
+<span class="lineNum">     672 </span>            :     bool done() const { return it == end; }
+<span class="lineNum">     673 </span>            : 
+<span class="lineNum">     674 </span>            :     void next() {
+<span class="lineNum">     675 </span>            :         MOZ_ASSERT(!done());
+<span class="lineNum">     676 </span><span class="lineCov">          1 :         it++;</span>
+<span class="lineNum">     677 </span>            :     }
+<span class="lineNum">     678 </span>            : 
+<span class="lineNum">     679 </span>            :     JS::Zone* get() const {
+<span class="lineNum">     680 </span>            :         MOZ_ASSERT(!done());
+<span class="lineNum">     681 </span><span class="lineCov">          1 :         return *it;</span>
+<span class="lineNum">     682 </span>            :     }
+<span class="lineNum">     683 </span>            : 
+<span class="lineNum">     684 </span>            :     operator JS::Zone*() const { return get(); }
+<span class="lineNum">     685 </span>            :     JS::Zone* operator-&gt;() const { return get(); }
+<span class="lineNum">     686 </span>            : };
+<span class="lineNum">     687 </span>            : 
+<a name="688"><span class="lineNum">     688 </span>            : // Iterate over all zones in the runtime, except those which may be in use by</a>
+<span class="lineNum">     689 </span>            : // parse threads.
+<span class="lineNum">     690 </span><span class="lineCov">          1 : class ZonesIter</span>
+<span class="lineNum">     691 </span>            : {
+<span class="lineNum">     692 </span>            :     ZoneGroupsIter group;
+<span class="lineNum">     693 </span>            :     Maybe&lt;ZonesInGroupIter&gt; zone;
+<span class="lineNum">     694 </span>            :     JS::Zone* atomsZone;
+<a name="695"><span class="lineNum">     695 </span>            : </a>
+<span class="lineNum">     696 </span>            :   public:
+<span class="lineNum">     697 </span><span class="lineCov">          1 :     ZonesIter(JSRuntime* rt, ZoneSelector selector)</span>
+<span class="lineNum">     698 </span><span class="lineCov">          1 :       : group(rt), atomsZone(selector == WithAtoms ? rt-&gt;gc.atomsZone.ref() : nullptr)</span>
+<span class="lineNum">     699 </span>            :     {
+<span class="lineNum">     700 </span><span class="lineCov">          1 :         if (!atomsZone &amp;&amp; !done())</span>
+<span class="lineNum">     701 </span><span class="lineCov">          1 :             next();</span>
+<span class="lineNum">     702 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     703 </span>            : 
+<span class="lineNum">     704 </span>            :     bool atAtomsZone(JSRuntime* rt) const {
+<span class="lineNum">     705 </span>            :         return !!atomsZone;
+<span class="lineNum">     706 </span>            :     }
+<span class="lineNum">     707 </span>            : 
+<a name="708"><span class="lineNum">     708 </span><span class="lineCov">          1 :     bool done() const { return !atomsZone &amp;&amp; group.done(); }</span></a>
+<span class="lineNum">     709 </span>            : 
+<span class="lineNum">     710 </span><span class="lineCov">          1 :     void next() {</span>
+<span class="lineNum">     711 </span>            :         MOZ_ASSERT(!done());
+<span class="lineNum">     712 </span><span class="lineCov">          1 :         if (atomsZone)</span>
+<span class="lineNum">     713 </span><span class="lineCov">          1 :             atomsZone = nullptr;</span>
+<span class="lineNum">     714 </span><span class="lineCov">          1 :         while (!group.done()) {</span>
+<span class="lineNum">     715 </span><span class="lineCov">          1 :             if (zone.isSome())</span>
+<span class="lineNum">     716 </span><span class="lineCov">          1 :                 zone.ref().next();</span>
+<span class="lineNum">     717 </span>            :             else
+<span class="lineNum">     718 </span><span class="lineCov">          1 :                 zone.emplace(group);</span>
+<span class="lineNum">     719 </span><span class="lineCov">          1 :             if (zone.ref().done()) {</span>
+<span class="lineNum">     720 </span><span class="lineCov">          1 :                 zone.reset();</span>
+<span class="lineNum">     721 </span><span class="lineCov">          1 :                 group.next();</span>
+<span class="lineNum">     722 </span>            :             } else {
+<span class="lineNum">     723 </span>            :                 break;
+<span class="lineNum">     724 </span>            :             }
+<span class="lineNum">     725 </span>            :         }
+<span class="lineNum">     726 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     727 </span>            : 
+<span class="lineNum">     728 </span>            :     JS::Zone* get() const {
+<span class="lineNum">     729 </span>            :         MOZ_ASSERT(!done());
+<span class="lineNum">     730 </span><span class="lineCov">          1 :         return atomsZone ? atomsZone : zone.ref().get();</span>
+<span class="lineNum">     731 </span>            :     }
+<span class="lineNum">     732 </span>            : 
+<span class="lineNum">     733 </span>            :     operator JS::Zone*() const { return get(); }
+<span class="lineNum">     734 </span>            :     JS::Zone* operator-&gt;() const { return get(); }
+<span class="lineNum">     735 </span>            : };
+<span class="lineNum">     736 </span>            : 
+<span class="lineNum">     737 </span>            : struct CompartmentsInZoneIter
+<span class="lineNum">     738 </span>            : {
+<span class="lineNum">     739 </span><span class="lineCov">          1 :     explicit CompartmentsInZoneIter(JS::Zone* zone) : zone(zone) {</span>
+<span class="lineNum">     740 </span><span class="lineCov">          1 :         it = zone-&gt;compartments().begin();</span>
+<span class="lineNum">     741 </span>            :     }
+<span class="lineNum">     742 </span>            : 
+<span class="lineNum">     743 </span>            :     bool done() const {
+<span class="lineNum">     744 </span>            :         MOZ_ASSERT(it);
+<span class="lineNum">     745 </span><span class="lineCov">          1 :         return it &lt; zone-&gt;compartments().begin() ||</span>
+<span class="lineNum">     746 </span><span class="lineCov">          1 :                it &gt;= zone-&gt;compartments().end();</span>
+<span class="lineNum">     747 </span>            :     }
+<span class="lineNum">     748 </span>            :     void next() {
+<span class="lineNum">     749 </span>            :         MOZ_ASSERT(!done());
+<span class="lineNum">     750 </span><span class="lineCov">          1 :         it++;</span>
+<span class="lineNum">     751 </span>            :     }
+<span class="lineNum">     752 </span>            : 
+<span class="lineNum">     753 </span>            :     JSCompartment* get() const {
+<span class="lineNum">     754 </span>            :         MOZ_ASSERT(it);
+<span class="lineNum">     755 </span><span class="lineCov">          1 :         return *it;</span>
+<span class="lineNum">     756 </span>            :     }
+<span class="lineNum">     757 </span>            : 
+<span class="lineNum">     758 </span><span class="lineCov">          1 :     operator JSCompartment*() const { return get(); }</span>
+<span class="lineNum">     759 </span><span class="lineCov">          1 :     JSCompartment* operator-&gt;() const { return get(); }</span>
+<span class="lineNum">     760 </span>            : 
+<span class="lineNum">     761 </span>            :   private:
+<span class="lineNum">     762 </span>            :     JS::Zone* zone;
+<span class="lineNum">     763 </span>            :     JSCompartment** it;
+<span class="lineNum">     764 </span>            : 
+<span class="lineNum">     765 </span>            :     CompartmentsInZoneIter()
+<span class="lineNum">     766 </span><span class="lineCov">          1 :       : zone(nullptr), it(nullptr)</span>
+<span class="lineNum">     767 </span>            :     {}
+<span class="lineNum">     768 </span>            : 
+<span class="lineNum">     769 </span>            :     // This is for the benefit of CompartmentsIterT::comp.
+<span class="lineNum">     770 </span>            :     friend class mozilla::Maybe&lt;CompartmentsInZoneIter&gt;;
+<span class="lineNum">     771 </span>            : };
+<span class="lineNum">     772 </span>            : 
+<span class="lineNum">     773 </span>            : // This iterator iterates over all the compartments in a given set of zones. The
+<a name="774"><span class="lineNum">     774 </span>            : // set of zones is determined by iterating ZoneIterT.</a>
+<span class="lineNum">     775 </span>            : template&lt;class ZonesIterT&gt;
+<span class="lineNum">     776 </span><span class="lineCov">          1 : class CompartmentsIterT</span>
+<span class="lineNum">     777 </span>            : {
+<span class="lineNum">     778 </span>            :     gc::AutoEnterIteration iterMarker;
+<span class="lineNum">     779 </span>            :     ZonesIterT zone;
+<span class="lineNum">     780 </span>            :     mozilla::Maybe&lt;CompartmentsInZoneIter&gt; comp;
+<a name="781"><span class="lineNum">     781 </span>            : </a>
+<span class="lineNum">     782 </span>            :   public:
+<span class="lineNum">     783 </span><span class="lineCov">          1 :     explicit CompartmentsIterT(JSRuntime* rt)</span>
+<span class="lineNum">     784 </span><span class="lineCov">          1 :       : iterMarker(&amp;rt-&gt;gc), zone(rt)</span>
+<span class="lineNum">     785 </span>            :     {
+<span class="lineNum">     786 </span><span class="lineCov">          1 :         if (zone.done())</span>
+<span class="lineNum">     787 </span><span class="lineNoCov">          0 :             comp.emplace();</span>
+<span class="lineNum">     788 </span>            :         else
+<span class="lineNum">     789 </span><span class="lineCov">          1 :             comp.emplace(zone);</span>
+<a name="790"><span class="lineNum">     790 </span><span class="lineCov">          1 :     }</span></a>
+<span class="lineNum">     791 </span>            : 
+<span class="lineNum">     792 </span><span class="lineCov">          1 :     CompartmentsIterT(JSRuntime* rt, ZoneSelector selector)</span>
+<span class="lineNum">     793 </span><span class="lineCov">          1 :       : iterMarker(&amp;rt-&gt;gc), zone(rt, selector)</span>
+<span class="lineNum">     794 </span>            :     {
+<span class="lineNum">     795 </span><span class="lineCov">          1 :         if (zone.done())</span>
+<span class="lineNum">     796 </span><span class="lineCov">          1 :             comp.emplace();</span>
+<span class="lineNum">     797 </span>            :         else
+<span class="lineNum">     798 </span><span class="lineCov">          1 :             comp.emplace(zone);</span>
+<span class="lineNum">     799 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     800 </span>            : 
+<a name="801"><span class="lineNum">     801 </span><span class="lineCov">          1 :     bool done() const { return zone.done(); }</span></a>
+<span class="lineNum">     802 </span>            : 
+<span class="lineNum">     803 </span><span class="lineCov">          1 :     void next() {</span>
+<span class="lineNum">     804 </span>            :         MOZ_ASSERT(!done());
+<span class="lineNum">     805 </span>            :         MOZ_ASSERT(!comp.ref().done());
+<span class="lineNum">     806 </span><span class="lineCov">          1 :         comp-&gt;next();</span>
+<span class="lineNum">     807 </span><span class="lineCov">          1 :         if (comp-&gt;done()) {</span>
+<span class="lineNum">     808 </span><span class="lineCov">          1 :             comp.reset();</span>
+<span class="lineNum">     809 </span><span class="lineCov">          1 :             zone.next();</span>
+<span class="lineNum">     810 </span><span class="lineCov">          1 :             if (!zone.done())</span>
+<span class="lineNum">     811 </span><span class="lineCov">          1 :                 comp.emplace(zone);</span>
+<span class="lineNum">     812 </span>            :         }
+<span class="lineNum">     813 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     814 </span>            : 
+<span class="lineNum">     815 </span>            :     JSCompartment* get() const {
+<span class="lineNum">     816 </span>            :         MOZ_ASSERT(!done());
+<span class="lineNum">     817 </span><span class="lineCov">          1 :         return *comp;</span>
+<span class="lineNum">     818 </span>            :     }
+<span class="lineNum">     819 </span>            : 
+<span class="lineNum">     820 </span>            :     operator JSCompartment*() const { return get(); }
+<span class="lineNum">     821 </span>            :     JSCompartment* operator-&gt;() const { return get(); }
+<span class="lineNum">     822 </span>            : };
+<span class="lineNum">     823 </span>            : 
+<span class="lineNum">     824 </span>            : typedef CompartmentsIterT&lt;ZonesIter&gt; CompartmentsIter;
+<span class="lineNum">     825 </span>            : 
+<span class="lineNum">     826 </span>            : /*
+<span class="lineNum">     827 </span>            :  * Allocation policy that uses Zone::pod_malloc and friends, so that memory
+<span class="lineNum">     828 </span>            :  * pressure is accounted for on the zone. This is suitable for memory associated
+<span class="lineNum">     829 </span>            :  * with GC things allocated in the zone.
+<span class="lineNum">     830 </span>            :  *
+<span class="lineNum">     831 </span>            :  * Since it doesn't hold a JSContext (those may not live long enough), it can't
+<span class="lineNum">     832 </span>            :  * report out-of-memory conditions itself; the caller must check for OOM and
+<span class="lineNum">     833 </span>            :  * take the appropriate action.
+<span class="lineNum">     834 </span>            :  *
+<span class="lineNum">     835 </span>            :  * FIXME bug 647103 - replace these *AllocPolicy names.
+<span class="lineNum">     836 </span>            :  */
+<span class="lineNum">     837 </span>            : class ZoneAllocPolicy
+<span class="lineNum">     838 </span>            : {
+<span class="lineNum">     839 </span>            :     Zone* const zone;
+<a name="840"><span class="lineNum">     840 </span>            : </a>
+<span class="lineNum">     841 </span>            :   public:
+<span class="lineNum">     842 </span><span class="lineNoCov">          0 :     MOZ_IMPLICIT ZoneAllocPolicy(Zone* zone) : zone(zone) {}</span>
+<span class="lineNum">     843 </span>            : 
+<span class="lineNum">     844 </span>            :     template &lt;typename T&gt;
+<span class="lineNum">     845 </span>            :     T* maybe_pod_malloc(size_t numElems) {
+<span class="lineNum">     846 </span>            :         return zone-&gt;maybe_pod_malloc&lt;T&gt;(numElems);
+<span class="lineNum">     847 </span>            :     }
+<span class="lineNum">     848 </span>            : 
+<span class="lineNum">     849 </span>            :     template &lt;typename T&gt;
+<span class="lineNum">     850 </span>            :     T* maybe_pod_calloc(size_t numElems) {
+<span class="lineNum">     851 </span><span class="lineNoCov">          0 :         return zone-&gt;maybe_pod_calloc&lt;T&gt;(numElems);</span>
+<span class="lineNum">     852 </span>            :     }
+<span class="lineNum">     853 </span>            : 
+<span class="lineNum">     854 </span>            :     template &lt;typename T&gt;
+<span class="lineNum">     855 </span>            :     T* maybe_pod_realloc(T* p, size_t oldSize, size_t newSize) {
+<span class="lineNum">     856 </span>            :         return zone-&gt;maybe_pod_realloc&lt;T&gt;(p, oldSize, newSize);
+<span class="lineNum">     857 </span>            :     }
+<span class="lineNum">     858 </span>            : 
+<span class="lineNum">     859 </span>            :     template &lt;typename T&gt;
+<span class="lineNum">     860 </span>            :     T* pod_malloc(size_t numElems) {
+<span class="lineNum">     861 </span><span class="lineNoCov">          0 :         return zone-&gt;pod_malloc&lt;T&gt;(numElems);</span>
+<span class="lineNum">     862 </span>            :     }
+<span class="lineNum">     863 </span>            : 
+<span class="lineNum">     864 </span>            :     template &lt;typename T&gt;
+<span class="lineNum">     865 </span>            :     T* pod_calloc(size_t numElems) {
+<span class="lineNum">     866 </span><span class="lineNoCov">          0 :         return zone-&gt;pod_calloc&lt;T&gt;(numElems);</span>
+<span class="lineNum">     867 </span>            :     }
+<span class="lineNum">     868 </span>            : 
+<span class="lineNum">     869 </span>            :     template &lt;typename T&gt;
+<span class="lineNum">     870 </span>            :     T* pod_realloc(T* p, size_t oldSize, size_t newSize) {
+<span class="lineNum">     871 </span>            :         return zone-&gt;pod_realloc&lt;T&gt;(p, oldSize, newSize);
+<a name="872"><span class="lineNum">     872 </span>            :     }</a>
+<span class="lineNum">     873 </span>            : 
+<span class="lineNum">     874 </span><span class="lineNoCov">          0 :     void free_(void* p) { js_free(p); }</span>
+<span class="lineNum">     875 </span>            :     void reportAllocOverflow() const {}
+<span class="lineNum">     876 </span>            : 
+<span class="lineNum">     877 </span>            :     MOZ_MUST_USE bool checkSimulatedOOM() const {
+<span class="lineNum">     878 </span>            :         return !js::oom::ShouldFailWithOOM();
+<span class="lineNum">     879 </span>            :     }
+<span class="lineNum">     880 </span>            : };
+<span class="lineNum">     881 </span>            : 
+<span class="lineNum">     882 </span>            : /*
+<span class="lineNum">     883 </span>            :  * Provides a delete policy that can be used for objects which have their
+<span class="lineNum">     884 </span>            :  * lifetime managed by the GC and can only safely be destroyed while the nursery
+<span class="lineNum">     885 </span>            :  * is empty.
+<span class="lineNum">     886 </span>            :  *
+<span class="lineNum">     887 </span>            :  * This is necessary when initializing such an object may fail after the initial
+<span class="lineNum">     888 </span>            :  * allocation.  The partially-initialized object must be destroyed, but it may
+<span class="lineNum">     889 </span>            :  * not be safe to do so at the current time.  This policy puts the object on a
+<span class="lineNum">     890 </span>            :  * queue to be destroyed at a safe time.
+<span class="lineNum">     891 </span>            :  */
+<span class="lineNum">     892 </span>            : template &lt;typename T&gt;
+<a name="893"><span class="lineNum">     893 </span>            : struct GCManagedDeletePolicy</a>
+<span class="lineNum">     894 </span>            : {
+<span class="lineNum">     895 </span><span class="lineNoCov">          0 :     void operator()(const T* ptr) {</span>
+<span class="lineNum">     896 </span><span class="lineNoCov">          0 :         if (ptr) {</span>
+<span class="lineNum">     897 </span><span class="lineNoCov">          0 :             Zone* zone = ptr-&gt;zone();</span>
+<span class="lineNum">     898 </span><span class="lineNoCov">          0 :             if (zone &amp;&amp; !zone-&gt;usedByHelperThread() &amp;&amp; zone-&gt;group()-&gt;nursery().isEnabled()) {</span>
+<span class="lineNum">     899 </span>            :                 // The object may contain nursery pointers and must only be
+<span class="lineNum">     900 </span>            :                 // destroyed after a minor GC.
+<span class="lineNum">     901 </span><span class="lineNoCov">          0 :                 zone-&gt;group()-&gt;callAfterMinorGC(deletePtr, const_cast&lt;T*&gt;(ptr));</span>
+<span class="lineNum">     902 </span>            :             } else {
+<span class="lineNum">     903 </span>            :                 // The object cannot contain nursery pointers so can be
+<span class="lineNum">     904 </span>            :                 // destroyed immediately.
+<span class="lineNum">     905 </span>            :                 gc::AutoSetThreadIsSweeping threadIsSweeping;
+<span class="lineNum">     906 </span>            :                 js_delete(const_cast&lt;T*&gt;(ptr));
+<span class="lineNum">     907 </span>            :             }
+<span class="lineNum">     908 </span>            :         }
+<span class="lineNum">     909 </span><span class="lineNoCov">          0 :     }</span>
+<a name="910"><span class="lineNum">     910 </span>            : </a>
+<span class="lineNum">     911 </span>            :   private:
+<span class="lineNum">     912 </span><span class="lineNoCov">          0 :     static void deletePtr(void* data) {</span>
+<span class="lineNum">     913 </span>            :         js_delete(reinterpret_cast&lt;T*&gt;(data));
+<span class="lineNum">     914 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     915 </span>            : };
+<span class="lineNum">     916 </span>            : 
+<span class="lineNum">     917 </span>            : } // namespace js
+<span class="lineNum">     918 </span>            : 
+<span class="lineNum">     919 </span>            : namespace JS {
+<span class="lineNum">     920 </span>            : 
+<span class="lineNum">     921 </span>            : // Scope data that contain GCPtrs must use the correct DeletePolicy.
+<span class="lineNum">     922 </span>            : //
+<span class="lineNum">     923 </span>            : // This is defined here because vm/Scope.h cannot #include &quot;vm/Runtime.h&quot;
+<span class="lineNum">     924 </span>            : 
+<span class="lineNum">     925 </span>            : template &lt;&gt;
+<span class="lineNum">     926 </span>            : struct DeletePolicy&lt;js::FunctionScope::Data&gt;
+<span class="lineNum">     927 </span>            :   : public js::GCManagedDeletePolicy&lt;js::FunctionScope::Data&gt;
+<span class="lineNum">     928 </span>            : { };
+<span class="lineNum">     929 </span>            : 
+<span class="lineNum">     930 </span>            : template &lt;&gt;
+<span class="lineNum">     931 </span>            : struct DeletePolicy&lt;js::ModuleScope::Data&gt;
+<span class="lineNum">     932 </span>            :   : public js::GCManagedDeletePolicy&lt;js::ModuleScope::Data&gt;
+<span class="lineNum">     933 </span>            : { };
+<span class="lineNum">     934 </span>            : 
+<span class="lineNum">     935 </span>            : } // namespace JS
+<span class="lineNum">     936 </span>            : 
+<span class="lineNum">     937 </span>            : #endif // gc_Zone_h
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

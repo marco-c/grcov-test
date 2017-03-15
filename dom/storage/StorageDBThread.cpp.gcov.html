@@ -1,0 +1,1581 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - dom/storage/StorageDBThread.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">dom/storage</a> - StorageDBThread.cpp<span style="font-size: 80%;"> (source / <a href="StorageDBThread.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">439</td>
+            <td class="headerCovTableEntry">548</td>
+            <td class="headerCovTableEntryMed">80.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">47</td>
+            <td class="headerCovTableEntry">61</td>
+            <td class="headerCovTableEntryMed">77.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* vim: set ts=8 sts=2 et sw=2 tw=80: */
+<span class="lineNum">       3 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #include &quot;StorageDBThread.h&quot;
+<span class="lineNum">       8 </span>            : #include &quot;StorageDBUpdater.h&quot;
+<span class="lineNum">       9 </span>            : #include &quot;StorageCache.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;StorageManager.h&quot;
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : #include &quot;nsIEffectiveTLDService.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;nsDirectoryServiceUtils.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;nsAppDirectoryServiceDefs.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;nsThreadUtils.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;nsProxyRelease.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;mozStorageCID.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;mozStorageHelper.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;mozIStorageService.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;mozIStorageBindingParamsArray.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;mozIStorageBindingParams.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;mozIStorageValueArray.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;mozIStorageFunction.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;mozilla/BasePrincipal.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;nsIObserverService.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;nsVariant.h&quot;
+<span class="lineNum">      27 </span>            : #include &quot;mozilla/IOInterposer.h&quot;
+<span class="lineNum">      28 </span>            : #include &quot;mozilla/Services.h&quot;
+<span class="lineNum">      29 </span>            : #include &quot;mozilla/Tokenizer.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;GeckoProfiler.h&quot;
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : // How long we collect write oprerations
+<span class="lineNum">      33 </span>            : // before they are flushed to the database
+<span class="lineNum">      34 </span>            : // In milliseconds.
+<span class="lineNum">      35 </span>            : #define FLUSHING_INTERVAL_MS 5000
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            : // Write Ahead Log's maximum size is 512KB
+<span class="lineNum">      38 </span>            : #define MAX_WAL_SIZE_BYTES 512 * 1024
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : // Current version of the database schema
+<span class="lineNum">      41 </span>            : #define CURRENT_SCHEMA_VERSION 2
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : namespace mozilla {
+<span class="lineNum">      44 </span>            : namespace dom {
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span>            : namespace { // anon
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span>            : // This is only a compatibility code for schema version 0.  Returns the 'scope'
+<a name="49"><span class="lineNum">      49 </span>            : // key in the schema version 0 format for the scope column.</a>
+<span class="lineNum">      50 </span>            : nsCString
+<span class="lineNum">      51 </span><span class="lineCov">          1 : Scheme0Scope(StorageCacheBridge* aCache)</span>
+<span class="lineNum">      52 </span>            : {
+<span class="lineNum">      53 </span>            :   nsCString result;
+<span class="lineNum">      54 </span>            : 
+<span class="lineNum">      55 </span><span class="lineCov">          1 :   nsCString suffix = aCache-&gt;OriginSuffix();</span>
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            :   OriginAttributes oa;
+<span class="lineNum">      58 </span><span class="lineCov">          1 :   if (!suffix.IsEmpty()) {</span>
+<span class="lineNum">      59 </span><span class="lineCov">          1 :     DebugOnly&lt;bool&gt; success = oa.PopulateFromSuffix(suffix);</span>
+<span class="lineNum">      60 </span>            :     MOZ_ASSERT(success);
+<span class="lineNum">      61 </span>            :   }
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span><span class="lineCov">          1 :   if (oa.mAppId != nsIScriptSecurityManager::NO_APP_ID ||</span>
+<span class="lineNum">      64 </span>            :       oa.mInIsolatedMozBrowser) {
+<span class="lineNum">      65 </span><span class="lineCov">          1 :     result.AppendInt(oa.mAppId);</span>
+<span class="lineNum">      66 </span><span class="lineCov">          1 :     result.Append(':');</span>
+<span class="lineNum">      67 </span><span class="lineCov">          1 :     result.Append(oa.mInIsolatedMozBrowser ? 't' : 'f');</span>
+<span class="lineNum">      68 </span><span class="lineCov">          1 :     result.Append(':');</span>
+<span class="lineNum">      69 </span>            :   }
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span>            :   // If there is more than just appid and/or inbrowser stored in origin
+<span class="lineNum">      72 </span>            :   // attributes, put it to the schema 0 scope as well.  We must do that
+<span class="lineNum">      73 </span>            :   // to keep the scope column unique (same resolution as schema 1 has
+<span class="lineNum">      74 </span>            :   // with originAttributes and originKey columns) so that switch between
+<span class="lineNum">      75 </span>            :   // schema 1 and 0 always works in both ways.
+<span class="lineNum">      76 </span><span class="lineCov">          1 :   nsAutoCString remaining;</span>
+<span class="lineNum">      77 </span><span class="lineCov">          1 :   oa.mAppId = 0;</span>
+<span class="lineNum">      78 </span><span class="lineCov">          1 :   oa.mInIsolatedMozBrowser = false;</span>
+<span class="lineNum">      79 </span><span class="lineCov">          1 :   oa.CreateSuffix(remaining);</span>
+<span class="lineNum">      80 </span><span class="lineCov">          1 :   if (!remaining.IsEmpty()) {</span>
+<span class="lineNum">      81 </span>            :     MOZ_ASSERT(!suffix.IsEmpty());
+<span class="lineNum">      82 </span>            : 
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :     if (result.IsEmpty()) {</span>
+<span class="lineNum">      84 </span>            :       // Must contain the old prefix, otherwise we won't search for the whole
+<span class="lineNum">      85 </span>            :       // origin attributes suffix.
+<span class="lineNum">      86 </span><span class="lineNoCov">          0 :       result.Append(NS_LITERAL_CSTRING(&quot;0:f:&quot;));</span>
+<span class="lineNum">      87 </span>            :     }
+<span class="lineNum">      88 </span>            :     // Append the whole origin attributes suffix despite we have already stored
+<span class="lineNum">      89 </span>            :     // appid and inbrowser.  We are only looking for it when the scope string
+<span class="lineNum">      90 </span>            :     // starts with &quot;$appid:$inbrowser:&quot; (with whatever valid values).
+<span class="lineNum">      91 </span>            :     //
+<span class="lineNum">      92 </span>            :     // The OriginAttributes suffix is a string in a form like:
+<span class="lineNum">      93 </span>            :     // &quot;^addonId=101&amp;userContextId=5&quot; and it's ensured it always starts with '^'
+<span class="lineNum">      94 </span>            :     // and never contains ':'.  See OriginAttributes::CreateSuffix.
+<span class="lineNum">      95 </span><span class="lineNoCov">          0 :     result.Append(suffix);</span>
+<span class="lineNum">      96 </span><span class="lineNoCov">          0 :     result.Append(':');</span>
+<span class="lineNum">      97 </span>            :   }
+<span class="lineNum">      98 </span>            : 
+<span class="lineNum">      99 </span><span class="lineCov">          1 :   result.Append(aCache-&gt;OriginNoSuffix());</span>
+<span class="lineNum">     100 </span>            : 
+<span class="lineNum">     101 </span><span class="lineCov">          1 :   return result;</span>
+<span class="lineNum">     102 </span>            : }
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span>            : } // anon
+<a name="105"><span class="lineNum">     105 </span>            : </a>
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span><span class="lineCov">          1 : StorageDBBridge::StorageDBBridge()</span>
+<span class="lineNum">     108 </span>            : {
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 : }</span>
+<a name="110"><span class="lineNum">     110 </span>            : </a>
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span><span class="lineCov">          1 : StorageDBThread::StorageDBThread()</span>
+<span class="lineNum">     113 </span>            :   : mThread(nullptr)
+<span class="lineNum">     114 </span>            :   , mThreadObserver(new ThreadObserver())
+<span class="lineNum">     115 </span>            :   , mStopIOThread(false)
+<span class="lineNum">     116 </span>            :   , mWALModeEnabled(false)
+<span class="lineNum">     117 </span>            :   , mDBReady(false)
+<span class="lineNum">     118 </span>            :   , mStatus(NS_OK)
+<span class="lineNum">     119 </span>            :   , mWorkerStatements(mWorkerConnection)
+<span class="lineNum">     120 </span>            :   , mReaderStatements(mReaderConnection)
+<span class="lineNum">     121 </span>            :   , mDirtyEpoch(0)
+<span class="lineNum">     122 </span>            :   , mFlushImmediately(false)
+<span class="lineNum">     123 </span><span class="lineCov">          1 :   , mPriorityCounter(0)</span>
+<span class="lineNum">     124 </span>            : {
+<span class="lineNum">     125 </span><span class="lineCov">          1 : }</span>
+<a name="126"><span class="lineNum">     126 </span>            : </a>
+<span class="lineNum">     127 </span>            : nsresult
+<span class="lineNum">     128 </span><span class="lineCov">          1 : StorageDBThread::Init()</span>
+<span class="lineNum">     129 </span>            : {
+<span class="lineNum">     130 </span>            :   nsresult rv;
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span>            :   // Need to determine location on the main thread, since
+<span class="lineNum">     133 </span>            :   // NS_GetSpecialDirectory access the atom table that can
+<span class="lineNum">     134 </span>            :   // be accessed only on the main thread.
+<span class="lineNum">     135 </span>            :   rv = NS_GetSpecialDirectory(NS_APP_USER_PROFILE_50_DIR,
+<span class="lineNum">     136 </span><span class="lineCov">          1 :                               getter_AddRefs(mDatabaseFile));</span>
+<span class="lineNum">     137 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     138 </span>            : 
+<span class="lineNum">     139 </span><span class="lineCov">          1 :   rv = mDatabaseFile-&gt;Append(NS_LITERAL_STRING(&quot;webappsstore.sqlite&quot;));</span>
+<span class="lineNum">     140 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     141 </span>            : 
+<span class="lineNum">     142 </span>            :   // Ensure mozIStorageService init on the main thread first.
+<span class="lineNum">     143 </span>            :   nsCOMPtr&lt;mozIStorageService&gt; service =
+<span class="lineNum">     144 </span><span class="lineCov">          1 :     do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID, &amp;rv);</span>
+<span class="lineNum">     145 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     146 </span>            : 
+<span class="lineNum">     147 </span>            :   // Need to keep the lock to avoid setting mThread later then
+<span class="lineNum">     148 </span>            :   // the thread body executes.
+<span class="lineNum">     149 </span><span class="lineCov">          1 :   MonitorAutoLock monitor(mThreadObserver-&gt;GetMonitor());</span>
+<span class="lineNum">     150 </span>            : 
+<span class="lineNum">     151 </span>            :   mThread = PR_CreateThread(PR_USER_THREAD, &amp;StorageDBThread::ThreadFunc, this,
+<span class="lineNum">     152 </span>            :                             PR_PRIORITY_LOW, PR_GLOBAL_THREAD,
+<span class="lineNum">     153 </span><span class="lineCov">          1 :                             PR_JOINABLE_THREAD, 262144);</span>
+<span class="lineNum">     154 </span><span class="lineCov">          1 :   if (!mThread) {</span>
+<span class="lineNum">     155 </span>            :     return NS_ERROR_OUT_OF_MEMORY;
+<span class="lineNum">     156 </span>            :   }
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span><span class="lineCov">          1 :   return NS_OK;</span>
+<span class="lineNum">     159 </span>            : }
+<a name="160"><span class="lineNum">     160 </span>            : </a>
+<span class="lineNum">     161 </span>            : nsresult
+<span class="lineNum">     162 </span><span class="lineCov">          1 : StorageDBThread::Shutdown()</span>
+<span class="lineNum">     163 </span>            : {
+<span class="lineNum">     164 </span><span class="lineCov">          1 :   if (!mThread) {</span>
+<span class="lineNum">     165 </span>            :     return NS_ERROR_NOT_INITIALIZED;
+<span class="lineNum">     166 </span>            :   }
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span><span class="lineCov">          1 :   Telemetry::AutoTimer&lt;Telemetry::LOCALDOMSTORAGE_SHUTDOWN_DATABASE_MS&gt; timer;</span>
+<span class="lineNum">     169 </span>            : 
+<span class="lineNum">     170 </span>            :   {
+<span class="lineNum">     171 </span><span class="lineCov">          1 :     MonitorAutoLock monitor(mThreadObserver-&gt;GetMonitor());</span>
+<span class="lineNum">     172 </span>            : 
+<span class="lineNum">     173 </span>            :     // After we stop, no other operations can be accepted
+<span class="lineNum">     174 </span><span class="lineCov">          1 :     mFlushImmediately = true;</span>
+<span class="lineNum">     175 </span><span class="lineCov">          1 :     mStopIOThread = true;</span>
+<span class="lineNum">     176 </span><span class="lineCov">          1 :     monitor.Notify();</span>
+<span class="lineNum">     177 </span>            :   }
+<span class="lineNum">     178 </span>            : 
+<span class="lineNum">     179 </span><span class="lineCov">          1 :   PR_JoinThread(mThread);</span>
+<span class="lineNum">     180 </span><span class="lineCov">          1 :   mThread = nullptr;</span>
+<span class="lineNum">     181 </span>            : 
+<span class="lineNum">     182 </span><span class="lineCov">          1 :   return mStatus;</span>
+<span class="lineNum">     183 </span>            : }
+<a name="184"><span class="lineNum">     184 </span>            : </a>
+<span class="lineNum">     185 </span>            : void
+<span class="lineNum">     186 </span><span class="lineNoCov">          0 : StorageDBThread::SyncPreload(StorageCacheBridge* aCache, bool aForceSync)</span>
+<span class="lineNum">     187 </span>            : {
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :   PROFILER_LABEL_FUNC(js::ProfileEntry::Category::STORAGE);</span>
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 :   if (!aForceSync &amp;&amp; aCache-&gt;LoadedCount()) {</span>
+<span class="lineNum">     190 </span>            :     // Preload already started for this cache, just wait for it to finish.
+<span class="lineNum">     191 </span>            :     // LoadWait will exit after LoadDone on the cache has been called.
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :     SetHigherPriority();</span>
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 :     aCache-&gt;LoadWait();</span>
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 :     SetDefaultPriority();</span>
+<span class="lineNum">     195 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     196 </span>            :   }
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span>            :   // Bypass sync load when an update is pending in the queue to write, we would
+<span class="lineNum">     199 </span>            :   // get incosistent data in the cache.  Also don't allow sync main-thread
+<span class="lineNum">     200 </span>            :   // preload when DB open and init is still pending on the background thread.
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :   if (mDBReady &amp;&amp; mWALModeEnabled) {</span>
+<span class="lineNum">     202 </span>            :     bool pendingTasks;
+<span class="lineNum">     203 </span>            :     {
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 :       MonitorAutoLock monitor(mThreadObserver-&gt;GetMonitor());</span>
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :       pendingTasks = mPendingTasks.IsOriginUpdatePending(aCache-&gt;OriginSuffix(), aCache-&gt;OriginNoSuffix()) ||</span>
+<span class="lineNum">     206 </span><span class="lineNoCov">          0 :                      mPendingTasks.IsOriginClearPending(aCache-&gt;OriginSuffix(), aCache-&gt;OriginNoSuffix());</span>
+<span class="lineNum">     207 </span>            :     }
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 :     if (!pendingTasks) {</span>
+<span class="lineNum">     210 </span>            :       // WAL is enabled, thus do the load synchronously on the main thread.
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 :       DBOperation preload(DBOperation::opPreload, aCache);</span>
+<span class="lineNum">     212 </span><span class="lineNoCov">          0 :       preload.PerformAndFinalize(this);</span>
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :       return;</span>
+<span class="lineNum">     214 </span>            :     }
+<span class="lineNum">     215 </span>            :   }
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span>            :   // Need to go asynchronously since WAL is not allowed or scheduled updates
+<span class="lineNum">     218 </span>            :   // need to be flushed first.
+<span class="lineNum">     219 </span>            :   // Schedule preload for this cache as the first operation.
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 :   nsresult rv = InsertDBOp(new DBOperation(DBOperation::opPreloadUrgent, aCache));</span>
+<span class="lineNum">     221 </span>            : 
+<span class="lineNum">     222 </span>            :   // LoadWait exits after LoadDone of the cache has been called.
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :   if (NS_SUCCEEDED(rv)) {</span>
+<span class="lineNum">     224 </span><span class="lineNoCov">          0 :     aCache-&gt;LoadWait();</span>
+<span class="lineNum">     225 </span><span class="lineNoCov">          0 :   }</span>
+<span class="lineNum">     226 </span>            : }
+<a name="227"><span class="lineNum">     227 </span>            : </a>
+<span class="lineNum">     228 </span>            : void
+<span class="lineNum">     229 </span><span class="lineCov">          1 : StorageDBThread::AsyncFlush()</span>
+<span class="lineNum">     230 </span>            : {
+<span class="lineNum">     231 </span><span class="lineCov">          1 :   MonitorAutoLock monitor(mThreadObserver-&gt;GetMonitor());</span>
+<span class="lineNum">     232 </span><span class="lineCov">          1 :   mFlushImmediately = true;</span>
+<span class="lineNum">     233 </span><span class="lineCov">          1 :   monitor.Notify();</span>
+<span class="lineNum">     234 </span><span class="lineCov">          1 : }</span>
+<a name="235"><span class="lineNum">     235 </span>            : </a>
+<span class="lineNum">     236 </span>            : bool
+<span class="lineNum">     237 </span><span class="lineCov">          1 : StorageDBThread::ShouldPreloadOrigin(const nsACString&amp; aOrigin)</span>
+<span class="lineNum">     238 </span>            : {
+<span class="lineNum">     239 </span><span class="lineCov">          1 :   MonitorAutoLock monitor(mThreadObserver-&gt;GetMonitor());</span>
+<span class="lineNum">     240 </span><span class="lineCov">          1 :   return mOriginsHavingData.Contains(aOrigin);</span>
+<span class="lineNum">     241 </span>            : }
+<a name="242"><span class="lineNum">     242 </span>            : </a>
+<span class="lineNum">     243 </span>            : void
+<span class="lineNum">     244 </span><span class="lineCov">          1 : StorageDBThread::GetOriginsHavingData(InfallibleTArray&lt;nsCString&gt;* aOrigins)</span>
+<span class="lineNum">     245 </span>            : {
+<span class="lineNum">     246 </span><span class="lineCov">          1 :   MonitorAutoLock monitor(mThreadObserver-&gt;GetMonitor());</span>
+<span class="lineNum">     247 </span><span class="lineCov">          1 :   for (auto iter = mOriginsHavingData.Iter(); !iter.Done(); iter.Next()) {</span>
+<span class="lineNum">     248 </span><span class="lineCov">          1 :     aOrigins-&gt;AppendElement(iter.Get()-&gt;GetKey());</span>
+<span class="lineNum">     249 </span><span class="lineCov">          1 :   }</span>
+<span class="lineNum">     250 </span><span class="lineCov">          1 : }</span>
+<a name="251"><span class="lineNum">     251 </span>            : </a>
+<span class="lineNum">     252 </span>            : nsresult
+<span class="lineNum">     253 </span><span class="lineCov">          1 : StorageDBThread::InsertDBOp(StorageDBThread::DBOperation* aOperation)</span>
+<span class="lineNum">     254 </span>            : {
+<span class="lineNum">     255 </span><span class="lineCov">          1 :   MonitorAutoLock monitor(mThreadObserver-&gt;GetMonitor());</span>
+<span class="lineNum">     256 </span>            : 
+<span class="lineNum">     257 </span>            :   // Sentinel to don't forget to delete the operation when we exit early.
+<span class="lineNum">     258 </span><span class="lineCov">          1 :   nsAutoPtr&lt;StorageDBThread::DBOperation&gt; opScope(aOperation);</span>
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span><span class="lineCov">          1 :   if (NS_FAILED(mStatus)) {</span>
+<span class="lineNum">     261 </span><span class="lineNoCov">          0 :     MonitorAutoUnlock unlock(mThreadObserver-&gt;GetMonitor());</span>
+<span class="lineNum">     262 </span><span class="lineNoCov">          0 :     aOperation-&gt;Finalize(mStatus);</span>
+<span class="lineNum">     263 </span><span class="lineNoCov">          0 :     return mStatus;</span>
+<span class="lineNum">     264 </span>            :   }
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span><span class="lineCov">          1 :   if (mStopIOThread) {</span>
+<span class="lineNum">     267 </span>            :     // Thread use after shutdown demanded.
+<span class="lineNum">     268 </span>            :     MOZ_ASSERT(false);
+<span class="lineNum">     269 </span>            :     return NS_ERROR_NOT_INITIALIZED;
+<span class="lineNum">     270 </span>            :   }
+<span class="lineNum">     271 </span>            : 
+<span class="lineNum">     272 </span><span class="lineCov">          1 :   switch (aOperation-&gt;Type()) {</span>
+<span class="lineNum">     273 </span>            :   case DBOperation::opPreload:
+<span class="lineNum">     274 </span>            :   case DBOperation::opPreloadUrgent:
+<span class="lineNum">     275 </span><span class="lineCov">          1 :     if (mPendingTasks.IsOriginUpdatePending(aOperation-&gt;OriginSuffix(), aOperation-&gt;OriginNoSuffix())) {</span>
+<span class="lineNum">     276 </span>            :       // If there is a pending update operation for the scope first do the flush
+<span class="lineNum">     277 </span>            :       // before we preload the cache.  This may happen in an extremely rare case
+<span class="lineNum">     278 </span>            :       // when a child process throws away its cache before flush on the parent
+<span class="lineNum">     279 </span>            :       // has finished.  If we would preloaded the cache as a priority operation
+<span class="lineNum">     280 </span>            :       // before the pending flush, we would have got an inconsistent cache
+<span class="lineNum">     281 </span>            :       // content.
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 :       mFlushImmediately = true;</span>
+<span class="lineNum">     283 </span><span class="lineCov">          1 :     } else if (mPendingTasks.IsOriginClearPending(aOperation-&gt;OriginSuffix(), aOperation-&gt;OriginNoSuffix())) {</span>
+<span class="lineNum">     284 </span>            :       // The scope is scheduled to be cleared, so just quickly load as empty.
+<span class="lineNum">     285 </span>            :       // We need to do this to prevent load of the DB data before the scope has
+<span class="lineNum">     286 </span>            :       // actually been cleared from the database.  Preloads are processed
+<span class="lineNum">     287 </span>            :       // immediately before update and clear operations on the database that are
+<span class="lineNum">     288 </span>            :       // flushed periodically in batches.
+<span class="lineNum">     289 </span><span class="lineCov">          1 :       MonitorAutoUnlock unlock(mThreadObserver-&gt;GetMonitor());</span>
+<span class="lineNum">     290 </span><span class="lineCov">          1 :       aOperation-&gt;Finalize(NS_OK);</span>
+<span class="lineNum">     291 </span><span class="lineCov">          1 :       return NS_OK;</span>
+<span class="lineNum">     292 </span>            :     }
+<span class="lineNum">     293 </span>            :     MOZ_FALLTHROUGH;
+<span class="lineNum">     294 </span>            : 
+<span class="lineNum">     295 </span>            :   case DBOperation::opGetUsage:
+<span class="lineNum">     296 </span><span class="lineCov">          1 :     if (aOperation-&gt;Type() == DBOperation::opPreloadUrgent) {</span>
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :       SetHigherPriority(); // Dropped back after urgent preload execution</span>
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 :       mPreloads.InsertElementAt(0, aOperation);</span>
+<span class="lineNum">     299 </span>            :     } else {
+<span class="lineNum">     300 </span><span class="lineCov">          1 :       mPreloads.AppendElement(aOperation);</span>
+<span class="lineNum">     301 </span>            :     }
+<span class="lineNum">     302 </span>            : 
+<span class="lineNum">     303 </span>            :     // DB operation adopted, don't delete it.
+<span class="lineNum">     304 </span>            :     opScope.forget();
+<span class="lineNum">     305 </span>            : 
+<span class="lineNum">     306 </span>            :     // Immediately start executing this.
+<span class="lineNum">     307 </span><span class="lineCov">          1 :     monitor.Notify();</span>
+<span class="lineNum">     308 </span><span class="lineCov">          1 :     break;</span>
+<span class="lineNum">     309 </span>            : 
+<span class="lineNum">     310 </span>            :   default:
+<span class="lineNum">     311 </span>            :     // Update operations are first collected, coalesced and then flushed
+<span class="lineNum">     312 </span>            :     // after a short time.
+<span class="lineNum">     313 </span><span class="lineCov">          1 :     mPendingTasks.Add(aOperation);</span>
+<span class="lineNum">     314 </span>            : 
+<span class="lineNum">     315 </span>            :     // DB operation adopted, don't delete it.
+<span class="lineNum">     316 </span>            :     opScope.forget();
+<span class="lineNum">     317 </span>            : 
+<span class="lineNum">     318 </span><span class="lineCov">          1 :     ScheduleFlush();</span>
+<span class="lineNum">     319 </span><span class="lineCov">          1 :     break;</span>
+<span class="lineNum">     320 </span>            :   }
+<span class="lineNum">     321 </span>            : 
+<span class="lineNum">     322 </span><span class="lineCov">          1 :   return NS_OK;</span>
+<span class="lineNum">     323 </span>            : }
+<a name="324"><span class="lineNum">     324 </span>            : </a>
+<span class="lineNum">     325 </span>            : void
+<span class="lineNum">     326 </span><span class="lineNoCov">          0 : StorageDBThread::SetHigherPriority()</span>
+<span class="lineNum">     327 </span>            : {
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 :   ++mPriorityCounter;</span>
+<span class="lineNum">     329 </span><span class="lineNoCov">          0 :   PR_SetThreadPriority(mThread, PR_PRIORITY_URGENT);</span>
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 : }</span>
+<a name="331"><span class="lineNum">     331 </span>            : </a>
+<span class="lineNum">     332 </span>            : void
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 : StorageDBThread::SetDefaultPriority()</span>
+<span class="lineNum">     334 </span>            : {
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :   if (--mPriorityCounter &lt;= 0) {</span>
+<span class="lineNum">     336 </span><span class="lineNoCov">          0 :     PR_SetThreadPriority(mThread, PR_PRIORITY_LOW);</span>
+<span class="lineNum">     337 </span>            :   }
+<span class="lineNum">     338 </span><span class="lineNoCov">          0 : }</span>
+<a name="339"><span class="lineNum">     339 </span>            : </a>
+<span class="lineNum">     340 </span>            : void
+<span class="lineNum">     341 </span><span class="lineCov">          1 : StorageDBThread::ThreadFunc(void* aArg)</span>
+<span class="lineNum">     342 </span>            : {
+<span class="lineNum">     343 </span>            :   AutoProfilerRegister registerThread(&quot;localStorage DB&quot;);
+<span class="lineNum">     344 </span><span class="lineCov">          1 :   PR_SetCurrentThreadName(&quot;localStorage DB&quot;);</span>
+<span class="lineNum">     345 </span><span class="lineCov">          1 :   mozilla::IOInterposer::RegisterCurrentThread();</span>
+<span class="lineNum">     346 </span>            : 
+<span class="lineNum">     347 </span><span class="lineCov">          1 :   StorageDBThread* thread = static_cast&lt;StorageDBThread*&gt;(aArg);</span>
+<span class="lineNum">     348 </span><span class="lineCov">          1 :   thread-&gt;ThreadFunc();</span>
+<span class="lineNum">     349 </span><span class="lineCov">          1 :   mozilla::IOInterposer::UnregisterCurrentThread();</span>
+<span class="lineNum">     350 </span><span class="lineCov">          1 : }</span>
+<a name="351"><span class="lineNum">     351 </span>            : </a>
+<span class="lineNum">     352 </span>            : void
+<span class="lineNum">     353 </span><span class="lineCov">          1 : StorageDBThread::ThreadFunc()</span>
+<span class="lineNum">     354 </span>            : {
+<span class="lineNum">     355 </span><span class="lineCov">          1 :   nsresult rv = InitDatabase();</span>
+<span class="lineNum">     356 </span>            : 
+<span class="lineNum">     357 </span><span class="lineCov">          1 :   MonitorAutoLock lockMonitor(mThreadObserver-&gt;GetMonitor());</span>
+<span class="lineNum">     358 </span>            : 
+<span class="lineNum">     359 </span><span class="lineCov">          1 :   if (NS_FAILED(rv)) {</span>
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 :     mStatus = rv;</span>
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 :     mStopIOThread = true;</span>
+<span class="lineNum">     362 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">     363 </span>            :   }
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span>            :   // Create an nsIThread for the current PRThread, so we can observe runnables
+<span class="lineNum">     366 </span>            :   // dispatched to it.
+<span class="lineNum">     367 </span><span class="lineCov">          1 :   nsCOMPtr&lt;nsIThread&gt; thread = NS_GetCurrentThread();</span>
+<span class="lineNum">     368 </span><span class="lineCov">          1 :   nsCOMPtr&lt;nsIThreadInternal&gt; threadInternal = do_QueryInterface(thread);</span>
+<span class="lineNum">     369 </span>            :   MOZ_ASSERT(threadInternal); // Should always succeed.
+<span class="lineNum">     370 </span><span class="lineCov">          1 :   threadInternal-&gt;SetObserver(mThreadObserver);</span>
+<span class="lineNum">     371 </span>            : 
+<span class="lineNum">     372 </span><span class="lineCov">          1 :   while (MOZ_LIKELY(!mStopIOThread || mPreloads.Length() ||</span>
+<span class="lineNum">     373 </span>            :                     mPendingTasks.HasTasks() ||
+<span class="lineNum">     374 </span>            :                     mThreadObserver-&gt;HasPendingEvents())) {
+<span class="lineNum">     375 </span>            :     // Process xpcom events first.
+<span class="lineNum">     376 </span><span class="lineCov">          1 :     while (MOZ_UNLIKELY(mThreadObserver-&gt;HasPendingEvents())) {</span>
+<span class="lineNum">     377 </span><span class="lineCov">          1 :       mThreadObserver-&gt;ClearPendingEvents();</span>
+<span class="lineNum">     378 </span><span class="lineCov">          1 :       MonitorAutoUnlock unlock(mThreadObserver-&gt;GetMonitor());</span>
+<span class="lineNum">     379 </span>            :       bool processedEvent;
+<span class="lineNum">     380 </span><span class="lineCov">          1 :       do {</span>
+<span class="lineNum">     381 </span><span class="lineCov">          1 :         rv = thread-&gt;ProcessNextEvent(false, &amp;processedEvent);</span>
+<span class="lineNum">     382 </span><span class="lineCov">          1 :       } while (NS_SUCCEEDED(rv) &amp;&amp; processedEvent);</span>
+<span class="lineNum">     383 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     384 </span>            : 
+<span class="lineNum">     385 </span><span class="lineCov">          1 :     if (MOZ_UNLIKELY(TimeUntilFlush() == 0)) {</span>
+<span class="lineNum">     386 </span>            :       // Flush time is up or flush has been forced, do it now.
+<span class="lineNum">     387 </span>            :       UnscheduleFlush();
+<span class="lineNum">     388 </span><span class="lineCov">          1 :       if (mPendingTasks.Prepare()) {</span>
+<span class="lineNum">     389 </span>            :         {
+<span class="lineNum">     390 </span><span class="lineCov">          1 :           MonitorAutoUnlock unlockMonitor(mThreadObserver-&gt;GetMonitor());</span>
+<span class="lineNum">     391 </span><span class="lineCov">          1 :           rv = mPendingTasks.Execute(this);</span>
+<span class="lineNum">     392 </span>            :         }
+<span class="lineNum">     393 </span>            : 
+<span class="lineNum">     394 </span><span class="lineCov">          1 :         if (!mPendingTasks.Finalize(rv)) {</span>
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 :           mStatus = rv;</span>
+<span class="lineNum">     396 </span>            :           NS_WARNING(&quot;localStorage DB access broken&quot;);
+<span class="lineNum">     397 </span>            :         }
+<span class="lineNum">     398 </span>            :       }
+<span class="lineNum">     399 </span><span class="lineCov">          1 :       NotifyFlushCompletion();</span>
+<span class="lineNum">     400 </span><span class="lineCov">          1 :     } else if (MOZ_LIKELY(mPreloads.Length())) {</span>
+<span class="lineNum">     401 </span><span class="lineCov">          1 :       nsAutoPtr&lt;DBOperation&gt; op(mPreloads[0]);</span>
+<span class="lineNum">     402 </span><span class="lineCov">          1 :       mPreloads.RemoveElementAt(0);</span>
+<span class="lineNum">     403 </span>            :       {
+<span class="lineNum">     404 </span><span class="lineCov">          1 :         MonitorAutoUnlock unlockMonitor(mThreadObserver-&gt;GetMonitor());</span>
+<span class="lineNum">     405 </span><span class="lineCov">          1 :         op-&gt;PerformAndFinalize(this);</span>
+<span class="lineNum">     406 </span>            :       }
+<span class="lineNum">     407 </span>            : 
+<span class="lineNum">     408 </span><span class="lineCov">          1 :       if (op-&gt;Type() == DBOperation::opPreloadUrgent) {</span>
+<span class="lineNum">     409 </span><span class="lineNoCov">          0 :         SetDefaultPriority(); // urgent preload unscheduled</span>
+<span class="lineNum">     410 </span><span class="lineCov">          1 :       }</span>
+<span class="lineNum">     411 </span><span class="lineCov">          1 :     } else if (MOZ_UNLIKELY(!mStopIOThread)) {</span>
+<span class="lineNum">     412 </span><span class="lineCov">          1 :       lockMonitor.Wait(TimeUntilFlush());</span>
+<span class="lineNum">     413 </span>            :     }
+<span class="lineNum">     414 </span>            :   } // thread loop
+<span class="lineNum">     415 </span>            : 
+<span class="lineNum">     416 </span><span class="lineCov">          1 :   mStatus = ShutdownDatabase();</span>
+<span class="lineNum">     417 </span>            : 
+<span class="lineNum">     418 </span><span class="lineCov">          1 :   if (threadInternal) {</span>
+<span class="lineNum">     419 </span><span class="lineCov">          1 :     threadInternal-&gt;SetObserver(nullptr);</span>
+<span class="lineNum">     420 </span><span class="lineCov">          1 :   }</span>
+<span class="lineNum">     421 </span>            : }
+<a name="422"><span class="lineNum">     422 </span>            : </a>
+<span class="lineNum">     423 </span>            : 
+<span class="lineNum">     424 </span><span class="lineCov">          1 : NS_IMPL_ISUPPORTS(StorageDBThread::ThreadObserver, nsIThreadObserver)</span>
+<a name="425"><span class="lineNum">     425 </span>            : </a>
+<span class="lineNum">     426 </span>            : NS_IMETHODIMP
+<span class="lineNum">     427 </span><span class="lineCov">          1 : StorageDBThread::ThreadObserver::OnDispatchedEvent(nsIThreadInternal* aThread)</span>
+<span class="lineNum">     428 </span>            : {
+<span class="lineNum">     429 </span><span class="lineCov">          1 :   MonitorAutoLock lock(mMonitor);</span>
+<span class="lineNum">     430 </span><span class="lineCov">          1 :   mHasPendingEvents = true;</span>
+<span class="lineNum">     431 </span><span class="lineCov">          1 :   lock.Notify();</span>
+<span class="lineNum">     432 </span><span class="lineCov">          1 :   return NS_OK;</span>
+<span class="lineNum">     433 </span>            : }
+<a name="434"><span class="lineNum">     434 </span>            : </a>
+<span class="lineNum">     435 </span>            : NS_IMETHODIMP
+<span class="lineNum">     436 </span><span class="lineCov">          1 : StorageDBThread::ThreadObserver::OnProcessNextEvent(nsIThreadInternal* aThread,</span>
+<span class="lineNum">     437 </span>            :                                                     bool mayWait)
+<span class="lineNum">     438 </span>            : {
+<span class="lineNum">     439 </span><span class="lineCov">          1 :   return NS_OK;</span>
+<span class="lineNum">     440 </span>            : }
+<a name="441"><span class="lineNum">     441 </span>            : </a>
+<span class="lineNum">     442 </span>            : NS_IMETHODIMP
+<span class="lineNum">     443 </span><span class="lineCov">          1 : StorageDBThread::ThreadObserver::AfterProcessNextEvent(nsIThreadInternal* aThread,</span>
+<span class="lineNum">     444 </span>            :                                                        bool eventWasProcessed)
+<span class="lineNum">     445 </span>            : {
+<span class="lineNum">     446 </span><span class="lineCov">          1 :   return NS_OK;</span>
+<span class="lineNum">     447 </span>            : }
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span>            : 
+<span class="lineNum">     450 </span>            : extern void
+<span class="lineNum">     451 </span>            : ReverseString(const nsCSubstring&amp; aSource, nsCSubstring&amp; aResult);
+<a name="452"><span class="lineNum">     452 </span>            : </a>
+<span class="lineNum">     453 </span>            : nsresult
+<span class="lineNum">     454 </span><span class="lineCov">          1 : StorageDBThread::OpenDatabaseConnection()</span>
+<span class="lineNum">     455 </span>            : {
+<span class="lineNum">     456 </span>            :   nsresult rv;
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span>            :   MOZ_ASSERT(!NS_IsMainThread());
+<span class="lineNum">     459 </span>            : 
+<span class="lineNum">     460 </span>            :   nsCOMPtr&lt;mozIStorageService&gt; service
+<span class="lineNum">     461 </span><span class="lineCov">          1 :       = do_GetService(MOZ_STORAGE_SERVICE_CONTRACTID, &amp;rv);</span>
+<span class="lineNum">     462 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     463 </span>            : 
+<span class="lineNum">     464 </span><span class="lineCov">          1 :   rv = service-&gt;OpenUnsharedDatabase(mDatabaseFile, getter_AddRefs(mWorkerConnection));</span>
+<span class="lineNum">     465 </span><span class="lineCov">          1 :   if (rv == NS_ERROR_FILE_CORRUPTED) {</span>
+<span class="lineNum">     466 </span>            :     // delete the db and try opening again
+<span class="lineNum">     467 </span><span class="lineNoCov">          0 :     rv = mDatabaseFile-&gt;Remove(false);</span>
+<span class="lineNum">     468 </span><span class="lineNoCov">          0 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     469 </span><span class="lineNoCov">          0 :     rv = service-&gt;OpenUnsharedDatabase(mDatabaseFile, getter_AddRefs(mWorkerConnection));</span>
+<span class="lineNum">     470 </span>            :   }
+<span class="lineNum">     471 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     472 </span>            : 
+<span class="lineNum">     473 </span>            :   return NS_OK;
+<span class="lineNum">     474 </span>            : }
+<a name="475"><span class="lineNum">     475 </span>            : </a>
+<span class="lineNum">     476 </span>            : nsresult
+<span class="lineNum">     477 </span><span class="lineCov">          1 : StorageDBThread::OpenAndUpdateDatabase()</span>
+<span class="lineNum">     478 </span>            : {
+<span class="lineNum">     479 </span>            :   nsresult rv;
+<span class="lineNum">     480 </span>            : 
+<span class="lineNum">     481 </span>            :   // Here we are on the worker thread. This opens the worker connection.
+<span class="lineNum">     482 </span>            :   MOZ_ASSERT(!NS_IsMainThread());
+<span class="lineNum">     483 </span>            : 
+<span class="lineNum">     484 </span><span class="lineCov">          1 :   rv = OpenDatabaseConnection();</span>
+<span class="lineNum">     485 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     486 </span>            : 
+<span class="lineNum">     487 </span><span class="lineCov">          1 :   rv = TryJournalMode();</span>
+<span class="lineNum">     488 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     489 </span>            : 
+<span class="lineNum">     490 </span>            :   return NS_OK;
+<span class="lineNum">     491 </span>            : }
+<a name="492"><span class="lineNum">     492 </span>            : </a>
+<span class="lineNum">     493 </span>            : nsresult
+<span class="lineNum">     494 </span><span class="lineCov">          1 : StorageDBThread::InitDatabase()</span>
+<span class="lineNum">     495 </span>            : {
+<span class="lineNum">     496 </span>            :   nsresult rv;
+<span class="lineNum">     497 </span>            : 
+<span class="lineNum">     498 </span>            :   // Here we are on the worker thread. This opens the worker connection.
+<span class="lineNum">     499 </span>            :   MOZ_ASSERT(!NS_IsMainThread());
+<span class="lineNum">     500 </span>            : 
+<span class="lineNum">     501 </span><span class="lineCov">          1 :   rv = OpenAndUpdateDatabase();</span>
+<span class="lineNum">     502 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     503 </span>            : 
+<span class="lineNum">     504 </span><span class="lineCov">          1 :   rv = StorageDBUpdater::Update(mWorkerConnection);</span>
+<span class="lineNum">     505 </span><span class="lineCov">          1 :   if (NS_FAILED(rv)) {</span>
+<span class="lineNum">     506 </span>            :     // Update has failed, rather throw the database away and try
+<span class="lineNum">     507 </span>            :     // opening and setting it up again.
+<span class="lineNum">     508 </span><span class="lineNoCov">          0 :     rv = mWorkerConnection-&gt;Close();</span>
+<span class="lineNum">     509 </span><span class="lineNoCov">          0 :     mWorkerConnection = nullptr;</span>
+<span class="lineNum">     510 </span><span class="lineNoCov">          0 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     511 </span>            : 
+<span class="lineNum">     512 </span><span class="lineNoCov">          0 :     rv = mDatabaseFile-&gt;Remove(false);</span>
+<span class="lineNum">     513 </span><span class="lineNoCov">          0 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     514 </span>            : 
+<span class="lineNum">     515 </span><span class="lineNoCov">          0 :     rv = OpenAndUpdateDatabase();</span>
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     517 </span>            :   }
+<span class="lineNum">     518 </span>            : 
+<span class="lineNum">     519 </span>            :   // Create a read-only clone
+<span class="lineNum">     520 </span><span class="lineCov">          1 :   (void)mWorkerConnection-&gt;Clone(true, getter_AddRefs(mReaderConnection));</span>
+<span class="lineNum">     521 </span><span class="lineCov">          1 :   NS_ENSURE_TRUE(mReaderConnection, NS_ERROR_FAILURE);</span>
+<span class="lineNum">     522 </span>            : 
+<span class="lineNum">     523 </span>            :   // Database open and all initiation operation are done.  Switching this flag
+<span class="lineNum">     524 </span>            :   // to true allow main thread to read directly from the database.  If we would
+<span class="lineNum">     525 </span>            :   // allow this sooner, we would have opened a window where main thread read
+<span class="lineNum">     526 </span>            :   // might operate on a totally broken and incosistent database.
+<span class="lineNum">     527 </span><span class="lineCov">          1 :   mDBReady = true;</span>
+<span class="lineNum">     528 </span>            : 
+<span class="lineNum">     529 </span>            :   // List scopes having any stored data
+<span class="lineNum">     530 </span>            :   nsCOMPtr&lt;mozIStorageStatement&gt; stmt;
+<span class="lineNum">     531 </span>            :   // Note: result of this select must match StorageManager::CreateOrigin()
+<span class="lineNum">     532 </span><span class="lineCov">          1 :   rv = mWorkerConnection-&gt;CreateStatement(NS_LITERAL_CSTRING(</span>
+<span class="lineNum">     533 </span>            :         &quot;SELECT DISTINCT originAttributes || ':' || originKey FROM webappsstore2&quot;),
+<span class="lineNum">     534 </span><span class="lineCov">          1 :         getter_AddRefs(stmt));</span>
+<span class="lineNum">     535 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     536 </span><span class="lineCov">          1 :   mozStorageStatementScoper scope(stmt);</span>
+<span class="lineNum">     537 </span>            : 
+<span class="lineNum">     538 </span>            :   bool exists;
+<span class="lineNum">     539 </span><span class="lineCov">          1 :   while (NS_SUCCEEDED(rv = stmt-&gt;ExecuteStep(&amp;exists)) &amp;&amp; exists) {</span>
+<span class="lineNum">     540 </span><span class="lineNoCov">          0 :     nsAutoCString foundOrigin;</span>
+<span class="lineNum">     541 </span><span class="lineNoCov">          0 :     rv = stmt-&gt;GetUTF8String(0, foundOrigin);</span>
+<span class="lineNum">     542 </span><span class="lineNoCov">          0 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     543 </span>            : 
+<span class="lineNum">     544 </span><span class="lineNoCov">          0 :     MonitorAutoLock monitor(mThreadObserver-&gt;GetMonitor());</span>
+<span class="lineNum">     545 </span><span class="lineNoCov">          0 :     mOriginsHavingData.PutEntry(foundOrigin);</span>
+<span class="lineNum">     546 </span>            :   }
+<span class="lineNum">     547 </span>            : 
+<span class="lineNum">     548 </span>            :   return NS_OK;
+<span class="lineNum">     549 </span>            : }
+<a name="550"><span class="lineNum">     550 </span>            : </a>
+<span class="lineNum">     551 </span>            : nsresult
+<span class="lineNum">     552 </span><span class="lineCov">          1 : StorageDBThread::SetJournalMode(bool aIsWal)</span>
+<span class="lineNum">     553 </span>            : {
+<span class="lineNum">     554 </span>            :   nsresult rv;
+<span class="lineNum">     555 </span>            : 
+<span class="lineNum">     556 </span>            :   nsAutoCString stmtString(
+<span class="lineNum">     557 </span><span class="lineCov">          1 :     MOZ_STORAGE_UNIQUIFY_QUERY_STR &quot;PRAGMA journal_mode = &quot;);</span>
+<span class="lineNum">     558 </span><span class="lineCov">          1 :   if (aIsWal) {</span>
+<span class="lineNum">     559 </span><span class="lineCov">          1 :     stmtString.AppendLiteral(&quot;wal&quot;);</span>
+<span class="lineNum">     560 </span>            :   } else {
+<span class="lineNum">     561 </span><span class="lineNoCov">          0 :     stmtString.AppendLiteral(&quot;truncate&quot;);</span>
+<span class="lineNum">     562 </span>            :   }
+<span class="lineNum">     563 </span>            : 
+<span class="lineNum">     564 </span>            :   nsCOMPtr&lt;mozIStorageStatement&gt; stmt;
+<span class="lineNum">     565 </span><span class="lineCov">          1 :   rv = mWorkerConnection-&gt;CreateStatement(stmtString, getter_AddRefs(stmt));</span>
+<span class="lineNum">     566 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     567 </span><span class="lineCov">          1 :   mozStorageStatementScoper scope(stmt);</span>
+<span class="lineNum">     568 </span>            : 
+<span class="lineNum">     569 </span><span class="lineCov">          1 :   bool hasResult = false;</span>
+<span class="lineNum">     570 </span><span class="lineCov">          1 :   rv = stmt-&gt;ExecuteStep(&amp;hasResult);</span>
+<span class="lineNum">     571 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     572 </span><span class="lineCov">          1 :   if (!hasResult) {</span>
+<span class="lineNum">     573 </span>            :     return NS_ERROR_FAILURE;
+<span class="lineNum">     574 </span>            :   }
+<span class="lineNum">     575 </span>            : 
+<span class="lineNum">     576 </span><span class="lineCov">          1 :   nsAutoCString journalMode;</span>
+<span class="lineNum">     577 </span><span class="lineCov">          1 :   rv = stmt-&gt;GetUTF8String(0, journalMode);</span>
+<span class="lineNum">     578 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     579 </span><span class="lineCov">          1 :   if ((aIsWal &amp;&amp; !journalMode.EqualsLiteral(&quot;wal&quot;)) ||</span>
+<span class="lineNum">     580 </span><span class="lineNoCov">          0 :       (!aIsWal &amp;&amp; !journalMode.EqualsLiteral(&quot;truncate&quot;))) {</span>
+<span class="lineNum">     581 </span>            :     return NS_ERROR_FAILURE;
+<span class="lineNum">     582 </span>            :   }
+<span class="lineNum">     583 </span>            : 
+<span class="lineNum">     584 </span><span class="lineCov">          1 :   return NS_OK;</span>
+<span class="lineNum">     585 </span>            : }
+<a name="586"><span class="lineNum">     586 </span>            : </a>
+<span class="lineNum">     587 </span>            : nsresult
+<span class="lineNum">     588 </span><span class="lineCov">          1 : StorageDBThread::TryJournalMode()</span>
+<span class="lineNum">     589 </span>            : {
+<span class="lineNum">     590 </span>            :   nsresult rv;
+<span class="lineNum">     591 </span>            : 
+<span class="lineNum">     592 </span><span class="lineCov">          1 :   rv = SetJournalMode(true);</span>
+<span class="lineNum">     593 </span><span class="lineCov">          1 :   if (NS_FAILED(rv)) {</span>
+<span class="lineNum">     594 </span><span class="lineNoCov">          0 :     mWALModeEnabled = false;</span>
+<span class="lineNum">     595 </span>            : 
+<span class="lineNum">     596 </span><span class="lineNoCov">          0 :     rv = SetJournalMode(false);</span>
+<span class="lineNum">     597 </span><span class="lineNoCov">          0 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     598 </span>            :   } else {
+<span class="lineNum">     599 </span><span class="lineCov">          1 :     mWALModeEnabled = true;</span>
+<span class="lineNum">     600 </span>            : 
+<span class="lineNum">     601 </span><span class="lineCov">          1 :     rv = ConfigureWALBehavior();</span>
+<span class="lineNum">     602 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     603 </span>            :   }
+<span class="lineNum">     604 </span>            : 
+<span class="lineNum">     605 </span>            :   return NS_OK;
+<span class="lineNum">     606 </span>            : }
+<a name="607"><span class="lineNum">     607 </span>            : </a>
+<span class="lineNum">     608 </span>            : nsresult
+<span class="lineNum">     609 </span><span class="lineCov">          1 : StorageDBThread::ConfigureWALBehavior()</span>
+<span class="lineNum">     610 </span>            : {
+<span class="lineNum">     611 </span>            :   // Get the DB's page size
+<span class="lineNum">     612 </span>            :   nsCOMPtr&lt;mozIStorageStatement&gt; stmt;
+<span class="lineNum">     613 </span><span class="lineCov">          1 :   nsresult rv = mWorkerConnection-&gt;CreateStatement(NS_LITERAL_CSTRING(</span>
+<span class="lineNum">     614 </span>            :     MOZ_STORAGE_UNIQUIFY_QUERY_STR &quot;PRAGMA page_size&quot;
+<span class="lineNum">     615 </span><span class="lineCov">          1 :   ), getter_AddRefs(stmt));</span>
+<span class="lineNum">     616 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     617 </span>            : 
+<span class="lineNum">     618 </span><span class="lineCov">          1 :   bool hasResult = false;</span>
+<span class="lineNum">     619 </span><span class="lineCov">          1 :   rv = stmt-&gt;ExecuteStep(&amp;hasResult);</span>
+<span class="lineNum">     620 </span><span class="lineCov">          1 :   NS_ENSURE_TRUE(NS_SUCCEEDED(rv) &amp;&amp; hasResult, NS_ERROR_FAILURE);</span>
+<span class="lineNum">     621 </span>            : 
+<span class="lineNum">     622 </span><span class="lineCov">          1 :   int32_t pageSize = 0;</span>
+<span class="lineNum">     623 </span><span class="lineCov">          1 :   rv = stmt-&gt;GetInt32(0, &amp;pageSize);</span>
+<span class="lineNum">     624 </span><span class="lineCov">          1 :   NS_ENSURE_TRUE(NS_SUCCEEDED(rv) &amp;&amp; pageSize &gt; 0, NS_ERROR_UNEXPECTED);</span>
+<span class="lineNum">     625 </span>            : 
+<span class="lineNum">     626 </span>            :   // Set the threshold for auto-checkpointing the WAL.
+<span class="lineNum">     627 </span>            :   // We don't want giant logs slowing down reads &amp; shutdown.
+<span class="lineNum">     628 </span><span class="lineCov">          1 :   int32_t thresholdInPages = static_cast&lt;int32_t&gt;(MAX_WAL_SIZE_BYTES / pageSize);</span>
+<span class="lineNum">     629 </span><span class="lineCov">          1 :   nsAutoCString thresholdPragma(&quot;PRAGMA wal_autocheckpoint = &quot;);</span>
+<span class="lineNum">     630 </span><span class="lineCov">          1 :   thresholdPragma.AppendInt(thresholdInPages);</span>
+<span class="lineNum">     631 </span><span class="lineCov">          1 :   rv = mWorkerConnection-&gt;ExecuteSimpleSQL(thresholdPragma);</span>
+<span class="lineNum">     632 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     633 </span>            : 
+<span class="lineNum">     634 </span>            :   // Set the maximum WAL log size to reduce footprint on mobile (large empty
+<span class="lineNum">     635 </span>            :   // WAL files will be truncated)
+<span class="lineNum">     636 </span><span class="lineCov">          1 :   nsAutoCString journalSizePragma(&quot;PRAGMA journal_size_limit = &quot;);</span>
+<span class="lineNum">     637 </span>            :   // bug 600307: mak recommends setting this to 3 times the auto-checkpoint
+<span class="lineNum">     638 </span>            :   // threshold
+<span class="lineNum">     639 </span><span class="lineCov">          1 :   journalSizePragma.AppendInt(MAX_WAL_SIZE_BYTES * 3);</span>
+<span class="lineNum">     640 </span><span class="lineCov">          1 :   rv = mWorkerConnection-&gt;ExecuteSimpleSQL(journalSizePragma);</span>
+<span class="lineNum">     641 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     642 </span>            : 
+<span class="lineNum">     643 </span>            :   return NS_OK;
+<span class="lineNum">     644 </span>            : }
+<a name="645"><span class="lineNum">     645 </span>            : </a>
+<span class="lineNum">     646 </span>            : nsresult
+<span class="lineNum">     647 </span><span class="lineCov">          1 : StorageDBThread::ShutdownDatabase()</span>
+<span class="lineNum">     648 </span>            : {
+<span class="lineNum">     649 </span>            :   // Has to be called on the worker thread.
+<span class="lineNum">     650 </span>            :   MOZ_ASSERT(!NS_IsMainThread());
+<span class="lineNum">     651 </span>            : 
+<span class="lineNum">     652 </span><span class="lineCov">          1 :   nsresult rv = mStatus;</span>
+<span class="lineNum">     653 </span>            : 
+<span class="lineNum">     654 </span><span class="lineCov">          1 :   mDBReady = false;</span>
+<span class="lineNum">     655 </span>            : 
+<span class="lineNum">     656 </span>            :   // Finalize the cached statements.
+<span class="lineNum">     657 </span><span class="lineCov">          1 :   mReaderStatements.FinalizeStatements();</span>
+<span class="lineNum">     658 </span><span class="lineCov">          1 :   mWorkerStatements.FinalizeStatements();</span>
+<span class="lineNum">     659 </span>            : 
+<span class="lineNum">     660 </span><span class="lineCov">          1 :   if (mReaderConnection) {</span>
+<span class="lineNum">     661 </span>            :     // No need to sync access to mReaderConnection since the main thread
+<span class="lineNum">     662 </span>            :     // is right now joining this thread, unable to execute any events.
+<span class="lineNum">     663 </span><span class="lineCov">          1 :     mReaderConnection-&gt;Close();</span>
+<span class="lineNum">     664 </span><span class="lineCov">          1 :     mReaderConnection = nullptr;</span>
+<span class="lineNum">     665 </span>            :   }
+<span class="lineNum">     666 </span>            : 
+<span class="lineNum">     667 </span><span class="lineCov">          1 :   if (mWorkerConnection) {</span>
+<span class="lineNum">     668 </span><span class="lineCov">          1 :     rv = mWorkerConnection-&gt;Close();</span>
+<span class="lineNum">     669 </span><span class="lineCov">          1 :     mWorkerConnection = nullptr;</span>
+<span class="lineNum">     670 </span>            :   }
+<span class="lineNum">     671 </span>            : 
+<span class="lineNum">     672 </span><span class="lineCov">          1 :   return rv;</span>
+<span class="lineNum">     673 </span>            : }
+<a name="674"><span class="lineNum">     674 </span>            : </a>
+<span class="lineNum">     675 </span>            : void
+<span class="lineNum">     676 </span><span class="lineCov">          1 : StorageDBThread::ScheduleFlush()</span>
+<span class="lineNum">     677 </span>            : {
+<span class="lineNum">     678 </span><span class="lineCov">          1 :   if (mDirtyEpoch) {</span>
+<span class="lineNum">     679 </span><span class="lineCov">          1 :     return; // Already scheduled</span>
+<span class="lineNum">     680 </span>            :   }
+<span class="lineNum">     681 </span>            : 
+<span class="lineNum">     682 </span>            :   // Must be non-zero to indicate we are scheduled
+<span class="lineNum">     683 </span><span class="lineCov">          1 :   mDirtyEpoch = PR_IntervalNow() | 1;</span>
+<span class="lineNum">     684 </span>            : 
+<span class="lineNum">     685 </span>            :   // Wake the monitor from indefinite sleep...
+<span class="lineNum">     686 </span><span class="lineCov">          1 :   (mThreadObserver-&gt;GetMonitor()).Notify();</span>
+<span class="lineNum">     687 </span>            : }
+<a name="688"><span class="lineNum">     688 </span>            : </a>
+<span class="lineNum">     689 </span>            : void
+<span class="lineNum">     690 </span><span class="lineNoCov">          0 : StorageDBThread::UnscheduleFlush()</span>
+<span class="lineNum">     691 </span>            : {
+<span class="lineNum">     692 </span>            :   // We are just about to do the flush, drop flags
+<span class="lineNum">     693 </span><span class="lineCov">          1 :   mFlushImmediately = false;</span>
+<span class="lineNum">     694 </span><span class="lineCov">          1 :   mDirtyEpoch = 0;</span>
+<span class="lineNum">     695 </span><span class="lineNoCov">          0 : }</span>
+<a name="696"><span class="lineNum">     696 </span>            : </a>
+<span class="lineNum">     697 </span>            : PRIntervalTime
+<span class="lineNum">     698 </span><span class="lineCov">          1 : StorageDBThread::TimeUntilFlush()</span>
+<span class="lineNum">     699 </span>            : {
+<span class="lineNum">     700 </span><span class="lineCov">          1 :   if (mFlushImmediately) {</span>
+<span class="lineNum">     701 </span>            :     return 0; // Do it now regardless the timeout.
+<span class="lineNum">     702 </span>            :   }
+<span class="lineNum">     703 </span>            : 
+<span class="lineNum">     704 </span>            :   static_assert(PR_INTERVAL_NO_TIMEOUT != 0,
+<span class="lineNum">     705 </span>            :       &quot;PR_INTERVAL_NO_TIMEOUT must be non-zero&quot;);
+<span class="lineNum">     706 </span>            : 
+<span class="lineNum">     707 </span><span class="lineCov">          1 :   if (!mDirtyEpoch) {</span>
+<span class="lineNum">     708 </span>            :     return PR_INTERVAL_NO_TIMEOUT; // No pending task...
+<span class="lineNum">     709 </span>            :   }
+<span class="lineNum">     710 </span>            : 
+<span class="lineNum">     711 </span><span class="lineCov">          1 :   static const PRIntervalTime kMaxAge = PR_MillisecondsToInterval(FLUSHING_INTERVAL_MS);</span>
+<span class="lineNum">     712 </span>            : 
+<span class="lineNum">     713 </span><span class="lineCov">          1 :   PRIntervalTime now = PR_IntervalNow() | 1;</span>
+<span class="lineNum">     714 </span><span class="lineCov">          1 :   PRIntervalTime age = now - mDirtyEpoch;</span>
+<span class="lineNum">     715 </span><span class="lineCov">          1 :   if (age &gt; kMaxAge) {</span>
+<span class="lineNum">     716 </span>            :     return 0; // It is time.
+<span class="lineNum">     717 </span>            :   }
+<span class="lineNum">     718 </span>            : 
+<span class="lineNum">     719 </span><span class="lineCov">          1 :   return kMaxAge - age; // Time left, this is used to sleep the monitor</span>
+<span class="lineNum">     720 </span>            : }
+<a name="721"><span class="lineNum">     721 </span>            : </a>
+<span class="lineNum">     722 </span>            : void
+<span class="lineNum">     723 </span><span class="lineCov">          1 : StorageDBThread::NotifyFlushCompletion()</span>
+<span class="lineNum">     724 </span>            : {
+<span class="lineNum">     725 </span>            : #ifdef DOM_STORAGE_TESTS
+<span class="lineNum">     726 </span><span class="lineCov">          1 :   if (!NS_IsMainThread()) {</span>
+<span class="lineNum">     727 </span>            :     RefPtr&lt;nsRunnableMethod&lt;StorageDBThread, void, false&gt; &gt; event =
+<span class="lineNum">     728 </span><span class="lineCov">          1 :       NewNonOwningRunnableMethod(this, &amp;StorageDBThread::NotifyFlushCompletion);</span>
+<span class="lineNum">     729 </span><span class="lineCov">          1 :     NS_DispatchToMainThread(event);</span>
+<span class="lineNum">     730 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">     731 </span>            :   }
+<span class="lineNum">     732 </span>            : 
+<span class="lineNum">     733 </span><span class="lineCov">          1 :   nsCOMPtr&lt;nsIObserverService&gt; obs = mozilla::services::GetObserverService();</span>
+<span class="lineNum">     734 </span><span class="lineCov">          1 :   if (obs) {</span>
+<span class="lineNum">     735 </span><span class="lineCov">          1 :     obs-&gt;NotifyObservers(nullptr, &quot;domstorage-test-flushed&quot;, nullptr);</span>
+<span class="lineNum">     736 </span>            :   }
+<span class="lineNum">     737 </span>            : #endif
+<span class="lineNum">     738 </span>            : }
+<span class="lineNum">     739 </span>            : 
+<span class="lineNum">     740 </span>            : // Helper SQL function classes
+<span class="lineNum">     741 </span>            : 
+<span class="lineNum">     742 </span>            : namespace {
+<span class="lineNum">     743 </span>            : 
+<span class="lineNum">     744 </span>            : class OriginAttrsPatternMatchSQLFunction final : public mozIStorageFunction
+<span class="lineNum">     745 </span>            : {
+<span class="lineNum">     746 </span>            :   NS_DECL_ISUPPORTS
+<a name="747"><span class="lineNum">     747 </span>            :   NS_DECL_MOZISTORAGEFUNCTION</a>
+<span class="lineNum">     748 </span>            : 
+<span class="lineNum">     749 </span><span class="lineNoCov">          0 :   explicit OriginAttrsPatternMatchSQLFunction(OriginAttributesPattern const&amp; aPattern)</span>
+<span class="lineNum">     750 </span><span class="lineNoCov">          0 :     : mPattern(aPattern) {}</span>
+<span class="lineNum">     751 </span>            : 
+<a name="752"><span class="lineNum">     752 </span>            : private:</a>
+<span class="lineNum">     753 </span>            :   OriginAttrsPatternMatchSQLFunction() = delete;
+<span class="lineNum">     754 </span><span class="lineNoCov">          0 :   ~OriginAttrsPatternMatchSQLFunction() {}</span>
+<span class="lineNum">     755 </span>            : 
+<span class="lineNum">     756 </span>            :   OriginAttributesPattern mPattern;
+<a name="757"><span class="lineNum">     757 </span>            : };</a>
+<span class="lineNum">     758 </span>            : 
+<span class="lineNum">     759 </span><span class="lineNoCov">          0 : NS_IMPL_ISUPPORTS(OriginAttrsPatternMatchSQLFunction, mozIStorageFunction)</span>
+<a name="760"><span class="lineNum">     760 </span>            : </a>
+<span class="lineNum">     761 </span>            : NS_IMETHODIMP
+<span class="lineNum">     762 </span><span class="lineNoCov">          0 : OriginAttrsPatternMatchSQLFunction::OnFunctionCall(</span>
+<span class="lineNum">     763 </span>            :     mozIStorageValueArray* aFunctionArguments, nsIVariant** aResult)
+<span class="lineNum">     764 </span>            : {
+<span class="lineNum">     765 </span>            :   nsresult rv;
+<span class="lineNum">     766 </span>            : 
+<span class="lineNum">     767 </span><span class="lineNoCov">          0 :   nsAutoCString suffix;</span>
+<span class="lineNum">     768 </span><span class="lineNoCov">          0 :   rv = aFunctionArguments-&gt;GetUTF8String(0, suffix);</span>
+<span class="lineNum">     769 </span><span class="lineNoCov">          0 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     770 </span>            : 
+<span class="lineNum">     771 </span>            :   OriginAttributes oa;
+<span class="lineNum">     772 </span><span class="lineNoCov">          0 :   bool success = oa.PopulateFromSuffix(suffix);</span>
+<span class="lineNum">     773 </span><span class="lineNoCov">          0 :   NS_ENSURE_TRUE(success, NS_ERROR_FAILURE);</span>
+<span class="lineNum">     774 </span><span class="lineNoCov">          0 :   bool result = mPattern.Matches(oa);</span>
+<span class="lineNum">     775 </span>            : 
+<span class="lineNum">     776 </span><span class="lineNoCov">          0 :   RefPtr&lt;nsVariant&gt; outVar(new nsVariant());</span>
+<span class="lineNum">     777 </span><span class="lineNoCov">          0 :   rv = outVar-&gt;SetAsBool(result);</span>
+<span class="lineNum">     778 </span><span class="lineNoCov">          0 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     779 </span>            : 
+<span class="lineNum">     780 </span>            :   outVar.forget(aResult);
+<span class="lineNum">     781 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     782 </span>            : }
+<span class="lineNum">     783 </span>            : 
+<span class="lineNum">     784 </span>            : } // namespace
+<span class="lineNum">     785 </span>            : 
+<a name="786"><span class="lineNum">     786 </span>            : // StorageDBThread::DBOperation</a>
+<span class="lineNum">     787 </span>            : 
+<span class="lineNum">     788 </span><span class="lineCov">          1 : StorageDBThread::DBOperation::DBOperation(const OperationType aType,</span>
+<span class="lineNum">     789 </span>            :                                           StorageCacheBridge* aCache,
+<span class="lineNum">     790 </span>            :                                           const nsAString&amp; aKey,
+<span class="lineNum">     791 </span>            :                                           const nsAString&amp; aValue)
+<span class="lineNum">     792 </span>            : : mType(aType)
+<span class="lineNum">     793 </span>            : , mCache(aCache)
+<span class="lineNum">     794 </span>            : , mKey(aKey)
+<span class="lineNum">     795 </span><span class="lineCov">          1 : , mValue(aValue)</span>
+<span class="lineNum">     796 </span>            : {
+<span class="lineNum">     797 </span>            :   MOZ_ASSERT(mType == opPreload ||
+<span class="lineNum">     798 </span>            :              mType == opPreloadUrgent ||
+<span class="lineNum">     799 </span>            :              mType == opAddItem ||
+<span class="lineNum">     800 </span>            :              mType == opUpdateItem ||
+<span class="lineNum">     801 </span>            :              mType == opRemoveItem ||
+<span class="lineNum">     802 </span>            :              mType == opClear ||
+<span class="lineNum">     803 </span>            :              mType == opClearAll);
+<span class="lineNum">     804 </span>            :   MOZ_COUNT_CTOR(StorageDBThread::DBOperation);
+<a name="805"><span class="lineNum">     805 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     806 </span>            : 
+<span class="lineNum">     807 </span><span class="lineCov">          1 : StorageDBThread::DBOperation::DBOperation(const OperationType aType,</span>
+<span class="lineNum">     808 </span>            :                                           StorageUsageBridge* aUsage)
+<span class="lineNum">     809 </span>            : : mType(aType)
+<span class="lineNum">     810 </span><span class="lineCov">          1 : , mUsage(aUsage)</span>
+<span class="lineNum">     811 </span>            : {
+<span class="lineNum">     812 </span>            :   MOZ_ASSERT(mType == opGetUsage);
+<span class="lineNum">     813 </span>            :   MOZ_COUNT_CTOR(StorageDBThread::DBOperation);
+<a name="814"><span class="lineNum">     814 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     815 </span>            : 
+<span class="lineNum">     816 </span><span class="lineCov">          1 : StorageDBThread::DBOperation::DBOperation(const OperationType aType,</span>
+<span class="lineNum">     817 </span>            :                                           const nsACString&amp; aOriginNoSuffix)
+<span class="lineNum">     818 </span>            : : mType(aType)
+<span class="lineNum">     819 </span>            : , mCache(nullptr)
+<span class="lineNum">     820 </span><span class="lineCov">          1 : , mOrigin(aOriginNoSuffix)</span>
+<span class="lineNum">     821 </span>            : {
+<span class="lineNum">     822 </span>            :   MOZ_ASSERT(mType == opClearMatchingOrigin);
+<span class="lineNum">     823 </span>            :   MOZ_COUNT_CTOR(StorageDBThread::DBOperation);
+<a name="824"><span class="lineNum">     824 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     825 </span>            : 
+<span class="lineNum">     826 </span><span class="lineNoCov">          0 : StorageDBThread::DBOperation::DBOperation(const OperationType aType,</span>
+<span class="lineNum">     827 </span>            :                                           const OriginAttributesPattern&amp; aOriginNoSuffix)
+<span class="lineNum">     828 </span>            : : mType(aType)
+<span class="lineNum">     829 </span>            : , mCache(nullptr)
+<span class="lineNum">     830 </span><span class="lineNoCov">          0 : , mOriginPattern(aOriginNoSuffix)</span>
+<span class="lineNum">     831 </span>            : {
+<span class="lineNum">     832 </span>            :   MOZ_ASSERT(mType == opClearMatchingOriginAttributes);
+<span class="lineNum">     833 </span>            :   MOZ_COUNT_CTOR(StorageDBThread::DBOperation);
+<a name="834"><span class="lineNum">     834 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     835 </span>            : 
+<span class="lineNum">     836 </span><span class="lineCov">          1 : StorageDBThread::DBOperation::~DBOperation()</span>
+<span class="lineNum">     837 </span>            : {
+<span class="lineNum">     838 </span>            :   MOZ_COUNT_DTOR(StorageDBThread::DBOperation);
+<span class="lineNum">     839 </span><span class="lineCov">          1 : }</span>
+<a name="840"><span class="lineNum">     840 </span>            : </a>
+<span class="lineNum">     841 </span>            : const nsCString
+<span class="lineNum">     842 </span><span class="lineCov">          1 : StorageDBThread::DBOperation::OriginNoSuffix() const</span>
+<span class="lineNum">     843 </span>            : {
+<span class="lineNum">     844 </span><span class="lineCov">          1 :   if (mCache) {</span>
+<span class="lineNum">     845 </span><span class="lineCov">          1 :     return mCache-&gt;OriginNoSuffix();</span>
+<span class="lineNum">     846 </span>            :   }
+<span class="lineNum">     847 </span>            : 
+<span class="lineNum">     848 </span><span class="lineNoCov">          0 :   return EmptyCString();</span>
+<span class="lineNum">     849 </span>            : }
+<a name="850"><span class="lineNum">     850 </span>            : </a>
+<span class="lineNum">     851 </span>            : const nsCString
+<span class="lineNum">     852 </span><span class="lineCov">          1 : StorageDBThread::DBOperation::OriginSuffix() const</span>
+<span class="lineNum">     853 </span>            : {
+<span class="lineNum">     854 </span><span class="lineCov">          1 :   if (mCache) {</span>
+<span class="lineNum">     855 </span><span class="lineCov">          1 :     return mCache-&gt;OriginSuffix();</span>
+<span class="lineNum">     856 </span>            :   }
+<span class="lineNum">     857 </span>            : 
+<span class="lineNum">     858 </span><span class="lineNoCov">          0 :   return EmptyCString();</span>
+<span class="lineNum">     859 </span>            : }
+<a name="860"><span class="lineNum">     860 </span>            : </a>
+<span class="lineNum">     861 </span>            : const nsCString
+<span class="lineNum">     862 </span><span class="lineCov">          1 : StorageDBThread::DBOperation::Origin() const</span>
+<span class="lineNum">     863 </span>            : {
+<span class="lineNum">     864 </span><span class="lineCov">          1 :   if (mCache) {</span>
+<span class="lineNum">     865 </span><span class="lineCov">          1 :     return mCache-&gt;Origin();</span>
+<span class="lineNum">     866 </span>            :   }
+<span class="lineNum">     867 </span>            : 
+<span class="lineNum">     868 </span><span class="lineCov">          1 :   return mOrigin;</span>
+<span class="lineNum">     869 </span>            : }
+<a name="870"><span class="lineNum">     870 </span>            : </a>
+<span class="lineNum">     871 </span>            : const nsCString
+<span class="lineNum">     872 </span><span class="lineCov">          1 : StorageDBThread::DBOperation::Target() const</span>
+<span class="lineNum">     873 </span>            : {
+<span class="lineNum">     874 </span><span class="lineCov">          1 :   switch (mType) {</span>
+<span class="lineNum">     875 </span>            :     case opAddItem:
+<span class="lineNum">     876 </span>            :     case opUpdateItem:
+<span class="lineNum">     877 </span>            :     case opRemoveItem:
+<span class="lineNum">     878 </span><span class="lineCov">          1 :       return Origin() + NS_LITERAL_CSTRING(&quot;|&quot;) + NS_ConvertUTF16toUTF8(mKey);</span>
+<span class="lineNum">     879 </span>            : 
+<span class="lineNum">     880 </span>            :     default:
+<span class="lineNum">     881 </span><span class="lineCov">          1 :       return Origin();</span>
+<span class="lineNum">     882 </span>            :   }
+<span class="lineNum">     883 </span>            : }
+<a name="884"><span class="lineNum">     884 </span>            : </a>
+<span class="lineNum">     885 </span>            : void
+<span class="lineNum">     886 </span><span class="lineCov">          1 : StorageDBThread::DBOperation::PerformAndFinalize(StorageDBThread* aThread)</span>
+<span class="lineNum">     887 </span>            : {
+<span class="lineNum">     888 </span><span class="lineCov">          1 :   Finalize(Perform(aThread));</span>
+<span class="lineNum">     889 </span><span class="lineCov">          1 : }</span>
+<a name="890"><span class="lineNum">     890 </span>            : </a>
+<span class="lineNum">     891 </span>            : nsresult
+<span class="lineNum">     892 </span><span class="lineCov">          1 : StorageDBThread::DBOperation::Perform(StorageDBThread* aThread)</span>
+<span class="lineNum">     893 </span>            : {
+<span class="lineNum">     894 </span>            :   nsresult rv;
+<span class="lineNum">     895 </span>            : 
+<span class="lineNum">     896 </span><span class="lineCov">          1 :   switch (mType) {</span>
+<span class="lineNum">     897 </span>            :   case opPreload:
+<span class="lineNum">     898 </span>            :   case opPreloadUrgent:
+<span class="lineNum">     899 </span>            :   {
+<span class="lineNum">     900 </span>            :     // Already loaded?
+<span class="lineNum">     901 </span><span class="lineCov">          1 :     if (mCache-&gt;Loaded()) {</span>
+<span class="lineNum">     902 </span>            :       break;
+<span class="lineNum">     903 </span>            :     }
+<span class="lineNum">     904 </span>            : 
+<span class="lineNum">     905 </span>            :     StatementCache* statements;
+<span class="lineNum">     906 </span><span class="lineCov">          1 :     if (MOZ_UNLIKELY(NS_IsMainThread())) {</span>
+<span class="lineNum">     907 </span><span class="lineNoCov">          0 :       statements = &amp;aThread-&gt;mReaderStatements;</span>
+<span class="lineNum">     908 </span>            :     } else {
+<span class="lineNum">     909 </span><span class="lineCov">          1 :       statements = &amp;aThread-&gt;mWorkerStatements;</span>
+<span class="lineNum">     910 </span>            :     }
+<span class="lineNum">     911 </span>            : 
+<span class="lineNum">     912 </span>            :     // OFFSET is an optimization when we have to do a sync load
+<span class="lineNum">     913 </span>            :     // and cache has already loaded some parts asynchronously.
+<span class="lineNum">     914 </span>            :     // It skips keys we have already loaded.
+<span class="lineNum">     915 </span>            :     nsCOMPtr&lt;mozIStorageStatement&gt; stmt = statements-&gt;GetCachedStatement(
+<span class="lineNum">     916 </span>            :         &quot;SELECT key, value FROM webappsstore2 &quot;
+<span class="lineNum">     917 </span>            :         &quot;WHERE originAttributes = :originAttributes AND originKey = :originKey &quot;
+<span class="lineNum">     918 </span><span class="lineCov">          1 :         &quot;ORDER BY key LIMIT -1 OFFSET :offset&quot;);</span>
+<span class="lineNum">     919 </span><span class="lineCov">          1 :     NS_ENSURE_STATE(stmt);</span>
+<span class="lineNum">     920 </span><span class="lineCov">          1 :     mozStorageStatementScoper scope(stmt);</span>
+<span class="lineNum">     921 </span>            : 
+<span class="lineNum">     922 </span>            :     rv = stmt-&gt;BindUTF8StringByName(NS_LITERAL_CSTRING(&quot;originAttributes&quot;),
+<span class="lineNum">     923 </span><span class="lineCov">          1 :                                     mCache-&gt;OriginSuffix());</span>
+<span class="lineNum">     924 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     925 </span>            : 
+<span class="lineNum">     926 </span>            :     rv = stmt-&gt;BindUTF8StringByName(NS_LITERAL_CSTRING(&quot;originKey&quot;),
+<span class="lineNum">     927 </span><span class="lineCov">          1 :                                     mCache-&gt;OriginNoSuffix());</span>
+<span class="lineNum">     928 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     929 </span>            : 
+<span class="lineNum">     930 </span>            :     rv = stmt-&gt;BindInt32ByName(NS_LITERAL_CSTRING(&quot;offset&quot;),
+<span class="lineNum">     931 </span><span class="lineCov">          1 :                                static_cast&lt;int32_t&gt;(mCache-&gt;LoadedCount()));</span>
+<span class="lineNum">     932 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     933 </span>            : 
+<span class="lineNum">     934 </span>            :     bool exists;
+<span class="lineNum">     935 </span><span class="lineCov">          1 :     while (NS_SUCCEEDED(rv = stmt-&gt;ExecuteStep(&amp;exists)) &amp;&amp; exists) {</span>
+<span class="lineNum">     936 </span><span class="lineCov">          1 :       nsAutoString key;</span>
+<span class="lineNum">     937 </span><span class="lineCov">          1 :       rv = stmt-&gt;GetString(0, key);</span>
+<span class="lineNum">     938 </span><span class="lineCov">          1 :       NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     939 </span>            : 
+<span class="lineNum">     940 </span><span class="lineCov">          1 :       nsAutoString value;</span>
+<span class="lineNum">     941 </span><span class="lineCov">          1 :       rv = stmt-&gt;GetString(1, value);</span>
+<span class="lineNum">     942 </span><span class="lineCov">          1 :       NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     943 </span>            : 
+<span class="lineNum">     944 </span><span class="lineCov">          1 :       if (!mCache-&gt;LoadItem(key, value)) {</span>
+<span class="lineNum">     945 </span>            :         break;
+<span class="lineNum">     946 </span>            :       }
+<span class="lineNum">     947 </span>            :     }
+<span class="lineNum">     948 </span>            : 
+<span class="lineNum">     949 </span><span class="lineCov">          1 :     mCache-&gt;LoadDone(NS_OK);</span>
+<span class="lineNum">     950 </span><span class="lineCov">          1 :     break;</span>
+<span class="lineNum">     951 </span>            :   }
+<span class="lineNum">     952 </span>            : 
+<span class="lineNum">     953 </span>            :   case opGetUsage:
+<span class="lineNum">     954 </span>            :   {
+<span class="lineNum">     955 </span>            :     nsCOMPtr&lt;mozIStorageStatement&gt; stmt = aThread-&gt;mWorkerStatements.GetCachedStatement(
+<span class="lineNum">     956 </span>            :       &quot;SELECT SUM(LENGTH(key) + LENGTH(value)) FROM webappsstore2 &quot;
+<span class="lineNum">     957 </span>            :       &quot;WHERE (originAttributes || ':' || originKey) LIKE :usageOrigin&quot;
+<span class="lineNum">     958 </span><span class="lineCov">          1 :     );</span>
+<span class="lineNum">     959 </span><span class="lineCov">          1 :     NS_ENSURE_STATE(stmt);</span>
+<span class="lineNum">     960 </span>            : 
+<span class="lineNum">     961 </span><span class="lineCov">          1 :     mozStorageStatementScoper scope(stmt);</span>
+<span class="lineNum">     962 </span>            : 
+<span class="lineNum">     963 </span>            :     rv = stmt-&gt;BindUTF8StringByName(NS_LITERAL_CSTRING(&quot;usageOrigin&quot;),
+<span class="lineNum">     964 </span><span class="lineCov">          1 :                                     mUsage-&gt;OriginScope());</span>
+<span class="lineNum">     965 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     966 </span>            : 
+<span class="lineNum">     967 </span>            :     bool exists;
+<span class="lineNum">     968 </span><span class="lineCov">          1 :     rv = stmt-&gt;ExecuteStep(&amp;exists);</span>
+<span class="lineNum">     969 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     970 </span>            : 
+<span class="lineNum">     971 </span><span class="lineCov">          1 :     int64_t usage = 0;</span>
+<span class="lineNum">     972 </span><span class="lineCov">          1 :     if (exists) {</span>
+<span class="lineNum">     973 </span><span class="lineCov">          1 :       rv = stmt-&gt;GetInt64(0, &amp;usage);</span>
+<span class="lineNum">     974 </span><span class="lineCov">          1 :       NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     975 </span>            :     }
+<span class="lineNum">     976 </span>            : 
+<span class="lineNum">     977 </span><span class="lineCov">          1 :     mUsage-&gt;LoadUsage(usage);</span>
+<span class="lineNum">     978 </span><span class="lineCov">          1 :     break;</span>
+<span class="lineNum">     979 </span>            :   }
+<span class="lineNum">     980 </span>            : 
+<span class="lineNum">     981 </span>            :   case opAddItem:
+<span class="lineNum">     982 </span>            :   case opUpdateItem:
+<span class="lineNum">     983 </span>            :   {
+<span class="lineNum">     984 </span>            :     MOZ_ASSERT(!NS_IsMainThread());
+<span class="lineNum">     985 </span>            : 
+<span class="lineNum">     986 </span>            :     nsCOMPtr&lt;mozIStorageStatement&gt; stmt = aThread-&gt;mWorkerStatements.GetCachedStatement(
+<span class="lineNum">     987 </span>            :       &quot;INSERT OR REPLACE INTO webappsstore2 (originAttributes, originKey, scope, key, value) &quot;
+<span class="lineNum">     988 </span>            :       &quot;VALUES (:originAttributes, :originKey, :scope, :key, :value) &quot;
+<span class="lineNum">     989 </span><span class="lineCov">          1 :     );</span>
+<span class="lineNum">     990 </span><span class="lineCov">          1 :     NS_ENSURE_STATE(stmt);</span>
+<span class="lineNum">     991 </span>            : 
+<span class="lineNum">     992 </span><span class="lineCov">          1 :     mozStorageStatementScoper scope(stmt);</span>
+<span class="lineNum">     993 </span>            : 
+<span class="lineNum">     994 </span>            :     rv = stmt-&gt;BindUTF8StringByName(NS_LITERAL_CSTRING(&quot;originAttributes&quot;),
+<span class="lineNum">     995 </span><span class="lineCov">          1 :                                     mCache-&gt;OriginSuffix());</span>
+<span class="lineNum">     996 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     997 </span>            :     rv = stmt-&gt;BindUTF8StringByName(NS_LITERAL_CSTRING(&quot;originKey&quot;),
+<span class="lineNum">     998 </span><span class="lineCov">          1 :                                     mCache-&gt;OriginNoSuffix());</span>
+<span class="lineNum">     999 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">    1000 </span>            :     // Filling the 'scope' column just for downgrade compatibility reasons
+<span class="lineNum">    1001 </span>            :     rv = stmt-&gt;BindUTF8StringByName(NS_LITERAL_CSTRING(&quot;scope&quot;),
+<span class="lineNum">    1002 </span><span class="lineCov">          1 :                                     Scheme0Scope(mCache));</span>
+<span class="lineNum">    1003 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">    1004 </span>            :     rv = stmt-&gt;BindStringByName(NS_LITERAL_CSTRING(&quot;key&quot;),
+<span class="lineNum">    1005 </span><span class="lineCov">          1 :                                 mKey);</span>
+<span class="lineNum">    1006 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">    1007 </span>            :     rv = stmt-&gt;BindStringByName(NS_LITERAL_CSTRING(&quot;value&quot;),
+<span class="lineNum">    1008 </span><span class="lineCov">          1 :                                 mValue);</span>
+<span class="lineNum">    1009 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">    1010 </span>            : 
+<span class="lineNum">    1011 </span><span class="lineCov">          1 :     rv = stmt-&gt;Execute();</span>
+<span class="lineNum">    1012 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">    1013 </span>            : 
+<span class="lineNum">    1014 </span><span class="lineCov">          1 :     MonitorAutoLock monitor(aThread-&gt;mThreadObserver-&gt;GetMonitor());</span>
+<span class="lineNum">    1015 </span><span class="lineCov">          1 :     aThread-&gt;mOriginsHavingData.PutEntry(Origin());</span>
+<span class="lineNum">    1016 </span>            :     break;
+<span class="lineNum">    1017 </span>            :   }
+<span class="lineNum">    1018 </span>            : 
+<span class="lineNum">    1019 </span>            :   case opRemoveItem:
+<span class="lineNum">    1020 </span>            :   {
+<span class="lineNum">    1021 </span>            :     MOZ_ASSERT(!NS_IsMainThread());
+<span class="lineNum">    1022 </span>            : 
+<span class="lineNum">    1023 </span>            :     nsCOMPtr&lt;mozIStorageStatement&gt; stmt = aThread-&gt;mWorkerStatements.GetCachedStatement(
+<span class="lineNum">    1024 </span>            :       &quot;DELETE FROM webappsstore2 &quot;
+<span class="lineNum">    1025 </span>            :       &quot;WHERE originAttributes = :originAttributes AND originKey = :originKey &quot;
+<span class="lineNum">    1026 </span>            :         &quot;AND key = :key &quot;
+<span class="lineNum">    1027 </span><span class="lineCov">          1 :     );</span>
+<span class="lineNum">    1028 </span><span class="lineCov">          1 :     NS_ENSURE_STATE(stmt);</span>
+<span class="lineNum">    1029 </span><span class="lineCov">          1 :     mozStorageStatementScoper scope(stmt);</span>
+<span class="lineNum">    1030 </span>            : 
+<span class="lineNum">    1031 </span>            :     rv = stmt-&gt;BindUTF8StringByName(NS_LITERAL_CSTRING(&quot;originAttributes&quot;),
+<span class="lineNum">    1032 </span><span class="lineCov">          1 :                                     mCache-&gt;OriginSuffix());</span>
+<span class="lineNum">    1033 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">    1034 </span>            :     rv = stmt-&gt;BindUTF8StringByName(NS_LITERAL_CSTRING(&quot;originKey&quot;),
+<span class="lineNum">    1035 </span><span class="lineCov">          1 :                                     mCache-&gt;OriginNoSuffix());</span>
+<span class="lineNum">    1036 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">    1037 </span>            :     rv = stmt-&gt;BindStringByName(NS_LITERAL_CSTRING(&quot;key&quot;),
+<span class="lineNum">    1038 </span><span class="lineCov">          1 :                                 mKey);</span>
+<span class="lineNum">    1039 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">    1040 </span>            : 
+<span class="lineNum">    1041 </span><span class="lineCov">          1 :     rv = stmt-&gt;Execute();</span>
+<span class="lineNum">    1042 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">    1043 </span>            : 
+<span class="lineNum">    1044 </span><span class="lineCov">          1 :     break;</span>
+<span class="lineNum">    1045 </span>            :   }
+<span class="lineNum">    1046 </span>            : 
+<span class="lineNum">    1047 </span>            :   case opClear:
+<span class="lineNum">    1048 </span>            :   {
+<span class="lineNum">    1049 </span>            :     MOZ_ASSERT(!NS_IsMainThread());
+<span class="lineNum">    1050 </span>            : 
+<span class="lineNum">    1051 </span>            :     nsCOMPtr&lt;mozIStorageStatement&gt; stmt = aThread-&gt;mWorkerStatements.GetCachedStatement(
+<span class="lineNum">    1052 </span>            :       &quot;DELETE FROM webappsstore2 &quot;
+<span class="lineNum">    1053 </span>            :       &quot;WHERE originAttributes = :originAttributes AND originKey = :originKey&quot;
+<span class="lineNum">    1054 </span><span class="lineCov">          1 :     );</span>
+<span class="lineNum">    1055 </span><span class="lineCov">          1 :     NS_ENSURE_STATE(stmt);</span>
+<span class="lineNum">    1056 </span><span class="lineCov">          1 :     mozStorageStatementScoper scope(stmt);</span>
+<span class="lineNum">    1057 </span>            : 
+<span class="lineNum">    1058 </span>            :     rv = stmt-&gt;BindUTF8StringByName(NS_LITERAL_CSTRING(&quot;originAttributes&quot;),
+<span class="lineNum">    1059 </span><span class="lineCov">          1 :                                     mCache-&gt;OriginSuffix());</span>
+<span class="lineNum">    1060 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">    1061 </span>            :     rv = stmt-&gt;BindUTF8StringByName(NS_LITERAL_CSTRING(&quot;originKey&quot;),
+<span class="lineNum">    1062 </span><span class="lineCov">          1 :                                     mCache-&gt;OriginNoSuffix());</span>
+<span class="lineNum">    1063 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">    1064 </span>            : 
+<span class="lineNum">    1065 </span><span class="lineCov">          1 :     rv = stmt-&gt;Execute();</span>
+<span class="lineNum">    1066 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">    1067 </span>            : 
+<span class="lineNum">    1068 </span><span class="lineCov">          1 :     MonitorAutoLock monitor(aThread-&gt;mThreadObserver-&gt;GetMonitor());</span>
+<span class="lineNum">    1069 </span><span class="lineCov">          1 :     aThread-&gt;mOriginsHavingData.RemoveEntry(Origin());</span>
+<span class="lineNum">    1070 </span>            :     break;
+<span class="lineNum">    1071 </span>            :   }
+<span class="lineNum">    1072 </span>            : 
+<span class="lineNum">    1073 </span>            :   case opClearAll:
+<span class="lineNum">    1074 </span>            :   {
+<span class="lineNum">    1075 </span>            :     MOZ_ASSERT(!NS_IsMainThread());
+<span class="lineNum">    1076 </span>            : 
+<span class="lineNum">    1077 </span>            :     nsCOMPtr&lt;mozIStorageStatement&gt; stmt = aThread-&gt;mWorkerStatements.GetCachedStatement(
+<span class="lineNum">    1078 </span>            :       &quot;DELETE FROM webappsstore2&quot;
+<span class="lineNum">    1079 </span><span class="lineCov">          1 :     );</span>
+<span class="lineNum">    1080 </span><span class="lineCov">          1 :     NS_ENSURE_STATE(stmt);</span>
+<span class="lineNum">    1081 </span><span class="lineCov">          1 :     mozStorageStatementScoper scope(stmt);</span>
+<span class="lineNum">    1082 </span>            : 
+<span class="lineNum">    1083 </span><span class="lineCov">          1 :     rv = stmt-&gt;Execute();</span>
+<span class="lineNum">    1084 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">    1085 </span>            : 
+<span class="lineNum">    1086 </span><span class="lineCov">          1 :     MonitorAutoLock monitor(aThread-&gt;mThreadObserver-&gt;GetMonitor());</span>
+<span class="lineNum">    1087 </span><span class="lineCov">          1 :     aThread-&gt;mOriginsHavingData.Clear();</span>
+<span class="lineNum">    1088 </span>            :     break;
+<span class="lineNum">    1089 </span>            :   }
+<span class="lineNum">    1090 </span>            : 
+<span class="lineNum">    1091 </span>            :   case opClearMatchingOrigin:
+<span class="lineNum">    1092 </span>            :   {
+<span class="lineNum">    1093 </span>            :     MOZ_ASSERT(!NS_IsMainThread());
+<span class="lineNum">    1094 </span>            : 
+<span class="lineNum">    1095 </span>            :     nsCOMPtr&lt;mozIStorageStatement&gt; stmt = aThread-&gt;mWorkerStatements.GetCachedStatement(
+<span class="lineNum">    1096 </span>            :       &quot;DELETE FROM webappsstore2&quot;
+<span class="lineNum">    1097 </span>            :       &quot; WHERE originKey GLOB :scope&quot;
+<span class="lineNum">    1098 </span><span class="lineCov">          1 :     );</span>
+<span class="lineNum">    1099 </span><span class="lineCov">          1 :     NS_ENSURE_STATE(stmt);</span>
+<span class="lineNum">    1100 </span><span class="lineCov">          1 :     mozStorageStatementScoper scope(stmt);</span>
+<span class="lineNum">    1101 </span>            : 
+<span class="lineNum">    1102 </span>            :     rv = stmt-&gt;BindUTF8StringByName(NS_LITERAL_CSTRING(&quot;scope&quot;),
+<span class="lineNum">    1103 </span><span class="lineCov">          1 :                                     mOrigin + NS_LITERAL_CSTRING(&quot;*&quot;));</span>
+<span class="lineNum">    1104 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">    1105 </span>            : 
+<span class="lineNum">    1106 </span><span class="lineCov">          1 :     rv = stmt-&gt;Execute();</span>
+<span class="lineNum">    1107 </span><span class="lineCov">          1 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">    1108 </span>            : 
+<span class="lineNum">    1109 </span>            :     // No need to selectively clear mOriginsHavingData here.  That hashtable
+<span class="lineNum">    1110 </span>            :     // only prevents preload for scopes with no data.  Leaving a false record in
+<span class="lineNum">    1111 </span>            :     // it has a negligible effect on performance.
+<span class="lineNum">    1112 </span><span class="lineCov">          1 :     break;</span>
+<span class="lineNum">    1113 </span>            :   }
+<span class="lineNum">    1114 </span>            : 
+<span class="lineNum">    1115 </span>            :   case opClearMatchingOriginAttributes:
+<span class="lineNum">    1116 </span>            :   {
+<span class="lineNum">    1117 </span>            :     MOZ_ASSERT(!NS_IsMainThread());
+<span class="lineNum">    1118 </span>            : 
+<span class="lineNum">    1119 </span>            :     // Register the ORIGIN_ATTRS_PATTERN_MATCH function, initialized with the
+<span class="lineNum">    1120 </span>            :     // pattern
+<span class="lineNum">    1121 </span>            :     nsCOMPtr&lt;mozIStorageFunction&gt; patternMatchFunction(
+<span class="lineNum">    1122 </span><span class="lineNoCov">          0 :       new OriginAttrsPatternMatchSQLFunction(mOriginPattern));</span>
+<span class="lineNum">    1123 </span>            : 
+<span class="lineNum">    1124 </span><span class="lineNoCov">          0 :     rv = aThread-&gt;mWorkerConnection-&gt;CreateFunction(</span>
+<span class="lineNum">    1125 </span><span class="lineNoCov">          0 :       NS_LITERAL_CSTRING(&quot;ORIGIN_ATTRS_PATTERN_MATCH&quot;), 1, patternMatchFunction);</span>
+<span class="lineNum">    1126 </span><span class="lineNoCov">          0 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">    1127 </span>            : 
+<span class="lineNum">    1128 </span>            :     nsCOMPtr&lt;mozIStorageStatement&gt; stmt = aThread-&gt;mWorkerStatements.GetCachedStatement(
+<span class="lineNum">    1129 </span>            :       &quot;DELETE FROM webappsstore2&quot;
+<span class="lineNum">    1130 </span>            :       &quot; WHERE ORIGIN_ATTRS_PATTERN_MATCH(originAttributes)&quot;
+<span class="lineNum">    1131 </span><span class="lineNoCov">          0 :     );</span>
+<span class="lineNum">    1132 </span>            : 
+<span class="lineNum">    1133 </span><span class="lineNoCov">          0 :     if (stmt) {</span>
+<span class="lineNum">    1134 </span><span class="lineNoCov">          0 :       mozStorageStatementScoper scope(stmt);</span>
+<span class="lineNum">    1135 </span><span class="lineNoCov">          0 :       rv = stmt-&gt;Execute();</span>
+<span class="lineNum">    1136 </span>            :     } else {
+<span class="lineNum">    1137 </span>            :       rv = NS_ERROR_UNEXPECTED;
+<span class="lineNum">    1138 </span>            :     }
+<span class="lineNum">    1139 </span>            : 
+<span class="lineNum">    1140 </span>            :     // Always remove the function
+<span class="lineNum">    1141 </span><span class="lineNoCov">          0 :     aThread-&gt;mWorkerConnection-&gt;RemoveFunction(</span>
+<span class="lineNum">    1142 </span><span class="lineNoCov">          0 :       NS_LITERAL_CSTRING(&quot;ORIGIN_ATTRS_PATTERN_MATCH&quot;));</span>
+<span class="lineNum">    1143 </span>            : 
+<span class="lineNum">    1144 </span><span class="lineNoCov">          0 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">    1145 </span>            : 
+<span class="lineNum">    1146 </span>            :     // No need to selectively clear mOriginsHavingData here.  That hashtable
+<span class="lineNum">    1147 </span>            :     // only prevents preload for scopes with no data.  Leaving a false record in
+<span class="lineNum">    1148 </span>            :     // it has a negligible effect on performance.
+<span class="lineNum">    1149 </span>            :     break;
+<span class="lineNum">    1150 </span>            :   }
+<span class="lineNum">    1151 </span>            : 
+<span class="lineNum">    1152 </span>            :   default:
+<span class="lineNum">    1153 </span>            :     NS_ERROR(&quot;Unknown task type&quot;);
+<span class="lineNum">    1154 </span>            :     break;
+<span class="lineNum">    1155 </span>            :   }
+<span class="lineNum">    1156 </span>            : 
+<span class="lineNum">    1157 </span>            :   return NS_OK;
+<span class="lineNum">    1158 </span>            : }
+<a name="1159"><span class="lineNum">    1159 </span>            : </a>
+<span class="lineNum">    1160 </span>            : void
+<span class="lineNum">    1161 </span><span class="lineCov">          1 : StorageDBThread::DBOperation::Finalize(nsresult aRv)</span>
+<span class="lineNum">    1162 </span>            : {
+<span class="lineNum">    1163 </span><span class="lineCov">          1 :   switch (mType) {</span>
+<span class="lineNum">    1164 </span>            :   case opPreloadUrgent:
+<span class="lineNum">    1165 </span>            :   case opPreload:
+<span class="lineNum">    1166 </span>            :     if (NS_FAILED(aRv)) {
+<span class="lineNum">    1167 </span>            :       // When we are here, something failed when loading from the database.
+<span class="lineNum">    1168 </span>            :       // Notify that the storage is loaded to prevent deadlock of the main
+<span class="lineNum">    1169 </span>            :       // thread, even though it is actually empty or incomplete.
+<span class="lineNum">    1170 </span>            :       NS_WARNING(&quot;Failed to preload localStorage&quot;);
+<span class="lineNum">    1171 </span>            :     }
+<span class="lineNum">    1172 </span>            : 
+<span class="lineNum">    1173 </span><span class="lineCov">          1 :     mCache-&gt;LoadDone(aRv);</span>
+<span class="lineNum">    1174 </span><span class="lineCov">          1 :     break;</span>
+<span class="lineNum">    1175 </span>            : 
+<span class="lineNum">    1176 </span>            :   case opGetUsage:
+<span class="lineNum">    1177 </span><span class="lineCov">          1 :     if (NS_FAILED(aRv)) {</span>
+<span class="lineNum">    1178 </span><span class="lineNoCov">          0 :       mUsage-&gt;LoadUsage(0);</span>
+<span class="lineNum">    1179 </span>            :     }
+<span class="lineNum">    1180 </span>            : 
+<span class="lineNum">    1181 </span>            :     break;
+<span class="lineNum">    1182 </span>            : 
+<span class="lineNum">    1183 </span>            :   default:
+<span class="lineNum">    1184 </span>            :     if (NS_FAILED(aRv)) {
+<span class="lineNum">    1185 </span>            :       NS_WARNING(&quot;localStorage update/clear operation failed,&quot;
+<span class="lineNum">    1186 </span>            :                  &quot; data may not persist or clean up&quot;);
+<span class="lineNum">    1187 </span>            :     }
+<span class="lineNum">    1188 </span>            : 
+<span class="lineNum">    1189 </span>            :     break;
+<span class="lineNum">    1190 </span>            :   }
+<span class="lineNum">    1191 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">    1192 </span>            : 
+<a name="1193"><span class="lineNum">    1193 </span>            : // StorageDBThread::PendingOperations</a>
+<span class="lineNum">    1194 </span>            : 
+<span class="lineNum">    1195 </span><span class="lineCov">          1 : StorageDBThread::PendingOperations::PendingOperations()</span>
+<span class="lineNum">    1196 </span><span class="lineCov">          1 : : mFlushFailureCount(0)</span>
+<span class="lineNum">    1197 </span>            : {
+<span class="lineNum">    1198 </span><span class="lineCov">          1 : }</span>
+<a name="1199"><span class="lineNum">    1199 </span>            : </a>
+<span class="lineNum">    1200 </span>            : bool
+<span class="lineNum">    1201 </span><span class="lineCov">          1 : StorageDBThread::PendingOperations::HasTasks() const</span>
+<span class="lineNum">    1202 </span>            : {
+<span class="lineNum">    1203 </span><span class="lineCov">          1 :   return !!mUpdates.Count() || !!mClears.Count();</span>
+<span class="lineNum">    1204 </span>            : }
+<span class="lineNum">    1205 </span>            : 
+<a name="1206"><span class="lineNum">    1206 </span>            : namespace {</a>
+<span class="lineNum">    1207 </span>            : 
+<span class="lineNum">    1208 </span><span class="lineNoCov">          0 : bool OriginPatternMatches(const nsACString&amp; aOriginSuffix,</span>
+<span class="lineNum">    1209 </span>            :                           const OriginAttributesPattern&amp; aPattern)
+<span class="lineNum">    1210 </span>            : {
+<span class="lineNum">    1211 </span>            :   OriginAttributes oa;
+<span class="lineNum">    1212 </span><span class="lineNoCov">          0 :   DebugOnly&lt;bool&gt; rv = oa.PopulateFromSuffix(aOriginSuffix);</span>
+<span class="lineNum">    1213 </span>            :   MOZ_ASSERT(rv);
+<span class="lineNum">    1214 </span><span class="lineNoCov">          0 :   return aPattern.Matches(oa);</span>
+<span class="lineNum">    1215 </span>            : }
+<span class="lineNum">    1216 </span>            : 
+<span class="lineNum">    1217 </span>            : } // namespace
+<a name="1218"><span class="lineNum">    1218 </span>            : </a>
+<span class="lineNum">    1219 </span>            : bool
+<span class="lineNum">    1220 </span><span class="lineCov">          1 : StorageDBThread::PendingOperations::CheckForCoalesceOpportunity(DBOperation* aNewOp,</span>
+<span class="lineNum">    1221 </span>            :                                                                 DBOperation::OperationType aPendingType,
+<span class="lineNum">    1222 </span>            :                                                                 DBOperation::OperationType aNewType)
+<span class="lineNum">    1223 </span>            : {
+<span class="lineNum">    1224 </span><span class="lineCov">          1 :   if (aNewOp-&gt;Type() != aNewType) {</span>
+<span class="lineNum">    1225 </span>            :     return false;
+<span class="lineNum">    1226 </span>            :   }
+<span class="lineNum">    1227 </span>            : 
+<span class="lineNum">    1228 </span>            :   StorageDBThread::DBOperation* pendingTask;
+<span class="lineNum">    1229 </span><span class="lineCov">          1 :   if (!mUpdates.Get(aNewOp-&gt;Target(), &amp;pendingTask)) {</span>
+<span class="lineNum">    1230 </span>            :     return false;
+<span class="lineNum">    1231 </span>            :   }
+<span class="lineNum">    1232 </span>            : 
+<span class="lineNum">    1233 </span><span class="lineCov">          1 :   if (pendingTask-&gt;Type() != aPendingType) {</span>
+<span class="lineNum">    1234 </span>            :     return false;
+<span class="lineNum">    1235 </span>            :   }
+<span class="lineNum">    1236 </span>            : 
+<span class="lineNum">    1237 </span><span class="lineCov">          1 :   return true;</span>
+<span class="lineNum">    1238 </span>            : }
+<a name="1239"><span class="lineNum">    1239 </span>            : </a>
+<span class="lineNum">    1240 </span>            : void
+<span class="lineNum">    1241 </span><span class="lineCov">          1 : StorageDBThread::PendingOperations::Add(StorageDBThread::DBOperation* aOperation)</span>
+<span class="lineNum">    1242 </span>            : {
+<span class="lineNum">    1243 </span>            :   // Optimize: when a key to remove has never been written to disk
+<span class="lineNum">    1244 </span>            :   // just bypass this operation.  A key is new when an operation scheduled
+<span class="lineNum">    1245 </span>            :   // to write it to the database is of type opAddItem.
+<span class="lineNum">    1246 </span><span class="lineCov">          1 :   if (CheckForCoalesceOpportunity(aOperation, DBOperation::opAddItem,</span>
+<span class="lineNum">    1247 </span><span class="lineCov">          1 :                                   DBOperation::opRemoveItem)) {</span>
+<span class="lineNum">    1248 </span><span class="lineCov">          1 :     mUpdates.Remove(aOperation-&gt;Target());</span>
+<span class="lineNum">    1249 </span><span class="lineCov">          1 :     delete aOperation;</span>
+<span class="lineNum">    1250 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">    1251 </span>            :   }
+<span class="lineNum">    1252 </span>            : 
+<span class="lineNum">    1253 </span>            :   // Optimize: when changing a key that is new and has never been
+<span class="lineNum">    1254 </span>            :   // written to disk, keep type of the operation to store it at opAddItem.
+<span class="lineNum">    1255 </span>            :   // This allows optimization to just forget adding a new key when
+<span class="lineNum">    1256 </span>            :   // it is removed from the storage before flush.
+<span class="lineNum">    1257 </span><span class="lineCov">          1 :   if (CheckForCoalesceOpportunity(aOperation, DBOperation::opAddItem,</span>
+<span class="lineNum">    1258 </span><span class="lineCov">          1 :                                   DBOperation::opUpdateItem)) {</span>
+<span class="lineNum">    1259 </span><span class="lineCov">          1 :     aOperation-&gt;mType = DBOperation::opAddItem;</span>
+<span class="lineNum">    1260 </span>            :   }
+<span class="lineNum">    1261 </span>            : 
+<span class="lineNum">    1262 </span>            :   // Optimize: to prevent lose of remove operation on a key when doing
+<span class="lineNum">    1263 </span>            :   // remove/set/remove on a previously existing key we have to change
+<span class="lineNum">    1264 </span>            :   // opAddItem to opUpdateItem on the new operation when there is opRemoveItem
+<span class="lineNum">    1265 </span>            :   // pending for the key.
+<span class="lineNum">    1266 </span><span class="lineCov">          1 :   if (CheckForCoalesceOpportunity(aOperation, DBOperation::opRemoveItem,</span>
+<span class="lineNum">    1267 </span><span class="lineCov">          1 :                                   DBOperation::opAddItem)) {</span>
+<span class="lineNum">    1268 </span><span class="lineCov">          1 :     aOperation-&gt;mType = DBOperation::opUpdateItem;</span>
+<span class="lineNum">    1269 </span>            :   }
+<span class="lineNum">    1270 </span>            : 
+<span class="lineNum">    1271 </span><span class="lineCov">          1 :   switch (aOperation-&gt;Type())</span>
+<span class="lineNum">    1272 </span>            :   {
+<span class="lineNum">    1273 </span>            :   // Operations on single keys
+<span class="lineNum">    1274 </span>            : 
+<span class="lineNum">    1275 </span>            :   case DBOperation::opAddItem:
+<span class="lineNum">    1276 </span>            :   case DBOperation::opUpdateItem:
+<span class="lineNum">    1277 </span>            :   case DBOperation::opRemoveItem:
+<span class="lineNum">    1278 </span>            :     // Override any existing operation for the target (=scope+key).
+<span class="lineNum">    1279 </span><span class="lineCov">          1 :     mUpdates.Put(aOperation-&gt;Target(), aOperation);</span>
+<span class="lineNum">    1280 </span><span class="lineCov">          1 :     break;</span>
+<span class="lineNum">    1281 </span>            : 
+<span class="lineNum">    1282 </span>            :   // Clear operations
+<span class="lineNum">    1283 </span>            : 
+<span class="lineNum">    1284 </span>            :   case DBOperation::opClear:
+<span class="lineNum">    1285 </span>            :   case DBOperation::opClearMatchingOrigin:
+<span class="lineNum">    1286 </span>            :   case DBOperation::opClearMatchingOriginAttributes:
+<span class="lineNum">    1287 </span>            :     // Drop all update (insert/remove) operations for equivavelent or matching
+<span class="lineNum">    1288 </span>            :     // scope.  We do this as an optimization as well as a must based on the
+<span class="lineNum">    1289 </span>            :     // logic, if we would not delete the update tasks, changes would have been
+<span class="lineNum">    1290 </span>            :     // stored to the database after clear operations have been executed.
+<span class="lineNum">    1291 </span><span class="lineCov">          1 :     for (auto iter = mUpdates.Iter(); !iter.Done(); iter.Next()) {</span>
+<span class="lineNum">    1292 </span><span class="lineCov">          1 :       nsAutoPtr&lt;DBOperation&gt;&amp; pendingTask = iter.Data();</span>
+<span class="lineNum">    1293 </span>            : 
+<span class="lineNum">    1294 </span><span class="lineCov">          1 :       if (aOperation-&gt;Type() == DBOperation::opClear &amp;&amp;</span>
+<span class="lineNum">    1295 </span><span class="lineCov">          1 :           (pendingTask-&gt;OriginNoSuffix() != aOperation-&gt;OriginNoSuffix() ||</span>
+<span class="lineNum">    1296 </span><span class="lineCov">          1 :            pendingTask-&gt;OriginSuffix() != aOperation-&gt;OriginSuffix())) {</span>
+<span class="lineNum">    1297 </span>            :         continue;
+<span class="lineNum">    1298 </span>            :       }
+<span class="lineNum">    1299 </span>            : 
+<span class="lineNum">    1300 </span><span class="lineCov">          1 :       if (aOperation-&gt;Type() == DBOperation::opClearMatchingOrigin &amp;&amp;</span>
+<span class="lineNum">    1301 </span><span class="lineCov">          1 :           !StringBeginsWith(pendingTask-&gt;OriginNoSuffix(), aOperation-&gt;Origin())) {</span>
+<span class="lineNum">    1302 </span>            :         continue;
+<span class="lineNum">    1303 </span>            :       }
+<span class="lineNum">    1304 </span>            : 
+<span class="lineNum">    1305 </span><span class="lineCov">          1 :       if (aOperation-&gt;Type() == DBOperation::opClearMatchingOriginAttributes &amp;&amp;</span>
+<span class="lineNum">    1306 </span><span class="lineCov">          1 :           !OriginPatternMatches(pendingTask-&gt;OriginSuffix(), aOperation-&gt;OriginPattern())) {</span>
+<span class="lineNum">    1307 </span>            :         continue;
+<span class="lineNum">    1308 </span>            :       }
+<span class="lineNum">    1309 </span>            : 
+<span class="lineNum">    1310 </span><span class="lineCov">          1 :       iter.Remove();</span>
+<span class="lineNum">    1311 </span>            :     }
+<span class="lineNum">    1312 </span>            : 
+<span class="lineNum">    1313 </span><span class="lineCov">          1 :     mClears.Put(aOperation-&gt;Target(), aOperation);</span>
+<span class="lineNum">    1314 </span><span class="lineCov">          1 :     break;</span>
+<span class="lineNum">    1315 </span>            : 
+<span class="lineNum">    1316 </span>            :   case DBOperation::opClearAll:
+<span class="lineNum">    1317 </span>            :     // Drop simply everything, this is a super-operation.
+<span class="lineNum">    1318 </span><span class="lineCov">          1 :     mUpdates.Clear();</span>
+<span class="lineNum">    1319 </span><span class="lineCov">          1 :     mClears.Clear();</span>
+<span class="lineNum">    1320 </span><span class="lineCov">          1 :     mClears.Put(aOperation-&gt;Target(), aOperation);</span>
+<span class="lineNum">    1321 </span><span class="lineCov">          1 :     break;</span>
+<span class="lineNum">    1322 </span>            : 
+<span class="lineNum">    1323 </span>            :   default:
+<span class="lineNum">    1324 </span>            :     MOZ_ASSERT(false);
+<span class="lineNum">    1325 </span>            :     break;
+<span class="lineNum">    1326 </span>            :   }
+<span class="lineNum">    1327 </span>            : }
+<a name="1328"><span class="lineNum">    1328 </span>            : </a>
+<span class="lineNum">    1329 </span>            : bool
+<span class="lineNum">    1330 </span><span class="lineCov">          1 : StorageDBThread::PendingOperations::Prepare()</span>
+<span class="lineNum">    1331 </span>            : {
+<span class="lineNum">    1332 </span>            :   // Called under the lock
+<span class="lineNum">    1333 </span>            : 
+<span class="lineNum">    1334 </span>            :   // First collect clear operations and then updates, we can
+<span class="lineNum">    1335 </span>            :   // do this since whenever a clear operation for a scope is
+<span class="lineNum">    1336 </span>            :   // scheduled, we drop all updates matching that scope. So,
+<span class="lineNum">    1337 </span>            :   // all scope-related update operations we have here now were
+<span class="lineNum">    1338 </span>            :   // scheduled after the clear operations.
+<span class="lineNum">    1339 </span><span class="lineCov">          1 :   for (auto iter = mClears.Iter(); !iter.Done(); iter.Next()) {</span>
+<span class="lineNum">    1340 </span><span class="lineCov">          1 :     mExecList.AppendElement(iter.Data().forget());</span>
+<span class="lineNum">    1341 </span>            :   }
+<span class="lineNum">    1342 </span><span class="lineCov">          1 :   mClears.Clear();</span>
+<span class="lineNum">    1343 </span>            : 
+<span class="lineNum">    1344 </span><span class="lineCov">          1 :   for (auto iter = mUpdates.Iter(); !iter.Done(); iter.Next()) {</span>
+<span class="lineNum">    1345 </span><span class="lineCov">          1 :     mExecList.AppendElement(iter.Data().forget());</span>
+<span class="lineNum">    1346 </span>            :   }
+<span class="lineNum">    1347 </span><span class="lineCov">          1 :   mUpdates.Clear();</span>
+<span class="lineNum">    1348 </span>            : 
+<span class="lineNum">    1349 </span><span class="lineCov">          1 :   return !!mExecList.Length();</span>
+<span class="lineNum">    1350 </span>            : }
+<a name="1351"><span class="lineNum">    1351 </span>            : </a>
+<span class="lineNum">    1352 </span>            : nsresult
+<span class="lineNum">    1353 </span><span class="lineCov">          1 : StorageDBThread::PendingOperations::Execute(StorageDBThread* aThread)</span>
+<span class="lineNum">    1354 </span>            : {
+<span class="lineNum">    1355 </span>            :   // Called outside the lock
+<span class="lineNum">    1356 </span>            : 
+<span class="lineNum">    1357 </span><span class="lineCov">          1 :   mozStorageTransaction transaction(aThread-&gt;mWorkerConnection, false);</span>
+<span class="lineNum">    1358 </span>            : 
+<span class="lineNum">    1359 </span>            :   nsresult rv;
+<span class="lineNum">    1360 </span>            : 
+<span class="lineNum">    1361 </span><span class="lineCov">          1 :   for (uint32_t i = 0; i &lt; mExecList.Length(); ++i) {</span>
+<span class="lineNum">    1362 </span><span class="lineCov">          1 :     StorageDBThread::DBOperation* task = mExecList[i];</span>
+<span class="lineNum">    1363 </span><span class="lineCov">          1 :     rv = task-&gt;Perform(aThread);</span>
+<span class="lineNum">    1364 </span><span class="lineCov">          1 :     if (NS_FAILED(rv)) {</span>
+<span class="lineNum">    1365 </span><span class="lineNoCov">          0 :       return rv;</span>
+<span class="lineNum">    1366 </span>            :     }
+<span class="lineNum">    1367 </span>            :   }
+<span class="lineNum">    1368 </span>            : 
+<span class="lineNum">    1369 </span><span class="lineCov">          1 :   rv = transaction.Commit();</span>
+<span class="lineNum">    1370 </span><span class="lineCov">          1 :   if (NS_FAILED(rv)) {</span>
+<span class="lineNum">    1371 </span><span class="lineNoCov">          0 :     return rv;</span>
+<span class="lineNum">    1372 </span>            :   }
+<span class="lineNum">    1373 </span>            : 
+<span class="lineNum">    1374 </span><span class="lineCov">          1 :   return NS_OK;</span>
+<span class="lineNum">    1375 </span>            : }
+<a name="1376"><span class="lineNum">    1376 </span>            : </a>
+<span class="lineNum">    1377 </span>            : bool
+<span class="lineNum">    1378 </span><span class="lineCov">          1 : StorageDBThread::PendingOperations::Finalize(nsresult aRv)</span>
+<span class="lineNum">    1379 </span>            : {
+<span class="lineNum">    1380 </span>            :   // Called under the lock
+<span class="lineNum">    1381 </span>            : 
+<span class="lineNum">    1382 </span>            :   // The list is kept on a failure to retry it
+<span class="lineNum">    1383 </span><span class="lineCov">          1 :   if (NS_FAILED(aRv)) {</span>
+<span class="lineNum">    1384 </span>            :     // XXX Followup: we may try to reopen the database and flush these
+<span class="lineNum">    1385 </span>            :     // pending tasks, however testing showed that even though I/O is actually
+<span class="lineNum">    1386 </span>            :     // broken some amount of operations is left in sqlite+system buffers and
+<span class="lineNum">    1387 </span>            :     // seems like successfully flushed to disk.
+<span class="lineNum">    1388 </span>            :     // Tested by removing a flash card and disconnecting from network while
+<span class="lineNum">    1389 </span>            :     // using a network drive on Windows system.
+<span class="lineNum">    1390 </span>            :     NS_WARNING(&quot;Flush operation on localStorage database failed&quot;);
+<span class="lineNum">    1391 </span>            : 
+<span class="lineNum">    1392 </span><span class="lineNoCov">          0 :     ++mFlushFailureCount;</span>
+<span class="lineNum">    1393 </span>            : 
+<span class="lineNum">    1394 </span><span class="lineNoCov">          0 :     return mFlushFailureCount &gt;= 5;</span>
+<span class="lineNum">    1395 </span>            :   }
+<span class="lineNum">    1396 </span>            : 
+<span class="lineNum">    1397 </span><span class="lineCov">          1 :   mFlushFailureCount = 0;</span>
+<span class="lineNum">    1398 </span><span class="lineCov">          1 :   mExecList.Clear();</span>
+<span class="lineNum">    1399 </span><span class="lineCov">          1 :   return true;</span>
+<span class="lineNum">    1400 </span>            : }
+<span class="lineNum">    1401 </span>            : 
+<span class="lineNum">    1402 </span>            : namespace {
+<a name="1403"><span class="lineNum">    1403 </span>            : </a>
+<span class="lineNum">    1404 </span>            : bool
+<span class="lineNum">    1405 </span><span class="lineCov">          1 : FindPendingClearForOrigin(const nsACString&amp; aOriginSuffix,</span>
+<span class="lineNum">    1406 </span>            :                           const nsACString&amp; aOriginNoSuffix,
+<span class="lineNum">    1407 </span>            :                           StorageDBThread::DBOperation* aPendingOperation)
+<span class="lineNum">    1408 </span>            : {
+<span class="lineNum">    1409 </span><span class="lineCov">          1 :   if (aPendingOperation-&gt;Type() == StorageDBThread::DBOperation::opClearAll) {</span>
+<span class="lineNum">    1410 </span>            :     return true;
+<span class="lineNum">    1411 </span>            :   }
+<span class="lineNum">    1412 </span>            : 
+<span class="lineNum">    1413 </span><span class="lineCov">          1 :   if (aPendingOperation-&gt;Type() == StorageDBThread::DBOperation::opClear &amp;&amp;</span>
+<span class="lineNum">    1414 </span><span class="lineCov">          1 :       aOriginNoSuffix == aPendingOperation-&gt;OriginNoSuffix() &amp;&amp;</span>
+<span class="lineNum">    1415 </span><span class="lineCov">          1 :       aOriginSuffix == aPendingOperation-&gt;OriginSuffix()) {</span>
+<span class="lineNum">    1416 </span>            :     return true;
+<span class="lineNum">    1417 </span>            :   }
+<span class="lineNum">    1418 </span>            : 
+<span class="lineNum">    1419 </span><span class="lineCov">          1 :   if (aPendingOperation-&gt;Type() == StorageDBThread::DBOperation::opClearMatchingOrigin &amp;&amp;</span>
+<span class="lineNum">    1420 </span><span class="lineCov">          1 :       StringBeginsWith(aOriginNoSuffix, aPendingOperation-&gt;Origin())) {</span>
+<span class="lineNum">    1421 </span>            :     return true;
+<span class="lineNum">    1422 </span>            :   }
+<span class="lineNum">    1423 </span>            : 
+<span class="lineNum">    1424 </span><span class="lineCov">          1 :   if (aPendingOperation-&gt;Type() == StorageDBThread::DBOperation::opClearMatchingOriginAttributes &amp;&amp;</span>
+<span class="lineNum">    1425 </span><span class="lineNoCov">          0 :       OriginPatternMatches(aOriginSuffix, aPendingOperation-&gt;OriginPattern())) {</span>
+<span class="lineNum">    1426 </span>            :     return true;
+<span class="lineNum">    1427 </span>            :   }
+<span class="lineNum">    1428 </span>            : 
+<span class="lineNum">    1429 </span><span class="lineCov">          1 :   return false;</span>
+<span class="lineNum">    1430 </span>            : }
+<span class="lineNum">    1431 </span>            : 
+<span class="lineNum">    1432 </span>            : } // namespace
+<a name="1433"><span class="lineNum">    1433 </span>            : </a>
+<span class="lineNum">    1434 </span>            : bool
+<span class="lineNum">    1435 </span><span class="lineCov">          1 : StorageDBThread::PendingOperations::IsOriginClearPending(const nsACString&amp; aOriginSuffix,</span>
+<span class="lineNum">    1436 </span>            :                                                          const nsACString&amp; aOriginNoSuffix) const
+<span class="lineNum">    1437 </span>            : {
+<span class="lineNum">    1438 </span>            :   // Called under the lock
+<span class="lineNum">    1439 </span>            : 
+<span class="lineNum">    1440 </span><span class="lineCov">          1 :   for (auto iter = mClears.ConstIter(); !iter.Done(); iter.Next()) {</span>
+<span class="lineNum">    1441 </span><span class="lineCov">          1 :     if (FindPendingClearForOrigin(aOriginSuffix, aOriginNoSuffix, iter.UserData())) {</span>
+<span class="lineNum">    1442 </span><span class="lineCov">          1 :       return true;</span>
+<span class="lineNum">    1443 </span>            :     }
+<span class="lineNum">    1444 </span>            :   }
+<span class="lineNum">    1445 </span>            : 
+<span class="lineNum">    1446 </span><span class="lineCov">          1 :   for (uint32_t i = 0; i &lt; mExecList.Length(); ++i) {</span>
+<span class="lineNum">    1447 </span><span class="lineNoCov">          0 :     if (FindPendingClearForOrigin(aOriginSuffix, aOriginNoSuffix, mExecList[i])) {</span>
+<span class="lineNum">    1448 </span>            :       return true;
+<span class="lineNum">    1449 </span>            :     }
+<span class="lineNum">    1450 </span>            :   }
+<span class="lineNum">    1451 </span>            : 
+<span class="lineNum">    1452 </span>            :   return false;
+<span class="lineNum">    1453 </span>            : }
+<span class="lineNum">    1454 </span>            : 
+<span class="lineNum">    1455 </span>            : namespace {
+<a name="1456"><span class="lineNum">    1456 </span>            : </a>
+<span class="lineNum">    1457 </span>            : bool
+<span class="lineNum">    1458 </span><span class="lineCov">          1 : FindPendingUpdateForOrigin(const nsACString&amp; aOriginSuffix,</span>
+<span class="lineNum">    1459 </span>            :                            const nsACString&amp; aOriginNoSuffix,
+<span class="lineNum">    1460 </span>            :                            StorageDBThread::DBOperation* aPendingOperation)
+<span class="lineNum">    1461 </span>            : {
+<span class="lineNum">    1462 </span><span class="lineCov">          1 :   if ((aPendingOperation-&gt;Type() == StorageDBThread::DBOperation::opAddItem ||</span>
+<span class="lineNum">    1463 </span><span class="lineNoCov">          0 :        aPendingOperation-&gt;Type() == StorageDBThread::DBOperation::opUpdateItem ||</span>
+<span class="lineNum">    1464 </span><span class="lineCov">          1 :        aPendingOperation-&gt;Type() == StorageDBThread::DBOperation::opRemoveItem) &amp;&amp;</span>
+<span class="lineNum">    1465 </span><span class="lineCov">          1 :        aOriginNoSuffix == aPendingOperation-&gt;OriginNoSuffix() &amp;&amp;</span>
+<span class="lineNum">    1466 </span><span class="lineCov">          1 :        aOriginSuffix == aPendingOperation-&gt;OriginSuffix()) {</span>
+<span class="lineNum">    1467 </span>            :     return true;
+<span class="lineNum">    1468 </span>            :   }
+<span class="lineNum">    1469 </span>            : 
+<span class="lineNum">    1470 </span><span class="lineCov">          1 :   return false;</span>
+<span class="lineNum">    1471 </span>            : }
+<span class="lineNum">    1472 </span>            : 
+<span class="lineNum">    1473 </span>            : } // namespace
+<a name="1474"><span class="lineNum">    1474 </span>            : </a>
+<span class="lineNum">    1475 </span>            : bool
+<span class="lineNum">    1476 </span><span class="lineCov">          1 : StorageDBThread::PendingOperations::IsOriginUpdatePending(const nsACString&amp; aOriginSuffix,</span>
+<span class="lineNum">    1477 </span>            :                                                           const nsACString&amp; aOriginNoSuffix) const
+<span class="lineNum">    1478 </span>            : {
+<span class="lineNum">    1479 </span>            :   // Called under the lock
+<span class="lineNum">    1480 </span>            : 
+<span class="lineNum">    1481 </span><span class="lineCov">          1 :   for (auto iter = mUpdates.ConstIter(); !iter.Done(); iter.Next()) {</span>
+<span class="lineNum">    1482 </span><span class="lineCov">          1 :     if (FindPendingUpdateForOrigin(aOriginSuffix, aOriginNoSuffix, iter.UserData())) {</span>
+<span class="lineNum">    1483 </span><span class="lineNoCov">          0 :       return true;</span>
+<span class="lineNum">    1484 </span>            :     }
+<span class="lineNum">    1485 </span>            :   }
+<span class="lineNum">    1486 </span>            : 
+<span class="lineNum">    1487 </span><span class="lineCov">          1 :   for (uint32_t i = 0; i &lt; mExecList.Length(); ++i) {</span>
+<span class="lineNum">    1488 </span><span class="lineNoCov">          0 :     if (FindPendingUpdateForOrigin(aOriginSuffix, aOriginNoSuffix, mExecList[i])) {</span>
+<span class="lineNum">    1489 </span>            :       return true;
+<span class="lineNum">    1490 </span>            :     }
+<span class="lineNum">    1491 </span>            :   }
+<span class="lineNum">    1492 </span>            : 
+<span class="lineNum">    1493 </span>            :   return false;
+<span class="lineNum">    1494 </span>            : }
+<span class="lineNum">    1495 </span>            : 
+<span class="lineNum">    1496 </span>            : } // namespace dom
+<span class="lineNum">    1497 </span>            : } // namespace mozilla
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

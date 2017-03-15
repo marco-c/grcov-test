@@ -1,0 +1,1144 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - js/src/frontend/TokenStream.h</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">js/src/frontend</a> - TokenStream.h<span style="font-size: 80%;"> (source / <a href="TokenStream.h.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">127</td>
+            <td class="headerCovTableEntry">149</td>
+            <td class="headerCovTableEntryMed">85.2 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">15</td>
+            <td class="headerCovTableEntry">16</td>
+            <td class="headerCovTableEntryHi">93.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-</a>
+<span class="lineNum">       2 </span>            :  * vim: set ts=8 sts=4 et sw=4 tw=99:
+<span class="lineNum">       3 </span>            :  * This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #ifndef frontend_TokenStream_h
+<span class="lineNum">       8 </span>            : #define frontend_TokenStream_h
+<span class="lineNum">       9 </span>            : 
+<span class="lineNum">      10 </span>            : // JS lexical scanner interface.
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : #include &quot;mozilla/ArrayUtils.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;mozilla/Assertions.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;mozilla/Attributes.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;mozilla/DebugOnly.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;mozilla/PodOperations.h&quot;
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : #include &lt;stdarg.h&gt;
+<span class="lineNum">      19 </span>            : #include &lt;stddef.h&gt;
+<span class="lineNum">      20 </span>            : #include &lt;stdio.h&gt;
+<span class="lineNum">      21 </span>            : 
+<span class="lineNum">      22 </span>            : #include &quot;jscntxt.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;jspubtd.h&quot;
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : #include &quot;frontend/TokenKind.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;js/UniquePtr.h&quot;
+<span class="lineNum">      27 </span>            : #include &quot;js/Vector.h&quot;
+<span class="lineNum">      28 </span>            : #include &quot;vm/RegExpObject.h&quot;
+<span class="lineNum">      29 </span>            : #include &quot;vm/String.h&quot;
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : struct KeywordInfo;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : namespace js {
+<span class="lineNum">      34 </span>            : namespace frontend {
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : struct TokenPos {
+<span class="lineNum">      37 </span>            :     uint32_t    begin;  // Offset of the token's first char.
+<span class="lineNum">      38 </span>            :     uint32_t    end;    // Offset of 1 past the token's last char.
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            :     TokenPos() {}
+<span class="lineNum">      41 </span><span class="lineCov">          1 :     TokenPos(uint32_t begin, uint32_t end) : begin(begin), end(end) {}</span>
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            :     // Return a TokenPos that covers left, right, and anything in between.
+<span class="lineNum">      44 </span>            :     static TokenPos box(const TokenPos&amp; left, const TokenPos&amp; right) {
+<span class="lineNum">      45 </span>            :         MOZ_ASSERT(left.begin &lt;= left.end);
+<span class="lineNum">      46 </span>            :         MOZ_ASSERT(left.end &lt;= right.begin);
+<span class="lineNum">      47 </span>            :         MOZ_ASSERT(right.begin &lt;= right.end);
+<span class="lineNum">      48 </span><span class="lineCov">          1 :         return TokenPos(left.begin, right.end);</span>
+<span class="lineNum">      49 </span>            :     }
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            :     bool operator==(const TokenPos&amp; bpos) const {
+<span class="lineNum">      52 </span>            :         return begin == bpos.begin &amp;&amp; end == bpos.end;
+<span class="lineNum">      53 </span>            :     }
+<span class="lineNum">      54 </span>            : 
+<span class="lineNum">      55 </span>            :     bool operator!=(const TokenPos&amp; bpos) const {
+<span class="lineNum">      56 </span>            :         return begin != bpos.begin || end != bpos.end;
+<span class="lineNum">      57 </span>            :     }
+<span class="lineNum">      58 </span>            : 
+<span class="lineNum">      59 </span>            :     bool operator &lt;(const TokenPos&amp; bpos) const {
+<span class="lineNum">      60 </span>            :         return begin &lt; bpos.begin;
+<span class="lineNum">      61 </span>            :     }
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span>            :     bool operator &lt;=(const TokenPos&amp; bpos) const {
+<span class="lineNum">      64 </span>            :         return begin &lt;= bpos.begin;
+<span class="lineNum">      65 </span>            :     }
+<span class="lineNum">      66 </span>            : 
+<span class="lineNum">      67 </span>            :     bool operator &gt;(const TokenPos&amp; bpos) const {
+<span class="lineNum">      68 </span>            :         return !(*this &lt;= bpos);
+<span class="lineNum">      69 </span>            :     }
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span>            :     bool operator &gt;=(const TokenPos&amp; bpos) const {
+<span class="lineNum">      72 </span>            :         return !(*this &lt; bpos);
+<span class="lineNum">      73 </span>            :     }
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span>            :     bool encloses(const TokenPos&amp; pos) const {
+<span class="lineNum">      76 </span>            :         return begin &lt;= pos.begin &amp;&amp; pos.end &lt;= end;
+<span class="lineNum">      77 </span>            :     }
+<span class="lineNum">      78 </span>            : };
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span>            : enum DecimalPoint { NoDecimal = false, HasDecimal = true };
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            : enum class InvalidEscapeType {
+<span class="lineNum">      83 </span>            :     // No invalid character escapes.
+<span class="lineNum">      84 </span>            :     None,
+<span class="lineNum">      85 </span>            :     // A malformed \x escape.
+<span class="lineNum">      86 </span>            :     Hexadecimal,
+<span class="lineNum">      87 </span>            :     // A malformed \u escape.
+<span class="lineNum">      88 </span>            :     Unicode,
+<span class="lineNum">      89 </span>            :     // An otherwise well-formed \u escape which represents a
+<span class="lineNum">      90 </span>            :     // codepoint &gt; 10FFFF.
+<span class="lineNum">      91 </span>            :     UnicodeOverflow,
+<span class="lineNum">      92 </span>            :     // An octal escape in a template token.
+<span class="lineNum">      93 </span>            :     Octal
+<span class="lineNum">      94 </span>            : };
+<span class="lineNum">      95 </span>            : 
+<span class="lineNum">      96 </span>            : class TokenStream;
+<span class="lineNum">      97 </span>            : 
+<span class="lineNum">      98 </span><span class="lineCov">          1 : struct Token</span>
+<span class="lineNum">      99 </span>            : {
+<span class="lineNum">     100 </span>            :   private:
+<span class="lineNum">     101 </span>            :     // Sometimes the parser needs to inform the tokenizer to interpret
+<span class="lineNum">     102 </span>            :     // subsequent text in a particular manner: for example, to tokenize a
+<span class="lineNum">     103 </span>            :     // keyword as an identifier, not as the actual keyword, on the right-hand
+<span class="lineNum">     104 </span>            :     // side of a dotted property access.  Such information is communicated to
+<span class="lineNum">     105 </span>            :     // the tokenizer as a Modifier when getting the next token.
+<span class="lineNum">     106 </span>            :     //
+<span class="lineNum">     107 </span>            :     // Ideally this definition would reside in TokenStream as that's the real
+<span class="lineNum">     108 </span>            :     // user, but the debugging-use of it here causes a cyclic dependency (and
+<span class="lineNum">     109 </span>            :     // C++ provides no way to forward-declare an enum inside a class).  So
+<span class="lineNum">     110 </span>            :     // define it here, then typedef it into TokenStream with static consts to
+<span class="lineNum">     111 </span>            :     // bring the initializers into scope.
+<span class="lineNum">     112 </span>            :     enum Modifier
+<span class="lineNum">     113 </span>            :     {
+<span class="lineNum">     114 </span>            :         // Normal operation.
+<span class="lineNum">     115 </span>            :         None,
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            :         // Looking for an operand, not an operator.  In practice, this means
+<span class="lineNum">     118 </span>            :         // that when '/' is seen, we look for a regexp instead of just returning
+<span class="lineNum">     119 </span>            :         // TOK_DIV.
+<span class="lineNum">     120 </span>            :         Operand,
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span>            :         // Treat subsequent characters as the tail of a template literal, after
+<span class="lineNum">     123 </span>            :         // a template substitution, beginning with a &quot;}&quot;, continuing with zero
+<span class="lineNum">     124 </span>            :         // or more template literal characters, and ending with either &quot;${&quot; or
+<span class="lineNum">     125 </span>            :         // the end of the template literal.  For example:
+<span class="lineNum">     126 </span>            :         //
+<span class="lineNum">     127 </span>            :         //   var entity = &quot;world&quot;;
+<span class="lineNum">     128 </span>            :         //   var s = `Hello ${entity}!`;
+<span class="lineNum">     129 </span>            :         //                          ^ TemplateTail context
+<span class="lineNum">     130 </span>            :         TemplateTail,
+<span class="lineNum">     131 </span>            :     };
+<span class="lineNum">     132 </span>            :     enum ModifierException
+<span class="lineNum">     133 </span>            :     {
+<span class="lineNum">     134 </span>            :         NoException,
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span>            :         // Used in following 2 cases:
+<span class="lineNum">     137 </span>            :         // a) After |yield| we look for a token on the same line that starts an
+<span class="lineNum">     138 </span>            :         // expression (Operand): |yield &lt;expr&gt;|.  If no token is found, the
+<span class="lineNum">     139 </span>            :         // |yield| stands alone, and the next token on a subsequent line must
+<span class="lineNum">     140 </span>            :         // be: a comma continuing a comma expression, a semicolon terminating
+<span class="lineNum">     141 </span>            :         // the statement that ended with |yield|, or the start of another
+<span class="lineNum">     142 </span>            :         // statement (possibly an expression statement).  The comma/semicolon
+<span class="lineNum">     143 </span>            :         // cases are gotten as operators (None), contrasting with Operand
+<span class="lineNum">     144 </span>            :         // earlier.
+<span class="lineNum">     145 </span>            :         // b) After an arrow function with a block body in an expression
+<span class="lineNum">     146 </span>            :         // statement, the next token must be: a colon in a conditional
+<span class="lineNum">     147 </span>            :         // expression, a comma continuing a comma expression, a semicolon
+<span class="lineNum">     148 </span>            :         // terminating the statement, or the token on a subsequent line that is
+<span class="lineNum">     149 </span>            :         // the start of another statement (possibly an expression statement).
+<span class="lineNum">     150 </span>            :         // Colon is gotten as operator (None), and it should only be gotten in
+<span class="lineNum">     151 </span>            :         // conditional expression and missing it results in SyntaxError.
+<span class="lineNum">     152 </span>            :         // Comma/semicolon cases are also gotten as operators (None), and 4th
+<span class="lineNum">     153 </span>            :         // case is gotten after them.  If no comma/semicolon found but EOL,
+<span class="lineNum">     154 </span>            :         // the next token should be gotten as operand in 4th case (especially if
+<span class="lineNum">     155 </span>            :         // '/' is the first character).  So we should peek the token as
+<span class="lineNum">     156 </span>            :         // operand before try getting colon/comma/semicolon.
+<span class="lineNum">     157 </span>            :         // See also the comment in Parser::assignExpr().
+<span class="lineNum">     158 </span>            :         NoneIsOperand,
+<span class="lineNum">     159 </span>            : 
+<span class="lineNum">     160 </span>            :         // If a semicolon is inserted automatically, the next token is already
+<span class="lineNum">     161 </span>            :         // gotten with None, but we expect Operand.
+<span class="lineNum">     162 </span>            :         OperandIsNone,
+<span class="lineNum">     163 </span>            :     };
+<span class="lineNum">     164 </span>            :     friend class TokenStream;
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span>            :   public:
+<span class="lineNum">     167 </span>            :     TokenKind           type;           // char value or above enumerator
+<span class="lineNum">     168 </span>            :     TokenPos            pos;            // token position in file
+<span class="lineNum">     169 </span>            :     union {
+<span class="lineNum">     170 </span>            :       private:
+<span class="lineNum">     171 </span>            :         friend struct Token;
+<span class="lineNum">     172 </span>            :         PropertyName*   name;          // non-numeric atom
+<span class="lineNum">     173 </span>            :         JSAtom*         atom;          // potentially-numeric atom
+<span class="lineNum">     174 </span>            :         struct {
+<span class="lineNum">     175 </span>            :             double      value;          // floating point number
+<span class="lineNum">     176 </span>            :             DecimalPoint decimalPoint;  // literal contains '.'
+<span class="lineNum">     177 </span>            :         } number;
+<span class="lineNum">     178 </span>            :         RegExpFlag      reflags;        // regexp flags; use tokenbuf to access
+<span class="lineNum">     179 </span>            :                                         //   regexp chars
+<span class="lineNum">     180 </span>            :     } u;
+<span class="lineNum">     181 </span>            : #ifdef DEBUG
+<span class="lineNum">     182 </span>            :     Modifier modifier;                  // Modifier used to get this token
+<span class="lineNum">     183 </span>            :     ModifierException modifierException; // Exception for this modifier
+<span class="lineNum">     184 </span>            : #endif
+<span class="lineNum">     185 </span>            : 
+<span class="lineNum">     186 </span>            :     // Mutators
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span>            :     void setName(PropertyName* name) {
+<span class="lineNum">     189 </span>            :         MOZ_ASSERT(type == TOK_NAME);
+<span class="lineNum">     190 </span><span class="lineCov">          1 :         u.name = name;</span>
+<span class="lineNum">     191 </span>            :     }
+<span class="lineNum">     192 </span>            : 
+<span class="lineNum">     193 </span>            :     void setAtom(JSAtom* atom) {
+<span class="lineNum">     194 </span>            :         MOZ_ASSERT(type == TOK_STRING ||
+<span class="lineNum">     195 </span>            :                    type == TOK_TEMPLATE_HEAD ||
+<span class="lineNum">     196 </span>            :                    type == TOK_NO_SUBS_TEMPLATE);
+<span class="lineNum">     197 </span><span class="lineCov">          1 :         u.atom = atom;</span>
+<span class="lineNum">     198 </span>            :     }
+<span class="lineNum">     199 </span>            : 
+<span class="lineNum">     200 </span>            :     void setRegExpFlags(js::RegExpFlag flags) {
+<span class="lineNum">     201 </span>            :         MOZ_ASSERT(type == TOK_REGEXP);
+<span class="lineNum">     202 </span>            :         MOZ_ASSERT((flags &amp; AllFlags) == flags);
+<span class="lineNum">     203 </span><span class="lineCov">          1 :         u.reflags = flags;</span>
+<span class="lineNum">     204 </span>            :     }
+<span class="lineNum">     205 </span>            : 
+<span class="lineNum">     206 </span>            :     void setNumber(double n, DecimalPoint decimalPoint) {
+<span class="lineNum">     207 </span>            :         MOZ_ASSERT(type == TOK_NUMBER);
+<span class="lineNum">     208 </span><span class="lineCov">          1 :         u.number.value = n;</span>
+<span class="lineNum">     209 </span><span class="lineCov">          1 :         u.number.decimalPoint = decimalPoint;</span>
+<span class="lineNum">     210 </span>            :     }
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span>            :     // Type-safe accessors
+<span class="lineNum">     213 </span>            : 
+<span class="lineNum">     214 </span>            :     PropertyName* name() const {
+<span class="lineNum">     215 </span>            :         MOZ_ASSERT(type == TOK_NAME);
+<span class="lineNum">     216 </span><span class="lineCov">          1 :         return u.name-&gt;JSAtom::asPropertyName(); // poor-man's type verification</span>
+<span class="lineNum">     217 </span>            :     }
+<span class="lineNum">     218 </span>            : 
+<span class="lineNum">     219 </span>            :     JSAtom* atom() const {
+<span class="lineNum">     220 </span>            :         MOZ_ASSERT(type == TOK_STRING ||
+<span class="lineNum">     221 </span>            :                    type == TOK_TEMPLATE_HEAD ||
+<span class="lineNum">     222 </span>            :                    type == TOK_NO_SUBS_TEMPLATE);
+<span class="lineNum">     223 </span>            :         return u.atom;
+<span class="lineNum">     224 </span>            :     }
+<span class="lineNum">     225 </span>            : 
+<span class="lineNum">     226 </span>            :     js::RegExpFlag regExpFlags() const {
+<span class="lineNum">     227 </span>            :         MOZ_ASSERT(type == TOK_REGEXP);
+<span class="lineNum">     228 </span>            :         MOZ_ASSERT((u.reflags &amp; AllFlags) == u.reflags);
+<span class="lineNum">     229 </span>            :         return u.reflags;
+<span class="lineNum">     230 </span>            :     }
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span>            :     double number() const {
+<span class="lineNum">     233 </span>            :         MOZ_ASSERT(type == TOK_NUMBER);
+<span class="lineNum">     234 </span>            :         return u.number.value;
+<span class="lineNum">     235 </span>            :     }
+<span class="lineNum">     236 </span>            : 
+<span class="lineNum">     237 </span>            :     DecimalPoint decimalPoint() const {
+<span class="lineNum">     238 </span>            :         MOZ_ASSERT(type == TOK_NUMBER);
+<span class="lineNum">     239 </span>            :         return u.number.decimalPoint;
+<span class="lineNum">     240 </span>            :     }
+<a name="241"><span class="lineNum">     241 </span>            : };</a>
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span><span class="lineCov">          1 : class CompileError : public JSErrorReport {</span>
+<span class="lineNum">     244 </span>            :   public:
+<span class="lineNum">     245 </span>            :     void throwError(JSContext* cx);
+<span class="lineNum">     246 </span>            : };
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span>            : extern const char*
+<span class="lineNum">     249 </span>            : ReservedWordToCharZ(PropertyName* str);
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span>            : extern MOZ_MUST_USE bool
+<span class="lineNum">     252 </span>            : IsFutureReservedWord(JSLinearString* str);
+<span class="lineNum">     253 </span>            : 
+<span class="lineNum">     254 </span>            : extern MOZ_MUST_USE bool
+<span class="lineNum">     255 </span>            : IsReservedWordLiteral(JSLinearString* str);
+<span class="lineNum">     256 </span>            : 
+<span class="lineNum">     257 </span>            : extern MOZ_MUST_USE bool
+<span class="lineNum">     258 </span>            : IsStrictReservedWord(JSLinearString* str);
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span>            : // Ideally, tokenizing would be entirely independent of context.  But the
+<span class="lineNum">     261 </span>            : // strict mode flag, which is in SharedContext, affects tokenizing, and
+<span class="lineNum">     262 </span>            : // TokenStream needs to see it.
+<span class="lineNum">     263 </span>            : //
+<span class="lineNum">     264 </span>            : // This class is a tiny back-channel from TokenStream to the strict mode flag
+<span class="lineNum">     265 </span>            : // that avoids exposing the rest of SharedContext to TokenStream.
+<span class="lineNum">     266 </span>            : //
+<span class="lineNum">     267 </span><span class="lineCov">          1 : class StrictModeGetter {</span>
+<span class="lineNum">     268 </span>            :   public:
+<span class="lineNum">     269 </span>            :     virtual bool strictMode() = 0;
+<span class="lineNum">     270 </span>            : };
+<span class="lineNum">     271 </span>            : 
+<span class="lineNum">     272 </span>            : // TokenStream is the lexical scanner for Javascript source text.
+<span class="lineNum">     273 </span>            : //
+<span class="lineNum">     274 </span>            : // It takes a buffer of char16_t characters and linearly scans it into |Token|s.
+<span class="lineNum">     275 </span>            : // Internally the class uses a four element circular buffer |tokens| of
+<span class="lineNum">     276 </span>            : // |Token|s. As an index for |tokens|, the member |cursor| points to the
+<span class="lineNum">     277 </span>            : // current token.
+<span class="lineNum">     278 </span>            : // Calls to getToken() increase |cursor| by one and return the new current
+<span class="lineNum">     279 </span>            : // token. If a TokenStream was just created, the current token is initialized
+<span class="lineNum">     280 </span>            : // with random data (i.e. not initialized). It is therefore important that
+<span class="lineNum">     281 </span>            : // one of the first four member functions listed below is called first.
+<span class="lineNum">     282 </span>            : // The circular buffer lets us go back up to two tokens from the last
+<span class="lineNum">     283 </span>            : // scanned token. Internally, the relative number of backward steps that were
+<span class="lineNum">     284 </span>            : // taken (via ungetToken()) after the last token was scanned is stored in
+<span class="lineNum">     285 </span>            : // |lookahead|.
+<span class="lineNum">     286 </span>            : //
+<span class="lineNum">     287 </span>            : // The following table lists in which situations it is safe to call each listed
+<span class="lineNum">     288 </span>            : // function. No checks are made by the functions in non-debug builds.
+<span class="lineNum">     289 </span>            : //
+<span class="lineNum">     290 </span>            : // Function Name     | Precondition; changes to |lookahead|
+<span class="lineNum">     291 </span>            : // ------------------+---------------------------------------------------------
+<span class="lineNum">     292 </span>            : // getToken          | none; if |lookahead &gt; 0| then |lookahead--|
+<span class="lineNum">     293 </span>            : // peekToken         | none; if |lookahead == 0| then |lookahead == 1|
+<span class="lineNum">     294 </span>            : // peekTokenSameLine | none; if |lookahead == 0| then |lookahead == 1|
+<span class="lineNum">     295 </span>            : // matchToken        | none; if |lookahead &gt; 0| and the match succeeds then
+<span class="lineNum">     296 </span>            : //                   |       |lookahead--|
+<span class="lineNum">     297 </span>            : // consumeKnownToken | none; if |lookahead &gt; 0| then |lookahead--|
+<span class="lineNum">     298 </span>            : // ungetToken        | 0 &lt;= |lookahead| &lt;= |maxLookahead - 1|; |lookahead++|
+<span class="lineNum">     299 </span>            : //
+<span class="lineNum">     300 </span>            : // The behavior of the token scanning process (see getTokenInternal()) can be
+<span class="lineNum">     301 </span>            : // modified by calling one of the first four above listed member functions with
+<span class="lineNum">     302 </span>            : // an optional argument of type Modifier.  However, the modifier will be
+<span class="lineNum">     303 </span>            : // ignored unless |lookahead == 0| holds.  Due to constraints of the grammar,
+<span class="lineNum">     304 </span>            : // this turns out not to be a problem in practice. See the
+<span class="lineNum">     305 </span>            : // mozilla.dev.tech.js-engine.internals thread entitled 'Bug in the scanner?'
+<span class="lineNum">     306 </span>            : // for more details:
+<span class="lineNum">     307 </span>            : // https://groups.google.com/forum/?fromgroups=#!topic/mozilla.dev.tech.js-engine.internals/2JLH5jRcr7E).
+<span class="lineNum">     308 </span>            : //
+<span class="lineNum">     309 </span>            : // The methods seek() and tell() allow to rescan from a previous visited
+<span class="lineNum">     310 </span>            : // location of the buffer.
+<span class="lineNum">     311 </span>            : //
+<span class="lineNum">     312 </span>            : class MOZ_STACK_CLASS TokenStream
+<span class="lineNum">     313 </span>            : {
+<span class="lineNum">     314 </span>            :     // Unicode separators that are treated as line terminators, in addition to \n, \r.
+<span class="lineNum">     315 </span>            :     enum {
+<span class="lineNum">     316 </span>            :         LINE_SEPARATOR = 0x2028,
+<span class="lineNum">     317 </span>            :         PARA_SEPARATOR = 0x2029
+<span class="lineNum">     318 </span>            :     };
+<span class="lineNum">     319 </span>            : 
+<span class="lineNum">     320 </span>            :     static const size_t ntokens = 4;                // 1 current + 2 lookahead, rounded
+<span class="lineNum">     321 </span>            :                                                     // to power of 2 to avoid divmod by 3
+<span class="lineNum">     322 </span>            :     static const unsigned maxLookahead = 2;
+<span class="lineNum">     323 </span>            :     static const unsigned ntokensMask = ntokens - 1;
+<span class="lineNum">     324 </span>            : 
+<span class="lineNum">     325 </span>            :   public:
+<span class="lineNum">     326 </span>            :     typedef Vector&lt;char16_t, 32&gt; CharBuffer;
+<span class="lineNum">     327 </span>            : 
+<span class="lineNum">     328 </span>            :     TokenStream(JSContext* cx, const ReadOnlyCompileOptions&amp; options,
+<span class="lineNum">     329 </span>            :                 const char16_t* base, size_t length, StrictModeGetter* smg);
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span>            :     ~TokenStream();
+<span class="lineNum">     332 </span>            : 
+<span class="lineNum">     333 </span>            :     MOZ_MUST_USE bool checkOptions();
+<a name="334"><span class="lineNum">     334 </span>            : </a>
+<span class="lineNum">     335 </span>            :     // Accessors.
+<span class="lineNum">     336 </span><span class="lineCov">          1 :     const Token&amp; currentToken() const { return tokens[cursor]; }</span>
+<span class="lineNum">     337 </span>            :     bool isCurrentTokenType(TokenKind type) const {
+<span class="lineNum">     338 </span><span class="lineCov">          1 :         return currentToken().type == type;</span>
+<span class="lineNum">     339 </span>            :     }
+<span class="lineNum">     340 </span>            :     const CharBuffer&amp; getTokenbuf() const { return tokenbuf; }
+<span class="lineNum">     341 </span>            :     const char* getFilename() const { return filename; }
+<span class="lineNum">     342 </span>            :     bool getMutedErrors() const { return mutedErrors; }
+<span class="lineNum">     343 </span><span class="lineCov">          1 :     JSVersion versionNumber() const { return VersionNumber(options().version); }</span>
+<span class="lineNum">     344 </span>            :     JSVersion versionWithFlags() const { return options().version; }
+<span class="lineNum">     345 </span>            : 
+<span class="lineNum">     346 </span>            :   private:
+<span class="lineNum">     347 </span>            :     PropertyName* reservedWordToPropertyName(TokenKind tt) const;
+<span class="lineNum">     348 </span>            : 
+<span class="lineNum">     349 </span>            :   public:
+<span class="lineNum">     350 </span>            :     PropertyName* currentName() const {
+<span class="lineNum">     351 </span><span class="lineCov">          1 :         if (isCurrentTokenType(TOK_NAME))</span>
+<span class="lineNum">     352 </span>            :             return currentToken().name();
+<span class="lineNum">     353 </span>            : 
+<span class="lineNum">     354 </span>            :         MOZ_ASSERT(TokenKindIsPossibleIdentifierName(currentToken().type));
+<span class="lineNum">     355 </span><span class="lineCov">          1 :         return reservedWordToPropertyName(currentToken().type);</span>
+<span class="lineNum">     356 </span>            :     }
+<span class="lineNum">     357 </span>            : 
+<span class="lineNum">     358 </span>            :     PropertyName* nextName() const {
+<span class="lineNum">     359 </span>            :         if (nextToken().type != TOK_NAME)
+<span class="lineNum">     360 </span>            :             return nextToken().name();
+<span class="lineNum">     361 </span>            : 
+<span class="lineNum">     362 </span>            :         MOZ_ASSERT(TokenKindIsPossibleIdentifierName(nextToken().type));
+<span class="lineNum">     363 </span>            :         return reservedWordToPropertyName(nextToken().type);
+<span class="lineNum">     364 </span>            :     }
+<span class="lineNum">     365 </span>            : 
+<span class="lineNum">     366 </span>            :     bool isCurrentTokenAssignment() const {
+<span class="lineNum">     367 </span>            :         return TokenKindIsAssignment(currentToken().type);
+<span class="lineNum">     368 </span>            :     }
+<span class="lineNum">     369 </span>            : 
+<span class="lineNum">     370 </span>            :     // Flag methods.
+<span class="lineNum">     371 </span><span class="lineCov">          1 :     bool isEOF() const { return flags.isEOF; }</span>
+<span class="lineNum">     372 </span><span class="lineCov">          1 :     bool sawOctalEscape() const { return flags.sawOctalEscape; }</span>
+<span class="lineNum">     373 </span><span class="lineCov">          1 :     bool hadError() const { return flags.hadError; }</span>
+<span class="lineNum">     374 </span><span class="lineCov">          1 :     void clearSawOctalEscape() { flags.sawOctalEscape = false; }</span>
+<span class="lineNum">     375 </span>            : 
+<span class="lineNum">     376 </span>            :     bool hasInvalidTemplateEscape() const {
+<span class="lineNum">     377 </span>            :         return invalidTemplateEscapeType != InvalidEscapeType::None;
+<span class="lineNum">     378 </span>            :     }
+<span class="lineNum">     379 </span>            :     void clearInvalidTemplateEscape() {
+<span class="lineNum">     380 </span><span class="lineNoCov">          0 :         invalidTemplateEscapeType = InvalidEscapeType::None;</span>
+<span class="lineNum">     381 </span>            :     }
+<span class="lineNum">     382 </span>            : 
+<span class="lineNum">     383 </span>            :     // If there is an invalid escape in a template, report it and return false,
+<span class="lineNum">     384 </span>            :     // otherwise return true.
+<span class="lineNum">     385 </span>            :     bool checkForInvalidTemplateEscapeError() {
+<span class="lineNum">     386 </span><span class="lineCov">          1 :         if (invalidTemplateEscapeType == InvalidEscapeType::None)</span>
+<span class="lineNum">     387 </span>            :             return true;
+<span class="lineNum">     388 </span>            : 
+<span class="lineNum">     389 </span><span class="lineNoCov">          0 :         reportInvalidEscapeError(invalidTemplateEscapeOffset, invalidTemplateEscapeType);</span>
+<span class="lineNum">     390 </span>            :         return false;
+<span class="lineNum">     391 </span>            :     }
+<span class="lineNum">     392 </span>            : 
+<span class="lineNum">     393 </span>            :     // TokenStream-specific error reporters.
+<span class="lineNum">     394 </span>            :     bool reportError(unsigned errorNumber, ...);
+<span class="lineNum">     395 </span>            :     bool reportErrorNoOffset(unsigned errorNumber, ...);
+<span class="lineNum">     396 </span>            : 
+<span class="lineNum">     397 </span>            :     // Report the given error at the current offset.
+<span class="lineNum">     398 </span>            :     void error(unsigned errorNumber, ...);
+<span class="lineNum">     399 </span>            : 
+<span class="lineNum">     400 </span>            :     // Report the given error at the given offset.
+<span class="lineNum">     401 </span>            :     void errorAt(uint32_t offset, unsigned errorNumber, ...);
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span>            :     // Warn at the current offset.
+<span class="lineNum">     404 </span>            :     MOZ_MUST_USE bool warning(unsigned errorNumber, ...);
+<span class="lineNum">     405 </span>            : 
+<span class="lineNum">     406 </span>            :     static const uint32_t NoOffset = UINT32_MAX;
+<span class="lineNum">     407 </span>            : 
+<span class="lineNum">     408 </span>            :     // General-purpose error reporters.  You should avoid calling these
+<span class="lineNum">     409 </span>            :     // directly, and instead use the more succinct alternatives (error(),
+<span class="lineNum">     410 </span>            :     // warning(), &amp;c.) in TokenStream, Parser, and BytecodeEmitter.
+<span class="lineNum">     411 </span>            :     bool reportCompileErrorNumberVA(UniquePtr&lt;JSErrorNotes&gt; notes, uint32_t offset, unsigned flags,
+<span class="lineNum">     412 </span>            :                                     unsigned errorNumber, va_list args);
+<span class="lineNum">     413 </span>            :     bool reportStrictModeErrorNumberVA(UniquePtr&lt;JSErrorNotes&gt; notes, uint32_t offset,
+<span class="lineNum">     414 </span>            :                                        bool strictMode, unsigned errorNumber, va_list args);
+<span class="lineNum">     415 </span>            :     bool reportExtraWarningErrorNumberVA(UniquePtr&lt;JSErrorNotes&gt; notes, uint32_t offset,
+<span class="lineNum">     416 </span>            :                                          unsigned errorNumber, va_list args);
+<span class="lineNum">     417 </span>            : 
+<span class="lineNum">     418 </span>            :     // asm.js reporter
+<a name="419"><span class="lineNum">     419 </span>            :     void reportAsmJSError(uint32_t offset, unsigned errorNumber, ...);</a>
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span><span class="lineCov">          1 :     JSAtom* getRawTemplateStringAtom() {</span>
+<span class="lineNum">     422 </span>            :         MOZ_ASSERT(currentToken().type == TOK_TEMPLATE_HEAD ||
+<span class="lineNum">     423 </span>            :                    currentToken().type == TOK_NO_SUBS_TEMPLATE);
+<span class="lineNum">     424 </span><span class="lineCov">          1 :         const char16_t* cur = userbuf.rawCharPtrAt(currentToken().pos.begin + 1);</span>
+<span class="lineNum">     425 </span>            :         const char16_t* end;
+<span class="lineNum">     426 </span><span class="lineCov">          1 :         if (currentToken().type == TOK_TEMPLATE_HEAD) {</span>
+<span class="lineNum">     427 </span>            :             // Of the form    |`...${|   or   |}...${|
+<span class="lineNum">     428 </span><span class="lineCov">          1 :             end = userbuf.rawCharPtrAt(currentToken().pos.end - 2);</span>
+<span class="lineNum">     429 </span>            :         } else {
+<span class="lineNum">     430 </span>            :             // NO_SUBS_TEMPLATE is of the form   |`...`|   or   |}...`|
+<span class="lineNum">     431 </span><span class="lineCov">          1 :             end = userbuf.rawCharPtrAt(currentToken().pos.end - 1);</span>
+<span class="lineNum">     432 </span>            :         }
+<span class="lineNum">     433 </span>            : 
+<span class="lineNum">     434 </span><span class="lineCov">          1 :         CharBuffer charbuf(cx);</span>
+<span class="lineNum">     435 </span><span class="lineCov">          1 :         while (cur &lt; end) {</span>
+<span class="lineNum">     436 </span><span class="lineCov">          1 :             int32_t ch = *cur;</span>
+<span class="lineNum">     437 </span><span class="lineCov">          1 :             if (ch == '\r') {</span>
+<span class="lineNum">     438 </span><span class="lineNoCov">          0 :                 ch = '\n';</span>
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :                 if ((cur + 1 &lt; end) &amp;&amp; (*(cur + 1) == '\n'))</span>
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :                     cur++;</span>
+<span class="lineNum">     441 </span>            :             }
+<span class="lineNum">     442 </span><span class="lineCov">          1 :             if (!charbuf.append(ch))</span>
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :                 return nullptr;</span>
+<span class="lineNum">     444 </span><span class="lineCov">          1 :             cur++;</span>
+<span class="lineNum">     445 </span>            :         }
+<span class="lineNum">     446 </span><span class="lineCov">          1 :         return AtomizeChars(cx, charbuf.begin(), charbuf.length());</span>
+<span class="lineNum">     447 </span>            :     }
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span>            :   private:
+<span class="lineNum">     450 </span>            :     // These are private because they should only be called by the tokenizer
+<span class="lineNum">     451 </span>            :     // while tokenizing not by, for example, BytecodeEmitter.
+<span class="lineNum">     452 </span>            :     bool reportStrictModeError(unsigned errorNumber, ...);
+<span class="lineNum">     453 </span><span class="lineCov">          1 :     bool strictMode() const { return strictModeGetter &amp;&amp; strictModeGetter-&gt;strictMode(); }</span>
+<span class="lineNum">     454 </span>            : 
+<span class="lineNum">     455 </span>            :     void setInvalidTemplateEscape(uint32_t offset, InvalidEscapeType type) {
+<span class="lineNum">     456 </span>            :         MOZ_ASSERT(type != InvalidEscapeType::None);
+<span class="lineNum">     457 </span><span class="lineNoCov">          0 :         if (invalidTemplateEscapeType != InvalidEscapeType::None)</span>
+<span class="lineNum">     458 </span>            :             return;
+<span class="lineNum">     459 </span><span class="lineNoCov">          0 :         invalidTemplateEscapeOffset = offset;</span>
+<a name="460"><span class="lineNum">     460 </span><span class="lineNoCov">          0 :         invalidTemplateEscapeType = type;</span></a>
+<span class="lineNum">     461 </span>            :     }
+<span class="lineNum">     462 </span><span class="lineNoCov">          0 :     void reportInvalidEscapeError(uint32_t offset, InvalidEscapeType type) {</span>
+<span class="lineNum">     463 </span><span class="lineNoCov">          0 :         switch (type) {</span>
+<span class="lineNum">     464 </span>            :             case InvalidEscapeType::None:
+<span class="lineNum">     465 </span>            :                 MOZ_ASSERT_UNREACHABLE(&quot;unexpected InvalidEscapeType&quot;);
+<span class="lineNum">     466 </span>            :                 return;
+<span class="lineNum">     467 </span>            :             case InvalidEscapeType::Hexadecimal:
+<span class="lineNum">     468 </span><span class="lineNoCov">          0 :                 errorAt(offset, JSMSG_MALFORMED_ESCAPE, &quot;hexadecimal&quot;);</span>
+<span class="lineNum">     469 </span><span class="lineNoCov">          0 :                 return;</span>
+<span class="lineNum">     470 </span>            :             case InvalidEscapeType::Unicode:
+<span class="lineNum">     471 </span><span class="lineNoCov">          0 :                 errorAt(offset, JSMSG_MALFORMED_ESCAPE, &quot;Unicode&quot;);</span>
+<span class="lineNum">     472 </span><span class="lineNoCov">          0 :                 return;</span>
+<span class="lineNum">     473 </span>            :             case InvalidEscapeType::UnicodeOverflow:
+<span class="lineNum">     474 </span><span class="lineNoCov">          0 :                 errorAt(offset, JSMSG_UNICODE_OVERFLOW, &quot;escape sequence&quot;);</span>
+<span class="lineNum">     475 </span><span class="lineNoCov">          0 :                 return;</span>
+<span class="lineNum">     476 </span>            :             case InvalidEscapeType::Octal:
+<span class="lineNum">     477 </span><span class="lineNoCov">          0 :                 errorAt(offset, JSMSG_DEPRECATED_OCTAL);</span>
+<span class="lineNum">     478 </span><span class="lineNoCov">          0 :                 return;</span>
+<span class="lineNum">     479 </span>            :         }
+<span class="lineNum">     480 </span>            :     }
+<span class="lineNum">     481 </span>            : 
+<span class="lineNum">     482 </span>            :     static JSAtom* atomize(JSContext* cx, CharBuffer&amp; cb);
+<span class="lineNum">     483 </span>            :     MOZ_MUST_USE bool putIdentInTokenbuf(const char16_t* identStart);
+<span class="lineNum">     484 </span>            : 
+<span class="lineNum">     485 </span>            :     struct Flags
+<span class="lineNum">     486 </span>            :     {
+<span class="lineNum">     487 </span>            :         bool isEOF:1;           // Hit end of file.
+<span class="lineNum">     488 </span>            :         bool isDirtyLine:1;     // Non-whitespace since start of line.
+<span class="lineNum">     489 </span>            :         bool sawOctalEscape:1;  // Saw an octal character escape.
+<span class="lineNum">     490 </span>            :         bool hadError:1;        // Hit a syntax error, at start or during a
+<span class="lineNum">     491 </span>            :                                 // token.
+<span class="lineNum">     492 </span>            :         bool hitOOM:1;          // Hit OOM.
+<span class="lineNum">     493 </span>            : 
+<span class="lineNum">     494 </span>            :         Flags()
+<span class="lineNum">     495 </span><span class="lineCov">          1 :           : isEOF(), isDirtyLine(), sawOctalEscape(), hadError(), hitOOM()</span>
+<span class="lineNum">     496 </span>            :         {}
+<span class="lineNum">     497 </span>            :     };
+<span class="lineNum">     498 </span>            : 
+<span class="lineNum">     499 </span>            :     uint32_t invalidTemplateEscapeOffset = 0;
+<span class="lineNum">     500 </span>            :     InvalidEscapeType invalidTemplateEscapeType = InvalidEscapeType::None;
+<span class="lineNum">     501 </span>            : 
+<span class="lineNum">     502 </span>            :   public:
+<span class="lineNum">     503 </span>            :     typedef Token::Modifier Modifier;
+<span class="lineNum">     504 </span>            :     static constexpr Modifier None = Token::None;
+<span class="lineNum">     505 </span>            :     static constexpr Modifier Operand = Token::Operand;
+<span class="lineNum">     506 </span>            :     static constexpr Modifier TemplateTail = Token::TemplateTail;
+<span class="lineNum">     507 </span>            : 
+<span class="lineNum">     508 </span>            :     typedef Token::ModifierException ModifierException;
+<span class="lineNum">     509 </span>            :     static constexpr ModifierException NoException = Token::NoException;
+<span class="lineNum">     510 </span>            :     static constexpr ModifierException NoneIsOperand = Token::NoneIsOperand;
+<span class="lineNum">     511 </span>            :     static constexpr ModifierException OperandIsNone = Token::OperandIsNone;
+<span class="lineNum">     512 </span>            : 
+<span class="lineNum">     513 </span>            :     void addModifierException(ModifierException modifierException) {
+<span class="lineNum">     514 </span>            : #ifdef DEBUG
+<span class="lineNum">     515 </span>            :         const Token&amp; next = nextToken();
+<span class="lineNum">     516 </span>            :         if (next.modifierException == NoneIsOperand)
+<span class="lineNum">     517 </span>            :         {
+<span class="lineNum">     518 </span>            :             // Token after yield expression without operand already has
+<span class="lineNum">     519 </span>            :             // NoneIsOperand exception.
+<span class="lineNum">     520 </span>            :             MOZ_ASSERT(modifierException == OperandIsNone);
+<span class="lineNum">     521 </span>            :             MOZ_ASSERT(next.type != TOK_DIV,
+<span class="lineNum">     522 </span>            :                        &quot;next token requires contextual specifier to be parsed unambiguously&quot;);
+<span class="lineNum">     523 </span>            : 
+<span class="lineNum">     524 </span>            :             // Do not update modifierException.
+<span class="lineNum">     525 </span>            :             return;
+<span class="lineNum">     526 </span>            :         }
+<span class="lineNum">     527 </span>            : 
+<span class="lineNum">     528 </span>            :         MOZ_ASSERT(next.modifierException == NoException);
+<span class="lineNum">     529 </span>            :         switch (modifierException) {
+<span class="lineNum">     530 </span>            :           case NoneIsOperand:
+<span class="lineNum">     531 </span>            :             MOZ_ASSERT(next.modifier == Operand);
+<span class="lineNum">     532 </span>            :             MOZ_ASSERT(next.type != TOK_DIV,
+<span class="lineNum">     533 </span>            :                        &quot;next token requires contextual specifier to be parsed unambiguously&quot;);
+<span class="lineNum">     534 </span>            :             break;
+<span class="lineNum">     535 </span>            :           case OperandIsNone:
+<span class="lineNum">     536 </span>            :             MOZ_ASSERT(next.modifier == None);
+<span class="lineNum">     537 </span>            :             MOZ_ASSERT(next.type != TOK_DIV &amp;&amp; next.type != TOK_REGEXP,
+<span class="lineNum">     538 </span>            :                        &quot;next token requires contextual specifier to be parsed unambiguously&quot;);
+<span class="lineNum">     539 </span>            :             break;
+<span class="lineNum">     540 </span>            :           default:
+<span class="lineNum">     541 </span>            :             MOZ_CRASH(&quot;unexpected modifier exception&quot;);
+<span class="lineNum">     542 </span>            :         }
+<span class="lineNum">     543 </span>            :         tokens[(cursor + 1) &amp; ntokensMask].modifierException = modifierException;
+<span class="lineNum">     544 </span>            : #endif
+<span class="lineNum">     545 </span>            :     }
+<span class="lineNum">     546 </span>            : 
+<span class="lineNum">     547 </span>            :     void
+<span class="lineNum">     548 </span>            :     verifyConsistentModifier(Modifier modifier, Token lookaheadToken) {
+<span class="lineNum">     549 </span>            : #ifdef DEBUG
+<span class="lineNum">     550 </span>            :         // Easy case: modifiers match.
+<span class="lineNum">     551 </span>            :         if (modifier == lookaheadToken.modifier)
+<span class="lineNum">     552 </span>            :             return;
+<span class="lineNum">     553 </span>            : 
+<span class="lineNum">     554 </span>            :         if (lookaheadToken.modifierException == OperandIsNone) {
+<span class="lineNum">     555 </span>            :             // getToken(Operand) permissibly following getToken().
+<span class="lineNum">     556 </span>            :             if (modifier == Operand &amp;&amp; lookaheadToken.modifier == None)
+<span class="lineNum">     557 </span>            :                 return;
+<span class="lineNum">     558 </span>            :         }
+<span class="lineNum">     559 </span>            : 
+<span class="lineNum">     560 </span>            :         if (lookaheadToken.modifierException == NoneIsOperand) {
+<span class="lineNum">     561 </span>            :             // getToken() permissibly following getToken(Operand).
+<span class="lineNum">     562 </span>            :             if (modifier == None &amp;&amp; lookaheadToken.modifier == Operand)
+<span class="lineNum">     563 </span>            :                 return;
+<span class="lineNum">     564 </span>            :         }
+<span class="lineNum">     565 </span>            : 
+<span class="lineNum">     566 </span>            :         MOZ_ASSERT_UNREACHABLE(&quot;this token was previously looked up with a &quot;
+<span class="lineNum">     567 </span>            :                                &quot;different modifier, potentially making &quot;
+<span class="lineNum">     568 </span>            :                                &quot;tokenization non-deterministic&quot;);
+<span class="lineNum">     569 </span>            : #endif
+<span class="lineNum">     570 </span>            :     }
+<span class="lineNum">     571 </span>            : 
+<a name="572"><span class="lineNum">     572 </span>            :     // Advance to the next token.  If the token stream encountered an error,</a>
+<span class="lineNum">     573 </span>            :     // return false.  Otherwise return true and store the token kind in |*ttp|.
+<span class="lineNum">     574 </span><span class="lineCov">          1 :     MOZ_MUST_USE bool getToken(TokenKind* ttp, Modifier modifier = None) {</span>
+<span class="lineNum">     575 </span>            :         // Check for a pushed-back token resulting from mismatching lookahead.
+<span class="lineNum">     576 </span><span class="lineCov">          1 :         if (lookahead != 0) {</span>
+<span class="lineNum">     577 </span>            :             MOZ_ASSERT(!flags.hadError);
+<span class="lineNum">     578 </span><span class="lineCov">          1 :             lookahead--;</span>
+<span class="lineNum">     579 </span><span class="lineCov">          1 :             cursor = (cursor + 1) &amp; ntokensMask;</span>
+<span class="lineNum">     580 </span><span class="lineCov">          1 :             TokenKind tt = currentToken().type;</span>
+<span class="lineNum">     581 </span>            :             MOZ_ASSERT(tt != TOK_EOL);
+<span class="lineNum">     582 </span><span class="lineCov">          1 :             verifyConsistentModifier(modifier, currentToken());</span>
+<span class="lineNum">     583 </span><span class="lineCov">          1 :             *ttp = tt;</span>
+<span class="lineNum">     584 </span><span class="lineCov">          1 :             return true;</span>
+<span class="lineNum">     585 </span>            :         }
+<span class="lineNum">     586 </span>            : 
+<span class="lineNum">     587 </span><span class="lineCov">          1 :         return getTokenInternal(ttp, modifier);</span>
+<span class="lineNum">     588 </span>            :     }
+<a name="589"><span class="lineNum">     589 </span>            : </a>
+<span class="lineNum">     590 </span>            :     // Push the last scanned token back into the stream.
+<span class="lineNum">     591 </span><span class="lineCov">          1 :     void ungetToken() {</span>
+<span class="lineNum">     592 </span>            :         MOZ_ASSERT(lookahead &lt; maxLookahead);
+<span class="lineNum">     593 </span><span class="lineCov">          1 :         lookahead++;</span>
+<span class="lineNum">     594 </span><span class="lineCov">          1 :         cursor = (cursor - 1) &amp; ntokensMask;</span>
+<a name="595"><span class="lineNum">     595 </span><span class="lineCov">          1 :     }</span></a>
+<span class="lineNum">     596 </span>            : 
+<span class="lineNum">     597 </span><span class="lineCov">          1 :     MOZ_MUST_USE bool peekToken(TokenKind* ttp, Modifier modifier = None) {</span>
+<span class="lineNum">     598 </span><span class="lineCov">          1 :         if (lookahead &gt; 0) {</span>
+<span class="lineNum">     599 </span>            :             MOZ_ASSERT(!flags.hadError);
+<span class="lineNum">     600 </span><span class="lineCov">          1 :             verifyConsistentModifier(modifier, nextToken());</span>
+<span class="lineNum">     601 </span><span class="lineCov">          1 :             *ttp = nextToken().type;</span>
+<span class="lineNum">     602 </span><span class="lineCov">          1 :             return true;</span>
+<span class="lineNum">     603 </span>            :         }
+<span class="lineNum">     604 </span><span class="lineCov">          1 :         if (!getTokenInternal(ttp, modifier))</span>
+<span class="lineNum">     605 </span>            :             return false;
+<span class="lineNum">     606 </span><span class="lineCov">          1 :         ungetToken();</span>
+<span class="lineNum">     607 </span><span class="lineCov">          1 :         return true;</span>
+<a name="608"><span class="lineNum">     608 </span>            :     }</a>
+<span class="lineNum">     609 </span>            : 
+<span class="lineNum">     610 </span><span class="lineCov">          1 :     MOZ_MUST_USE bool peekTokenPos(TokenPos* posp, Modifier modifier = None) {</span>
+<span class="lineNum">     611 </span><span class="lineCov">          1 :         if (lookahead == 0) {</span>
+<span class="lineNum">     612 </span>            :             TokenKind tt;
+<span class="lineNum">     613 </span><span class="lineCov">          1 :             if (!getTokenInternal(&amp;tt, modifier))</span>
+<span class="lineNum">     614 </span><span class="lineNoCov">          0 :                 return false;</span>
+<span class="lineNum">     615 </span><span class="lineCov">          1 :             ungetToken();</span>
+<span class="lineNum">     616 </span>            :             MOZ_ASSERT(hasLookahead());
+<span class="lineNum">     617 </span>            :         } else {
+<span class="lineNum">     618 </span>            :             MOZ_ASSERT(!flags.hadError);
+<span class="lineNum">     619 </span>            :             verifyConsistentModifier(modifier, nextToken());
+<span class="lineNum">     620 </span>            :         }
+<span class="lineNum">     621 </span><span class="lineCov">          1 :         *posp = nextToken().pos;</span>
+<span class="lineNum">     622 </span><span class="lineCov">          1 :         return true;</span>
+<span class="lineNum">     623 </span>            :     }
+<span class="lineNum">     624 </span>            : 
+<span class="lineNum">     625 </span>            :     MOZ_MUST_USE bool peekOffset(uint32_t* offset, Modifier modifier = None) {
+<span class="lineNum">     626 </span>            :         TokenPos pos;
+<span class="lineNum">     627 </span><span class="lineCov">          1 :         if (!peekTokenPos(&amp;pos, modifier))</span>
+<span class="lineNum">     628 </span>            :             return false;
+<span class="lineNum">     629 </span><span class="lineCov">          1 :         *offset = pos.begin;</span>
+<span class="lineNum">     630 </span>            :         return true;
+<span class="lineNum">     631 </span>            :     }
+<span class="lineNum">     632 </span>            : 
+<span class="lineNum">     633 </span>            :     // This is like peekToken(), with one exception:  if there is an EOL
+<span class="lineNum">     634 </span>            :     // between the end of the current token and the start of the next token, it
+<span class="lineNum">     635 </span>            :     // return true and store TOK_EOL in |*ttp|.  In that case, no token with
+<span class="lineNum">     636 </span>            :     // TOK_EOL is actually created, just a TOK_EOL TokenKind is returned, and
+<span class="lineNum">     637 </span>            :     // currentToken() shouldn't be consulted.  (This is the only place TOK_EOL
+<span class="lineNum">     638 </span>            :     // is produced.)
+<span class="lineNum">     639 </span>            :     MOZ_ALWAYS_INLINE MOZ_MUST_USE bool
+<span class="lineNum">     640 </span>            :     peekTokenSameLine(TokenKind* ttp, Modifier modifier = None) {
+<span class="lineNum">     641 </span><span class="lineCov">          1 :         const Token&amp; curr = currentToken();</span>
+<span class="lineNum">     642 </span>            : 
+<span class="lineNum">     643 </span>            :         // If lookahead != 0, we have scanned ahead at least one token, and
+<span class="lineNum">     644 </span>            :         // |lineno| is the line that the furthest-scanned token ends on.  If
+<span class="lineNum">     645 </span>            :         // it's the same as the line that the current token ends on, that's a
+<span class="lineNum">     646 </span>            :         // stronger condition than what we are looking for, and we don't need
+<span class="lineNum">     647 </span>            :         // to return TOK_EOL.
+<span class="lineNum">     648 </span><span class="lineCov">          1 :         if (lookahead != 0) {</span>
+<span class="lineNum">     649 </span>            :             bool onThisLine;
+<span class="lineNum">     650 </span><span class="lineCov">          1 :             if (!srcCoords.isOnThisLine(curr.pos.end, lineno, &amp;onThisLine))</span>
+<span class="lineNum">     651 </span><span class="lineCov">          1 :                 return reportError(JSMSG_OUT_OF_MEMORY);</span>
+<span class="lineNum">     652 </span><span class="lineCov">          1 :             if (onThisLine) {</span>
+<span class="lineNum">     653 </span>            :                 MOZ_ASSERT(!flags.hadError);
+<span class="lineNum">     654 </span><span class="lineCov">          1 :                 verifyConsistentModifier(modifier, nextToken());</span>
+<span class="lineNum">     655 </span><span class="lineCov">          1 :                 *ttp = nextToken().type;</span>
+<span class="lineNum">     656 </span>            :                 return true;
+<span class="lineNum">     657 </span>            :             }
+<span class="lineNum">     658 </span>            :         }
+<span class="lineNum">     659 </span>            : 
+<span class="lineNum">     660 </span>            :         // The above check misses two cases where we don't have to return
+<span class="lineNum">     661 </span>            :         // TOK_EOL.
+<span class="lineNum">     662 </span>            :         // - The next token starts on the same line, but is a multi-line token.
+<span class="lineNum">     663 </span>            :         // - The next token starts on the same line, but lookahead==2 and there
+<span class="lineNum">     664 </span>            :         //   is a newline between the next token and the one after that.
+<span class="lineNum">     665 </span>            :         // The following test is somewhat expensive but gets these cases (and
+<span class="lineNum">     666 </span>            :         // all others) right.
+<span class="lineNum">     667 </span>            :         TokenKind tmp;
+<span class="lineNum">     668 </span><span class="lineCov">          1 :         if (!getToken(&amp;tmp, modifier))</span>
+<span class="lineNum">     669 </span>            :             return false;
+<span class="lineNum">     670 </span><span class="lineCov">          1 :         const Token&amp; next = currentToken();</span>
+<span class="lineNum">     671 </span><span class="lineCov">          1 :         ungetToken();</span>
+<span class="lineNum">     672 </span>            : 
+<span class="lineNum">     673 </span><span class="lineCov">          1 :         *ttp = srcCoords.lineNum(curr.pos.end) == srcCoords.lineNum(next.pos.begin)</span>
+<span class="lineNum">     674 </span>            :              ? next.type
+<span class="lineNum">     675 </span><span class="lineCov">          1 :              : TOK_EOL;</span>
+<span class="lineNum">     676 </span>            :         return true;
+<span class="lineNum">     677 </span>            :     }
+<a name="678"><span class="lineNum">     678 </span>            : </a>
+<span class="lineNum">     679 </span>            :     // Get the next token from the stream if its kind is |tt|.
+<span class="lineNum">     680 </span><span class="lineCov">          1 :     MOZ_MUST_USE bool matchToken(bool* matchedp, TokenKind tt, Modifier modifier = None) {</span>
+<span class="lineNum">     681 </span>            :         TokenKind token;
+<span class="lineNum">     682 </span><span class="lineCov">          1 :         if (!getToken(&amp;token, modifier))</span>
+<span class="lineNum">     683 </span>            :             return false;
+<span class="lineNum">     684 </span><span class="lineCov">          1 :         if (token == tt) {</span>
+<span class="lineNum">     685 </span><span class="lineCov">          1 :             *matchedp = true;</span>
+<span class="lineNum">     686 </span>            :         } else {
+<span class="lineNum">     687 </span><span class="lineCov">          1 :             ungetToken();</span>
+<span class="lineNum">     688 </span><span class="lineCov">          1 :             *matchedp = false;</span>
+<span class="lineNum">     689 </span>            :         }
+<span class="lineNum">     690 </span>            :         return true;
+<span class="lineNum">     691 </span>            :     }
+<span class="lineNum">     692 </span>            : 
+<span class="lineNum">     693 </span>            :     void consumeKnownToken(TokenKind tt, Modifier modifier = None) {
+<span class="lineNum">     694 </span>            :         bool matched;
+<span class="lineNum">     695 </span>            :         MOZ_ASSERT(hasLookahead());
+<span class="lineNum">     696 </span><span class="lineCov">          1 :         MOZ_ALWAYS_TRUE(matchToken(&amp;matched, tt, modifier));</span>
+<span class="lineNum">     697 </span>            :         MOZ_ALWAYS_TRUE(matched);
+<a name="698"><span class="lineNum">     698 </span>            :     }</a>
+<span class="lineNum">     699 </span>            : 
+<span class="lineNum">     700 </span><span class="lineCov">          1 :     MOZ_MUST_USE bool nextTokenEndsExpr(bool* endsExpr) {</span>
+<span class="lineNum">     701 </span>            :         TokenKind tt;
+<span class="lineNum">     702 </span><span class="lineCov">          1 :         if (!peekToken(&amp;tt))</span>
+<span class="lineNum">     703 </span>            :             return false;
+<span class="lineNum">     704 </span><span class="lineCov">          1 :         *endsExpr = isExprEnding[tt];</span>
+<span class="lineNum">     705 </span><span class="lineCov">          1 :         return true;</span>
+<span class="lineNum">     706 </span>            :     }
+<span class="lineNum">     707 </span>            : 
+<span class="lineNum">     708 </span>            :     class MOZ_STACK_CLASS Position {
+<span class="lineNum">     709 </span>            :       public:
+<span class="lineNum">     710 </span>            :         // The Token fields may contain pointers to atoms, so for correct
+<span class="lineNum">     711 </span>            :         // rooting we must ensure collection of atoms is disabled while objects
+<span class="lineNum">     712 </span>            :         // of this class are live.  Do this by requiring a dummy AutoKeepAtoms
+<span class="lineNum">     713 </span>            :         // reference in the constructor.
+<span class="lineNum">     714 </span>            :         //
+<span class="lineNum">     715 </span>            :         // This class is explicity ignored by the analysis, so don't add any
+<span class="lineNum">     716 </span>            :         // more pointers to GC things here!
+<span class="lineNum">     717 </span><span class="lineCov">          1 :         explicit Position(AutoKeepAtoms&amp;) { }</span>
+<span class="lineNum">     718 </span>            :       private:
+<span class="lineNum">     719 </span>            :         Position(const Position&amp;) = delete;
+<span class="lineNum">     720 </span>            :         friend class TokenStream;
+<span class="lineNum">     721 </span>            :         const char16_t* buf;
+<span class="lineNum">     722 </span>            :         Flags flags;
+<span class="lineNum">     723 </span>            :         unsigned lineno;
+<span class="lineNum">     724 </span>            :         size_t linebase;
+<span class="lineNum">     725 </span>            :         size_t prevLinebase;
+<span class="lineNum">     726 </span>            :         Token currentToken;
+<span class="lineNum">     727 </span>            :         unsigned lookahead;
+<span class="lineNum">     728 </span>            :         Token lookaheadTokens[maxLookahead];
+<span class="lineNum">     729 </span>            :     };
+<span class="lineNum">     730 </span>            : 
+<span class="lineNum">     731 </span>            :     MOZ_MUST_USE bool advance(size_t position);
+<span class="lineNum">     732 </span>            :     void tell(Position*);
+<span class="lineNum">     733 </span>            :     void seek(const Position&amp; pos);
+<span class="lineNum">     734 </span>            :     MOZ_MUST_USE bool seek(const Position&amp; pos, const TokenStream&amp; other);
+<span class="lineNum">     735 </span>            : #ifdef DEBUG
+<span class="lineNum">     736 </span>            :     inline bool debugHasNoLookahead() const {
+<span class="lineNum">     737 </span>            :         return lookahead == 0;
+<span class="lineNum">     738 </span>            :     }
+<span class="lineNum">     739 </span>            : #endif
+<span class="lineNum">     740 </span>            : 
+<span class="lineNum">     741 </span>            :     const char16_t* rawCharPtrAt(size_t offset) const {
+<span class="lineNum">     742 </span><span class="lineCov">          1 :         return userbuf.rawCharPtrAt(offset);</span>
+<span class="lineNum">     743 </span>            :     }
+<span class="lineNum">     744 </span>            : 
+<span class="lineNum">     745 </span>            :     const char16_t* rawLimit() const {
+<span class="lineNum">     746 </span><span class="lineCov">          1 :         return userbuf.limit();</span>
+<span class="lineNum">     747 </span>            :     }
+<span class="lineNum">     748 </span>            : 
+<span class="lineNum">     749 </span>            :     bool hasDisplayURL() const {
+<span class="lineNum">     750 </span><span class="lineCov">          1 :         return displayURL_ != nullptr;</span>
+<span class="lineNum">     751 </span>            :     }
+<span class="lineNum">     752 </span>            : 
+<span class="lineNum">     753 </span>            :     char16_t* displayURL() {
+<span class="lineNum">     754 </span><span class="lineCov">          1 :         return displayURL_.get();</span>
+<span class="lineNum">     755 </span>            :     }
+<span class="lineNum">     756 </span>            : 
+<span class="lineNum">     757 </span>            :     bool hasSourceMapURL() const {
+<span class="lineNum">     758 </span><span class="lineCov">          1 :         return sourceMapURL_ != nullptr;</span>
+<span class="lineNum">     759 </span>            :     }
+<span class="lineNum">     760 </span>            : 
+<span class="lineNum">     761 </span>            :     char16_t* sourceMapURL() {
+<span class="lineNum">     762 </span><span class="lineCov">          1 :         return sourceMapURL_.get();</span>
+<span class="lineNum">     763 </span>            :     }
+<span class="lineNum">     764 </span>            : 
+<a name="765"><span class="lineNum">     765 </span>            :     // This class maps a userbuf offset (which is 0-indexed) to a line number</a>
+<span class="lineNum">     766 </span>            :     // (which is 1-indexed) and a column index (which is 0-indexed).
+<span class="lineNum">     767 </span><span class="lineCov">          1 :     class SourceCoords</span>
+<span class="lineNum">     768 </span>            :     {
+<span class="lineNum">     769 </span>            :         // For a given buffer holding source code, |lineStartOffsets_| has one
+<span class="lineNum">     770 </span>            :         // element per line of source code, plus one sentinel element.  Each
+<span class="lineNum">     771 </span>            :         // non-sentinel element holds the buffer offset for the start of the
+<span class="lineNum">     772 </span>            :         // corresponding line of source code.  For this example script:
+<span class="lineNum">     773 </span>            :         //
+<span class="lineNum">     774 </span>            :         // 1  // xyz            [line starts at offset 0]
+<span class="lineNum">     775 </span>            :         // 2  var x;            [line starts at offset 7]
+<span class="lineNum">     776 </span>            :         // 3                    [line starts at offset 14]
+<span class="lineNum">     777 </span>            :         // 4  var y;            [line starts at offset 15]
+<span class="lineNum">     778 </span>            :         //
+<span class="lineNum">     779 </span>            :         // |lineStartOffsets_| is:
+<span class="lineNum">     780 </span>            :         //
+<span class="lineNum">     781 </span>            :         //   [0, 7, 14, 15, MAX_PTR]
+<span class="lineNum">     782 </span>            :         //
+<span class="lineNum">     783 </span>            :         // To convert a &quot;line number&quot; to a &quot;line index&quot; (i.e. an index into
+<span class="lineNum">     784 </span>            :         // |lineStartOffsets_|), subtract |initialLineNum_|.  E.g. line 3's
+<span class="lineNum">     785 </span>            :         // line index is (3 - initialLineNum_), which is 2.  Therefore
+<span class="lineNum">     786 </span>            :         // lineStartOffsets_[2] holds the buffer offset for the start of line 3,
+<span class="lineNum">     787 </span>            :         // which is 14.  (Note that |initialLineNum_| is often 1, but not
+<span class="lineNum">     788 </span>            :         // always.)
+<span class="lineNum">     789 </span>            :         //
+<span class="lineNum">     790 </span>            :         // The first element is always 0, and the last element is always the
+<span class="lineNum">     791 </span>            :         // MAX_PTR sentinel.
+<span class="lineNum">     792 </span>            :         //
+<span class="lineNum">     793 </span>            :         // offset-to-line/column lookups are O(log n) in the worst case (binary
+<span class="lineNum">     794 </span>            :         // search), but in practice they're heavily clustered and we do better
+<span class="lineNum">     795 </span>            :         // than that by using the previous lookup's result (lastLineIndex_) as
+<span class="lineNum">     796 </span>            :         // a starting point.
+<span class="lineNum">     797 </span>            :         //
+<span class="lineNum">     798 </span>            :         // Checking if an offset lies within a particular line number
+<span class="lineNum">     799 </span>            :         // (isOnThisLine()) is O(1).
+<span class="lineNum">     800 </span>            :         //
+<span class="lineNum">     801 </span>            :         Vector&lt;uint32_t, 128&gt; lineStartOffsets_;
+<span class="lineNum">     802 </span>            :         uint32_t            initialLineNum_;
+<span class="lineNum">     803 </span>            : 
+<span class="lineNum">     804 </span>            :         // This is mutable because it's modified on every search, but that fact
+<span class="lineNum">     805 </span>            :         // isn't visible outside this class.
+<span class="lineNum">     806 </span>            :         mutable uint32_t    lastLineIndex_;
+<span class="lineNum">     807 </span>            : 
+<span class="lineNum">     808 </span>            :         uint32_t lineIndexOf(uint32_t offset) const;
+<span class="lineNum">     809 </span>            : 
+<span class="lineNum">     810 </span>            :         static const uint32_t MAX_PTR = UINT32_MAX;
+<a name="811"><span class="lineNum">     811 </span>            : </a>
+<span class="lineNum">     812 </span><span class="lineCov">          1 :         uint32_t lineIndexToNum(uint32_t lineIndex) const { return lineIndex + initialLineNum_; }</span>
+<span class="lineNum">     813 </span><span class="lineCov">          1 :         uint32_t lineNumToIndex(uint32_t lineNum)   const { return lineNum   - initialLineNum_; }</span>
+<span class="lineNum">     814 </span>            : 
+<span class="lineNum">     815 </span>            :       public:
+<span class="lineNum">     816 </span>            :         SourceCoords(JSContext* cx, uint32_t ln);
+<span class="lineNum">     817 </span>            : 
+<span class="lineNum">     818 </span>            :         MOZ_MUST_USE bool add(uint32_t lineNum, uint32_t lineStartOffset);
+<a name="819"><span class="lineNum">     819 </span>            :         MOZ_MUST_USE bool fill(const SourceCoords&amp; other);</a>
+<span class="lineNum">     820 </span>            : 
+<span class="lineNum">     821 </span><span class="lineCov">          1 :         bool isOnThisLine(uint32_t offset, uint32_t lineNum, bool* onThisLine) const {</span>
+<span class="lineNum">     822 </span><span class="lineCov">          1 :             uint32_t lineIndex = lineNumToIndex(lineNum);</span>
+<span class="lineNum">     823 </span><span class="lineCov">          1 :             if (lineIndex + 1 &gt;= lineStartOffsets_.length()) // +1 due to sentinel</span>
+<span class="lineNum">     824 </span>            :                 return false;
+<span class="lineNum">     825 </span><span class="lineCov">          1 :             *onThisLine = lineStartOffsets_[lineIndex] &lt;= offset &amp;&amp;</span>
+<span class="lineNum">     826 </span><span class="lineCov">          1 :                           offset &lt; lineStartOffsets_[lineIndex + 1];</span>
+<span class="lineNum">     827 </span><span class="lineCov">          1 :             return true;</span>
+<span class="lineNum">     828 </span>            :         }
+<span class="lineNum">     829 </span>            : 
+<span class="lineNum">     830 </span>            :         uint32_t lineNum(uint32_t offset) const;
+<span class="lineNum">     831 </span>            :         uint32_t columnIndex(uint32_t offset) const;
+<span class="lineNum">     832 </span>            :         void lineNumAndColumnIndex(uint32_t offset, uint32_t* lineNum, uint32_t* columnIndex) const;
+<span class="lineNum">     833 </span>            :     };
+<span class="lineNum">     834 </span>            : 
+<span class="lineNum">     835 </span>            :     SourceCoords srcCoords;
+<span class="lineNum">     836 </span>            : 
+<span class="lineNum">     837 </span>            :     JSAtomState&amp; names() const {
+<span class="lineNum">     838 </span>            :         return cx-&gt;names();
+<span class="lineNum">     839 </span>            :     }
+<span class="lineNum">     840 </span>            : 
+<span class="lineNum">     841 </span>            :     JSContext* context() const {
+<span class="lineNum">     842 </span>            :         return cx;
+<span class="lineNum">     843 </span>            :     }
+<span class="lineNum">     844 </span>            : 
+<span class="lineNum">     845 </span>            :     const ReadOnlyCompileOptions&amp; options() const {
+<span class="lineNum">     846 </span>            :         return options_;
+<span class="lineNum">     847 </span>            :     }
+<span class="lineNum">     848 </span>            : 
+<span class="lineNum">     849 </span>            :   private:
+<span class="lineNum">     850 </span>            :     // This is the low-level interface to the JS source code buffer.  It just
+<span class="lineNum">     851 </span>            :     // gets raw chars, basically.  TokenStreams functions are layered on top
+<span class="lineNum">     852 </span>            :     // and do some extra stuff like converting all EOL sequences to '\n',
+<span class="lineNum">     853 </span>            :     // tracking the line number, and setting |flags.isEOF|.  (The &quot;raw&quot; in &quot;raw
+<span class="lineNum">     854 </span>            :     // chars&quot; refers to the lack of EOL sequence normalization.)
+<span class="lineNum">     855 </span>            :     //
+<span class="lineNum">     856 </span>            :     // buf[0..length-1] often represents a substring of some larger source,
+<span class="lineNum">     857 </span>            :     // where we have only the substring in memory. The |startOffset| argument
+<span class="lineNum">     858 </span>            :     // indicates the offset within this larger string at which our string
+<span class="lineNum">     859 </span>            :     // begins, the offset of |buf[0]|.
+<span class="lineNum">     860 </span>            :     class TokenBuf {
+<span class="lineNum">     861 </span>            :       public:
+<span class="lineNum">     862 </span>            :         TokenBuf(JSContext* cx, const char16_t* buf, size_t length, size_t startOffset)
+<span class="lineNum">     863 </span>            :           : base_(buf),
+<span class="lineNum">     864 </span>            :             startOffset_(startOffset),
+<span class="lineNum">     865 </span><span class="lineCov">          1 :             limit_(buf + length),</span>
+<span class="lineNum">     866 </span><span class="lineCov">          1 :             ptr(buf)</span>
+<span class="lineNum">     867 </span>            :         { }
+<span class="lineNum">     868 </span>            : 
+<span class="lineNum">     869 </span>            :         bool hasRawChars() const {
+<span class="lineNum">     870 </span><span class="lineCov">          1 :             return ptr &lt; limit_;</span>
+<span class="lineNum">     871 </span>            :         }
+<span class="lineNum">     872 </span>            : 
+<span class="lineNum">     873 </span>            :         bool atStart() const {
+<span class="lineNum">     874 </span>            :             return offset() == 0;
+<span class="lineNum">     875 </span>            :         }
+<span class="lineNum">     876 </span>            : 
+<span class="lineNum">     877 </span>            :         size_t startOffset() const {
+<span class="lineNum">     878 </span><span class="lineCov">          1 :             return startOffset_;</span>
+<a name="879"><span class="lineNum">     879 </span>            :         }</a>
+<span class="lineNum">     880 </span>            : 
+<span class="lineNum">     881 </span><span class="lineCov">          1 :         size_t offset() const {</span>
+<span class="lineNum">     882 </span><span class="lineCov">          1 :             return startOffset_ + mozilla::PointerRangeSize(base_, ptr);</span>
+<span class="lineNum">     883 </span>            :         }
+<span class="lineNum">     884 </span>            : 
+<span class="lineNum">     885 </span>            :         const char16_t* rawCharPtrAt(size_t offset) const {
+<span class="lineNum">     886 </span>            :             MOZ_ASSERT(startOffset_ &lt;= offset);
+<span class="lineNum">     887 </span>            :             MOZ_ASSERT(offset - startOffset_ &lt;= mozilla::PointerRangeSize(base_, limit_));
+<span class="lineNum">     888 </span><span class="lineCov">          1 :             return base_ + (offset - startOffset_);</span>
+<span class="lineNum">     889 </span>            :         }
+<span class="lineNum">     890 </span>            : 
+<span class="lineNum">     891 </span>            :         const char16_t* limit() const {
+<span class="lineNum">     892 </span>            :             return limit_;
+<span class="lineNum">     893 </span>            :         }
+<span class="lineNum">     894 </span>            : 
+<span class="lineNum">     895 </span>            :         char16_t getRawChar() {
+<span class="lineNum">     896 </span><span class="lineCov">          1 :             return *ptr++;      // this will nullptr-crash if poisoned</span>
+<span class="lineNum">     897 </span>            :         }
+<span class="lineNum">     898 </span>            : 
+<span class="lineNum">     899 </span>            :         char16_t peekRawChar() const {
+<span class="lineNum">     900 </span><span class="lineNoCov">          0 :             return *ptr;        // this will nullptr-crash if poisoned</span>
+<span class="lineNum">     901 </span>            :         }
+<span class="lineNum">     902 </span>            : 
+<span class="lineNum">     903 </span>            :         bool matchRawChar(char16_t c) {
+<span class="lineNum">     904 </span><span class="lineCov">          1 :             if (*ptr == c) {    // this will nullptr-crash if poisoned</span>
+<span class="lineNum">     905 </span><span class="lineCov">          1 :                 ptr++;</span>
+<span class="lineNum">     906 </span>            :                 return true;
+<span class="lineNum">     907 </span>            :             }
+<span class="lineNum">     908 </span>            :             return false;
+<span class="lineNum">     909 </span>            :         }
+<span class="lineNum">     910 </span>            : 
+<span class="lineNum">     911 </span>            :         bool matchRawCharBackwards(char16_t c) {
+<span class="lineNum">     912 </span>            :             MOZ_ASSERT(ptr);     // make sure it hasn't been poisoned
+<span class="lineNum">     913 </span><span class="lineCov">          1 :             if (*(ptr - 1) == c) {</span>
+<span class="lineNum">     914 </span><span class="lineCov">          1 :                 ptr--;</span>
+<span class="lineNum">     915 </span>            :                 return true;
+<span class="lineNum">     916 </span>            :             }
+<span class="lineNum">     917 </span>            :             return false;
+<span class="lineNum">     918 </span>            :         }
+<span class="lineNum">     919 </span>            : 
+<span class="lineNum">     920 </span>            :         void ungetRawChar() {
+<span class="lineNum">     921 </span>            :             MOZ_ASSERT(ptr);     // make sure it hasn't been poisoned
+<span class="lineNum">     922 </span><span class="lineCov">          1 :             ptr--;</span>
+<span class="lineNum">     923 </span>            :         }
+<span class="lineNum">     924 </span>            : 
+<span class="lineNum">     925 </span>            :         const char16_t* addressOfNextRawChar(bool allowPoisoned = false) const {
+<span class="lineNum">     926 </span>            :             MOZ_ASSERT_IF(!allowPoisoned, ptr);     // make sure it hasn't been poisoned
+<span class="lineNum">     927 </span><span class="lineCov">          1 :             return ptr;</span>
+<span class="lineNum">     928 </span>            :         }
+<span class="lineNum">     929 </span>            : 
+<span class="lineNum">     930 </span>            :         // Use this with caution!
+<span class="lineNum">     931 </span>            :         void setAddressOfNextRawChar(const char16_t* a, bool allowPoisoned = false) {
+<span class="lineNum">     932 </span>            :             MOZ_ASSERT_IF(!allowPoisoned, a);
+<span class="lineNum">     933 </span><span class="lineCov">          1 :             ptr = a;</span>
+<span class="lineNum">     934 </span>            :         }
+<span class="lineNum">     935 </span>            : 
+<span class="lineNum">     936 </span>            : #ifdef DEBUG
+<span class="lineNum">     937 </span>            :         // Poison the TokenBuf so it cannot be accessed again.
+<span class="lineNum">     938 </span>            :         void poison() {
+<span class="lineNum">     939 </span>            :             ptr = nullptr;
+<span class="lineNum">     940 </span>            :         }
+<span class="lineNum">     941 </span>            : #endif
+<span class="lineNum">     942 </span>            : 
+<span class="lineNum">     943 </span>            :         static bool isRawEOLChar(int32_t c) {
+<span class="lineNum">     944 </span><span class="lineCov">          1 :             return c == '\n' || c == '\r' || c == LINE_SEPARATOR || c == PARA_SEPARATOR;</span>
+<span class="lineNum">     945 </span>            :         }
+<span class="lineNum">     946 </span>            : 
+<span class="lineNum">     947 </span>            :         // Returns the offset of the next EOL, but stops once 'max' characters
+<span class="lineNum">     948 </span>            :         // have been scanned (*including* the char at startOffset_).
+<span class="lineNum">     949 </span>            :         size_t findEOLMax(size_t start, size_t max);
+<span class="lineNum">     950 </span>            : 
+<span class="lineNum">     951 </span>            :       private:
+<span class="lineNum">     952 </span>            :         const char16_t* base_;          // base of buffer
+<span class="lineNum">     953 </span>            :         uint32_t startOffset_;          // offset of base_[0]
+<span class="lineNum">     954 </span>            :         const char16_t* limit_;         // limit for quick bounds check
+<span class="lineNum">     955 </span>            :         const char16_t* ptr;            // next char to get
+<span class="lineNum">     956 </span>            :     };
+<span class="lineNum">     957 </span>            : 
+<span class="lineNum">     958 </span>            :     MOZ_MUST_USE bool getTokenInternal(TokenKind* ttp, Modifier modifier);
+<span class="lineNum">     959 </span>            : 
+<span class="lineNum">     960 </span>            :     MOZ_MUST_USE bool getStringOrTemplateToken(int untilChar, Token** tp);
+<span class="lineNum">     961 </span>            : 
+<span class="lineNum">     962 </span>            :     int32_t getChar();
+<span class="lineNum">     963 </span>            :     int32_t getCharIgnoreEOL();
+<span class="lineNum">     964 </span>            :     void ungetChar(int32_t c);
+<span class="lineNum">     965 </span>            :     void ungetCharIgnoreEOL(int32_t c);
+<span class="lineNum">     966 </span>            :     Token* newToken(ptrdiff_t adjust);
+<span class="lineNum">     967 </span>            :     uint32_t peekUnicodeEscape(uint32_t* codePoint);
+<span class="lineNum">     968 </span>            :     uint32_t peekExtendedUnicodeEscape(uint32_t* codePoint);
+<span class="lineNum">     969 </span>            :     uint32_t matchUnicodeEscapeIdStart(uint32_t* codePoint);
+<span class="lineNum">     970 </span>            :     bool matchUnicodeEscapeIdent(uint32_t* codePoint);
+<span class="lineNum">     971 </span>            :     bool matchTrailForLeadSurrogate(char16_t lead, char16_t* trail, uint32_t* codePoint);
+<span class="lineNum">     972 </span>            :     bool peekChars(int n, char16_t* cp);
+<span class="lineNum">     973 </span>            : 
+<span class="lineNum">     974 </span>            :     MOZ_MUST_USE bool getDirectives(bool isMultiline, bool shouldWarnDeprecated);
+<span class="lineNum">     975 </span>            :     MOZ_MUST_USE bool getDirective(bool isMultiline, bool shouldWarnDeprecated,
+<span class="lineNum">     976 </span>            :                                    const char* directive, uint8_t directiveLength,
+<span class="lineNum">     977 </span>            :                                    const char* errorMsgPragma,
+<span class="lineNum">     978 </span>            :                                    UniquePtr&lt;char16_t[], JS::FreePolicy&gt;* destination);
+<span class="lineNum">     979 </span>            :     MOZ_MUST_USE bool getDisplayURL(bool isMultiline, bool shouldWarnDeprecated);
+<span class="lineNum">     980 </span>            :     MOZ_MUST_USE bool getSourceMappingURL(bool isMultiline, bool shouldWarnDeprecated);
+<span class="lineNum">     981 </span>            : 
+<span class="lineNum">     982 </span>            :     // |expect| cannot be an EOL char.
+<span class="lineNum">     983 </span>            :     bool matchChar(int32_t expect) {
+<span class="lineNum">     984 </span>            :         MOZ_ASSERT(!TokenBuf::isRawEOLChar(expect));
+<span class="lineNum">     985 </span><span class="lineCov">          1 :         return MOZ_LIKELY(userbuf.hasRawChars()) &amp;&amp;</span>
+<span class="lineNum">     986 </span><span class="lineCov">          1 :                userbuf.matchRawChar(expect);</span>
+<span class="lineNum">     987 </span>            :     }
+<span class="lineNum">     988 </span>            : 
+<span class="lineNum">     989 </span>            :     void consumeKnownChar(int32_t expect) {
+<span class="lineNum">     990 </span><span class="lineCov">          1 :         mozilla::DebugOnly&lt;int32_t&gt; c = getChar();</span>
+<span class="lineNum">     991 </span>            :         MOZ_ASSERT(c == expect);
+<span class="lineNum">     992 </span>            :     }
+<span class="lineNum">     993 </span>            : 
+<span class="lineNum">     994 </span>            :     MOZ_MUST_USE bool peekChar(int32_t* c) {
+<span class="lineNum">     995 </span><span class="lineCov">          1 :         *c = getChar();</span>
+<span class="lineNum">     996 </span><span class="lineCov">          1 :         ungetChar(*c);</span>
+<span class="lineNum">     997 </span>            :         return true;
+<span class="lineNum">     998 </span>            :     }
+<span class="lineNum">     999 </span>            : 
+<span class="lineNum">    1000 </span>            :     void skipChars(uint8_t n) {
+<span class="lineNum">    1001 </span><span class="lineCov">          1 :         while (n-- &gt; 0) {</span>
+<span class="lineNum">    1002 </span>            :             MOZ_ASSERT(userbuf.hasRawChars());
+<span class="lineNum">    1003 </span>            :             mozilla::DebugOnly&lt;int32_t&gt; c = getCharIgnoreEOL();
+<span class="lineNum">    1004 </span>            :             MOZ_ASSERT(c != '\n');
+<span class="lineNum">    1005 </span>            :         }
+<span class="lineNum">    1006 </span>            :     }
+<span class="lineNum">    1007 </span>            : 
+<span class="lineNum">    1008 </span>            :     void skipCharsIgnoreEOL(uint8_t n) {
+<span class="lineNum">    1009 </span><span class="lineNoCov">          0 :         while (n-- &gt; 0) {</span>
+<span class="lineNum">    1010 </span>            :             MOZ_ASSERT(userbuf.hasRawChars());
+<span class="lineNum">    1011 </span>            :             getCharIgnoreEOL();
+<span class="lineNum">    1012 </span>            :         }
+<span class="lineNum">    1013 </span>            :     }
+<span class="lineNum">    1014 </span>            : 
+<span class="lineNum">    1015 </span>            :     void updateLineInfoForEOL();
+<a name="1016"><span class="lineNum">    1016 </span>            :     void updateFlagsForEOL();</a>
+<span class="lineNum">    1017 </span>            : 
+<span class="lineNum">    1018 </span><span class="lineCov">          1 :     const Token&amp; nextToken() const {</span>
+<span class="lineNum">    1019 </span>            :         MOZ_ASSERT(hasLookahead());
+<span class="lineNum">    1020 </span><span class="lineCov">          1 :         return tokens[(cursor + 1) &amp; ntokensMask];</span>
+<span class="lineNum">    1021 </span>            :     }
+<span class="lineNum">    1022 </span>            : 
+<span class="lineNum">    1023 </span>            :     bool hasLookahead() const { return lookahead &gt; 0; }
+<span class="lineNum">    1024 </span>            : 
+<span class="lineNum">    1025 </span>            :     // Options used for parsing/tokenizing.
+<span class="lineNum">    1026 </span>            :     const ReadOnlyCompileOptions&amp; options_;
+<span class="lineNum">    1027 </span>            : 
+<span class="lineNum">    1028 </span>            :     Token               tokens[ntokens];    // circular token buffer
+<span class="lineNum">    1029 </span>            :     unsigned            cursor;             // index of last parsed token
+<span class="lineNum">    1030 </span>            :     unsigned            lookahead;          // count of lookahead tokens
+<span class="lineNum">    1031 </span>            :     unsigned            lineno;             // current line number
+<span class="lineNum">    1032 </span>            :     Flags               flags;              // flags -- see above
+<span class="lineNum">    1033 </span>            :     size_t              linebase;           // start of current line
+<span class="lineNum">    1034 </span>            :     size_t              prevLinebase;       // start of previous line;  size_t(-1) if on the first line
+<span class="lineNum">    1035 </span>            :     TokenBuf            userbuf;            // user input buffer
+<span class="lineNum">    1036 </span>            :     const char*         filename;           // input filename or null
+<span class="lineNum">    1037 </span>            :     UniqueTwoByteChars  displayURL_;        // the user's requested source URL or null
+<span class="lineNum">    1038 </span>            :     UniqueTwoByteChars  sourceMapURL_;      // source map's filename or null
+<span class="lineNum">    1039 </span>            :     CharBuffer          tokenbuf;           // current token string buffer
+<span class="lineNum">    1040 </span>            :     uint8_t             isExprEnding[TOK_LIMIT];// which tokens definitely terminate exprs?
+<span class="lineNum">    1041 </span>            :     JSContext* const    cx;
+<span class="lineNum">    1042 </span>            :     bool                mutedErrors;
+<span class="lineNum">    1043 </span>            :     StrictModeGetter*   strictModeGetter;  // used to test for strict mode
+<span class="lineNum">    1044 </span>            : };
+<span class="lineNum">    1045 </span>            : 
+<span class="lineNum">    1046 </span>            : extern const char*
+<span class="lineNum">    1047 </span>            : TokenKindToDesc(TokenKind tt);
+<span class="lineNum">    1048 </span>            : 
+<span class="lineNum">    1049 </span>            : } // namespace frontend
+<span class="lineNum">    1050 </span>            : } // namespace js
+<span class="lineNum">    1051 </span>            : 
+<span class="lineNum">    1052 </span>            : extern JS_FRIEND_API(int)
+<span class="lineNum">    1053 </span>            : js_fgets(char* buf, int size, FILE* file);
+<span class="lineNum">    1054 </span>            : 
+<span class="lineNum">    1055 </span>            : #ifdef DEBUG
+<span class="lineNum">    1056 </span>            : extern const char*
+<span class="lineNum">    1057 </span>            : TokenKindToString(js::frontend::TokenKind tt);
+<span class="lineNum">    1058 </span>            : #endif
+<span class="lineNum">    1059 </span>            : 
+<span class="lineNum">    1060 </span>            : #endif /* frontend_TokenStream_h */
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

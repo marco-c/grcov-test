@@ -1,0 +1,1652 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/nss/lib/util/secasn1e.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">security/nss/lib/util</a> - secasn1e.c<span style="font-size: 80%;"> (source / <a href="secasn1e.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">405</td>
+            <td class="headerCovTableEntry">514</td>
+            <td class="headerCovTableEntryMed">78.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">26</td>
+            <td class="headerCovTableEntry">36</td>
+            <td class="headerCovTableEntryLo">72.2 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public</a>
+<span class="lineNum">       2 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       3 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : /*
+<span class="lineNum">       6 </span>            :  * Support for ENcoding ASN.1 data based on BER/DER (Basic/Distinguished
+<span class="lineNum">       7 </span>            :  * Encoding Rules).
+<span class="lineNum">       8 </span>            :  */
+<span class="lineNum">       9 </span>            : 
+<span class="lineNum">      10 </span>            : #include &quot;secasn1.h&quot;
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : typedef enum {
+<span class="lineNum">      13 </span>            :     beforeHeader,
+<span class="lineNum">      14 </span>            :     duringContents,
+<span class="lineNum">      15 </span>            :     duringGroup,
+<span class="lineNum">      16 </span>            :     duringSequence,
+<span class="lineNum">      17 </span>            :     afterContents,
+<span class="lineNum">      18 </span>            :     afterImplicit,
+<span class="lineNum">      19 </span>            :     afterInline,
+<span class="lineNum">      20 </span>            :     afterPointer,
+<span class="lineNum">      21 </span>            :     afterChoice,
+<span class="lineNum">      22 </span>            :     notInUse
+<span class="lineNum">      23 </span>            : } sec_asn1e_parse_place;
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : typedef enum {
+<span class="lineNum">      26 </span>            :     allDone,
+<span class="lineNum">      27 </span>            :     encodeError,
+<span class="lineNum">      28 </span>            :     keepGoing,
+<span class="lineNum">      29 </span>            :     needBytes
+<span class="lineNum">      30 </span>            : } sec_asn1e_parse_status;
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : typedef enum {
+<span class="lineNum">      33 </span>            :     hdr_normal = 0,     /* encode header normally */
+<span class="lineNum">      34 </span>            :     hdr_any = 1,        /* header already encoded in content */
+<span class="lineNum">      35 </span>            :     hdr_decoder = 2,    /* template only used by decoder. skip it. */
+<span class="lineNum">      36 </span>            :     hdr_optional = 3,   /* optional component, to be omitted */
+<span class="lineNum">      37 </span>            :     hdr_placeholder = 4 /* place holder for from_buf content */
+<span class="lineNum">      38 </span>            : } sec_asn1e_hdr_encoding;
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : typedef struct sec_asn1e_state_struct {
+<span class="lineNum">      41 </span>            :     SEC_ASN1EncoderContext *top;
+<span class="lineNum">      42 </span>            :     const SEC_ASN1Template *theTemplate;
+<span class="lineNum">      43 </span>            :     void *src;
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span>            :     struct sec_asn1e_state_struct *parent; /* aka prev */
+<span class="lineNum">      46 </span>            :     struct sec_asn1e_state_struct *child;  /* aka next */
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span>            :     sec_asn1e_parse_place place; /* where we are in encoding process */
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            :     /*
+<span class="lineNum">      51 </span>            :      * XXX explain the next fields as clearly as possible...
+<span class="lineNum">      52 </span>            :      */
+<span class="lineNum">      53 </span>            :     unsigned char tag_modifiers;
+<span class="lineNum">      54 </span>            :     unsigned char tag_number;
+<span class="lineNum">      55 </span>            :     unsigned long underlying_kind;
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            :     int depth;
+<span class="lineNum">      58 </span>            : 
+<span class="lineNum">      59 </span>            :     PRBool isExplicit,     /* we are handling an isExplicit header */
+<span class="lineNum">      60 </span>            :         indefinite,        /* need end-of-contents */
+<span class="lineNum">      61 </span>            :         is_string,         /* encoding a simple string or an ANY */
+<span class="lineNum">      62 </span>            :         may_stream,        /* when streaming, do indefinite encoding */
+<span class="lineNum">      63 </span>            :         optional,          /* omit field if it has no contents */
+<span class="lineNum">      64 </span>            :         disallowStreaming; /* disallow streaming in all sub-templates */
+<span class="lineNum">      65 </span>            : } sec_asn1e_state;
+<span class="lineNum">      66 </span>            : 
+<span class="lineNum">      67 </span>            : /*
+<span class="lineNum">      68 </span>            :  * An &quot;outsider&quot; will have an opaque pointer to this, created by calling
+<span class="lineNum">      69 </span>            :  * SEC_ASN1EncoderStart().  It will be passed back in to all subsequent
+<span class="lineNum">      70 </span>            :  * calls to SEC_ASN1EncoderUpdate() and related routines, and when done
+<span class="lineNum">      71 </span>            :  * it is passed to SEC_ASN1EncoderFinish().
+<span class="lineNum">      72 </span>            :  */
+<span class="lineNum">      73 </span>            : struct sec_EncoderContext_struct {
+<span class="lineNum">      74 </span>            :     PLArenaPool *our_pool; /* for our internal allocs */
+<span class="lineNum">      75 </span>            : 
+<span class="lineNum">      76 </span>            :     sec_asn1e_state *current;
+<span class="lineNum">      77 </span>            :     sec_asn1e_parse_status status;
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span>            :     PRBool streaming;
+<span class="lineNum">      80 </span>            :     PRBool from_buf;
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            :     SEC_ASN1NotifyProc notify_proc; /* call before/after handling field */
+<span class="lineNum">      83 </span>            :     void *notify_arg;               /* argument to notify_proc */
+<span class="lineNum">      84 </span>            :     PRBool during_notify;           /* true during call to notify_proc */
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span>            :     SEC_ASN1WriteProc output_proc; /* pass encoded bytes to this  */
+<span class="lineNum">      87 </span>            :     void *output_arg;              /* argument to that function */
+<span class="lineNum">      88 </span>            : };
+<a name="89"><span class="lineNum">      89 </span>            : </a>
+<span class="lineNum">      90 </span>            : static sec_asn1e_state *
+<span class="lineNum">      91 </span><span class="lineCov">          1 : sec_asn1e_push_state(SEC_ASN1EncoderContext *cx,</span>
+<span class="lineNum">      92 </span>            :                      const SEC_ASN1Template *theTemplate,
+<span class="lineNum">      93 </span>            :                      const void *src, PRBool new_depth)
+<span class="lineNum">      94 </span>            : {
+<span class="lineNum">      95 </span>            :     sec_asn1e_state *state, *new_state;
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span><span class="lineCov">          1 :     state = cx-&gt;current;</span>
+<span class="lineNum">      98 </span>            : 
+<span class="lineNum">      99 </span><span class="lineCov">          1 :     new_state = (sec_asn1e_state *)PORT_ArenaZAlloc(cx-&gt;our_pool,</span>
+<span class="lineNum">     100 </span>            :                                                     sizeof(*new_state));
+<span class="lineNum">     101 </span><span class="lineCov">          1 :     if (new_state == NULL) {</span>
+<span class="lineNum">     102 </span><span class="lineNoCov">          0 :         cx-&gt;status = encodeError;</span>
+<span class="lineNum">     103 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     104 </span>            :     }
+<span class="lineNum">     105 </span>            : 
+<span class="lineNum">     106 </span><span class="lineCov">          1 :     new_state-&gt;top = cx;</span>
+<span class="lineNum">     107 </span><span class="lineCov">          1 :     new_state-&gt;parent = state;</span>
+<span class="lineNum">     108 </span><span class="lineCov">          1 :     new_state-&gt;theTemplate = theTemplate;</span>
+<span class="lineNum">     109 </span><span class="lineCov">          1 :     new_state-&gt;place = notInUse;</span>
+<span class="lineNum">     110 </span><span class="lineCov">          1 :     if (src != NULL)</span>
+<span class="lineNum">     111 </span><span class="lineCov">          1 :         new_state-&gt;src = (char *)src + theTemplate-&gt;offset;</span>
+<span class="lineNum">     112 </span>            : 
+<span class="lineNum">     113 </span><span class="lineCov">          1 :     if (state != NULL) {</span>
+<span class="lineNum">     114 </span><span class="lineCov">          1 :         new_state-&gt;depth = state-&gt;depth;</span>
+<span class="lineNum">     115 </span><span class="lineCov">          1 :         if (new_depth)</span>
+<span class="lineNum">     116 </span><span class="lineCov">          1 :             new_state-&gt;depth++;</span>
+<span class="lineNum">     117 </span><span class="lineCov">          1 :         state-&gt;child = new_state;</span>
+<span class="lineNum">     118 </span>            :     }
+<span class="lineNum">     119 </span>            : 
+<span class="lineNum">     120 </span><span class="lineCov">          1 :     cx-&gt;current = new_state;</span>
+<span class="lineNum">     121 </span><span class="lineCov">          1 :     return new_state;</span>
+<span class="lineNum">     122 </span>            : }
+<span class="lineNum">     123 </span>            : 
+<span class="lineNum">     124 </span>            : static void
+<span class="lineNum">     125 </span>            : sec_asn1e_scrub_state(sec_asn1e_state *state)
+<span class="lineNum">     126 </span>            : {
+<span class="lineNum">     127 </span>            :     /*
+<span class="lineNum">     128 </span>            :      * Some default &quot;scrubbing&quot;.
+<span class="lineNum">     129 </span>            :      * XXX right set of initializations?
+<span class="lineNum">     130 </span>            :      */
+<span class="lineNum">     131 </span><span class="lineCov">          1 :     state-&gt;place = beforeHeader;</span>
+<span class="lineNum">     132 </span><span class="lineCov">          1 :     state-&gt;indefinite = PR_FALSE;</span>
+<span class="lineNum">     133 </span>            : }
+<a name="134"><span class="lineNum">     134 </span>            : </a>
+<span class="lineNum">     135 </span>            : static void
+<span class="lineNum">     136 </span><span class="lineCov">          1 : sec_asn1e_notify_before(SEC_ASN1EncoderContext *cx, void *src, int depth)</span>
+<span class="lineNum">     137 </span>            : {
+<span class="lineNum">     138 </span><span class="lineCov">          1 :     if (cx-&gt;notify_proc == NULL)</span>
+<span class="lineNum">     139 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     140 </span>            : 
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :     cx-&gt;during_notify = PR_TRUE;</span>
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :     (*cx-&gt;notify_proc)(cx-&gt;notify_arg, PR_TRUE, src, depth);</span>
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :     cx-&gt;during_notify = PR_FALSE;</span>
+<span class="lineNum">     144 </span>            : }
+<a name="145"><span class="lineNum">     145 </span>            : </a>
+<span class="lineNum">     146 </span>            : static void
+<span class="lineNum">     147 </span><span class="lineCov">          1 : sec_asn1e_notify_after(SEC_ASN1EncoderContext *cx, void *src, int depth)</span>
+<span class="lineNum">     148 </span>            : {
+<span class="lineNum">     149 </span><span class="lineCov">          1 :     if (cx-&gt;notify_proc == NULL)</span>
+<span class="lineNum">     150 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :     cx-&gt;during_notify = PR_TRUE;</span>
+<span class="lineNum">     153 </span><span class="lineNoCov">          0 :     (*cx-&gt;notify_proc)(cx-&gt;notify_arg, PR_FALSE, src, depth);</span>
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :     cx-&gt;during_notify = PR_FALSE;</span>
+<span class="lineNum">     155 </span>            : }
+<a name="156"><span class="lineNum">     156 </span>            : </a>
+<span class="lineNum">     157 </span>            : static sec_asn1e_state *
+<span class="lineNum">     158 </span><span class="lineCov">          1 : sec_asn1e_init_state_based_on_template(sec_asn1e_state *state)</span>
+<span class="lineNum">     159 </span>            : {
+<span class="lineNum">     160 </span>            :     PRBool isExplicit, is_string, may_stream, optional, universal;
+<span class="lineNum">     161 </span>            :     PRBool disallowStreaming;
+<span class="lineNum">     162 </span>            :     unsigned char tag_modifiers;
+<span class="lineNum">     163 </span>            :     unsigned long encode_kind, under_kind;
+<span class="lineNum">     164 </span>            :     unsigned long tag_number;
+<span class="lineNum">     165 </span><span class="lineCov">          1 :     PRBool isInline = PR_FALSE;</span>
+<span class="lineNum">     166 </span>            : 
+<span class="lineNum">     167 </span><span class="lineCov">          1 :     encode_kind = state-&gt;theTemplate-&gt;kind;</span>
+<span class="lineNum">     168 </span>            : 
+<span class="lineNum">     169 </span><span class="lineCov">          1 :     universal = ((encode_kind &amp; SEC_ASN1_CLASS_MASK) == SEC_ASN1_UNIVERSAL)</span>
+<span class="lineNum">     170 </span>            :                     ? PR_TRUE
+<span class="lineNum">     171 </span><span class="lineCov">          1 :                     : PR_FALSE;</span>
+<span class="lineNum">     172 </span>            : 
+<span class="lineNum">     173 </span><span class="lineCov">          1 :     isExplicit = (encode_kind &amp; SEC_ASN1_EXPLICIT) ? PR_TRUE : PR_FALSE;</span>
+<span class="lineNum">     174 </span><span class="lineCov">          1 :     encode_kind &amp;= ~SEC_ASN1_EXPLICIT;</span>
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span><span class="lineCov">          1 :     optional = (encode_kind &amp; SEC_ASN1_OPTIONAL) ? PR_TRUE : PR_FALSE;</span>
+<span class="lineNum">     177 </span><span class="lineCov">          1 :     encode_kind &amp;= ~SEC_ASN1_OPTIONAL;</span>
+<span class="lineNum">     178 </span>            : 
+<span class="lineNum">     179 </span>            :     PORT_Assert(!(isExplicit &amp;&amp; universal)); /* bad templates */
+<span class="lineNum">     180 </span>            : 
+<span class="lineNum">     181 </span><span class="lineCov">          1 :     may_stream = (encode_kind &amp; SEC_ASN1_MAY_STREAM) ? PR_TRUE : PR_FALSE;</span>
+<span class="lineNum">     182 </span><span class="lineCov">          1 :     encode_kind &amp;= ~SEC_ASN1_MAY_STREAM;</span>
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span><span class="lineCov">          1 :     disallowStreaming = (encode_kind &amp; SEC_ASN1_NO_STREAM) ? PR_TRUE : PR_FALSE;</span>
+<span class="lineNum">     185 </span><span class="lineCov">          1 :     encode_kind &amp;= ~SEC_ASN1_NO_STREAM;</span>
+<span class="lineNum">     186 </span>            : 
+<span class="lineNum">     187 </span>            :     /* Just clear this to get it out of the way; we do not need it here */
+<span class="lineNum">     188 </span><span class="lineCov">          1 :     encode_kind &amp;= ~SEC_ASN1_DYNAMIC;</span>
+<span class="lineNum">     189 </span>            : 
+<span class="lineNum">     190 </span><span class="lineCov">          1 :     if (encode_kind &amp; SEC_ASN1_CHOICE) {</span>
+<span class="lineNum">     191 </span>            :         under_kind = SEC_ASN1_CHOICE;
+<span class="lineNum">     192 </span><span class="lineCov">          1 :     } else if ((encode_kind &amp; (SEC_ASN1_POINTER | SEC_ASN1_INLINE)) ||</span>
+<span class="lineNum">     193 </span><span class="lineCov">          1 :                (!universal &amp;&amp; !isExplicit)) {</span>
+<span class="lineNum">     194 </span>            :         const SEC_ASN1Template *subt;
+<span class="lineNum">     195 </span><span class="lineCov">          1 :         void *src = NULL;</span>
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span>            :         PORT_Assert((encode_kind &amp; (SEC_ASN1_ANY | SEC_ASN1_SKIP)) == 0);
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span>            :         sec_asn1e_scrub_state(state);
+<span class="lineNum">     200 </span>            : 
+<span class="lineNum">     201 </span><span class="lineCov">          1 :         if (encode_kind &amp; SEC_ASN1_POINTER) {</span>
+<span class="lineNum">     202 </span><span class="lineCov">          1 :             src = *(void **)state-&gt;src;</span>
+<span class="lineNum">     203 </span><span class="lineCov">          1 :             state-&gt;place = afterPointer;</span>
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span><span class="lineCov">          1 :             if (src == NULL) {</span>
+<span class="lineNum">     206 </span>            :                 /*
+<span class="lineNum">     207 </span>            :                  * If this is optional, but NULL, then the field does
+<span class="lineNum">     208 </span>            :                  * not need to be encoded.  In this case we are done;
+<span class="lineNum">     209 </span>            :                  * we do not want to push a subtemplate.
+<span class="lineNum">     210 </span>            :                  */
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 :                 if (optional)</span>
+<span class="lineNum">     212 </span>            :                     return state;
+<span class="lineNum">     213 </span>            : 
+<span class="lineNum">     214 </span>            :                 /*
+<span class="lineNum">     215 </span>            :                  * XXX this is an error; need to figure out
+<span class="lineNum">     216 </span>            :                  * how to handle this
+<span class="lineNum">     217 </span>            :                  */
+<span class="lineNum">     218 </span>            :             }
+<span class="lineNum">     219 </span>            :         } else {
+<span class="lineNum">     220 </span><span class="lineCov">          1 :             src = state-&gt;src;</span>
+<span class="lineNum">     221 </span><span class="lineCov">          1 :             if (encode_kind &amp; SEC_ASN1_INLINE) {</span>
+<span class="lineNum">     222 </span>            :                 /* check that there are no extraneous bits */
+<span class="lineNum">     223 </span>            :                 /* PORT_Assert (encode_kind == SEC_ASN1_INLINE &amp;&amp; !optional); */
+<span class="lineNum">     224 </span><span class="lineCov">          1 :                 state-&gt;place = afterInline;</span>
+<span class="lineNum">     225 </span><span class="lineCov">          1 :                 isInline = PR_TRUE;</span>
+<span class="lineNum">     226 </span>            :             } else {
+<span class="lineNum">     227 </span>            :                 /*
+<span class="lineNum">     228 </span>            :                  * Save the tag modifiers and tag number here before moving
+<span class="lineNum">     229 </span>            :                  * on to the next state in case this is a member of a
+<span class="lineNum">     230 </span>            :                  * SEQUENCE OF
+<span class="lineNum">     231 </span>            :                  */
+<span class="lineNum">     232 </span><span class="lineCov">          1 :                 state-&gt;tag_modifiers = (unsigned char)(encode_kind &amp; (SEC_ASN1_TAG_MASK &amp; ~SEC_ASN1_TAGNUM_MASK));</span>
+<span class="lineNum">     233 </span><span class="lineCov">          1 :                 state-&gt;tag_number = (unsigned char)(encode_kind &amp; SEC_ASN1_TAGNUM_MASK);</span>
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span><span class="lineCov">          1 :                 state-&gt;place = afterImplicit;</span>
+<span class="lineNum">     236 </span><span class="lineCov">          1 :                 state-&gt;optional = optional;</span>
+<span class="lineNum">     237 </span>            :             }
+<span class="lineNum">     238 </span>            :         }
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span><span class="lineCov">          1 :         subt = SEC_ASN1GetSubtemplate(state-&gt;theTemplate, state-&gt;src, PR_TRUE);</span>
+<span class="lineNum">     241 </span><span class="lineCov">          1 :         if (isInline &amp;&amp; optional) {</span>
+<span class="lineNum">     242 </span>            :             /* we only handle a very limited set of optional inline cases at
+<span class="lineNum">     243 </span>            :                this time */
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :             if (PR_FALSE != SEC_ASN1IsTemplateSimple(subt)) {</span>
+<span class="lineNum">     245 </span>            :                 /* we now know that the target is a SECItem*, so we can check
+<span class="lineNum">     246 </span>            :                    if the source contains one */
+<span class="lineNum">     247 </span><span class="lineNoCov">          0 :                 SECItem *target = (SECItem *)state-&gt;src;</span>
+<span class="lineNum">     248 </span><span class="lineNoCov">          0 :                 if (!target || !target-&gt;data || !target-&gt;len) {</span>
+<span class="lineNum">     249 </span>            :                     /* no valid data to encode subtemplate */
+<span class="lineNum">     250 </span>            :                     return state;
+<span class="lineNum">     251 </span>            :                 }
+<span class="lineNum">     252 </span>            :             } else {
+<span class="lineNum">     253 </span>            :                 PORT_Assert(0); /* complex templates are not handled as
+<span class="lineNum">     254 </span>            :                                    inline optional */
+<span class="lineNum">     255 </span>            :             }
+<span class="lineNum">     256 </span>            :         }
+<span class="lineNum">     257 </span><span class="lineCov">          1 :         state = sec_asn1e_push_state(state-&gt;top, subt, src, PR_FALSE);</span>
+<span class="lineNum">     258 </span><span class="lineCov">          1 :         if (state == NULL)</span>
+<span class="lineNum">     259 </span>            :             return state;
+<span class="lineNum">     260 </span>            : 
+<span class="lineNum">     261 </span><span class="lineCov">          1 :         if (universal) {</span>
+<span class="lineNum">     262 </span>            :             /*
+<span class="lineNum">     263 </span>            :              * This is a POINTER or INLINE; just init based on that
+<span class="lineNum">     264 </span>            :              * and we are done.
+<span class="lineNum">     265 </span>            :              */
+<span class="lineNum">     266 </span>            :             return sec_asn1e_init_state_based_on_template(state);
+<span class="lineNum">     267 </span>            :         }
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span>            :         /*
+<span class="lineNum">     270 </span>            :          * This is an implicit, non-universal (meaning, application-private
+<span class="lineNum">     271 </span>            :          * or context-specific) field.  This results in a &quot;magic&quot; tag but
+<span class="lineNum">     272 </span>            :          * encoding based on the underlying type.  We pushed a new state
+<span class="lineNum">     273 </span>            :          * that is based on the subtemplate (the underlying type), but
+<span class="lineNum">     274 </span>            :          * now we will sort of alias it to give it some of our properties
+<span class="lineNum">     275 </span>            :          * (tag, optional status, etc.).
+<span class="lineNum">     276 </span>            :          *
+<span class="lineNum">     277 </span>            :          * NB: ALL the following flags in the subtemplate are disallowed
+<span class="lineNum">     278 </span>            :          *     and/or ignored: EXPLICIT, OPTIONAL, INNER, INLINE, POINTER.
+<span class="lineNum">     279 </span>            :          */
+<span class="lineNum">     280 </span>            : 
+<span class="lineNum">     281 </span><span class="lineCov">          1 :         under_kind = state-&gt;theTemplate-&gt;kind;</span>
+<span class="lineNum">     282 </span><span class="lineCov">          1 :         if ((under_kind &amp; SEC_ASN1_MAY_STREAM) &amp;&amp; !disallowStreaming) {</span>
+<span class="lineNum">     283 </span><span class="lineCov">          1 :             may_stream = PR_TRUE;</span>
+<span class="lineNum">     284 </span>            :         }
+<span class="lineNum">     285 </span><span class="lineCov">          1 :         under_kind &amp;= ~(SEC_ASN1_MAY_STREAM | SEC_ASN1_DYNAMIC);</span>
+<span class="lineNum">     286 </span>            :     } else {
+<span class="lineNum">     287 </span>            :         under_kind = encode_kind;
+<span class="lineNum">     288 </span>            :     }
+<span class="lineNum">     289 </span>            : 
+<span class="lineNum">     290 </span>            : /*
+<span class="lineNum">     291 </span>            :      * Sanity check that there are no unwanted bits marked in under_kind.
+<span class="lineNum">     292 </span>            :      * These bits were either removed above (after we recorded them) or
+<span class="lineNum">     293 </span>            :      * they simply should not be found (signalling a bad/broken template).
+<span class="lineNum">     294 </span>            :      * XXX is this the right set of bits to test here? (i.e. need to add
+<span class="lineNum">     295 </span>            :      * or remove any?)
+<span class="lineNum">     296 </span>            :      */
+<span class="lineNum">     297 </span>            : #define UNEXPECTED_FLAGS                                                      \
+<span class="lineNum">     298 </span>            :     (SEC_ASN1_EXPLICIT | SEC_ASN1_OPTIONAL | SEC_ASN1_SKIP | SEC_ASN1_INNER | \
+<span class="lineNum">     299 </span>            :      SEC_ASN1_DYNAMIC | SEC_ASN1_MAY_STREAM | SEC_ASN1_INLINE | SEC_ASN1_POINTER)
+<span class="lineNum">     300 </span>            : 
+<span class="lineNum">     301 </span>            :     PORT_Assert((under_kind &amp; UNEXPECTED_FLAGS) == 0);
+<span class="lineNum">     302 </span><span class="lineCov">          1 :     under_kind &amp;= ~UNEXPECTED_FLAGS;</span>
+<span class="lineNum">     303 </span>            : #undef UNEXPECTED_FLAGS
+<span class="lineNum">     304 </span>            : 
+<span class="lineNum">     305 </span><span class="lineCov">          1 :     if (encode_kind &amp; SEC_ASN1_ANY) {</span>
+<span class="lineNum">     306 </span>            :         PORT_Assert(encode_kind == under_kind);
+<span class="lineNum">     307 </span>            :         tag_modifiers = 0;
+<span class="lineNum">     308 </span>            :         tag_number = 0;
+<span class="lineNum">     309 </span>            :         is_string = PR_TRUE;
+<span class="lineNum">     310 </span>            :     } else {
+<span class="lineNum">     311 </span><span class="lineCov">          1 :         tag_modifiers = (unsigned char)(encode_kind &amp; (SEC_ASN1_TAG_MASK &amp; ~SEC_ASN1_TAGNUM_MASK));</span>
+<span class="lineNum">     312 </span>            :         /*
+<span class="lineNum">     313 </span>            :          * XXX This assumes only single-octet identifiers.  To handle
+<span class="lineNum">     314 </span>            :          * the HIGH TAG form we would need to do some more work, especially
+<span class="lineNum">     315 </span>            :          * in how to specify them in the template, because right now we
+<span class="lineNum">     316 </span>            :          * do not provide a way to specify more *tag* bits in encode_kind.
+<span class="lineNum">     317 </span>            :          */
+<span class="lineNum">     318 </span><span class="lineCov">          1 :         tag_number = encode_kind &amp; SEC_ASN1_TAGNUM_MASK;</span>
+<span class="lineNum">     319 </span>            : 
+<span class="lineNum">     320 </span><span class="lineCov">          1 :         is_string = PR_FALSE;</span>
+<span class="lineNum">     321 </span><span class="lineCov">          1 :         switch (under_kind &amp; SEC_ASN1_TAGNUM_MASK) {</span>
+<span class="lineNum">     322 </span>            :             case SEC_ASN1_SET:
+<span class="lineNum">     323 </span>            :                 /*
+<span class="lineNum">     324 </span>            :                  * XXX A plain old SET (as opposed to a SET OF) is not implemented.
+<span class="lineNum">     325 </span>            :                  * If it ever is, remove this assert...
+<span class="lineNum">     326 </span>            :                  */
+<span class="lineNum">     327 </span>            :                 PORT_Assert((under_kind &amp; SEC_ASN1_GROUP) != 0);
+<span class="lineNum">     328 </span>            :             /* fallthru */
+<span class="lineNum">     329 </span>            :             case SEC_ASN1_SEQUENCE:
+<span class="lineNum">     330 </span><span class="lineCov">          1 :                 tag_modifiers |= SEC_ASN1_CONSTRUCTED;</span>
+<span class="lineNum">     331 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">     332 </span>            :             case SEC_ASN1_BIT_STRING:
+<span class="lineNum">     333 </span>            :             case SEC_ASN1_BMP_STRING:
+<span class="lineNum">     334 </span>            :             case SEC_ASN1_GENERALIZED_TIME:
+<span class="lineNum">     335 </span>            :             case SEC_ASN1_IA5_STRING:
+<span class="lineNum">     336 </span>            :             case SEC_ASN1_OCTET_STRING:
+<span class="lineNum">     337 </span>            :             case SEC_ASN1_PRINTABLE_STRING:
+<span class="lineNum">     338 </span>            :             case SEC_ASN1_T61_STRING:
+<span class="lineNum">     339 </span>            :             case SEC_ASN1_UNIVERSAL_STRING:
+<span class="lineNum">     340 </span>            :             case SEC_ASN1_UTC_TIME:
+<span class="lineNum">     341 </span>            :             case SEC_ASN1_UTF8_STRING:
+<span class="lineNum">     342 </span>            :             case SEC_ASN1_VISIBLE_STRING:
+<span class="lineNum">     343 </span>            :                 /*
+<span class="lineNum">     344 </span>            :                  * We do not yet know if we will be constructing the string,
+<span class="lineNum">     345 </span>            :                  * so we have to wait to do this final tag modification.
+<span class="lineNum">     346 </span>            :                  */
+<span class="lineNum">     347 </span><span class="lineCov">          1 :                 is_string = PR_TRUE;</span>
+<span class="lineNum">     348 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">     349 </span>            :         }
+<span class="lineNum">     350 </span>            :     }
+<span class="lineNum">     351 </span>            : 
+<span class="lineNum">     352 </span><span class="lineCov">          1 :     state-&gt;tag_modifiers = tag_modifiers;</span>
+<span class="lineNum">     353 </span><span class="lineCov">          1 :     state-&gt;tag_number = (unsigned char)tag_number;</span>
+<span class="lineNum">     354 </span><span class="lineCov">          1 :     state-&gt;underlying_kind = under_kind;</span>
+<span class="lineNum">     355 </span><span class="lineCov">          1 :     state-&gt;isExplicit = isExplicit;</span>
+<span class="lineNum">     356 </span><span class="lineCov">          1 :     state-&gt;may_stream = may_stream;</span>
+<span class="lineNum">     357 </span><span class="lineCov">          1 :     state-&gt;is_string = is_string;</span>
+<span class="lineNum">     358 </span><span class="lineCov">          1 :     state-&gt;optional = optional;</span>
+<span class="lineNum">     359 </span><span class="lineCov">          1 :     state-&gt;disallowStreaming = disallowStreaming;</span>
+<span class="lineNum">     360 </span>            : 
+<span class="lineNum">     361 </span>            :     sec_asn1e_scrub_state(state);
+<span class="lineNum">     362 </span>            : 
+<span class="lineNum">     363 </span><span class="lineCov">          1 :     return state;</span>
+<span class="lineNum">     364 </span>            : }
+<a name="365"><span class="lineNum">     365 </span>            : </a>
+<span class="lineNum">     366 </span>            : static void
+<span class="lineNum">     367 </span><span class="lineCov">          1 : sec_asn1e_write_part(sec_asn1e_state *state,</span>
+<span class="lineNum">     368 </span>            :                      const char *buf, unsigned long len,
+<span class="lineNum">     369 </span>            :                      SEC_ASN1EncodingPart part)
+<span class="lineNum">     370 </span>            : {
+<span class="lineNum">     371 </span>            :     SEC_ASN1EncoderContext *cx;
+<span class="lineNum">     372 </span>            : 
+<span class="lineNum">     373 </span><span class="lineCov">          1 :     cx = state-&gt;top;</span>
+<span class="lineNum">     374 </span><span class="lineCov">          1 :     (*cx-&gt;output_proc)(cx-&gt;output_arg, buf, len, state-&gt;depth, part);</span>
+<span class="lineNum">     375 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     376 </span>            : 
+<span class="lineNum">     377 </span>            : /*
+<span class="lineNum">     378 </span>            :  * XXX This assumes only single-octet identifiers.  To handle
+<span class="lineNum">     379 </span>            :  * the HIGH TAG form we would need to modify this interface and
+<span class="lineNum">     380 </span>            :  * teach it to properly encode the special form.
+<a name="381"><span class="lineNum">     381 </span>            :  */</a>
+<span class="lineNum">     382 </span>            : static void
+<span class="lineNum">     383 </span><span class="lineCov">          1 : sec_asn1e_write_identifier_bytes(sec_asn1e_state *state, unsigned char value)</span>
+<span class="lineNum">     384 </span>            : {
+<span class="lineNum">     385 </span>            :     char byte;
+<span class="lineNum">     386 </span>            : 
+<span class="lineNum">     387 </span><span class="lineCov">          1 :     byte = (char)value;</span>
+<span class="lineNum">     388 </span><span class="lineCov">          1 :     sec_asn1e_write_part(state, &amp;byte, 1, SEC_ASN1_Identifier);</span>
+<span class="lineNum">     389 </span><span class="lineCov">          1 : }</span>
+<a name="390"><span class="lineNum">     390 </span>            : </a>
+<span class="lineNum">     391 </span>            : int
+<span class="lineNum">     392 </span><span class="lineCov">          1 : SEC_ASN1EncodeLength(unsigned char *buf, int value)</span>
+<span class="lineNum">     393 </span>            : {
+<span class="lineNum">     394 </span>            :     int lenlen;
+<span class="lineNum">     395 </span>            : 
+<span class="lineNum">     396 </span><span class="lineCov">          1 :     lenlen = SEC_ASN1LengthLength(value);</span>
+<span class="lineNum">     397 </span><span class="lineCov">          1 :     if (lenlen == 1) {</span>
+<span class="lineNum">     398 </span><span class="lineCov">          1 :         buf[0] = value;</span>
+<span class="lineNum">     399 </span>            :     } else {
+<span class="lineNum">     400 </span>            :         int i;
+<span class="lineNum">     401 </span>            : 
+<span class="lineNum">     402 </span><span class="lineCov">          1 :         i = lenlen - 1;</span>
+<span class="lineNum">     403 </span><span class="lineCov">          1 :         buf[0] = 0x80 | i;</span>
+<span class="lineNum">     404 </span><span class="lineCov">          1 :         while (i) {</span>
+<span class="lineNum">     405 </span><span class="lineCov">          1 :             buf[i--] = value;</span>
+<span class="lineNum">     406 </span><span class="lineCov">          1 :             value &gt;&gt;= 8;</span>
+<span class="lineNum">     407 </span>            :         }
+<span class="lineNum">     408 </span>            :         PORT_Assert(value == 0);
+<span class="lineNum">     409 </span>            :     }
+<span class="lineNum">     410 </span><span class="lineCov">          1 :     return lenlen;</span>
+<span class="lineNum">     411 </span>            : }
+<a name="412"><span class="lineNum">     412 </span>            : </a>
+<span class="lineNum">     413 </span>            : static void
+<span class="lineNum">     414 </span><span class="lineCov">          1 : sec_asn1e_write_length_bytes(sec_asn1e_state *state, unsigned long value,</span>
+<span class="lineNum">     415 </span>            :                              PRBool indefinite)
+<span class="lineNum">     416 </span>            : {
+<span class="lineNum">     417 </span>            :     int lenlen;
+<span class="lineNum">     418 </span>            :     unsigned char buf[sizeof(unsigned long) + 1];
+<span class="lineNum">     419 </span>            : 
+<span class="lineNum">     420 </span><span class="lineCov">          1 :     if (indefinite) {</span>
+<span class="lineNum">     421 </span>            :         PORT_Assert(value == 0);
+<span class="lineNum">     422 </span><span class="lineNoCov">          0 :         buf[0] = 0x80;</span>
+<span class="lineNum">     423 </span><span class="lineNoCov">          0 :         lenlen = 1;</span>
+<span class="lineNum">     424 </span>            :     } else {
+<span class="lineNum">     425 </span><span class="lineCov">          1 :         lenlen = SEC_ASN1EncodeLength(buf, value);</span>
+<span class="lineNum">     426 </span>            :     }
+<span class="lineNum">     427 </span>            : 
+<span class="lineNum">     428 </span><span class="lineCov">          1 :     sec_asn1e_write_part(state, (char *)buf, lenlen, SEC_ASN1_Length);</span>
+<span class="lineNum">     429 </span><span class="lineCov">          1 : }</span>
+<a name="430"><span class="lineNum">     430 </span>            : </a>
+<span class="lineNum">     431 </span>            : static void
+<span class="lineNum">     432 </span><span class="lineCov">          1 : sec_asn1e_write_contents_bytes(sec_asn1e_state *state,</span>
+<span class="lineNum">     433 </span>            :                                const char *buf, unsigned long len)
+<span class="lineNum">     434 </span>            : {
+<span class="lineNum">     435 </span><span class="lineCov">          1 :     sec_asn1e_write_part(state, buf, len, SEC_ASN1_Contents);</span>
+<span class="lineNum">     436 </span><span class="lineCov">          1 : }</span>
+<a name="437"><span class="lineNum">     437 </span>            : </a>
+<span class="lineNum">     438 </span>            : static void
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 : sec_asn1e_write_end_of_contents_bytes(sec_asn1e_state *state)</span>
+<span class="lineNum">     440 </span>            : {
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :     const char eoc[2] = { 0, 0 };</span>
+<span class="lineNum">     442 </span>            : 
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :     sec_asn1e_write_part(state, eoc, 2, SEC_ASN1_EndOfContents);</span>
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 : }</span>
+<a name="445"><span class="lineNum">     445 </span>            : </a>
+<span class="lineNum">     446 </span>            : static int
+<span class="lineNum">     447 </span><span class="lineCov">          1 : sec_asn1e_which_choice(</span>
+<span class="lineNum">     448 </span>            :     void *src,
+<span class="lineNum">     449 </span>            :     const SEC_ASN1Template *theTemplate)
+<span class="lineNum">     450 </span>            : {
+<span class="lineNum">     451 </span>            :     int rv;
+<span class="lineNum">     452 </span><span class="lineCov">          1 :     unsigned int which = *(unsigned int *)src;</span>
+<span class="lineNum">     453 </span>            : 
+<span class="lineNum">     454 </span><span class="lineCov">          1 :     for (rv = 1, theTemplate++; theTemplate-&gt;kind != 0; rv++, theTemplate++) {</span>
+<span class="lineNum">     455 </span><span class="lineCov">          1 :         if (which == theTemplate-&gt;size) {</span>
+<span class="lineNum">     456 </span><span class="lineCov">          1 :             return rv;</span>
+<span class="lineNum">     457 </span>            :         }
+<span class="lineNum">     458 </span>            :     }
+<span class="lineNum">     459 </span>            : 
+<span class="lineNum">     460 </span>            :     return 0;
+<span class="lineNum">     461 </span>            : }
+<a name="462"><span class="lineNum">     462 </span>            : </a>
+<span class="lineNum">     463 </span>            : static unsigned long
+<span class="lineNum">     464 </span><span class="lineCov">          1 : sec_asn1e_contents_length(const SEC_ASN1Template *theTemplate, void *src,</span>
+<span class="lineNum">     465 </span>            :                           PRBool disallowStreaming, PRBool insideIndefinite,
+<span class="lineNum">     466 </span>            :                           sec_asn1e_hdr_encoding *pHdrException)
+<span class="lineNum">     467 </span>            : {
+<span class="lineNum">     468 </span>            :     unsigned long encode_kind, underlying_kind;
+<span class="lineNum">     469 </span>            :     PRBool isExplicit, optional, universal, may_stream;
+<span class="lineNum">     470 </span>            :     unsigned long len;
+<span class="lineNum">     471 </span>            : 
+<span class="lineNum">     472 </span>            :     /*
+<span class="lineNum">     473 </span>            :      * This function currently calculates the length in all cases
+<span class="lineNum">     474 </span>            :      * except the following: when writing out the contents of a
+<span class="lineNum">     475 </span>            :      * template that belongs to a state where it was a sub-template
+<span class="lineNum">     476 </span>            :      * with the SEC_ASN1_MAY_STREAM bit set and it's parent had the
+<span class="lineNum">     477 </span>            :      * optional bit set.  The information that the parent is optional
+<span class="lineNum">     478 </span>            :      * and that we should return the length of 0 when that length is
+<span class="lineNum">     479 </span>            :      * present since that means the optional field is no longer present.
+<span class="lineNum">     480 </span>            :      * So we add the disallowStreaming flag which is passed in when
+<span class="lineNum">     481 </span>            :      * writing the contents, but for all recursive calls to
+<span class="lineNum">     482 </span>            :      * sec_asn1e_contents_length, we pass PR_FALSE, because this
+<span class="lineNum">     483 </span>            :      * function correctly calculates the length for children templates
+<span class="lineNum">     484 </span>            :      * from that point on.  Confused yet?  At least you didn't have
+<span class="lineNum">     485 </span>            :      * to figure it out.  ;)  -javi
+<span class="lineNum">     486 </span>            :      */
+<span class="lineNum">     487 </span><span class="lineCov">          1 :     encode_kind = theTemplate-&gt;kind;</span>
+<span class="lineNum">     488 </span>            : 
+<span class="lineNum">     489 </span><span class="lineCov">          1 :     universal = ((encode_kind &amp; SEC_ASN1_CLASS_MASK) == SEC_ASN1_UNIVERSAL)</span>
+<span class="lineNum">     490 </span>            :                     ? PR_TRUE
+<span class="lineNum">     491 </span><span class="lineCov">          1 :                     : PR_FALSE;</span>
+<span class="lineNum">     492 </span>            : 
+<span class="lineNum">     493 </span><span class="lineCov">          1 :     isExplicit = (encode_kind &amp; SEC_ASN1_EXPLICIT) ? PR_TRUE : PR_FALSE;</span>
+<span class="lineNum">     494 </span><span class="lineCov">          1 :     encode_kind &amp;= ~SEC_ASN1_EXPLICIT;</span>
+<span class="lineNum">     495 </span>            : 
+<span class="lineNum">     496 </span><span class="lineCov">          1 :     optional = (encode_kind &amp; SEC_ASN1_OPTIONAL) ? PR_TRUE : PR_FALSE;</span>
+<span class="lineNum">     497 </span><span class="lineCov">          1 :     encode_kind &amp;= ~SEC_ASN1_OPTIONAL;</span>
+<span class="lineNum">     498 </span>            : 
+<span class="lineNum">     499 </span>            :     PORT_Assert(!(isExplicit &amp;&amp; universal)); /* bad templates */
+<span class="lineNum">     500 </span>            : 
+<span class="lineNum">     501 </span><span class="lineCov">          1 :     may_stream = (encode_kind &amp; SEC_ASN1_MAY_STREAM) ? PR_TRUE : PR_FALSE;</span>
+<span class="lineNum">     502 </span><span class="lineCov">          1 :     encode_kind &amp;= ~SEC_ASN1_MAY_STREAM;</span>
+<span class="lineNum">     503 </span>            : 
+<span class="lineNum">     504 </span>            :     /* Just clear this to get it out of the way; we do not need it here */
+<span class="lineNum">     505 </span><span class="lineCov">          1 :     encode_kind &amp;= ~SEC_ASN1_DYNAMIC;</span>
+<span class="lineNum">     506 </span>            : 
+<span class="lineNum">     507 </span><span class="lineCov">          1 :     if (encode_kind &amp; SEC_ASN1_NO_STREAM) {</span>
+<span class="lineNum">     508 </span><span class="lineNoCov">          0 :         disallowStreaming = PR_TRUE;</span>
+<span class="lineNum">     509 </span>            :     }
+<span class="lineNum">     510 </span><span class="lineCov">          1 :     encode_kind &amp;= ~SEC_ASN1_NO_STREAM;</span>
+<span class="lineNum">     511 </span>            : 
+<span class="lineNum">     512 </span><span class="lineCov">          1 :     if (encode_kind &amp; SEC_ASN1_CHOICE) {</span>
+<span class="lineNum">     513 </span>            :         void *src2;
+<span class="lineNum">     514 </span><span class="lineCov">          1 :         int indx = sec_asn1e_which_choice(src, theTemplate);</span>
+<span class="lineNum">     515 </span><span class="lineCov">          1 :         if (0 == indx) {</span>
+<span class="lineNum">     516 </span>            :             /* XXX set an error? &quot;choice not found&quot; */
+<span class="lineNum">     517 </span>            :             /* state-&gt;top-&gt;status = encodeError; */
+<span class="lineNum">     518 </span>            :             return 0;
+<span class="lineNum">     519 </span>            :         }
+<span class="lineNum">     520 </span>            : 
+<span class="lineNum">     521 </span><span class="lineCov">          1 :         src2 = (void *)((char *)src - theTemplate-&gt;offset + theTemplate[indx].offset);</span>
+<span class="lineNum">     522 </span>            : 
+<span class="lineNum">     523 </span><span class="lineCov">          1 :         return sec_asn1e_contents_length(&amp;theTemplate[indx], src2,</span>
+<span class="lineNum">     524 </span>            :                                          disallowStreaming, insideIndefinite,
+<span class="lineNum">     525 </span>            :                                          pHdrException);
+<span class="lineNum">     526 </span>            :     }
+<span class="lineNum">     527 </span>            : 
+<span class="lineNum">     528 </span><span class="lineCov">          1 :     if ((encode_kind &amp; (SEC_ASN1_POINTER | SEC_ASN1_INLINE)) || !universal) {</span>
+<span class="lineNum">     529 </span>            :         /* XXX any bits we want to disallow (PORT_Assert against) here? */
+<span class="lineNum">     530 </span><span class="lineCov">          1 :         theTemplate = SEC_ASN1GetSubtemplate(theTemplate, src, PR_TRUE);</span>
+<span class="lineNum">     531 </span><span class="lineCov">          1 :         if (encode_kind &amp; SEC_ASN1_POINTER) {</span>
+<span class="lineNum">     532 </span><span class="lineCov">          1 :             src = *(void **)src;</span>
+<span class="lineNum">     533 </span><span class="lineCov">          1 :             if (src == NULL) {</span>
+<span class="lineNum">     534 </span><span class="lineNoCov">          0 :                 *pHdrException = optional ? hdr_optional : hdr_normal;</span>
+<span class="lineNum">     535 </span><span class="lineNoCov">          0 :                 return 0;</span>
+<span class="lineNum">     536 </span>            :             }
+<span class="lineNum">     537 </span><span class="lineCov">          1 :         } else if (encode_kind &amp; SEC_ASN1_INLINE) {</span>
+<span class="lineNum">     538 </span>            :             /* check that there are no extraneous bits */
+<span class="lineNum">     539 </span><span class="lineCov">          1 :             if (optional) {</span>
+<span class="lineNum">     540 </span><span class="lineNoCov">          0 :                 if (PR_FALSE != SEC_ASN1IsTemplateSimple(theTemplate)) {</span>
+<span class="lineNum">     541 </span>            :                     /* we now know that the target is a SECItem*, so we can check
+<span class="lineNum">     542 </span>            :                        if the source contains one */
+<span class="lineNum">     543 </span><span class="lineNoCov">          0 :                     SECItem *target = (SECItem *)src;</span>
+<span class="lineNum">     544 </span><span class="lineNoCov">          0 :                     if (!target || !target-&gt;data || !target-&gt;len) {</span>
+<span class="lineNum">     545 </span>            :                         /* no valid data to encode subtemplate */
+<span class="lineNum">     546 </span><span class="lineNoCov">          0 :                         *pHdrException = hdr_optional;</span>
+<span class="lineNum">     547 </span><span class="lineNoCov">          0 :                         return 0;</span>
+<span class="lineNum">     548 </span>            :                     }
+<span class="lineNum">     549 </span>            :                 } else {
+<span class="lineNum">     550 </span>            :                     PORT_Assert(0); /* complex templates not handled as inline
+<span class="lineNum">     551 </span>            :                                        optional */
+<span class="lineNum">     552 </span>            :                 }
+<span class="lineNum">     553 </span>            :             }
+<span class="lineNum">     554 </span>            :         }
+<span class="lineNum">     555 </span>            : 
+<span class="lineNum">     556 </span><span class="lineCov">          1 :         src = (char *)src + theTemplate-&gt;offset;</span>
+<span class="lineNum">     557 </span>            : 
+<span class="lineNum">     558 </span>            :         /* recurse to find the length of the subtemplate */
+<span class="lineNum">     559 </span><span class="lineCov">          1 :         len = sec_asn1e_contents_length(theTemplate, src, disallowStreaming,</span>
+<span class="lineNum">     560 </span>            :                                         insideIndefinite, pHdrException);
+<span class="lineNum">     561 </span><span class="lineCov">          1 :         if (len == 0 &amp;&amp; optional) {</span>
+<span class="lineNum">     562 </span><span class="lineCov">          1 :             *pHdrException = hdr_optional;</span>
+<span class="lineNum">     563 </span><span class="lineCov">          1 :         } else if (isExplicit) {</span>
+<span class="lineNum">     564 </span><span class="lineCov">          1 :             if (*pHdrException == hdr_any) {</span>
+<span class="lineNum">     565 </span>            :                 /* *we* do not want to add in a header,
+<span class="lineNum">     566 </span>            :                 ** but our caller still does.
+<span class="lineNum">     567 </span>            :                 */
+<span class="lineNum">     568 </span><span class="lineNoCov">          0 :                 *pHdrException = hdr_normal;</span>
+<span class="lineNum">     569 </span><span class="lineCov">          1 :             } else if (*pHdrException == hdr_normal) {</span>
+<span class="lineNum">     570 </span>            :                 /* if the inner content exists, our length is
+<span class="lineNum">     571 </span>            :                  * len(identifier) + len(length) + len(innercontent)
+<span class="lineNum">     572 </span>            :                  * XXX we currently assume len(identifier) == 1;
+<span class="lineNum">     573 </span>            :                  * to support a high-tag-number this would need to be smarter.
+<span class="lineNum">     574 </span>            :                  */
+<span class="lineNum">     575 </span><span class="lineCov">          1 :                 len += 1 + SEC_ASN1LengthLength(len);</span>
+<span class="lineNum">     576 </span>            :             }
+<span class="lineNum">     577 </span>            :         }
+<span class="lineNum">     578 </span><span class="lineCov">          1 :         return len;</span>
+<span class="lineNum">     579 </span>            :     }
+<span class="lineNum">     580 </span><span class="lineCov">          1 :     underlying_kind = encode_kind;</span>
+<span class="lineNum">     581 </span>            : 
+<span class="lineNum">     582 </span>            :     /* This is only used in decoding; it plays no part in encoding.  */
+<span class="lineNum">     583 </span><span class="lineCov">          1 :     if (underlying_kind &amp; SEC_ASN1_SAVE) {</span>
+<span class="lineNum">     584 </span>            :         /* check that there are no extraneous bits */
+<span class="lineNum">     585 </span>            :         PORT_Assert(underlying_kind == SEC_ASN1_SAVE);
+<span class="lineNum">     586 </span><span class="lineCov">          1 :         *pHdrException = hdr_decoder;</span>
+<span class="lineNum">     587 </span><span class="lineCov">          1 :         return 0;</span>
+<span class="lineNum">     588 </span>            :     }
+<span class="lineNum">     589 </span>            : 
+<span class="lineNum">     590 </span>            : #define UNEXPECTED_FLAGS                                                          \
+<span class="lineNum">     591 </span>            :     (SEC_ASN1_EXPLICIT | SEC_ASN1_OPTIONAL | SEC_ASN1_INLINE | SEC_ASN1_POINTER | \
+<span class="lineNum">     592 </span>            :      SEC_ASN1_DYNAMIC | SEC_ASN1_MAY_STREAM | SEC_ASN1_SAVE | SEC_ASN1_SKIP)
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span>            :     /* Having any of these bits is not expected here...  */
+<span class="lineNum">     595 </span>            :     PORT_Assert((underlying_kind &amp; UNEXPECTED_FLAGS) == 0);
+<span class="lineNum">     596 </span><span class="lineCov">          1 :     underlying_kind &amp;= ~UNEXPECTED_FLAGS;</span>
+<span class="lineNum">     597 </span>            : #undef UNEXPECTED_FLAGS
+<span class="lineNum">     598 </span>            : 
+<span class="lineNum">     599 </span><span class="lineCov">          1 :     if (underlying_kind &amp; SEC_ASN1_CHOICE) {</span>
+<span class="lineNum">     600 </span>            :         void *src2;
+<span class="lineNum">     601 </span><span class="lineNoCov">          0 :         int indx = sec_asn1e_which_choice(src, theTemplate);</span>
+<span class="lineNum">     602 </span><span class="lineNoCov">          0 :         if (0 == indx) {</span>
+<span class="lineNum">     603 </span>            :             /* XXX set an error? &quot;choice not found&quot; */
+<span class="lineNum">     604 </span>            :             /* state-&gt;top-&gt;status = encodeError; */
+<span class="lineNum">     605 </span>            :             return 0;
+<span class="lineNum">     606 </span>            :         }
+<span class="lineNum">     607 </span>            : 
+<span class="lineNum">     608 </span><span class="lineNoCov">          0 :         src2 = (void *)((char *)src - theTemplate-&gt;offset + theTemplate[indx].offset);</span>
+<span class="lineNum">     609 </span><span class="lineNoCov">          0 :         len = sec_asn1e_contents_length(&amp;theTemplate[indx], src2,</span>
+<span class="lineNum">     610 </span>            :                                         disallowStreaming, insideIndefinite,
+<span class="lineNum">     611 </span>            :                                         pHdrException);
+<span class="lineNum">     612 </span>            :     } else {
+<span class="lineNum">     613 </span><span class="lineCov">          1 :         switch (underlying_kind) {</span>
+<span class="lineNum">     614 </span>            :             case SEC_ASN1_SEQUENCE_OF:
+<span class="lineNum">     615 </span>            :             case SEC_ASN1_SET_OF: {
+<span class="lineNum">     616 </span>            :                 const SEC_ASN1Template *tmpt;
+<span class="lineNum">     617 </span>            :                 void *sub_src;
+<span class="lineNum">     618 </span>            :                 unsigned long sub_len;
+<span class="lineNum">     619 </span>            :                 void **group;
+<span class="lineNum">     620 </span>            : 
+<span class="lineNum">     621 </span><span class="lineCov">          1 :                 len = 0;</span>
+<span class="lineNum">     622 </span>            : 
+<span class="lineNum">     623 </span><span class="lineCov">          1 :                 group = *(void ***)src;</span>
+<span class="lineNum">     624 </span><span class="lineCov">          1 :                 if (group == NULL)</span>
+<span class="lineNum">     625 </span>            :                     break;
+<span class="lineNum">     626 </span>            : 
+<span class="lineNum">     627 </span><span class="lineCov">          1 :                 tmpt = SEC_ASN1GetSubtemplate(theTemplate, src, PR_TRUE);</span>
+<span class="lineNum">     628 </span>            : 
+<span class="lineNum">     629 </span><span class="lineCov">          1 :                 for (; *group != NULL; group++) {</span>
+<span class="lineNum">     630 </span><span class="lineCov">          1 :                     sub_src = (char *)(*group) + tmpt-&gt;offset;</span>
+<span class="lineNum">     631 </span><span class="lineCov">          1 :                     sub_len = sec_asn1e_contents_length(tmpt, sub_src,</span>
+<span class="lineNum">     632 </span>            :                                                         disallowStreaming,
+<span class="lineNum">     633 </span>            :                                                         insideIndefinite,
+<span class="lineNum">     634 </span>            :                                                         pHdrException);
+<span class="lineNum">     635 </span><span class="lineCov">          1 :                     len += sub_len;</span>
+<span class="lineNum">     636 </span>            :                     /*
+<span class="lineNum">     637 </span>            :                      * XXX The 1 below is the presumed length of the identifier;
+<span class="lineNum">     638 </span>            :                      * to support a high-tag-number this would need to be smarter.
+<span class="lineNum">     639 </span>            :                      */
+<span class="lineNum">     640 </span><span class="lineCov">          1 :                     if (*pHdrException == hdr_normal)</span>
+<span class="lineNum">     641 </span><span class="lineCov">          1 :                         len += 1 + SEC_ASN1LengthLength(sub_len);</span>
+<span class="lineNum">     642 </span>            :                 }
+<span class="lineNum">     643 </span>            :             } break;
+<span class="lineNum">     644 </span>            : 
+<span class="lineNum">     645 </span>            :             case SEC_ASN1_SEQUENCE:
+<span class="lineNum">     646 </span>            :             case SEC_ASN1_SET: {
+<span class="lineNum">     647 </span>            :                 const SEC_ASN1Template *tmpt;
+<span class="lineNum">     648 </span>            :                 void *sub_src;
+<span class="lineNum">     649 </span>            :                 unsigned long sub_len;
+<span class="lineNum">     650 </span>            : 
+<span class="lineNum">     651 </span><span class="lineCov">          1 :                 len = 0;</span>
+<span class="lineNum">     652 </span><span class="lineCov">          1 :                 for (tmpt = theTemplate + 1; tmpt-&gt;kind; tmpt++) {</span>
+<span class="lineNum">     653 </span><span class="lineCov">          1 :                     sub_src = (char *)src + tmpt-&gt;offset;</span>
+<span class="lineNum">     654 </span><span class="lineCov">          1 :                     sub_len = sec_asn1e_contents_length(tmpt, sub_src,</span>
+<span class="lineNum">     655 </span>            :                                                         disallowStreaming,
+<span class="lineNum">     656 </span>            :                                                         insideIndefinite,
+<span class="lineNum">     657 </span>            :                                                         pHdrException);
+<span class="lineNum">     658 </span><span class="lineCov">          1 :                     len += sub_len;</span>
+<span class="lineNum">     659 </span>            :                     /*
+<span class="lineNum">     660 </span>            :                      * XXX The 1 below is the presumed length of the identifier;
+<span class="lineNum">     661 </span>            :                      * to support a high-tag-number this would need to be smarter.
+<span class="lineNum">     662 </span>            :                      */
+<span class="lineNum">     663 </span><span class="lineCov">          1 :                     if (*pHdrException == hdr_normal)</span>
+<span class="lineNum">     664 </span><span class="lineCov">          1 :                         len += 1 + SEC_ASN1LengthLength(sub_len);</span>
+<span class="lineNum">     665 </span>            :                 }
+<span class="lineNum">     666 </span>            :             } break;
+<span class="lineNum">     667 </span>            : 
+<span class="lineNum">     668 </span>            :             case SEC_ASN1_BIT_STRING:
+<span class="lineNum">     669 </span>            :                 /* convert bit length to byte */
+<span class="lineNum">     670 </span><span class="lineCov">          1 :                 len = (((SECItem *)src)-&gt;len + 7) &gt;&gt; 3;</span>
+<span class="lineNum">     671 </span>            :                 /* bit string contents involve an extra octet */
+<span class="lineNum">     672 </span><span class="lineCov">          1 :                 if (len)</span>
+<span class="lineNum">     673 </span><span class="lineCov">          1 :                     len++;</span>
+<span class="lineNum">     674 </span>            :                 break;
+<span class="lineNum">     675 </span>            : 
+<span class="lineNum">     676 </span>            :             case SEC_ASN1_INTEGER:
+<span class="lineNum">     677 </span>            :                 /* ASN.1 INTEGERs are signed.
+<span class="lineNum">     678 </span>            :                  * If the source is an unsigned integer, the encoder will need
+<span class="lineNum">     679 </span>            :                  * to handle the conversion here.
+<span class="lineNum">     680 </span>            :                  */
+<span class="lineNum">     681 </span>            :                 {
+<span class="lineNum">     682 </span><span class="lineCov">          1 :                     unsigned char *buf = ((SECItem *)src)-&gt;data;</span>
+<span class="lineNum">     683 </span><span class="lineCov">          1 :                     SECItemType integerType = ((SECItem *)src)-&gt;type;</span>
+<span class="lineNum">     684 </span><span class="lineCov">          1 :                     len = ((SECItem *)src)-&gt;len;</span>
+<span class="lineNum">     685 </span><span class="lineCov">          1 :                     while (len &gt; 0) {</span>
+<span class="lineNum">     686 </span><span class="lineCov">          1 :                         if (*buf != 0) {</span>
+<span class="lineNum">     687 </span><span class="lineCov">          1 :                             if (*buf &amp; 0x80 &amp;&amp; integerType == siUnsignedInteger) {</span>
+<span class="lineNum">     688 </span><span class="lineCov">          1 :                                 len++; /* leading zero needed to make number signed */</span>
+<span class="lineNum">     689 </span>            :                             }
+<span class="lineNum">     690 </span>            :                             break; /* reached beginning of number */
+<span class="lineNum">     691 </span>            :                         }
+<span class="lineNum">     692 </span><span class="lineCov">          1 :                         if (len == 1) {</span>
+<span class="lineNum">     693 </span>            :                             break; /* the number 0 */
+<span class="lineNum">     694 </span>            :                         }
+<span class="lineNum">     695 </span><span class="lineCov">          1 :                         if (buf[1] &amp; 0x80) {</span>
+<span class="lineNum">     696 </span>            :                             break; /* leading zero already present */
+<span class="lineNum">     697 </span>            :                         }
+<span class="lineNum">     698 </span>            :                         /* extraneous leading zero, keep going */
+<span class="lineNum">     699 </span><span class="lineCov">          1 :                         buf++;</span>
+<span class="lineNum">     700 </span><span class="lineCov">          1 :                         len--;</span>
+<span class="lineNum">     701 </span>            :                     }
+<span class="lineNum">     702 </span>            :                 }
+<span class="lineNum">     703 </span>            :                 break;
+<span class="lineNum">     704 </span>            : 
+<span class="lineNum">     705 </span>            :             default:
+<span class="lineNum">     706 </span><span class="lineCov">          1 :                 len = ((SECItem *)src)-&gt;len;</span>
+<span class="lineNum">     707 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">     708 </span>            :         } /* end switch */
+<span class="lineNum">     709 </span>            : 
+<span class="lineNum">     710 </span>            : #ifndef WHAT_PROBLEM_DOES_THIS_SOLVE
+<span class="lineNum">     711 </span>            :         /* if we're streaming, we may have a secitem w/len 0 as placeholder */
+<span class="lineNum">     712 </span><span class="lineCov">          1 :         if (!len &amp;&amp; insideIndefinite &amp;&amp; may_stream &amp;&amp; !disallowStreaming) {</span>
+<span class="lineNum">     713 </span><span class="lineNoCov">          0 :             len = 1;</span>
+<span class="lineNum">     714 </span>            :         }
+<span class="lineNum">     715 </span>            : #endif
+<span class="lineNum">     716 </span>            :     } /* end else */
+<span class="lineNum">     717 </span>            : 
+<span class="lineNum">     718 </span><span class="lineCov">          1 :     if (len == 0 &amp;&amp; optional)</span>
+<span class="lineNum">     719 </span><span class="lineCov">          1 :         *pHdrException = hdr_optional;</span>
+<span class="lineNum">     720 </span><span class="lineCov">          1 :     else if (underlying_kind == SEC_ASN1_ANY)</span>
+<span class="lineNum">     721 </span><span class="lineCov">          1 :         *pHdrException = hdr_any;</span>
+<span class="lineNum">     722 </span>            :     else
+<span class="lineNum">     723 </span><span class="lineCov">          1 :         *pHdrException = hdr_normal;</span>
+<span class="lineNum">     724 </span>            : 
+<span class="lineNum">     725 </span><span class="lineCov">          1 :     return len;</span>
+<span class="lineNum">     726 </span>            : }
+<a name="727"><span class="lineNum">     727 </span>            : </a>
+<span class="lineNum">     728 </span>            : static void
+<span class="lineNum">     729 </span><span class="lineCov">          1 : sec_asn1e_write_header(sec_asn1e_state *state)</span>
+<span class="lineNum">     730 </span>            : {
+<span class="lineNum">     731 </span>            :     unsigned long contents_length;
+<span class="lineNum">     732 </span>            :     unsigned char tag_number, tag_modifiers;
+<span class="lineNum">     733 </span><span class="lineCov">          1 :     sec_asn1e_hdr_encoding hdrException = hdr_normal;</span>
+<span class="lineNum">     734 </span><span class="lineCov">          1 :     PRBool indefinite = PR_FALSE;</span>
+<span class="lineNum">     735 </span>            : 
+<span class="lineNum">     736 </span>            :     PORT_Assert(state-&gt;place == beforeHeader);
+<span class="lineNum">     737 </span>            : 
+<span class="lineNum">     738 </span><span class="lineCov">          1 :     tag_number = state-&gt;tag_number;</span>
+<span class="lineNum">     739 </span><span class="lineCov">          1 :     tag_modifiers = state-&gt;tag_modifiers;</span>
+<span class="lineNum">     740 </span>            : 
+<span class="lineNum">     741 </span><span class="lineCov">          1 :     if (state-&gt;underlying_kind == SEC_ASN1_ANY) {</span>
+<span class="lineNum">     742 </span><span class="lineCov">          1 :         state-&gt;place = duringContents;</span>
+<span class="lineNum">     743 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     744 </span>            :     }
+<span class="lineNum">     745 </span>            : 
+<span class="lineNum">     746 </span><span class="lineCov">          1 :     if (state-&gt;underlying_kind &amp; SEC_ASN1_CHOICE) {</span>
+<span class="lineNum">     747 </span><span class="lineCov">          1 :         int indx = sec_asn1e_which_choice(state-&gt;src, state-&gt;theTemplate);</span>
+<span class="lineNum">     748 </span><span class="lineCov">          1 :         if (0 == indx) {</span>
+<span class="lineNum">     749 </span>            :             /* XXX set an error? &quot;choice not found&quot; */
+<span class="lineNum">     750 </span><span class="lineNoCov">          0 :             state-&gt;top-&gt;status = encodeError;</span>
+<span class="lineNum">     751 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">     752 </span>            :         }
+<span class="lineNum">     753 </span><span class="lineCov">          1 :         state-&gt;place = afterChoice;</span>
+<span class="lineNum">     754 </span><span class="lineCov">          1 :         state = sec_asn1e_push_state(state-&gt;top, &amp;state-&gt;theTemplate[indx],</span>
+<span class="lineNum">     755 </span><span class="lineCov">          1 :                                      (char *)state-&gt;src - state-&gt;theTemplate-&gt;offset,</span>
+<span class="lineNum">     756 </span>            :                                      PR_TRUE);
+<span class="lineNum">     757 </span><span class="lineCov">          1 :         if (state) {</span>
+<span class="lineNum">     758 </span>            :             /*
+<span class="lineNum">     759 </span>            :              * Do the &quot;before&quot; field notification.
+<span class="lineNum">     760 </span>            :              */
+<span class="lineNum">     761 </span><span class="lineCov">          1 :             sec_asn1e_notify_before(state-&gt;top, state-&gt;src, state-&gt;depth);</span>
+<span class="lineNum">     762 </span><span class="lineCov">          1 :             (void)sec_asn1e_init_state_based_on_template(state);</span>
+<span class="lineNum">     763 </span>            :         }
+<span class="lineNum">     764 </span>            :         return;
+<span class="lineNum">     765 </span>            :     }
+<span class="lineNum">     766 </span>            : 
+<span class="lineNum">     767 </span>            :     /* The !isString test below is apparently intended to ensure that all
+<span class="lineNum">     768 </span>            :     ** constructed types receive indefinite length encoding.
+<span class="lineNum">     769 </span>            :     */
+<span class="lineNum">     770 </span><span class="lineCov">          1 :     indefinite = (PRBool)(state-&gt;top-&gt;streaming &amp;&amp; state-&gt;may_stream &amp;&amp;</span>
+<span class="lineNum">     771 </span><span class="lineNoCov">          0 :                           (state-&gt;top-&gt;from_buf || !state-&gt;is_string));</span>
+<span class="lineNum">     772 </span>            : 
+<span class="lineNum">     773 </span>            :     /*
+<span class="lineNum">     774 </span>            :      * If we are doing a definite-length encoding, first we have to
+<span class="lineNum">     775 </span>            :      * walk the data structure to calculate the entire contents length.
+<span class="lineNum">     776 </span>            :      * If we are doing an indefinite-length encoding, we still need to
+<span class="lineNum">     777 </span>            :      * know if the contents is:
+<span class="lineNum">     778 </span>            :      *    optional and to be omitted, or
+<span class="lineNum">     779 </span>            :      *    an ANY (header is pre-encoded), or
+<span class="lineNum">     780 </span>            :      *    a SAVE or some other kind of template used only by the decoder.
+<span class="lineNum">     781 </span>            :      * So, we call this function either way.
+<span class="lineNum">     782 </span>            :      */
+<span class="lineNum">     783 </span><span class="lineCov">          1 :     contents_length = sec_asn1e_contents_length(state-&gt;theTemplate,</span>
+<span class="lineNum">     784 </span>            :                                                 state-&gt;src,
+<span class="lineNum">     785 </span>            :                                                 state-&gt;disallowStreaming,
+<span class="lineNum">     786 </span>            :                                                 indefinite,
+<span class="lineNum">     787 </span>            :                                                 &amp;hdrException);
+<span class="lineNum">     788 </span>            :     /*
+<span class="lineNum">     789 </span>            :      * We might be told explicitly not to put out a header.
+<span class="lineNum">     790 </span>            :      * But it can also be the case, via a pushed subtemplate, that
+<span class="lineNum">     791 </span>            :      * sec_asn1e_contents_length could not know that this field is
+<span class="lineNum">     792 </span>            :      * really optional.  So check for that explicitly, too.
+<span class="lineNum">     793 </span>            :      */
+<span class="lineNum">     794 </span><span class="lineCov">          1 :     if (hdrException != hdr_normal ||</span>
+<span class="lineNum">     795 </span><span class="lineCov">          1 :         (contents_length == 0 &amp;&amp; state-&gt;optional)) {</span>
+<span class="lineNum">     796 </span><span class="lineCov">          1 :         state-&gt;place = afterContents;</span>
+<span class="lineNum">     797 </span><span class="lineCov">          1 :         if (state-&gt;top-&gt;streaming &amp;&amp;</span>
+<span class="lineNum">     798 </span><span class="lineNoCov">          0 :             state-&gt;may_stream &amp;&amp;</span>
+<span class="lineNum">     799 </span><span class="lineNoCov">          0 :             state-&gt;top-&gt;from_buf) {</span>
+<span class="lineNum">     800 </span>            :             /* we did not find an optional indefinite string, so we
+<span class="lineNum">     801 </span>            :              * don't encode it.  However, if TakeFromBuf is on, we stop
+<span class="lineNum">     802 </span>            :              * here anyway to give our caller a chance to intercept at the
+<span class="lineNum">     803 </span>            :              * same point where we would stop if the field were present.
+<span class="lineNum">     804 </span>            :              */
+<span class="lineNum">     805 </span><span class="lineNoCov">          0 :             state-&gt;top-&gt;status = needBytes;</span>
+<span class="lineNum">     806 </span>            :         }
+<span class="lineNum">     807 </span>            :         return;
+<span class="lineNum">     808 </span>            :     }
+<span class="lineNum">     809 </span>            : 
+<span class="lineNum">     810 </span><span class="lineCov">          1 :     if (indefinite) {</span>
+<span class="lineNum">     811 </span>            :         /*
+<span class="lineNum">     812 </span>            :          * We need to put out an indefinite-length encoding.
+<span class="lineNum">     813 </span>            :          * The only universal types that can be constructed are SETs,
+<span class="lineNum">     814 </span>            :          * SEQUENCEs, and strings; so check that it is one of those,
+<span class="lineNum">     815 </span>            :          * or that it is not universal (e.g. context-specific).
+<span class="lineNum">     816 </span>            :          */
+<span class="lineNum">     817 </span><span class="lineNoCov">          0 :         state-&gt;indefinite = PR_TRUE;</span>
+<span class="lineNum">     818 </span>            :         PORT_Assert((tag_number == SEC_ASN1_SET) || (tag_number == SEC_ASN1_SEQUENCE) || ((tag_modifiers &amp; SEC_ASN1_CLASS_MASK) != 0) || state-&gt;is_string);
+<span class="lineNum">     819 </span><span class="lineNoCov">          0 :         tag_modifiers |= SEC_ASN1_CONSTRUCTED;</span>
+<span class="lineNum">     820 </span><span class="lineNoCov">          0 :         contents_length = 0;</span>
+<span class="lineNum">     821 </span>            :     }
+<span class="lineNum">     822 </span>            : 
+<span class="lineNum">     823 </span><span class="lineCov">          1 :     sec_asn1e_write_identifier_bytes(state,</span>
+<span class="lineNum">     824 </span><span class="lineCov">          1 :                                      (unsigned char)(tag_number | tag_modifiers));</span>
+<span class="lineNum">     825 </span><span class="lineCov">          1 :     sec_asn1e_write_length_bytes(state, contents_length, state-&gt;indefinite);</span>
+<span class="lineNum">     826 </span>            : 
+<span class="lineNum">     827 </span><span class="lineCov">          1 :     if (contents_length == 0 &amp;&amp; !state-&gt;indefinite) {</span>
+<span class="lineNum">     828 </span>            :         /*
+<span class="lineNum">     829 </span>            :          * If no real contents to encode, then we are done with this field.
+<span class="lineNum">     830 </span>            :          */
+<span class="lineNum">     831 </span><span class="lineCov">          1 :         state-&gt;place = afterContents;</span>
+<span class="lineNum">     832 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     833 </span>            :     }
+<span class="lineNum">     834 </span>            : 
+<span class="lineNum">     835 </span>            :     /*
+<span class="lineNum">     836 </span>            :      * An EXPLICIT is nothing but an outer header, which we have already
+<span class="lineNum">     837 </span>            :      * written.  Now we need to do the inner header and contents.
+<span class="lineNum">     838 </span>            :      */
+<span class="lineNum">     839 </span><span class="lineCov">          1 :     if (state-&gt;isExplicit) {</span>
+<span class="lineNum">     840 </span><span class="lineCov">          1 :         const SEC_ASN1Template *subt =</span>
+<span class="lineNum">     841 </span><span class="lineCov">          1 :             SEC_ASN1GetSubtemplate(state-&gt;theTemplate, state-&gt;src, PR_TRUE);</span>
+<span class="lineNum">     842 </span><span class="lineCov">          1 :         state-&gt;place = afterContents;</span>
+<span class="lineNum">     843 </span><span class="lineCov">          1 :         state = sec_asn1e_push_state(state-&gt;top, subt, state-&gt;src, PR_TRUE);</span>
+<span class="lineNum">     844 </span><span class="lineCov">          1 :         if (state != NULL) {</span>
+<span class="lineNum">     845 </span><span class="lineCov">          1 :             (void)sec_asn1e_init_state_based_on_template(state);</span>
+<span class="lineNum">     846 </span>            :         }
+<span class="lineNum">     847 </span>            :         return;
+<span class="lineNum">     848 </span>            :     }
+<span class="lineNum">     849 </span>            : 
+<span class="lineNum">     850 </span><span class="lineCov">          1 :     switch (state-&gt;underlying_kind) {</span>
+<span class="lineNum">     851 </span>            :         case SEC_ASN1_SET_OF:
+<span class="lineNum">     852 </span>            :         case SEC_ASN1_SEQUENCE_OF:
+<span class="lineNum">     853 </span>            :             /*
+<span class="lineNum">     854 </span>            :              * We need to push a child to handle each member.
+<span class="lineNum">     855 </span>            :              */
+<span class="lineNum">     856 </span>            :             {
+<span class="lineNum">     857 </span>            :                 void **group;
+<span class="lineNum">     858 </span>            :                 const SEC_ASN1Template *subt;
+<span class="lineNum">     859 </span>            : 
+<span class="lineNum">     860 </span><span class="lineCov">          1 :                 group = *(void ***)state-&gt;src;</span>
+<span class="lineNum">     861 </span><span class="lineCov">          1 :                 if (group == NULL || *group == NULL) {</span>
+<span class="lineNum">     862 </span>            :                     /*
+<span class="lineNum">     863 </span>            :                      * Group is empty; we are done.
+<span class="lineNum">     864 </span>            :                      */
+<span class="lineNum">     865 </span><span class="lineNoCov">          0 :                     state-&gt;place = afterContents;</span>
+<span class="lineNum">     866 </span><span class="lineNoCov">          0 :                     return;</span>
+<span class="lineNum">     867 </span>            :                 }
+<span class="lineNum">     868 </span><span class="lineCov">          1 :                 state-&gt;place = duringGroup;</span>
+<span class="lineNum">     869 </span><span class="lineCov">          1 :                 subt = SEC_ASN1GetSubtemplate(state-&gt;theTemplate, state-&gt;src,</span>
+<span class="lineNum">     870 </span>            :                                               PR_TRUE);
+<span class="lineNum">     871 </span><span class="lineCov">          1 :                 state = sec_asn1e_push_state(state-&gt;top, subt, *group, PR_TRUE);</span>
+<span class="lineNum">     872 </span><span class="lineCov">          1 :                 if (state != NULL) {</span>
+<span class="lineNum">     873 </span><span class="lineCov">          1 :                     (void)sec_asn1e_init_state_based_on_template(state);</span>
+<span class="lineNum">     874 </span>            :                 }
+<span class="lineNum">     875 </span>            :             }
+<span class="lineNum">     876 </span>            :             break;
+<span class="lineNum">     877 </span>            : 
+<span class="lineNum">     878 </span>            :         case SEC_ASN1_SEQUENCE:
+<span class="lineNum">     879 </span>            :         case SEC_ASN1_SET:
+<span class="lineNum">     880 </span>            :             /*
+<span class="lineNum">     881 </span>            :              * We need to push a child to handle the individual fields.
+<span class="lineNum">     882 </span>            :              */
+<span class="lineNum">     883 </span><span class="lineCov">          1 :             state-&gt;place = duringSequence;</span>
+<span class="lineNum">     884 </span><span class="lineCov">          1 :             state = sec_asn1e_push_state(state-&gt;top, state-&gt;theTemplate + 1,</span>
+<span class="lineNum">     885 </span><span class="lineCov">          1 :                                          state-&gt;src, PR_TRUE);</span>
+<span class="lineNum">     886 </span><span class="lineCov">          1 :             if (state != NULL) {</span>
+<span class="lineNum">     887 </span>            :                 /*
+<span class="lineNum">     888 </span>            :                  * Do the &quot;before&quot; field notification.
+<span class="lineNum">     889 </span>            :                  */
+<span class="lineNum">     890 </span><span class="lineCov">          1 :                 sec_asn1e_notify_before(state-&gt;top, state-&gt;src, state-&gt;depth);</span>
+<span class="lineNum">     891 </span><span class="lineCov">          1 :                 (void)sec_asn1e_init_state_based_on_template(state);</span>
+<span class="lineNum">     892 </span>            :             }
+<span class="lineNum">     893 </span>            :             break;
+<span class="lineNum">     894 </span>            : 
+<span class="lineNum">     895 </span>            :         default:
+<span class="lineNum">     896 </span>            :             /*
+<span class="lineNum">     897 </span>            :              * I think we do not need to do anything else.
+<span class="lineNum">     898 </span>            :              * XXX Correct?
+<span class="lineNum">     899 </span>            :              */
+<span class="lineNum">     900 </span><span class="lineCov">          1 :             state-&gt;place = duringContents;</span>
+<span class="lineNum">     901 </span><span class="lineCov">          1 :             break;</span>
+<span class="lineNum">     902 </span>            :     }
+<span class="lineNum">     903 </span>            : }
+<a name="904"><span class="lineNum">     904 </span>            : </a>
+<span class="lineNum">     905 </span>            : static void
+<span class="lineNum">     906 </span><span class="lineNoCov">          0 : sec_asn1e_write_contents_from_buf(sec_asn1e_state *state,</span>
+<span class="lineNum">     907 </span>            :                                   const char *buf, unsigned long len)
+<span class="lineNum">     908 </span>            : {
+<span class="lineNum">     909 </span>            :     PORT_Assert(state-&gt;place == duringContents);
+<span class="lineNum">     910 </span>            :     PORT_Assert(state-&gt;top-&gt;from_buf);
+<span class="lineNum">     911 </span>            :     PORT_Assert(state-&gt;may_stream &amp;&amp; !state-&gt;disallowStreaming);
+<span class="lineNum">     912 </span>            : 
+<span class="lineNum">     913 </span>            :     /*
+<span class="lineNum">     914 </span>            :      * Probably they just turned on &quot;take from buf&quot;, but have not
+<span class="lineNum">     915 </span>            :      * yet given us any bytes.  If there is nothing in the buffer
+<span class="lineNum">     916 </span>            :      * then we have nothing to do but return and wait.
+<span class="lineNum">     917 </span>            :      */
+<span class="lineNum">     918 </span><span class="lineNoCov">          0 :     if (buf == NULL || len == 0) {</span>
+<span class="lineNum">     919 </span><span class="lineNoCov">          0 :         state-&gt;top-&gt;status = needBytes;</span>
+<span class="lineNum">     920 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     921 </span>            :     }
+<span class="lineNum">     922 </span>            :     /*
+<span class="lineNum">     923 </span>            :      * We are streaming, reading from a passed-in buffer.
+<span class="lineNum">     924 </span>            :      * This means we are encoding a simple string or an ANY.
+<span class="lineNum">     925 </span>            :      * For the former, we need to put out a substring, with its
+<span class="lineNum">     926 </span>            :      * own identifier and length.  For an ANY, we just write it
+<span class="lineNum">     927 </span>            :      * out as is (our caller is required to ensure that it
+<span class="lineNum">     928 </span>            :      * is a properly encoded entity).
+<span class="lineNum">     929 </span>            :      */
+<span class="lineNum">     930 </span>            :     PORT_Assert(state-&gt;is_string); /* includes ANY */
+<span class="lineNum">     931 </span><span class="lineNoCov">          0 :     if (state-&gt;underlying_kind != SEC_ASN1_ANY) {</span>
+<span class="lineNum">     932 </span>            :         unsigned char identifier;
+<span class="lineNum">     933 </span>            : 
+<span class="lineNum">     934 </span>            :         /*
+<span class="lineNum">     935 </span>            :          * Create the identifier based on underlying_kind.  We cannot
+<span class="lineNum">     936 </span>            :          * use tag_number and tag_modifiers because this can be an
+<span class="lineNum">     937 </span>            :          * implicitly encoded field.  In that case, the underlying
+<span class="lineNum">     938 </span>            :          * substrings *are* encoded with their real tag.
+<span class="lineNum">     939 </span>            :          */
+<span class="lineNum">     940 </span><span class="lineNoCov">          0 :         identifier = (unsigned char)(state-&gt;underlying_kind &amp; SEC_ASN1_TAG_MASK);</span>
+<span class="lineNum">     941 </span>            :         /*
+<span class="lineNum">     942 </span>            :          * The underlying kind should just be a simple string; there
+<span class="lineNum">     943 </span>            :          * should be no bits like CONTEXT_SPECIFIC or CONSTRUCTED set.
+<span class="lineNum">     944 </span>            :          */
+<span class="lineNum">     945 </span>            :         PORT_Assert((identifier &amp; SEC_ASN1_TAGNUM_MASK) == identifier);
+<span class="lineNum">     946 </span>            :         /*
+<span class="lineNum">     947 </span>            :          * Write out the tag and length for the substring.
+<span class="lineNum">     948 </span>            :          */
+<span class="lineNum">     949 </span><span class="lineNoCov">          0 :         sec_asn1e_write_identifier_bytes(state, identifier);</span>
+<span class="lineNum">     950 </span><span class="lineNoCov">          0 :         if (state-&gt;underlying_kind == SEC_ASN1_BIT_STRING) {</span>
+<span class="lineNum">     951 </span>            :             char byte;
+<span class="lineNum">     952 </span>            :             /*
+<span class="lineNum">     953 </span>            :              * Assume we have a length in bytes but we need to output
+<span class="lineNum">     954 </span>            :              * a proper bit string.  This interface only works for bit
+<span class="lineNum">     955 </span>            :              * strings that are full multiples of 8.  If support for
+<span class="lineNum">     956 </span>            :              * real, variable length bit strings is needed then the
+<span class="lineNum">     957 </span>            :              * caller will have to know to pass in a bit length instead
+<span class="lineNum">     958 </span>            :              * of a byte length and then this code will have to
+<span class="lineNum">     959 </span>            :              * perform the encoding necessary (length written is length
+<span class="lineNum">     960 </span>            :              * in bytes plus 1, and the first octet of string is the
+<span class="lineNum">     961 </span>            :              * number of bits remaining between the end of the bit
+<span class="lineNum">     962 </span>            :              * string and the next byte boundary).
+<span class="lineNum">     963 </span>            :              */
+<span class="lineNum">     964 </span><span class="lineNoCov">          0 :             sec_asn1e_write_length_bytes(state, len + 1, PR_FALSE);</span>
+<span class="lineNum">     965 </span><span class="lineNoCov">          0 :             byte = 0;</span>
+<span class="lineNum">     966 </span><span class="lineNoCov">          0 :             sec_asn1e_write_contents_bytes(state, &amp;byte, 1);</span>
+<span class="lineNum">     967 </span>            :         } else {
+<span class="lineNum">     968 </span><span class="lineNoCov">          0 :             sec_asn1e_write_length_bytes(state, len, PR_FALSE);</span>
+<span class="lineNum">     969 </span>            :         }
+<span class="lineNum">     970 </span>            :     }
+<span class="lineNum">     971 </span><span class="lineNoCov">          0 :     sec_asn1e_write_contents_bytes(state, buf, len);</span>
+<span class="lineNum">     972 </span><span class="lineNoCov">          0 :     state-&gt;top-&gt;status = needBytes;</span>
+<span class="lineNum">     973 </span>            : }
+<a name="974"><span class="lineNum">     974 </span>            : </a>
+<span class="lineNum">     975 </span>            : static void
+<span class="lineNum">     976 </span><span class="lineCov">          1 : sec_asn1e_write_contents(sec_asn1e_state *state)</span>
+<span class="lineNum">     977 </span>            : {
+<span class="lineNum">     978 </span><span class="lineCov">          1 :     unsigned long len = 0;</span>
+<span class="lineNum">     979 </span>            : 
+<span class="lineNum">     980 </span>            :     PORT_Assert(state-&gt;place == duringContents);
+<span class="lineNum">     981 </span>            : 
+<span class="lineNum">     982 </span><span class="lineCov">          1 :     switch (state-&gt;underlying_kind) {</span>
+<span class="lineNum">     983 </span>            :         case SEC_ASN1_SET:
+<span class="lineNum">     984 </span>            :         case SEC_ASN1_SEQUENCE:
+<span class="lineNum">     985 </span>            :             PORT_Assert(0);
+<span class="lineNum">     986 </span>            :             break;
+<span class="lineNum">     987 </span>            : 
+<span class="lineNum">     988 </span>            :         case SEC_ASN1_BIT_STRING: {
+<span class="lineNum">     989 </span>            :             SECItem *item;
+<span class="lineNum">     990 </span>            :             char rem;
+<span class="lineNum">     991 </span>            : 
+<span class="lineNum">     992 </span><span class="lineCov">          1 :             item = (SECItem *)state-&gt;src;</span>
+<span class="lineNum">     993 </span><span class="lineCov">          1 :             len = (item-&gt;len + 7) &gt;&gt; 3;</span>
+<span class="lineNum">     994 </span><span class="lineCov">          1 :             rem = (unsigned char)((len &lt;&lt; 3) - item-&gt;len); /* remaining bits */</span>
+<span class="lineNum">     995 </span><span class="lineCov">          1 :             sec_asn1e_write_contents_bytes(state, &amp;rem, 1);</span>
+<span class="lineNum">     996 </span><span class="lineCov">          1 :             sec_asn1e_write_contents_bytes(state, (char *)item-&gt;data, len);</span>
+<span class="lineNum">     997 </span><span class="lineCov">          1 :         } break;</span>
+<span class="lineNum">     998 </span>            : 
+<span class="lineNum">     999 </span>            :         case SEC_ASN1_BMP_STRING:
+<span class="lineNum">    1000 </span>            :             /* The number of bytes must be divisable by 2 */
+<span class="lineNum">    1001 </span><span class="lineNoCov">          0 :             if ((((SECItem *)state-&gt;src)-&gt;len) % 2) {</span>
+<span class="lineNum">    1002 </span>            :                 SEC_ASN1EncoderContext *cx;
+<span class="lineNum">    1003 </span>            : 
+<span class="lineNum">    1004 </span><span class="lineNoCov">          0 :                 cx = state-&gt;top;</span>
+<span class="lineNum">    1005 </span><span class="lineNoCov">          0 :                 cx-&gt;status = encodeError;</span>
+<span class="lineNum">    1006 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">    1007 </span>            :             }
+<span class="lineNum">    1008 </span>            :             /* otherwise, fall through to write the content */
+<span class="lineNum">    1009 </span>            :             goto process_string;
+<span class="lineNum">    1010 </span>            : 
+<span class="lineNum">    1011 </span>            :         case SEC_ASN1_UNIVERSAL_STRING:
+<span class="lineNum">    1012 </span>            :             /* The number of bytes must be divisable by 4 */
+<span class="lineNum">    1013 </span><span class="lineNoCov">          0 :             if ((((SECItem *)state-&gt;src)-&gt;len) % 4) {</span>
+<span class="lineNum">    1014 </span>            :                 SEC_ASN1EncoderContext *cx;
+<span class="lineNum">    1015 </span>            : 
+<span class="lineNum">    1016 </span><span class="lineNoCov">          0 :                 cx = state-&gt;top;</span>
+<span class="lineNum">    1017 </span><span class="lineNoCov">          0 :                 cx-&gt;status = encodeError;</span>
+<span class="lineNum">    1018 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">    1019 </span>            :             }
+<span class="lineNum">    1020 </span>            :             /* otherwise, fall through to write the content */
+<span class="lineNum">    1021 </span>            :             goto process_string;
+<span class="lineNum">    1022 </span>            : 
+<span class="lineNum">    1023 </span>            :         case SEC_ASN1_INTEGER:
+<span class="lineNum">    1024 </span>            :             /* ASN.1 INTEGERs are signed.  If the source is an unsigned
+<span class="lineNum">    1025 </span>            :              * integer, the encoder will need to handle the conversion here.
+<span class="lineNum">    1026 </span>            :              */
+<span class="lineNum">    1027 </span>            :             {
+<span class="lineNum">    1028 </span>            :                 unsigned int blen;
+<span class="lineNum">    1029 </span>            :                 unsigned char *buf;
+<span class="lineNum">    1030 </span>            :                 SECItemType integerType;
+<span class="lineNum">    1031 </span><span class="lineCov">          1 :                 blen = ((SECItem *)state-&gt;src)-&gt;len;</span>
+<span class="lineNum">    1032 </span><span class="lineCov">          1 :                 buf = ((SECItem *)state-&gt;src)-&gt;data;</span>
+<span class="lineNum">    1033 </span><span class="lineCov">          1 :                 integerType = ((SECItem *)state-&gt;src)-&gt;type;</span>
+<span class="lineNum">    1034 </span><span class="lineCov">          1 :                 while (blen &gt; 0) {</span>
+<span class="lineNum">    1035 </span><span class="lineCov">          1 :                     if (*buf &amp; 0x80 &amp;&amp; integerType == siUnsignedInteger) {</span>
+<span class="lineNum">    1036 </span><span class="lineCov">          1 :                         char zero = 0; /* write a leading 0 */</span>
+<span class="lineNum">    1037 </span><span class="lineCov">          1 :                         sec_asn1e_write_contents_bytes(state, &amp;zero, 1);</span>
+<span class="lineNum">    1038 </span>            :                         /* and then the remaining buffer */
+<span class="lineNum">    1039 </span><span class="lineCov">          1 :                         sec_asn1e_write_contents_bytes(state,</span>
+<span class="lineNum">    1040 </span>            :                                                        (char *)buf, blen);
+<span class="lineNum">    1041 </span>            :                         break;
+<span class="lineNum">    1042 </span>            :                     }
+<span class="lineNum">    1043 </span>            :                     /* Check three possibilities:
+<span class="lineNum">    1044 </span>            :                      * 1.  No leading zeros, msb of MSB is not 1;
+<span class="lineNum">    1045 </span>            :                      * 2.  The number is zero itself;
+<span class="lineNum">    1046 </span>            :                      * 3.  Encoding a signed integer with a leading zero,
+<span class="lineNum">    1047 </span>            :                      *     keep the zero so that the number is positive.
+<span class="lineNum">    1048 </span>            :                      */
+<span class="lineNum">    1049 </span><span class="lineCov">          1 :                     if (*buf != 0 ||</span>
+<span class="lineNum">    1050 </span><span class="lineCov">          1 :                         blen == 1 ||</span>
+<span class="lineNum">    1051 </span><span class="lineCov">          1 :                         (buf[1] &amp; 0x80 &amp;&amp; integerType != siUnsignedInteger)) {</span>
+<span class="lineNum">    1052 </span><span class="lineCov">          1 :                         sec_asn1e_write_contents_bytes(state,</span>
+<span class="lineNum">    1053 </span>            :                                                        (char *)buf, blen);
+<span class="lineNum">    1054 </span><span class="lineCov">          1 :                         break;</span>
+<span class="lineNum">    1055 </span>            :                     }
+<span class="lineNum">    1056 </span>            :                     /* byte is 0, continue */
+<span class="lineNum">    1057 </span><span class="lineCov">          1 :                     buf++;</span>
+<span class="lineNum">    1058 </span><span class="lineCov">          1 :                     blen--;</span>
+<span class="lineNum">    1059 </span>            :                 }
+<span class="lineNum">    1060 </span>            :             }
+<span class="lineNum">    1061 </span>            :             /* done with this content */
+<span class="lineNum">    1062 </span>            :             break;
+<span class="lineNum">    1063 </span>            : 
+<span class="lineNum">    1064 </span>            :         process_string:
+<span class="lineNum">    1065 </span>            :         default: {
+<span class="lineNum">    1066 </span>            :             SECItem *item;
+<span class="lineNum">    1067 </span>            : 
+<span class="lineNum">    1068 </span><span class="lineCov">          1 :             item = (SECItem *)state-&gt;src;</span>
+<span class="lineNum">    1069 </span><span class="lineCov">          1 :             sec_asn1e_write_contents_bytes(state, (char *)item-&gt;data,</span>
+<span class="lineNum">    1070 </span><span class="lineCov">          1 :                                            item-&gt;len);</span>
+<span class="lineNum">    1071 </span><span class="lineCov">          1 :         } break;</span>
+<span class="lineNum">    1072 </span>            :     }
+<span class="lineNum">    1073 </span><span class="lineCov">          1 :     state-&gt;place = afterContents;</span>
+<span class="lineNum">    1074 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">    1075 </span>            : 
+<span class="lineNum">    1076 </span>            : /*
+<span class="lineNum">    1077 </span>            :  * We are doing a SET OF or SEQUENCE OF, and have just finished an item.
+<a name="1078"><span class="lineNum">    1078 </span>            :  */</a>
+<span class="lineNum">    1079 </span>            : static void
+<span class="lineNum">    1080 </span><span class="lineCov">          1 : sec_asn1e_next_in_group(sec_asn1e_state *state)</span>
+<span class="lineNum">    1081 </span>            : {
+<span class="lineNum">    1082 </span>            :     sec_asn1e_state *child;
+<span class="lineNum">    1083 </span>            :     void **group;
+<span class="lineNum">    1084 </span>            :     void *member;
+<span class="lineNum">    1085 </span>            : 
+<span class="lineNum">    1086 </span>            :     PORT_Assert(state-&gt;place == duringGroup);
+<span class="lineNum">    1087 </span>            :     PORT_Assert(state-&gt;child != NULL);
+<span class="lineNum">    1088 </span>            : 
+<span class="lineNum">    1089 </span><span class="lineCov">          1 :     child = state-&gt;child;</span>
+<span class="lineNum">    1090 </span>            : 
+<span class="lineNum">    1091 </span><span class="lineCov">          1 :     group = *(void ***)state-&gt;src;</span>
+<span class="lineNum">    1092 </span>            : 
+<span class="lineNum">    1093 </span>            :     /*
+<span class="lineNum">    1094 </span>            :      * Find placement of current item.
+<span class="lineNum">    1095 </span>            :      */
+<span class="lineNum">    1096 </span><span class="lineCov">          1 :     member = (char *)(state-&gt;child-&gt;src) - child-&gt;theTemplate-&gt;offset;</span>
+<span class="lineNum">    1097 </span><span class="lineCov">          1 :     while (*group != member)</span>
+<span class="lineNum">    1098 </span><span class="lineCov">          1 :         group++;</span>
+<span class="lineNum">    1099 </span>            : 
+<span class="lineNum">    1100 </span>            :     /*
+<span class="lineNum">    1101 </span>            :      * Move forward to next item.
+<span class="lineNum">    1102 </span>            :      */
+<span class="lineNum">    1103 </span><span class="lineCov">          1 :     group++;</span>
+<span class="lineNum">    1104 </span><span class="lineCov">          1 :     if (*group == NULL) {</span>
+<span class="lineNum">    1105 </span>            :         /*
+<span class="lineNum">    1106 </span>            :          * That was our last one; we are done now.
+<span class="lineNum">    1107 </span>            :          */
+<span class="lineNum">    1108 </span><span class="lineCov">          1 :         child-&gt;place = notInUse;</span>
+<span class="lineNum">    1109 </span><span class="lineCov">          1 :         state-&gt;place = afterContents;</span>
+<span class="lineNum">    1110 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">    1111 </span>            :     }
+<span class="lineNum">    1112 </span><span class="lineCov">          1 :     child-&gt;src = (char *)(*group) + child-&gt;theTemplate-&gt;offset;</span>
+<span class="lineNum">    1113 </span>            : 
+<span class="lineNum">    1114 </span>            :     /*
+<span class="lineNum">    1115 </span>            :      * Re-&quot;push&quot; child.
+<span class="lineNum">    1116 </span>            :      */
+<span class="lineNum">    1117 </span>            :     sec_asn1e_scrub_state(child);
+<span class="lineNum">    1118 </span><span class="lineCov">          1 :     state-&gt;top-&gt;current = child;</span>
+<span class="lineNum">    1119 </span>            : }
+<span class="lineNum">    1120 </span>            : 
+<span class="lineNum">    1121 </span>            : /*
+<span class="lineNum">    1122 </span>            :  * We are moving along through a sequence; move forward by one,
+<span class="lineNum">    1123 </span>            :  * (detecting end-of-sequence when it happens).
+<a name="1124"><span class="lineNum">    1124 </span>            :  */</a>
+<span class="lineNum">    1125 </span>            : static void
+<span class="lineNum">    1126 </span><span class="lineCov">          1 : sec_asn1e_next_in_sequence(sec_asn1e_state *state)</span>
+<span class="lineNum">    1127 </span>            : {
+<span class="lineNum">    1128 </span>            :     sec_asn1e_state *child;
+<span class="lineNum">    1129 </span>            : 
+<span class="lineNum">    1130 </span>            :     PORT_Assert(state-&gt;place == duringSequence);
+<span class="lineNum">    1131 </span>            :     PORT_Assert(state-&gt;child != NULL);
+<span class="lineNum">    1132 </span>            : 
+<span class="lineNum">    1133 </span><span class="lineCov">          1 :     child = state-&gt;child;</span>
+<span class="lineNum">    1134 </span>            : 
+<span class="lineNum">    1135 </span>            :     /*
+<span class="lineNum">    1136 </span>            :      * Do the &quot;after&quot; field notification.
+<span class="lineNum">    1137 </span>            :      */
+<span class="lineNum">    1138 </span><span class="lineCov">          1 :     sec_asn1e_notify_after(state-&gt;top, child-&gt;src, child-&gt;depth);</span>
+<span class="lineNum">    1139 </span>            : 
+<span class="lineNum">    1140 </span>            :     /*
+<span class="lineNum">    1141 </span>            :      * Move forward.
+<span class="lineNum">    1142 </span>            :      */
+<span class="lineNum">    1143 </span><span class="lineCov">          1 :     child-&gt;theTemplate++;</span>
+<span class="lineNum">    1144 </span><span class="lineCov">          1 :     if (child-&gt;theTemplate-&gt;kind == 0) {</span>
+<span class="lineNum">    1145 </span>            :         /*
+<span class="lineNum">    1146 </span>            :          * We are done with this sequence.
+<span class="lineNum">    1147 </span>            :          */
+<span class="lineNum">    1148 </span><span class="lineCov">          1 :         child-&gt;place = notInUse;</span>
+<span class="lineNum">    1149 </span><span class="lineCov">          1 :         state-&gt;place = afterContents;</span>
+<span class="lineNum">    1150 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">    1151 </span>            :     }
+<span class="lineNum">    1152 </span>            : 
+<span class="lineNum">    1153 </span>            :     /*
+<span class="lineNum">    1154 </span>            :      * Reset state and push.
+<span class="lineNum">    1155 </span>            :      */
+<span class="lineNum">    1156 </span>            : 
+<span class="lineNum">    1157 </span><span class="lineCov">          1 :     child-&gt;src = (char *)state-&gt;src + child-&gt;theTemplate-&gt;offset;</span>
+<span class="lineNum">    1158 </span>            : 
+<span class="lineNum">    1159 </span>            :     /*
+<span class="lineNum">    1160 </span>            :      * Do the &quot;before&quot; field notification.
+<span class="lineNum">    1161 </span>            :      */
+<span class="lineNum">    1162 </span><span class="lineCov">          1 :     sec_asn1e_notify_before(state-&gt;top, child-&gt;src, child-&gt;depth);</span>
+<span class="lineNum">    1163 </span>            : 
+<span class="lineNum">    1164 </span><span class="lineCov">          1 :     state-&gt;top-&gt;current = child;</span>
+<span class="lineNum">    1165 </span><span class="lineCov">          1 :     (void)sec_asn1e_init_state_based_on_template(child);</span>
+<span class="lineNum">    1166 </span>            : }
+<a name="1167"><span class="lineNum">    1167 </span>            : </a>
+<span class="lineNum">    1168 </span>            : static void
+<span class="lineNum">    1169 </span><span class="lineCov">          1 : sec_asn1e_after_contents(sec_asn1e_state *state)</span>
+<span class="lineNum">    1170 </span>            : {
+<span class="lineNum">    1171 </span>            :     PORT_Assert(state-&gt;place == afterContents);
+<span class="lineNum">    1172 </span>            : 
+<span class="lineNum">    1173 </span><span class="lineCov">          1 :     if (state-&gt;indefinite)</span>
+<span class="lineNum">    1174 </span><span class="lineNoCov">          0 :         sec_asn1e_write_end_of_contents_bytes(state);</span>
+<span class="lineNum">    1175 </span>            : 
+<span class="lineNum">    1176 </span>            :     /*
+<span class="lineNum">    1177 </span>            :      * Just make my parent be the current state.  It will then clean
+<span class="lineNum">    1178 </span>            :      * up after me and free me (or reuse me).
+<span class="lineNum">    1179 </span>            :      */
+<span class="lineNum">    1180 </span><span class="lineCov">          1 :     state-&gt;top-&gt;current = state-&gt;parent;</span>
+<span class="lineNum">    1181 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">    1182 </span>            : 
+<span class="lineNum">    1183 </span>            : /*
+<span class="lineNum">    1184 </span>            :  * This function is called whether or not we are streaming; if we
+<span class="lineNum">    1185 </span>            :  * *are* streaming, our caller can also instruct us to take bytes
+<span class="lineNum">    1186 </span>            :  * from the passed-in buffer (at buf, for length len, which is likely
+<span class="lineNum">    1187 </span>            :  * bytes but could even mean bits if the current field is a bit string).
+<span class="lineNum">    1188 </span>            :  * If we have been so instructed, we will gobble up bytes from there
+<span class="lineNum">    1189 </span>            :  * (rather than from our src structure) and output them, and then
+<span class="lineNum">    1190 </span>            :  * we will just return, expecting to be called again -- either with
+<span class="lineNum">    1191 </span>            :  * more bytes or after our caller has instructed us that we are done
+<span class="lineNum">    1192 </span>            :  * (for now) with the buffer.
+<a name="1193"><span class="lineNum">    1193 </span>            :  */</a>
+<span class="lineNum">    1194 </span>            : SECStatus
+<span class="lineNum">    1195 </span><span class="lineCov">          1 : SEC_ASN1EncoderUpdate(SEC_ASN1EncoderContext *cx,</span>
+<span class="lineNum">    1196 </span>            :                       const char *buf, unsigned long len)
+<span class="lineNum">    1197 </span>            : {
+<span class="lineNum">    1198 </span>            :     sec_asn1e_state *state;
+<span class="lineNum">    1199 </span>            : 
+<span class="lineNum">    1200 </span><span class="lineCov">          1 :     if (cx-&gt;status == needBytes) {</span>
+<span class="lineNum">    1201 </span><span class="lineNoCov">          0 :         cx-&gt;status = keepGoing;</span>
+<span class="lineNum">    1202 </span>            :     }
+<span class="lineNum">    1203 </span>            : 
+<span class="lineNum">    1204 </span><span class="lineCov">          1 :     while (cx-&gt;status == keepGoing) {</span>
+<span class="lineNum">    1205 </span><span class="lineCov">          1 :         state = cx-&gt;current;</span>
+<span class="lineNum">    1206 </span><span class="lineCov">          1 :         switch (state-&gt;place) {</span>
+<span class="lineNum">    1207 </span>            :             case beforeHeader:
+<span class="lineNum">    1208 </span><span class="lineCov">          1 :                 sec_asn1e_write_header(state);</span>
+<span class="lineNum">    1209 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">    1210 </span>            :             case duringContents:
+<span class="lineNum">    1211 </span><span class="lineCov">          1 :                 if (cx-&gt;from_buf)</span>
+<span class="lineNum">    1212 </span><span class="lineNoCov">          0 :                     sec_asn1e_write_contents_from_buf(state, buf, len);</span>
+<span class="lineNum">    1213 </span>            :                 else
+<span class="lineNum">    1214 </span><span class="lineCov">          1 :                     sec_asn1e_write_contents(state);</span>
+<span class="lineNum">    1215 </span>            :                 break;
+<span class="lineNum">    1216 </span>            :             case duringGroup:
+<span class="lineNum">    1217 </span><span class="lineCov">          1 :                 sec_asn1e_next_in_group(state);</span>
+<span class="lineNum">    1218 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">    1219 </span>            :             case duringSequence:
+<span class="lineNum">    1220 </span><span class="lineCov">          1 :                 sec_asn1e_next_in_sequence(state);</span>
+<span class="lineNum">    1221 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">    1222 </span>            :             case afterContents:
+<span class="lineNum">    1223 </span><span class="lineCov">          1 :                 sec_asn1e_after_contents(state);</span>
+<span class="lineNum">    1224 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">    1225 </span>            :             case afterImplicit:
+<span class="lineNum">    1226 </span>            :             case afterInline:
+<span class="lineNum">    1227 </span>            :             case afterPointer:
+<span class="lineNum">    1228 </span>            :             case afterChoice:
+<span class="lineNum">    1229 </span>            :                 /*
+<span class="lineNum">    1230 </span>            :                  * These states are more documentation than anything.
+<span class="lineNum">    1231 </span>            :                  * They just need to force a pop.
+<span class="lineNum">    1232 </span>            :                  */
+<span class="lineNum">    1233 </span>            :                 PORT_Assert(!state-&gt;indefinite);
+<span class="lineNum">    1234 </span><span class="lineCov">          1 :                 state-&gt;place = afterContents;</span>
+<span class="lineNum">    1235 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">    1236 </span>            :             case notInUse:
+<span class="lineNum">    1237 </span>            :             default:
+<span class="lineNum">    1238 </span>            :                 /* This is not an error, but rather a plain old BUG! */
+<span class="lineNum">    1239 </span>            :                 PORT_Assert(0);
+<span class="lineNum">    1240 </span><span class="lineNoCov">          0 :                 cx-&gt;status = encodeError;</span>
+<span class="lineNum">    1241 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">    1242 </span>            :         }
+<span class="lineNum">    1243 </span>            : 
+<span class="lineNum">    1244 </span><span class="lineCov">          1 :         if (cx-&gt;status == encodeError)</span>
+<span class="lineNum">    1245 </span>            :             break;
+<span class="lineNum">    1246 </span>            : 
+<span class="lineNum">    1247 </span>            :         /* It might have changed, so we have to update our local copy.  */
+<span class="lineNum">    1248 </span><span class="lineCov">          1 :         state = cx-&gt;current;</span>
+<span class="lineNum">    1249 </span>            : 
+<span class="lineNum">    1250 </span>            :         /* If it is NULL, we have popped all the way to the top.  */
+<span class="lineNum">    1251 </span><span class="lineCov">          1 :         if (state == NULL) {</span>
+<span class="lineNum">    1252 </span><span class="lineCov">          1 :             cx-&gt;status = allDone;</span>
+<span class="lineNum">    1253 </span><span class="lineCov">          1 :             break;</span>
+<span class="lineNum">    1254 </span>            :         }
+<span class="lineNum">    1255 </span>            :     }
+<span class="lineNum">    1256 </span>            : 
+<span class="lineNum">    1257 </span><span class="lineCov">          1 :     if (cx-&gt;status == encodeError) {</span>
+<span class="lineNum">    1258 </span>            :         return SECFailure;
+<span class="lineNum">    1259 </span>            :     }
+<span class="lineNum">    1260 </span>            : 
+<span class="lineNum">    1261 </span><span class="lineCov">          1 :     return SECSuccess;</span>
+<span class="lineNum">    1262 </span>            : }
+<a name="1263"><span class="lineNum">    1263 </span>            : </a>
+<span class="lineNum">    1264 </span>            : void
+<span class="lineNum">    1265 </span><span class="lineCov">          1 : SEC_ASN1EncoderFinish(SEC_ASN1EncoderContext *cx)</span>
+<span class="lineNum">    1266 </span>            : {
+<span class="lineNum">    1267 </span>            :     /*
+<span class="lineNum">    1268 </span>            :      * XXX anything else that needs to be finished?
+<span class="lineNum">    1269 </span>            :      */
+<span class="lineNum">    1270 </span>            : 
+<span class="lineNum">    1271 </span><span class="lineCov">          1 :     PORT_FreeArena(cx-&gt;our_pool, PR_FALSE);</span>
+<span class="lineNum">    1272 </span><span class="lineCov">          1 : }</span>
+<a name="1273"><span class="lineNum">    1273 </span>            : </a>
+<span class="lineNum">    1274 </span>            : SEC_ASN1EncoderContext *
+<span class="lineNum">    1275 </span><span class="lineCov">          1 : SEC_ASN1EncoderStart(const void *src, const SEC_ASN1Template *theTemplate,</span>
+<span class="lineNum">    1276 </span>            :                      SEC_ASN1WriteProc output_proc, void *output_arg)
+<span class="lineNum">    1277 </span>            : {
+<span class="lineNum">    1278 </span>            :     PLArenaPool *our_pool;
+<span class="lineNum">    1279 </span>            :     SEC_ASN1EncoderContext *cx;
+<span class="lineNum">    1280 </span>            : 
+<span class="lineNum">    1281 </span><span class="lineCov">          1 :     our_pool = PORT_NewArena(SEC_ASN1_DEFAULT_ARENA_SIZE);</span>
+<span class="lineNum">    1282 </span><span class="lineCov">          1 :     if (our_pool == NULL)</span>
+<span class="lineNum">    1283 </span>            :         return NULL;
+<span class="lineNum">    1284 </span>            : 
+<span class="lineNum">    1285 </span><span class="lineCov">          1 :     cx = (SEC_ASN1EncoderContext *)PORT_ArenaZAlloc(our_pool, sizeof(*cx));</span>
+<span class="lineNum">    1286 </span><span class="lineCov">          1 :     if (cx == NULL) {</span>
+<span class="lineNum">    1287 </span><span class="lineNoCov">          0 :         PORT_FreeArena(our_pool, PR_FALSE);</span>
+<span class="lineNum">    1288 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">    1289 </span>            :     }
+<span class="lineNum">    1290 </span>            : 
+<span class="lineNum">    1291 </span><span class="lineCov">          1 :     cx-&gt;our_pool = our_pool;</span>
+<span class="lineNum">    1292 </span><span class="lineCov">          1 :     cx-&gt;output_proc = output_proc;</span>
+<span class="lineNum">    1293 </span><span class="lineCov">          1 :     cx-&gt;output_arg = output_arg;</span>
+<span class="lineNum">    1294 </span>            : 
+<span class="lineNum">    1295 </span><span class="lineCov">          1 :     cx-&gt;status = keepGoing;</span>
+<span class="lineNum">    1296 </span>            : 
+<span class="lineNum">    1297 </span><span class="lineCov">          1 :     if (sec_asn1e_push_state(cx, theTemplate, src, PR_FALSE) == NULL ||</span>
+<span class="lineNum">    1298 </span><span class="lineCov">          1 :         sec_asn1e_init_state_based_on_template(cx-&gt;current) == NULL) {</span>
+<span class="lineNum">    1299 </span>            :         /*
+<span class="lineNum">    1300 </span>            :          * Trouble initializing (probably due to failed allocations)
+<span class="lineNum">    1301 </span>            :          * requires that we just give up.
+<span class="lineNum">    1302 </span>            :          */
+<span class="lineNum">    1303 </span><span class="lineNoCov">          0 :         PORT_FreeArena(our_pool, PR_FALSE);</span>
+<span class="lineNum">    1304 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">    1305 </span>            :     }
+<span class="lineNum">    1306 </span>            : 
+<span class="lineNum">    1307 </span>            :     return cx;
+<span class="lineNum">    1308 </span>            : }
+<span class="lineNum">    1309 </span>            : 
+<span class="lineNum">    1310 </span>            : /*
+<span class="lineNum">    1311 </span>            :  * XXX Do we need a FilterProc, too?
+<span class="lineNum">    1312 </span>            :  */
+<a name="1313"><span class="lineNum">    1313 </span>            : </a>
+<span class="lineNum">    1314 </span>            : void
+<span class="lineNum">    1315 </span><span class="lineNoCov">          0 : SEC_ASN1EncoderSetNotifyProc(SEC_ASN1EncoderContext *cx,</span>
+<span class="lineNum">    1316 </span>            :                              SEC_ASN1NotifyProc fn, void *arg)
+<span class="lineNum">    1317 </span>            : {
+<span class="lineNum">    1318 </span><span class="lineNoCov">          0 :     cx-&gt;notify_proc = fn;</span>
+<span class="lineNum">    1319 </span><span class="lineNoCov">          0 :     cx-&gt;notify_arg = arg;</span>
+<span class="lineNum">    1320 </span><span class="lineNoCov">          0 : }</span>
+<a name="1321"><span class="lineNum">    1321 </span>            : </a>
+<span class="lineNum">    1322 </span>            : void
+<span class="lineNum">    1323 </span><span class="lineNoCov">          0 : SEC_ASN1EncoderClearNotifyProc(SEC_ASN1EncoderContext *cx)</span>
+<span class="lineNum">    1324 </span>            : {
+<span class="lineNum">    1325 </span><span class="lineNoCov">          0 :     cx-&gt;notify_proc = NULL;</span>
+<span class="lineNum">    1326 </span><span class="lineNoCov">          0 :     cx-&gt;notify_arg = NULL; /* not necessary; just being clean */</span>
+<span class="lineNum">    1327 </span><span class="lineNoCov">          0 : }</span>
+<a name="1328"><span class="lineNum">    1328 </span>            : </a>
+<span class="lineNum">    1329 </span>            : void
+<span class="lineNum">    1330 </span><span class="lineNoCov">          0 : SEC_ASN1EncoderAbort(SEC_ASN1EncoderContext *cx, int error)</span>
+<span class="lineNum">    1331 </span>            : {
+<span class="lineNum">    1332 </span>            :     PORT_Assert(cx);
+<span class="lineNum">    1333 </span><span class="lineNoCov">          0 :     PORT_SetError(error);</span>
+<span class="lineNum">    1334 </span><span class="lineNoCov">          0 :     cx-&gt;status = encodeError;</span>
+<span class="lineNum">    1335 </span><span class="lineNoCov">          0 : }</span>
+<a name="1336"><span class="lineNum">    1336 </span>            : </a>
+<span class="lineNum">    1337 </span>            : void
+<span class="lineNum">    1338 </span><span class="lineNoCov">          0 : SEC_ASN1EncoderSetStreaming(SEC_ASN1EncoderContext *cx)</span>
+<span class="lineNum">    1339 </span>            : {
+<span class="lineNum">    1340 </span>            :     /* XXX is there a way to check that we are &quot;between&quot; fields here? */
+<span class="lineNum">    1341 </span>            : 
+<span class="lineNum">    1342 </span><span class="lineNoCov">          0 :     cx-&gt;streaming = PR_TRUE;</span>
+<span class="lineNum">    1343 </span><span class="lineNoCov">          0 : }</span>
+<a name="1344"><span class="lineNum">    1344 </span>            : </a>
+<span class="lineNum">    1345 </span>            : void
+<span class="lineNum">    1346 </span><span class="lineNoCov">          0 : SEC_ASN1EncoderClearStreaming(SEC_ASN1EncoderContext *cx)</span>
+<span class="lineNum">    1347 </span>            : {
+<span class="lineNum">    1348 </span>            :     /* XXX is there a way to check that we are &quot;between&quot; fields here? */
+<span class="lineNum">    1349 </span>            : 
+<span class="lineNum">    1350 </span><span class="lineNoCov">          0 :     cx-&gt;streaming = PR_FALSE;</span>
+<span class="lineNum">    1351 </span><span class="lineNoCov">          0 : }</span>
+<a name="1352"><span class="lineNum">    1352 </span>            : </a>
+<span class="lineNum">    1353 </span>            : void
+<span class="lineNum">    1354 </span><span class="lineNoCov">          0 : SEC_ASN1EncoderSetTakeFromBuf(SEC_ASN1EncoderContext *cx)</span>
+<span class="lineNum">    1355 </span>            : {
+<span class="lineNum">    1356 </span>            :     /*
+<span class="lineNum">    1357 </span>            :      * XXX is there a way to check that we are &quot;between&quot; fields here?  this
+<span class="lineNum">    1358 </span>            :      * needs to include a check for being in between groups of items in
+<span class="lineNum">    1359 </span>            :      * a SET_OF or SEQUENCE_OF.
+<span class="lineNum">    1360 </span>            :      */
+<span class="lineNum">    1361 </span>            :     PORT_Assert(cx-&gt;streaming);
+<span class="lineNum">    1362 </span>            : 
+<span class="lineNum">    1363 </span><span class="lineNoCov">          0 :     cx-&gt;from_buf = PR_TRUE;</span>
+<span class="lineNum">    1364 </span><span class="lineNoCov">          0 : }</span>
+<a name="1365"><span class="lineNum">    1365 </span>            : </a>
+<span class="lineNum">    1366 </span>            : void
+<span class="lineNum">    1367 </span><span class="lineNoCov">          0 : SEC_ASN1EncoderClearTakeFromBuf(SEC_ASN1EncoderContext *cx)</span>
+<span class="lineNum">    1368 </span>            : {
+<span class="lineNum">    1369 </span>            :     /* we should actually be taking from buf *now* */
+<span class="lineNum">    1370 </span>            :     PORT_Assert(cx-&gt;from_buf);
+<span class="lineNum">    1371 </span><span class="lineNoCov">          0 :     if (!cx-&gt;from_buf) /* if not, just do nothing */</span>
+<span class="lineNum">    1372 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1373 </span>            : 
+<span class="lineNum">    1374 </span><span class="lineNoCov">          0 :     cx-&gt;from_buf = PR_FALSE;</span>
+<span class="lineNum">    1375 </span>            : 
+<span class="lineNum">    1376 </span><span class="lineNoCov">          0 :     if (cx-&gt;status == needBytes) {</span>
+<span class="lineNum">    1377 </span><span class="lineNoCov">          0 :         cx-&gt;status = keepGoing;</span>
+<span class="lineNum">    1378 </span><span class="lineNoCov">          0 :         cx-&gt;current-&gt;place = afterContents;</span>
+<span class="lineNum">    1379 </span>            :     }
+<span class="lineNum">    1380 </span>            : }
+<a name="1381"><span class="lineNum">    1381 </span>            : </a>
+<span class="lineNum">    1382 </span>            : SECStatus
+<span class="lineNum">    1383 </span><span class="lineCov">          1 : SEC_ASN1Encode(const void *src, const SEC_ASN1Template *theTemplate,</span>
+<span class="lineNum">    1384 </span>            :                SEC_ASN1WriteProc output_proc, void *output_arg)
+<span class="lineNum">    1385 </span>            : {
+<span class="lineNum">    1386 </span>            :     SEC_ASN1EncoderContext *ecx;
+<span class="lineNum">    1387 </span>            :     SECStatus rv;
+<span class="lineNum">    1388 </span>            : 
+<span class="lineNum">    1389 </span><span class="lineCov">          1 :     ecx = SEC_ASN1EncoderStart(src, theTemplate, output_proc, output_arg);</span>
+<span class="lineNum">    1390 </span><span class="lineCov">          1 :     if (ecx == NULL)</span>
+<span class="lineNum">    1391 </span>            :         return SECFailure;
+<span class="lineNum">    1392 </span>            : 
+<span class="lineNum">    1393 </span><span class="lineCov">          1 :     rv = SEC_ASN1EncoderUpdate(ecx, NULL, 0);</span>
+<span class="lineNum">    1394 </span>            : 
+<span class="lineNum">    1395 </span><span class="lineCov">          1 :     SEC_ASN1EncoderFinish(ecx);</span>
+<span class="lineNum">    1396 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">    1397 </span>            : }
+<span class="lineNum">    1398 </span>            : 
+<span class="lineNum">    1399 </span>            : /*
+<span class="lineNum">    1400 </span>            :  * XXX depth and data_kind are unused; is there a PC way to silence warnings?
+<span class="lineNum">    1401 </span>            :  * (I mean &quot;politically correct&quot;, not anything to do with intel/win platform)
+<a name="1402"><span class="lineNum">    1402 </span>            :  */</a>
+<span class="lineNum">    1403 </span>            : static void
+<span class="lineNum">    1404 </span><span class="lineCov">          1 : sec_asn1e_encode_item_count(void *arg, const char *buf, unsigned long len,</span>
+<span class="lineNum">    1405 </span>            :                             int depth, SEC_ASN1EncodingPart data_kind)
+<span class="lineNum">    1406 </span>            : {
+<span class="lineNum">    1407 </span>            :     unsigned long *count;
+<span class="lineNum">    1408 </span>            : 
+<span class="lineNum">    1409 </span><span class="lineCov">          1 :     count = (unsigned long *)arg;</span>
+<span class="lineNum">    1410 </span>            :     PORT_Assert(count != NULL);
+<span class="lineNum">    1411 </span>            : 
+<span class="lineNum">    1412 </span><span class="lineCov">          1 :     *count += len;</span>
+<span class="lineNum">    1413 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">    1414 </span>            : 
+<a name="1415"><span class="lineNum">    1415 </span>            : /* XXX depth and data_kind are unused; is there a PC way to silence warnings? */</a>
+<span class="lineNum">    1416 </span>            : static void
+<span class="lineNum">    1417 </span><span class="lineCov">          1 : sec_asn1e_encode_item_store(void *arg, const char *buf, unsigned long len,</span>
+<span class="lineNum">    1418 </span>            :                             int depth, SEC_ASN1EncodingPart data_kind)
+<span class="lineNum">    1419 </span>            : {
+<span class="lineNum">    1420 </span>            :     SECItem *dest;
+<span class="lineNum">    1421 </span>            : 
+<span class="lineNum">    1422 </span><span class="lineCov">          1 :     dest = (SECItem *)arg;</span>
+<span class="lineNum">    1423 </span>            :     PORT_Assert(dest != NULL);
+<span class="lineNum">    1424 </span>            : 
+<span class="lineNum">    1425 </span><span class="lineCov">          1 :     if (len &gt; 0) {</span>
+<span class="lineNum">    1426 </span><span class="lineCov">          1 :         PORT_Memcpy(dest-&gt;data + dest-&gt;len, buf, len);</span>
+<span class="lineNum">    1427 </span><span class="lineCov">          1 :         dest-&gt;len += len;</span>
+<span class="lineNum">    1428 </span>            :     }
+<span class="lineNum">    1429 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">    1430 </span>            : 
+<span class="lineNum">    1431 </span>            : /*
+<span class="lineNum">    1432 </span>            :  * Allocate an entire SECItem, or just the data part of it, to hold
+<span class="lineNum">    1433 </span>            :  * &quot;len&quot; bytes of stuff.  Allocate from the given pool, if specified,
+<span class="lineNum">    1434 </span>            :  * otherwise just do a vanilla PORT_Alloc.
+<span class="lineNum">    1435 </span>            :  *
+<span class="lineNum">    1436 </span>            :  * XXX This seems like a reasonable general-purpose function (for SECITEM_)?
+<a name="1437"><span class="lineNum">    1437 </span>            :  */</a>
+<span class="lineNum">    1438 </span>            : static SECItem *
+<span class="lineNum">    1439 </span><span class="lineCov">          1 : sec_asn1e_allocate_item(PLArenaPool *poolp, SECItem *dest, unsigned long len)</span>
+<span class="lineNum">    1440 </span>            : {
+<span class="lineNum">    1441 </span><span class="lineCov">          1 :     if (poolp != NULL) {</span>
+<span class="lineNum">    1442 </span>            :         void *release;
+<span class="lineNum">    1443 </span>            : 
+<span class="lineNum">    1444 </span><span class="lineCov">          1 :         release = PORT_ArenaMark(poolp);</span>
+<span class="lineNum">    1445 </span><span class="lineCov">          1 :         if (dest == NULL)</span>
+<span class="lineNum">    1446 </span><span class="lineCov">          1 :             dest = (SECItem *)PORT_ArenaAlloc(poolp, sizeof(SECItem));</span>
+<span class="lineNum">    1447 </span><span class="lineCov">          1 :         if (dest != NULL) {</span>
+<span class="lineNum">    1448 </span><span class="lineCov">          1 :             dest-&gt;data = (unsigned char *)PORT_ArenaAlloc(poolp, len);</span>
+<span class="lineNum">    1449 </span><span class="lineCov">          1 :             if (dest-&gt;data == NULL) {</span>
+<span class="lineNum">    1450 </span><span class="lineNoCov">          0 :                 dest = NULL;</span>
+<span class="lineNum">    1451 </span>            :             }
+<span class="lineNum">    1452 </span>            :         }
+<span class="lineNum">    1453 </span><span class="lineCov">          1 :         if (dest == NULL) {</span>
+<span class="lineNum">    1454 </span>            :             /* one or both allocations failed; release everything */
+<span class="lineNum">    1455 </span><span class="lineNoCov">          0 :             PORT_ArenaRelease(poolp, release);</span>
+<span class="lineNum">    1456 </span>            :         } else {
+<span class="lineNum">    1457 </span>            :             /* everything okay; unmark the arena */
+<span class="lineNum">    1458 </span><span class="lineCov">          1 :             PORT_ArenaUnmark(poolp, release);</span>
+<span class="lineNum">    1459 </span>            :         }
+<span class="lineNum">    1460 </span>            :     } else {
+<span class="lineNum">    1461 </span>            :         SECItem *indest;
+<span class="lineNum">    1462 </span>            : 
+<span class="lineNum">    1463 </span><span class="lineCov">          1 :         indest = dest;</span>
+<span class="lineNum">    1464 </span><span class="lineCov">          1 :         if (dest == NULL)</span>
+<span class="lineNum">    1465 </span><span class="lineCov">          1 :             dest = (SECItem *)PORT_Alloc(sizeof(SECItem));</span>
+<span class="lineNum">    1466 </span><span class="lineCov">          1 :         if (dest != NULL) {</span>
+<span class="lineNum">    1467 </span><span class="lineCov">          1 :             dest-&gt;type = siBuffer;</span>
+<span class="lineNum">    1468 </span><span class="lineCov">          1 :             dest-&gt;data = (unsigned char *)PORT_Alloc(len);</span>
+<span class="lineNum">    1469 </span><span class="lineCov">          1 :             if (dest-&gt;data == NULL) {</span>
+<span class="lineNum">    1470 </span><span class="lineNoCov">          0 :                 if (indest == NULL)</span>
+<span class="lineNum">    1471 </span><span class="lineNoCov">          0 :                     PORT_Free(dest);</span>
+<span class="lineNum">    1472 </span>            :                 dest = NULL;
+<span class="lineNum">    1473 </span>            :             }
+<span class="lineNum">    1474 </span>            :         }
+<span class="lineNum">    1475 </span>            :     }
+<span class="lineNum">    1476 </span>            : 
+<span class="lineNum">    1477 </span><span class="lineCov">          1 :     return dest;</span>
+<span class="lineNum">    1478 </span>            : }
+<a name="1479"><span class="lineNum">    1479 </span>            : </a>
+<span class="lineNum">    1480 </span>            : SECItem *
+<span class="lineNum">    1481 </span><span class="lineCov">          1 : SEC_ASN1EncodeItem(PLArenaPool *poolp, SECItem *dest, const void *src,</span>
+<span class="lineNum">    1482 </span>            :                    const SEC_ASN1Template *theTemplate)
+<span class="lineNum">    1483 </span>            : {
+<span class="lineNum">    1484 </span>            :     unsigned long encoding_length;
+<span class="lineNum">    1485 </span>            :     SECStatus rv;
+<span class="lineNum">    1486 </span>            : 
+<span class="lineNum">    1487 </span>            :     PORT_Assert(dest == NULL || dest-&gt;data == NULL);
+<span class="lineNum">    1488 </span>            : 
+<span class="lineNum">    1489 </span><span class="lineCov">          1 :     encoding_length = 0;</span>
+<span class="lineNum">    1490 </span><span class="lineCov">          1 :     rv = SEC_ASN1Encode(src, theTemplate,</span>
+<span class="lineNum">    1491 </span>            :                         sec_asn1e_encode_item_count, &amp;encoding_length);
+<span class="lineNum">    1492 </span><span class="lineCov">          1 :     if (rv != SECSuccess)</span>
+<span class="lineNum">    1493 </span>            :         return NULL;
+<span class="lineNum">    1494 </span>            : 
+<span class="lineNum">    1495 </span><span class="lineCov">          1 :     dest = sec_asn1e_allocate_item(poolp, dest, encoding_length);</span>
+<span class="lineNum">    1496 </span><span class="lineCov">          1 :     if (dest == NULL)</span>
+<span class="lineNum">    1497 </span>            :         return NULL;
+<span class="lineNum">    1498 </span>            : 
+<span class="lineNum">    1499 </span>            :     /* XXX necessary?  This really just checks for a bug in the allocate fn */
+<span class="lineNum">    1500 </span>            :     PORT_Assert(dest-&gt;data != NULL);
+<span class="lineNum">    1501 </span><span class="lineCov">          1 :     if (dest-&gt;data == NULL)</span>
+<span class="lineNum">    1502 </span>            :         return NULL;
+<span class="lineNum">    1503 </span>            : 
+<span class="lineNum">    1504 </span><span class="lineCov">          1 :     dest-&gt;len = 0;</span>
+<span class="lineNum">    1505 </span><span class="lineCov">          1 :     (void)SEC_ASN1Encode(src, theTemplate, sec_asn1e_encode_item_store, dest);</span>
+<span class="lineNum">    1506 </span>            : 
+<span class="lineNum">    1507 </span>            :     PORT_Assert(encoding_length == dest-&gt;len);
+<span class="lineNum">    1508 </span><span class="lineCov">          1 :     return dest;</span>
+<span class="lineNum">    1509 </span>            : }
+<a name="1510"><span class="lineNum">    1510 </span>            : </a>
+<span class="lineNum">    1511 </span>            : static SECItem *
+<span class="lineNum">    1512 </span><span class="lineCov">          1 : sec_asn1e_integer(PLArenaPool *poolp, SECItem *dest, unsigned long value,</span>
+<span class="lineNum">    1513 </span>            :                   PRBool is_unsigned)
+<span class="lineNum">    1514 </span>            : {
+<span class="lineNum">    1515 </span>            :     unsigned long copy;
+<span class="lineNum">    1516 </span>            :     unsigned char sign;
+<span class="lineNum">    1517 </span><span class="lineCov">          1 :     int len = 0;</span>
+<span class="lineNum">    1518 </span>            : 
+<span class="lineNum">    1519 </span>            :     /*
+<span class="lineNum">    1520 </span>            :      * Determine the length of the encoded value (minimum of 1).
+<span class="lineNum">    1521 </span>            :      */
+<span class="lineNum">    1522 </span><span class="lineCov">          1 :     copy = value;</span>
+<span class="lineNum">    1523 </span>            :     do {
+<span class="lineNum">    1524 </span><span class="lineCov">          1 :         len++;</span>
+<span class="lineNum">    1525 </span><span class="lineCov">          1 :         sign = (unsigned char)(copy &amp; 0x80);</span>
+<span class="lineNum">    1526 </span><span class="lineCov">          1 :         copy &gt;&gt;= 8;</span>
+<span class="lineNum">    1527 </span><span class="lineCov">          1 :     } while (copy);</span>
+<span class="lineNum">    1528 </span>            : 
+<span class="lineNum">    1529 </span>            :     /*
+<span class="lineNum">    1530 </span>            :      * If 'value' is non-negative, and the high bit of the last
+<span class="lineNum">    1531 </span>            :      * byte we counted was set, we need to add one to the length so
+<span class="lineNum">    1532 </span>            :      * we put a high-order zero byte in the encoding.
+<span class="lineNum">    1533 </span>            :      */
+<span class="lineNum">    1534 </span><span class="lineCov">          1 :     if (sign &amp;&amp; (is_unsigned || (long)value &gt;= 0))</span>
+<span class="lineNum">    1535 </span><span class="lineNoCov">          0 :         len++;</span>
+<span class="lineNum">    1536 </span>            : 
+<span class="lineNum">    1537 </span>            :     /*
+<span class="lineNum">    1538 </span>            :      * Allocate the item (if necessary) and the data pointer within.
+<span class="lineNum">    1539 </span>            :      */
+<span class="lineNum">    1540 </span><span class="lineCov">          1 :     dest = sec_asn1e_allocate_item(poolp, dest, len);</span>
+<span class="lineNum">    1541 </span><span class="lineCov">          1 :     if (dest == NULL)</span>
+<span class="lineNum">    1542 </span>            :         return NULL;
+<span class="lineNum">    1543 </span>            : 
+<span class="lineNum">    1544 </span>            :     /*
+<span class="lineNum">    1545 </span>            :      * Store the value, byte by byte, in the item.
+<span class="lineNum">    1546 </span>            :      */
+<span class="lineNum">    1547 </span><span class="lineCov">          1 :     dest-&gt;len = len;</span>
+<span class="lineNum">    1548 </span><span class="lineCov">          1 :     while (len) {</span>
+<span class="lineNum">    1549 </span><span class="lineCov">          1 :         dest-&gt;data[--len] = (unsigned char)value;</span>
+<span class="lineNum">    1550 </span><span class="lineCov">          1 :         value &gt;&gt;= 8;</span>
+<span class="lineNum">    1551 </span>            :     }
+<span class="lineNum">    1552 </span>            :     PORT_Assert(value == 0);
+<span class="lineNum">    1553 </span>            : 
+<span class="lineNum">    1554 </span>            :     return dest;
+<span class="lineNum">    1555 </span>            : }
+<a name="1556"><span class="lineNum">    1556 </span>            : </a>
+<span class="lineNum">    1557 </span>            : SECItem *
+<span class="lineNum">    1558 </span><span class="lineCov">          1 : SEC_ASN1EncodeInteger(PLArenaPool *poolp, SECItem *dest, long value)</span>
+<span class="lineNum">    1559 </span>            : {
+<span class="lineNum">    1560 </span><span class="lineCov">          1 :     return sec_asn1e_integer(poolp, dest, (unsigned long)value, PR_FALSE);</span>
+<span class="lineNum">    1561 </span>            : }
+<a name="1562"><span class="lineNum">    1562 </span>            : </a>
+<span class="lineNum">    1563 </span>            : SECItem *
+<span class="lineNum">    1564 </span><span class="lineNoCov">          0 : SEC_ASN1EncodeUnsignedInteger(PLArenaPool *poolp,</span>
+<span class="lineNum">    1565 </span>            :                               SECItem *dest, unsigned long value)
+<span class="lineNum">    1566 </span>            : {
+<span class="lineNum">    1567 </span><span class="lineNoCov">          0 :     return sec_asn1e_integer(poolp, dest, value, PR_TRUE);</span>
+<span class="lineNum">    1568 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

@@ -1,0 +1,484 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gfx/skia/skia/src/gpu/effects/GrCustomXfermode.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../../index.html">top level</a> - <a href="index.html">gfx/skia/skia/src/gpu/effects</a> - GrCustomXfermode.cpp<span style="font-size: 80%;"> (source / <a href="GrCustomXfermode.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">89</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">28</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  * Copyright 2015 Google Inc.
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  * Use of this source code is governed by a BSD-style license that can be
+<span class="lineNum">       5 </span>            :  * found in the LICENSE file.
+<span class="lineNum">       6 </span>            :  */
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #include &quot;effects/GrCustomXfermode.h&quot;
+<span class="lineNum">       9 </span>            : 
+<span class="lineNum">      10 </span>            : #include &quot;GrCoordTransform.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;GrContext.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;GrFragmentProcessor.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;GrInvariantOutput.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;GrPipeline.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;GrProcessor.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;GrTexture.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;GrTextureAccess.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;SkXfermode.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;glsl/GrGLSLBlend.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;glsl/GrGLSLCaps.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;glsl/GrGLSLFragmentProcessor.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;glsl/GrGLSLFragmentShaderBuilder.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;glsl/GrGLSLProgramDataManager.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;glsl/GrGLSLUniformHandler.h&quot;
+<a name="25"><span class="lineNum">      25 </span>            : #include &quot;glsl/GrGLSLXferProcessor.h&quot;</a>
+<span class="lineNum">      26 </span>            : 
+<span class="lineNum">      27 </span><span class="lineNoCov">          0 : bool GrCustomXfermode::IsSupportedMode(SkXfermode::Mode mode) {</span>
+<span class="lineNum">      28 </span><span class="lineNoCov">          0 :     return mode &gt; SkXfermode::kLastCoeffMode &amp;&amp; mode &lt;= SkXfermode::kLastMode;</span>
+<span class="lineNum">      29 </span>            : }
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : ///////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">      32 </span>            : // Static helpers
+<span class="lineNum">      33 </span>            : ///////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : static GrBlendEquation hw_blend_equation(SkXfermode::Mode mode) {
+<span class="lineNum">      36 </span>            :     enum { kOffset = kOverlay_GrBlendEquation - SkXfermode::kOverlay_Mode };
+<span class="lineNum">      37 </span><span class="lineNoCov">          0 :     return static_cast&lt;GrBlendEquation&gt;(mode + kOffset);</span>
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            :     GR_STATIC_ASSERT(kOverlay_GrBlendEquation == SkXfermode::kOverlay_Mode + kOffset);
+<span class="lineNum">      40 </span>            :     GR_STATIC_ASSERT(kDarken_GrBlendEquation == SkXfermode::kDarken_Mode + kOffset);
+<span class="lineNum">      41 </span>            :     GR_STATIC_ASSERT(kLighten_GrBlendEquation == SkXfermode::kLighten_Mode + kOffset);
+<span class="lineNum">      42 </span>            :     GR_STATIC_ASSERT(kColorDodge_GrBlendEquation == SkXfermode::kColorDodge_Mode + kOffset);
+<span class="lineNum">      43 </span>            :     GR_STATIC_ASSERT(kColorBurn_GrBlendEquation == SkXfermode::kColorBurn_Mode + kOffset);
+<span class="lineNum">      44 </span>            :     GR_STATIC_ASSERT(kHardLight_GrBlendEquation == SkXfermode::kHardLight_Mode + kOffset);
+<span class="lineNum">      45 </span>            :     GR_STATIC_ASSERT(kSoftLight_GrBlendEquation == SkXfermode::kSoftLight_Mode + kOffset);
+<span class="lineNum">      46 </span>            :     GR_STATIC_ASSERT(kDifference_GrBlendEquation == SkXfermode::kDifference_Mode + kOffset);
+<span class="lineNum">      47 </span>            :     GR_STATIC_ASSERT(kExclusion_GrBlendEquation == SkXfermode::kExclusion_Mode + kOffset);
+<span class="lineNum">      48 </span>            :     GR_STATIC_ASSERT(kMultiply_GrBlendEquation == SkXfermode::kMultiply_Mode + kOffset);
+<span class="lineNum">      49 </span>            :     GR_STATIC_ASSERT(kHSLHue_GrBlendEquation == SkXfermode::kHue_Mode + kOffset);
+<span class="lineNum">      50 </span>            :     GR_STATIC_ASSERT(kHSLSaturation_GrBlendEquation == SkXfermode::kSaturation_Mode + kOffset);
+<span class="lineNum">      51 </span>            :     GR_STATIC_ASSERT(kHSLColor_GrBlendEquation == SkXfermode::kColor_Mode + kOffset);
+<span class="lineNum">      52 </span>            :     GR_STATIC_ASSERT(kHSLLuminosity_GrBlendEquation == SkXfermode::kLuminosity_Mode + kOffset);
+<span class="lineNum">      53 </span>            :     GR_STATIC_ASSERT(kGrBlendEquationCnt == SkXfermode::kLastMode + 1 + kOffset);
+<a name="54"><span class="lineNum">      54 </span>            : }</a>
+<span class="lineNum">      55 </span>            : 
+<span class="lineNum">      56 </span><span class="lineNoCov">          0 : static bool can_use_hw_blend_equation(GrBlendEquation equation,</span>
+<span class="lineNum">      57 </span>            :                                       const GrPipelineOptimizations&amp; opt,
+<span class="lineNum">      58 </span>            :                                       const GrCaps&amp; caps) {
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 :     if (!caps.advancedBlendEquationSupport()) {</span>
+<span class="lineNum">      60 </span>            :         return false;
+<span class="lineNum">      61 </span>            :     }
+<span class="lineNum">      62 </span><span class="lineNoCov">          0 :     if (opt.fOverrides.fUsePLSDstRead) {</span>
+<span class="lineNum">      63 </span>            :         return false;
+<span class="lineNum">      64 </span>            :     }
+<span class="lineNum">      65 </span><span class="lineNoCov">          0 :     if (opt.fCoveragePOI.isFourChannelOutput()) {</span>
+<span class="lineNum">      66 </span>            :         return false; // LCD coverage must be applied after the blend equation.
+<span class="lineNum">      67 </span>            :     }
+<span class="lineNum">      68 </span><span class="lineNoCov">          0 :     if (caps.canUseAdvancedBlendEquation(equation)) {</span>
+<span class="lineNum">      69 </span>            :         return false;
+<span class="lineNum">      70 </span>            :     }
+<span class="lineNum">      71 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">      72 </span>            : }
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span>            : ///////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">      75 </span>            : // Xfer Processor
+<a name="76"><span class="lineNum">      76 </span>            : ///////////////////////////////////////////////////////////////////////////////</a>
+<span class="lineNum">      77 </span>            : 
+<a name="78"><span class="lineNum">      78 </span><span class="lineNoCov">          0 : class CustomXP : public GrXferProcessor {</span></a>
+<span class="lineNum">      79 </span>            : public:
+<span class="lineNum">      80 </span><span class="lineNoCov">          0 :     CustomXP(SkXfermode::Mode mode, GrBlendEquation hwBlendEquation)</span>
+<span class="lineNum">      81 </span>            :         : fMode(mode),
+<span class="lineNum">      82 </span><span class="lineNoCov">          0 :           fHWBlendEquation(hwBlendEquation) {</span>
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :         this-&gt;initClassID&lt;CustomXP&gt;();</span>
+<a name="84"><span class="lineNum">      84 </span><span class="lineNoCov">          0 :     }</span></a>
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span><span class="lineNoCov">          0 :     CustomXP(const DstTexture* dstTexture, bool hasMixedSamples, SkXfermode::Mode mode)</span>
+<span class="lineNum">      87 </span>            :         : INHERITED(dstTexture, true, hasMixedSamples),
+<span class="lineNum">      88 </span>            :           fMode(mode),
+<span class="lineNum">      89 </span><span class="lineNoCov">          0 :           fHWBlendEquation(static_cast&lt;GrBlendEquation&gt;(-1)) {</span>
+<span class="lineNum">      90 </span><span class="lineNoCov">          0 :         this-&gt;initClassID&lt;CustomXP&gt;();</span>
+<a name="91"><span class="lineNum">      91 </span><span class="lineNoCov">          0 :     }</span></a>
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span><span class="lineNoCov">          0 :     const char* name() const override { return &quot;Custom Xfermode&quot;; }</span>
+<span class="lineNum">      94 </span>            : 
+<span class="lineNum">      95 </span>            :     GrGLSLXferProcessor* createGLSLInstance() const override;
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span>            :     SkXfermode::Mode mode() const { return fMode; }
+<span class="lineNum">      98 </span>            :     bool hasHWBlendEquation() const { return -1 != static_cast&lt;int&gt;(fHWBlendEquation); }
+<span class="lineNum">      99 </span>            : 
+<span class="lineNum">     100 </span>            :     GrBlendEquation hwBlendEquation() const {
+<span class="lineNum">     101 </span>            :         SkASSERT(this-&gt;hasHWBlendEquation());
+<span class="lineNum">     102 </span>            :         return fHWBlendEquation;
+<span class="lineNum">     103 </span>            :     }
+<span class="lineNum">     104 </span>            : 
+<span class="lineNum">     105 </span>            : private:
+<span class="lineNum">     106 </span>            :     GrXferProcessor::OptFlags onGetOptimizations(const GrPipelineOptimizations&amp; optimizations,
+<span class="lineNum">     107 </span>            :                                                  bool doesStencilWrite,
+<span class="lineNum">     108 </span>            :                                                  GrColor* overrideColor,
+<span class="lineNum">     109 </span>            :                                                  const GrCaps&amp; caps) const override;
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span>            :     void onGetGLSLProcessorKey(const GrGLSLCaps&amp; caps, GrProcessorKeyBuilder* b) const override;
+<span class="lineNum">     112 </span>            : 
+<span class="lineNum">     113 </span>            :     GrXferBarrierType onXferBarrier(const GrRenderTarget*, const GrCaps&amp;) const override;
+<span class="lineNum">     114 </span>            : 
+<span class="lineNum">     115 </span>            :     void onGetBlendInfo(BlendInfo*) const override;
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            :     bool onIsEqual(const GrXferProcessor&amp; xpBase) const override;
+<span class="lineNum">     118 </span>            : 
+<span class="lineNum">     119 </span>            :     const SkXfermode::Mode fMode;
+<span class="lineNum">     120 </span>            :     const GrBlendEquation  fHWBlendEquation;
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span>            :     typedef GrXferProcessor INHERITED;
+<span class="lineNum">     123 </span>            : };
+<span class="lineNum">     124 </span>            : 
+<span class="lineNum">     125 </span>            : ///////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span>            : class GLCustomXP : public GrGLSLXferProcessor {
+<a name="128"><span class="lineNum">     128 </span>            : public:</a>
+<span class="lineNum">     129 </span><span class="lineNoCov">          0 :     GLCustomXP(const GrXferProcessor&amp;) {}</span>
+<a name="130"><span class="lineNum">     130 </span><span class="lineNoCov">          0 :     ~GLCustomXP() override {}</span></a>
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :     static void GenKey(const GrXferProcessor&amp; p, const GrGLSLCaps&amp; caps, GrProcessorKeyBuilder* b) {</span>
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :         const CustomXP&amp; xp = p.cast&lt;CustomXP&gt;();</span>
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :         uint32_t key = 0;</span>
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 :         if (xp.hasHWBlendEquation()) {</span>
+<span class="lineNum">     136 </span>            :             SkASSERT(caps.advBlendEqInteraction() &gt; 0);  // 0 will mean !xp.hasHWBlendEquation().
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :             key |= caps.advBlendEqInteraction();</span>
+<span class="lineNum">     138 </span>            :             GR_STATIC_ASSERT(GrGLSLCaps::kLast_AdvBlendEqInteraction &lt; 4);
+<span class="lineNum">     139 </span>            :         }
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :         if (!xp.hasHWBlendEquation() || caps.mustEnableSpecificAdvBlendEqs()) {</span>
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :             key |= xp.mode() &lt;&lt; 3;</span>
+<span class="lineNum">     142 </span>            :         }
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :         b-&gt;add32(key);</span>
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :     }</span>
+<a name="145"><span class="lineNum">     145 </span>            : </a>
+<span class="lineNum">     146 </span>            : private:
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 :     void emitOutputsForBlendState(const EmitArgs&amp; args) override {</span>
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 :         const CustomXP&amp; xp = args.fXP.cast&lt;CustomXP&gt;();</span>
+<span class="lineNum">     149 </span>            :         SkASSERT(xp.hasHWBlendEquation());
+<span class="lineNum">     150 </span>            : 
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :         GrGLSLXPFragmentBuilder* fragBuilder = args.fXPFragBuilder;</span>
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :         fragBuilder-&gt;enableAdvancedBlendEquationIfNeeded(xp.hwBlendEquation());</span>
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span>            :         // Apply coverage by multiplying it into the src color before blending. Mixed samples will
+<span class="lineNum">     155 </span>            :         // &quot;just work&quot; automatically. (See onGetOptimizations())
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :         if (args.fInputCoverage) {</span>
+<span class="lineNum">     157 </span>            :             fragBuilder-&gt;codeAppendf(&quot;%s = %s * %s;&quot;,
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :                                      args.fOutputPrimary, args.fInputCoverage, args.fInputColor);</span>
+<span class="lineNum">     159 </span>            :         } else {
+<span class="lineNum">     160 </span><span class="lineNoCov">          0 :             fragBuilder-&gt;codeAppendf(&quot;%s = %s;&quot;, args.fOutputPrimary, args.fInputColor);</span>
+<span class="lineNum">     161 </span>            :         }
+<a name="162"><span class="lineNum">     162 </span><span class="lineNoCov">          0 :     }</span></a>
+<span class="lineNum">     163 </span>            : 
+<span class="lineNum">     164 </span><span class="lineNoCov">          0 :     void emitBlendCodeForDstRead(GrGLSLXPFragmentBuilder* fragBuilder,</span>
+<span class="lineNum">     165 </span>            :                                  GrGLSLUniformHandler* uniformHandler,
+<span class="lineNum">     166 </span>            :                                  const char* srcColor,
+<span class="lineNum">     167 </span>            :                                  const char* srcCoverage,
+<span class="lineNum">     168 </span>            :                                  const char* dstColor,
+<span class="lineNum">     169 </span>            :                                  const char* outColor,
+<span class="lineNum">     170 </span>            :                                  const char* outColorSecondary,
+<span class="lineNum">     171 </span>            :                                  const GrXferProcessor&amp; proc) override {
+<span class="lineNum">     172 </span><span class="lineNoCov">          0 :         const CustomXP&amp; xp = proc.cast&lt;CustomXP&gt;();</span>
+<span class="lineNum">     173 </span>            :         SkASSERT(!xp.hasHWBlendEquation());
+<span class="lineNum">     174 </span>            : 
+<span class="lineNum">     175 </span><span class="lineNoCov">          0 :         GrGLSLBlend::AppendMode(fragBuilder, srcColor, dstColor, outColor, xp.mode());</span>
+<span class="lineNum">     176 </span>            : 
+<span class="lineNum">     177 </span>            :         // Apply coverage.
+<span class="lineNum">     178 </span>            :         INHERITED::DefaultCoverageModulation(fragBuilder, srcCoverage, dstColor, outColor,
+<span class="lineNum">     179 </span><span class="lineNoCov">          0 :                                              outColorSecondary, xp);</span>
+<a name="180"><span class="lineNum">     180 </span><span class="lineNoCov">          0 :     }</span></a>
+<span class="lineNum">     181 </span>            : 
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :     void onSetData(const GrGLSLProgramDataManager&amp;, const GrXferProcessor&amp;) override {}</span>
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span>            :     typedef GrGLSLXferProcessor INHERITED;
+<span class="lineNum">     185 </span>            : };
+<span class="lineNum">     186 </span>            : 
+<a name="187"><span class="lineNum">     187 </span>            : ///////////////////////////////////////////////////////////////////////////////</a>
+<span class="lineNum">     188 </span>            : 
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 : void CustomXP::onGetGLSLProcessorKey(const GrGLSLCaps&amp; caps, GrProcessorKeyBuilder* b) const {</span>
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :     GLCustomXP::GenKey(*this, caps, b);</span>
+<a name="191"><span class="lineNum">     191 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     192 </span>            : 
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 : GrGLSLXferProcessor* CustomXP::createGLSLInstance() const {</span>
+<span class="lineNum">     194 </span>            :     SkASSERT(this-&gt;willReadDstColor() != this-&gt;hasHWBlendEquation());
+<span class="lineNum">     195 </span><span class="lineNoCov">          0 :     return new GLCustomXP(*this);</span>
+<a name="196"><span class="lineNum">     196 </span>            : }</a>
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 : bool CustomXP::onIsEqual(const GrXferProcessor&amp; other) const {</span>
+<span class="lineNum">     199 </span><span class="lineNoCov">          0 :     const CustomXP&amp; s = other.cast&lt;CustomXP&gt;();</span>
+<span class="lineNum">     200 </span><span class="lineNoCov">          0 :     return fMode == s.fMode &amp;&amp; fHWBlendEquation == s.fHWBlendEquation;</span>
+<a name="201"><span class="lineNum">     201 </span>            : }</a>
+<span class="lineNum">     202 </span>            : 
+<span class="lineNum">     203 </span><span class="lineNoCov">          0 : GrXferProcessor::OptFlags CustomXP::onGetOptimizations(const GrPipelineOptimizations&amp; optimizations,</span>
+<span class="lineNum">     204 </span>            :                                                        bool doesStencilWrite,
+<span class="lineNum">     205 </span>            :                                                        GrColor* overrideColor,
+<span class="lineNum">     206 </span>            :                                                        const GrCaps&amp; caps) const {
+<span class="lineNum">     207 </span>            :   /*
+<span class="lineNum">     208 </span>            :     Most the optimizations we do here are based on tweaking alpha for coverage.
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span>            :     The general SVG blend equation is defined in the spec as follows:
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span>            :       Dca' = B(Sc, Dc) * Sa * Da + Y * Sca * (1-Da) + Z * Dca * (1-Sa)
+<span class="lineNum">     213 </span>            :       Da'  = X * Sa * Da + Y * Sa * (1-Da) + Z * Da * (1-Sa)
+<span class="lineNum">     214 </span>            : 
+<span class="lineNum">     215 </span>            :     (Note that Sca, Dca indicate RGB vectors that are premultiplied by alpha,
+<span class="lineNum">     216 </span>            :      and that B(Sc, Dc) is a mode-specific function that accepts non-multiplied
+<span class="lineNum">     217 </span>            :      RGB colors.)
+<span class="lineNum">     218 </span>            : 
+<span class="lineNum">     219 </span>            :     For every blend mode supported by this class, i.e. the &quot;advanced&quot; blend
+<span class="lineNum">     220 </span>            :     modes, X=Y=Z=1 and this equation reduces to the PDF blend equation.
+<span class="lineNum">     221 </span>            : 
+<span class="lineNum">     222 </span>            :     It can be shown that when X=Y=Z=1, these equations can modulate alpha for
+<span class="lineNum">     223 </span>            :     coverage.
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span>            : 
+<span class="lineNum">     226 </span>            :     == Color ==
+<span class="lineNum">     227 </span>            : 
+<span class="lineNum">     228 </span>            :     We substitute Y=Z=1 and define a blend() function that calculates Dca' in
+<span class="lineNum">     229 </span>            :     terms of premultiplied alpha only:
+<span class="lineNum">     230 </span>            : 
+<span class="lineNum">     231 </span>            :       blend(Sca, Dca, Sa, Da) = {Dca : if Sa == 0,
+<span class="lineNum">     232 </span>            :                                  Sca : if Da == 0,
+<span class="lineNum">     233 </span>            :                                  B(Sca/Sa, Dca/Da) * Sa * Da + Sca * (1-Da) + Dca * (1-Sa) : if Sa,Da != 0}
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span>            :     And for coverage modulation, we use a post blend src-over model:
+<span class="lineNum">     236 </span>            : 
+<span class="lineNum">     237 </span>            :       Dca'' = f * blend(Sca, Dca, Sa, Da) + (1-f) * Dca
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span>            :     (Where f is the fractional coverage.)
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span>            :     Next we show that canTweakAlphaForCoverage() is true by proving the
+<span class="lineNum">     242 </span>            :     following relationship:
+<span class="lineNum">     243 </span>            : 
+<span class="lineNum">     244 </span>            :       blend(f*Sca, Dca, f*Sa, Da) == f * blend(Sca, Dca, Sa, Da) + (1-f) * Dca
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span>            :     General case (f,Sa,Da != 0):
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span>            :       f * blend(Sca, Dca, Sa, Da) + (1-f) * Dca
+<span class="lineNum">     249 </span>            :         = f * (B(Sca/Sa, Dca/Da) * Sa * Da + Sca * (1-Da) + Dca * (1-Sa)) + (1-f) * Dca  [Sa,Da != 0, definition of blend()]
+<span class="lineNum">     250 </span>            :         = B(Sca/Sa, Dca/Da) * f*Sa * Da + f*Sca * (1-Da) + f*Dca * (1-Sa) + Dca - f*Dca
+<span class="lineNum">     251 </span>            :         = B(Sca/Sa, Dca/Da) * f*Sa * Da + f*Sca - f*Sca * Da + f*Dca - f*Dca * Sa + Dca - f*Dca
+<span class="lineNum">     252 </span>            :         = B(Sca/Sa, Dca/Da) * f*Sa * Da + f*Sca - f*Sca * Da - f*Dca * Sa + Dca
+<span class="lineNum">     253 </span>            :         = B(Sca/Sa, Dca/Da) * f*Sa * Da + f*Sca * (1-Da) - f*Dca * Sa + Dca
+<span class="lineNum">     254 </span>            :         = B(Sca/Sa, Dca/Da) * f*Sa * Da + f*Sca * (1-Da) + Dca * (1 - f*Sa)
+<span class="lineNum">     255 </span>            :         = B(f*Sca/f*Sa, Dca/Da) * f*Sa * Da + f*Sca * (1-Da) + Dca * (1 - f*Sa)  [f!=0]
+<span class="lineNum">     256 </span>            :         = blend(f*Sca, Dca, f*Sa, Da)  [definition of blend()]
+<span class="lineNum">     257 </span>            : 
+<span class="lineNum">     258 </span>            :     Corner cases (Sa=0, Da=0, and f=0):
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span>            :       Sa=0: f * blend(Sca, Dca, Sa, Da) + (1-f) * Dca
+<span class="lineNum">     261 </span>            :               = f * Dca + (1-f) * Dca  [Sa=0, definition of blend()]
+<span class="lineNum">     262 </span>            :               = Dca
+<span class="lineNum">     263 </span>            :               = blend(0, Dca, 0, Da)  [definition of blend()]
+<span class="lineNum">     264 </span>            :               = blend(f*Sca, Dca, f*Sa, Da)  [Sa=0]
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span>            :       Da=0: f * blend(Sca, Dca, Sa, Da) + (1-f) * Dca
+<span class="lineNum">     267 </span>            :               = f * Sca + (1-f) * Dca  [Da=0, definition of blend()]
+<span class="lineNum">     268 </span>            :               = f * Sca  [Da=0]
+<span class="lineNum">     269 </span>            :               = blend(f*Sca, 0, f*Sa, 0)  [definition of blend()]
+<span class="lineNum">     270 </span>            :               = blend(f*Sca, Dca, f*Sa, Da)  [Da=0]
+<span class="lineNum">     271 </span>            : 
+<span class="lineNum">     272 </span>            :       f=0: f * blend(Sca, Dca, Sa, Da) + (1-f) * Dca
+<span class="lineNum">     273 </span>            :              = Dca  [f=0]
+<span class="lineNum">     274 </span>            :              = blend(0, Dca, 0, Da)  [definition of blend()]
+<span class="lineNum">     275 </span>            :              = blend(f*Sca, Dca, f*Sa, Da)  [f=0]
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span>            :     == Alpha ==
+<span class="lineNum">     278 </span>            : 
+<span class="lineNum">     279 </span>            :     We substitute X=Y=Z=1 and define a blend() function that calculates Da':
+<span class="lineNum">     280 </span>            : 
+<span class="lineNum">     281 </span>            :       blend(Sa, Da) = Sa * Da + Sa * (1-Da) + Da * (1-Sa)
+<span class="lineNum">     282 </span>            :                     = Sa * Da + Sa - Sa * Da + Da - Da * Sa
+<span class="lineNum">     283 </span>            :                     = Sa + Da - Sa * Da
+<span class="lineNum">     284 </span>            : 
+<span class="lineNum">     285 </span>            :     We use the same model for coverage modulation as we did with color:
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span>            :       Da'' = f * blend(Sa, Da) + (1-f) * Da
+<span class="lineNum">     288 </span>            : 
+<span class="lineNum">     289 </span>            :     And show that canTweakAlphaForCoverage() is true by proving the following
+<span class="lineNum">     290 </span>            :     relationship:
+<span class="lineNum">     291 </span>            : 
+<span class="lineNum">     292 </span>            :       blend(f*Sa, Da) == f * blend(Sa, Da) + (1-f) * Da
+<span class="lineNum">     293 </span>            : 
+<span class="lineNum">     294 </span>            : 
+<span class="lineNum">     295 </span>            :       f * blend(Sa, Da) + (1-f) * Da
+<span class="lineNum">     296 </span>            :         = f * (Sa + Da - Sa * Da) + (1-f) * Da
+<span class="lineNum">     297 </span>            :         = f*Sa + f*Da - f*Sa * Da + Da - f*Da
+<span class="lineNum">     298 </span>            :         = f*Sa - f*Sa * Da + Da
+<span class="lineNum">     299 </span>            :         = f*Sa + Da - f*Sa * Da
+<span class="lineNum">     300 </span>            :         = blend(f*Sa, Da)
+<span class="lineNum">     301 </span>            :    */
+<span class="lineNum">     302 </span>            : 
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 :     OptFlags flags = kNone_OptFlags;</span>
+<span class="lineNum">     304 </span><span class="lineNoCov">          0 :     if (optimizations.fColorPOI.allStagesMultiplyInput()) {</span>
+<span class="lineNum">     305 </span>            :         flags |= kCanTweakAlphaForCoverage_OptFlag;
+<span class="lineNum">     306 </span>            :     }
+<span class="lineNum">     307 </span><span class="lineNoCov">          0 :     if (this-&gt;hasHWBlendEquation() &amp;&amp; optimizations.fCoveragePOI.isSolidWhite()) {</span>
+<span class="lineNum">     308 </span>            :         flags |= kIgnoreCoverage_OptFlag;
+<span class="lineNum">     309 </span>            :     }
+<span class="lineNum">     310 </span><span class="lineNoCov">          0 :     return flags;</span>
+<a name="311"><span class="lineNum">     311 </span>            : }</a>
+<span class="lineNum">     312 </span>            : 
+<span class="lineNum">     313 </span><span class="lineNoCov">          0 : GrXferBarrierType CustomXP::onXferBarrier(const GrRenderTarget* rt, const GrCaps&amp; caps) const {</span>
+<span class="lineNum">     314 </span><span class="lineNoCov">          0 :     if (this-&gt;hasHWBlendEquation() &amp;&amp; !caps.advancedCoherentBlendEquationSupport()) {</span>
+<span class="lineNum">     315 </span>            :         return kBlend_GrXferBarrierType;
+<span class="lineNum">     316 </span>            :     }
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :     return kNone_GrXferBarrierType;</span>
+<a name="318"><span class="lineNum">     318 </span>            : }</a>
+<span class="lineNum">     319 </span>            : 
+<span class="lineNum">     320 </span><span class="lineNoCov">          0 : void CustomXP::onGetBlendInfo(BlendInfo* blendInfo) const {</span>
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :     if (this-&gt;hasHWBlendEquation()) {</span>
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 :         blendInfo-&gt;fEquation = this-&gt;hwBlendEquation();</span>
+<span class="lineNum">     323 </span>            :     }
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 : }</span>
+<a name="325"><span class="lineNum">     325 </span>            : </a>
+<span class="lineNum">     326 </span>            : ///////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">     327 </span><span class="lineNoCov">          0 : class CustomXPFactory : public GrXPFactory {</span>
+<span class="lineNum">     328 </span>            : public:
+<span class="lineNum">     329 </span>            :     CustomXPFactory(SkXfermode::Mode mode);
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span>            :     void getInvariantBlendedColor(const GrProcOptInfo&amp; colorPOI,
+<span class="lineNum">     332 </span>            :                                   GrXPFactory::InvariantBlendedColor*) const override;
+<span class="lineNum">     333 </span>            : 
+<span class="lineNum">     334 </span>            : private:
+<span class="lineNum">     335 </span>            :     GrXferProcessor* onCreateXferProcessor(const GrCaps&amp; caps,
+<span class="lineNum">     336 </span>            :                                            const GrPipelineOptimizations&amp; optimizations,
+<span class="lineNum">     337 </span>            :                                            bool hasMixedSamples,
+<span class="lineNum">     338 </span>            :                                            const DstTexture*) const override;
+<span class="lineNum">     339 </span>            : 
+<a name="340"><span class="lineNum">     340 </span>            :     bool onWillReadDstColor(const GrCaps&amp;, const GrPipelineOptimizations&amp;) const override;</a>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 :     bool onIsEqual(const GrXPFactory&amp; xpfBase) const override {</span>
+<span class="lineNum">     343 </span><span class="lineNoCov">          0 :         const CustomXPFactory&amp; xpf = xpfBase.cast&lt;CustomXPFactory&gt;();</span>
+<span class="lineNum">     344 </span><span class="lineNoCov">          0 :         return fMode == xpf.fMode;</span>
+<span class="lineNum">     345 </span>            :     }
+<span class="lineNum">     346 </span>            : 
+<span class="lineNum">     347 </span>            :     GR_DECLARE_XP_FACTORY_TEST;
+<span class="lineNum">     348 </span>            : 
+<span class="lineNum">     349 </span>            :     SkXfermode::Mode fMode;
+<span class="lineNum">     350 </span>            :     GrBlendEquation  fHWBlendEquation;
+<span class="lineNum">     351 </span>            : 
+<span class="lineNum">     352 </span>            :     typedef GrXPFactory INHERITED;
+<a name="353"><span class="lineNum">     353 </span>            : };</a>
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span><span class="lineNoCov">          0 : CustomXPFactory::CustomXPFactory(SkXfermode::Mode mode)</span>
+<span class="lineNum">     356 </span>            :     : fMode(mode),
+<span class="lineNum">     357 </span><span class="lineNoCov">          0 :       fHWBlendEquation(hw_blend_equation(mode)) {</span>
+<span class="lineNum">     358 </span>            :     SkASSERT(GrCustomXfermode::IsSupportedMode(fMode));
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 :     this-&gt;initClassID&lt;CustomXPFactory&gt;();</span>
+<a name="360"><span class="lineNum">     360 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     361 </span>            : 
+<span class="lineNum">     362 </span><span class="lineNoCov">          0 : GrXferProcessor* CustomXPFactory::onCreateXferProcessor(const GrCaps&amp; caps,</span>
+<span class="lineNum">     363 </span>            :                                                         const GrPipelineOptimizations&amp; opt,
+<span class="lineNum">     364 </span>            :                                                         bool hasMixedSamples,
+<span class="lineNum">     365 </span>            :                                                         const DstTexture* dstTexture) const {
+<span class="lineNum">     366 </span><span class="lineNoCov">          0 :     if (can_use_hw_blend_equation(fHWBlendEquation, opt, caps)) {</span>
+<span class="lineNum">     367 </span>            :         SkASSERT(!dstTexture || !dstTexture-&gt;texture());
+<span class="lineNum">     368 </span><span class="lineNoCov">          0 :         return new CustomXP(fMode, fHWBlendEquation);</span>
+<span class="lineNum">     369 </span>            :     }
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :     return new CustomXP(dstTexture, hasMixedSamples, fMode);</span>
+<a name="371"><span class="lineNum">     371 </span>            : }</a>
+<span class="lineNum">     372 </span>            : 
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 : bool CustomXPFactory::onWillReadDstColor(const GrCaps&amp; caps,</span>
+<span class="lineNum">     374 </span>            :                                          const GrPipelineOptimizations&amp; optimizations) const {
+<span class="lineNum">     375 </span><span class="lineNoCov">          0 :     return !can_use_hw_blend_equation(fHWBlendEquation, optimizations, caps);</span>
+<a name="376"><span class="lineNum">     376 </span>            : }</a>
+<span class="lineNum">     377 </span>            : 
+<span class="lineNum">     378 </span><span class="lineNoCov">          0 : void CustomXPFactory::getInvariantBlendedColor(const GrProcOptInfo&amp; colorPOI,</span>
+<span class="lineNum">     379 </span>            :                                                InvariantBlendedColor* blendedColor) const {
+<span class="lineNum">     380 </span><span class="lineNoCov">          0 :     blendedColor-&gt;fWillBlendWithDst = true;</span>
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 :     blendedColor-&gt;fKnownColorFlags = kNone_GrColorComponentFlags;</span>
+<span class="lineNum">     382 </span><span class="lineNoCov">          0 : }</span>
+<a name="383"><span class="lineNum">     383 </span>            : </a>
+<span class="lineNum">     384 </span>            : GR_DEFINE_XP_FACTORY_TEST(CustomXPFactory);
+<span class="lineNum">     385 </span><span class="lineNoCov">          0 : sk_sp&lt;GrXPFactory&gt; CustomXPFactory::TestCreate(GrProcessorTestData* d) {</span>
+<span class="lineNum">     386 </span>            :     int mode = d-&gt;fRandom-&gt;nextRangeU(SkXfermode::kLastCoeffMode + 1,
+<span class="lineNum">     387 </span><span class="lineNoCov">          0 :                                       SkXfermode::kLastSeparableMode);</span>
+<span class="lineNum">     388 </span>            : 
+<span class="lineNum">     389 </span><span class="lineNoCov">          0 :     return sk_sp&lt;GrXPFactory&gt;(new CustomXPFactory(static_cast&lt;SkXfermode::Mode&gt;(mode)));</span>
+<span class="lineNum">     390 </span>            : }
+<span class="lineNum">     391 </span>            : 
+<a name="392"><span class="lineNum">     392 </span>            : ///////////////////////////////////////////////////////////////////////////////</a>
+<span class="lineNum">     393 </span>            : 
+<span class="lineNum">     394 </span><span class="lineNoCov">          0 : sk_sp&lt;GrXPFactory&gt; GrCustomXfermode::MakeXPFactory(SkXfermode::Mode mode) {</span>
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 :     if (!GrCustomXfermode::IsSupportedMode(mode)) {</span>
+<span class="lineNum">     396 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     397 </span>            :     } else {
+<span class="lineNum">     398 </span><span class="lineNoCov">          0 :         return sk_sp&lt;GrXPFactory&gt;(new CustomXPFactory(mode));</span>
+<span class="lineNum">     399 </span>            :     }
+<span class="lineNum">     400 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

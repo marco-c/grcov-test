@@ -1,0 +1,742 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - dom/media/systemservices/LoadMonitor.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">dom/media/systemservices</a> - LoadMonitor.cpp<span style="font-size: 80%;"> (source / <a href="LoadMonitor.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">158</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">32</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 50; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       3 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       4 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       5 </span>            : 
+<span class="lineNum">       6 </span>            : #include &quot;LoadMonitor.h&quot;
+<span class="lineNum">       7 </span>            : #include &quot;LoadManager.h&quot;
+<span class="lineNum">       8 </span>            : #include &quot;nsString.h&quot;
+<span class="lineNum">       9 </span>            : #include &quot;mozilla/Logging.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;prtime.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;prinrval.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;prsystem.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;prprf.h&quot;
+<span class="lineNum">      14 </span>            : 
+<span class="lineNum">      15 </span>            : #include &quot;nsString.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;nsThreadUtils.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;nsReadableUtils.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;nsNetUtil.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;nsIInputStream.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;nsIFile.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;nsILineInputStream.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;nsIObserverService.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;nsIServiceManager.h&quot;
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : #include &quot;mozilla/TimeStamp.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;mozilla/Services.h&quot;
+<span class="lineNum">      27 </span>            : 
+<span class="lineNum">      28 </span>            : #ifdef XP_UNIX
+<span class="lineNum">      29 </span>            : #include &lt;sys/time.h&gt;
+<span class="lineNum">      30 </span>            : #include &lt;sys/resource.h&gt;
+<span class="lineNum">      31 </span>            : #include &lt;unistd.h&gt;
+<span class="lineNum">      32 </span>            : #endif
+<span class="lineNum">      33 </span>            : 
+<span class="lineNum">      34 </span>            : #ifdef XP_MACOSX
+<span class="lineNum">      35 </span>            : #include &lt;mach/mach_host.h&gt;
+<span class="lineNum">      36 </span>            : #include &lt;mach/mach_init.h&gt;
+<span class="lineNum">      37 </span>            : #include &lt;mach/host_info.h&gt;
+<span class="lineNum">      38 </span>            : #endif
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : #if defined(__DragonFly__) || defined(__FreeBSD__) \
+<span class="lineNum">      41 </span>            :  || defined(__NetBSD__) || defined(__OpenBSD__)
+<span class="lineNum">      42 </span>            : #include &lt;sys/sysctl.h&gt;
+<span class="lineNum">      43 </span>            : # if defined(__OpenBSD__)
+<span class="lineNum">      44 </span>            : #define KERN_CP_TIME KERN_CPTIME
+<span class="lineNum">      45 </span>            : # endif
+<span class="lineNum">      46 </span>            : #endif
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span>            : #if defined(__NetBSD__) || defined(__OpenBSD__)
+<span class="lineNum">      49 </span>            : #include &lt;sys/sched.h&gt;
+<span class="lineNum">      50 </span>            : #endif
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span>            : #ifdef XP_WIN
+<span class="lineNum">      53 </span>            : #include &lt;pdh.h&gt;
+<span class="lineNum">      54 </span>            : #include &lt;tchar.h&gt;
+<span class="lineNum">      55 </span>            : #pragma comment(lib, &quot;pdh.lib&quot;)
+<span class="lineNum">      56 </span>            : #endif
+<span class="lineNum">      57 </span>            : 
+<span class="lineNum">      58 </span>            : // MOZ_LOG=LoadManager:5
+<span class="lineNum">      59 </span>            : #undef LOG
+<span class="lineNum">      60 </span>            : #undef LOG_ENABLED
+<span class="lineNum">      61 </span>            : #define LOG(args) MOZ_LOG(gLoadManagerLog, mozilla::LogLevel::Debug, args)
+<span class="lineNum">      62 </span>            : #define LOG_ENABLED() MOZ_LOG_TEST(gLoadManagerLog, mozilla::LogLevel::Debug)
+<span class="lineNum">      63 </span>            : #define LOG_MANY_ENABLED() MOZ_LOG_TEST(gLoadManagerLog, mozilla::LogLevel::Verbose)
+<span class="lineNum">      64 </span>            : 
+<a name="65"><span class="lineNum">      65 </span>            : namespace mozilla {</a>
+<span class="lineNum">      66 </span>            : 
+<a name="67"><span class="lineNum">      67 </span><span class="lineNoCov">          0 : NS_IMPL_ISUPPORTS(LoadMonitor, nsIObserver)</span></a>
+<span class="lineNum">      68 </span>            : 
+<span class="lineNum">      69 </span><span class="lineNoCov">          0 : LoadMonitor::LoadMonitor(int aLoadUpdateInterval)</span>
+<span class="lineNum">      70 </span>            :   : mLoadUpdateInterval(aLoadUpdateInterval),
+<span class="lineNum">      71 </span>            :     mLock(&quot;LoadMonitor.mLock&quot;),
+<span class="lineNum">      72 </span>            :     mCondVar(mLock, &quot;LoadMonitor.mCondVar&quot;),
+<span class="lineNum">      73 </span>            :     mShutdownPending(false),
+<span class="lineNum">      74 </span>            :     mLoadInfoThread(nullptr),
+<span class="lineNum">      75 </span>            :     mSystemLoad(0.0f),
+<span class="lineNum">      76 </span>            :     mProcessLoad(0.0f),
+<span class="lineNum">      77 </span><span class="lineNoCov">          0 :     mLoadNotificationCallback(nullptr)</span>
+<span class="lineNum">      78 </span>            : {
+<a name="79"><span class="lineNum">      79 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">      80 </span>            : 
+<span class="lineNum">      81 </span><span class="lineNoCov">          0 : LoadMonitor::~LoadMonitor()</span>
+<span class="lineNum">      82 </span>            : {
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :   Shutdown();</span>
+<span class="lineNum">      84 </span><span class="lineNoCov">          0 : }</span>
+<a name="85"><span class="lineNum">      85 </span>            : </a>
+<span class="lineNum">      86 </span>            : NS_IMETHODIMP
+<span class="lineNum">      87 </span><span class="lineNoCov">          0 : LoadMonitor::Observe(nsISupports* /* aSubject */,</span>
+<span class="lineNum">      88 </span>            :                      const char*  aTopic,
+<span class="lineNum">      89 </span>            :                      const char16_t* /* aData */)
+<span class="lineNum">      90 </span>            : {
+<span class="lineNum">      91 </span>            :   MOZ_ASSERT(NS_IsMainThread(), &quot;Wrong thread!&quot;);
+<span class="lineNum">      92 </span>            :   MOZ_ASSERT(!strcmp(&quot;xpcom-shutdown-threads&quot;, aTopic), &quot;Bad topic!&quot;);
+<span class="lineNum">      93 </span><span class="lineNoCov">          0 :   Shutdown();</span>
+<span class="lineNum">      94 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<a name="95"><span class="lineNum">      95 </span>            : }</a>
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span><span class="lineNoCov">          0 : class LoadMonitorAddObserver : public Runnable</span>
+<a name="98"><span class="lineNum">      98 </span>            : {</a>
+<span class="lineNum">      99 </span>            : public:
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :   explicit LoadMonitorAddObserver(RefPtr&lt;LoadMonitor&gt; loadMonitor)</span>
+<span class="lineNum">     101 </span><span class="lineNoCov">          0 :   {</span>
+<span class="lineNum">     102 </span><span class="lineNoCov">          0 :     mLoadMonitor = loadMonitor;</span>
+<a name="103"><span class="lineNum">     103 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">     104 </span>            : 
+<span class="lineNum">     105 </span><span class="lineNoCov">          0 :   NS_IMETHOD Run() override</span>
+<span class="lineNum">     106 </span>            :   {
+<span class="lineNum">     107 </span>            :     nsCOMPtr&lt;nsIObserverService&gt; observerService =
+<span class="lineNum">     108 </span><span class="lineNoCov">          0 :         mozilla::services::GetObserverService();</span>
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 :     if (!observerService)</span>
+<span class="lineNum">     110 </span>            :       return NS_ERROR_FAILURE;
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span><span class="lineNoCov">          0 :     nsresult rv = observerService-&gt;AddObserver(mLoadMonitor, &quot;xpcom-shutdown-threads&quot;, false);</span>
+<span class="lineNum">     113 </span><span class="lineNoCov">          0 :     NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     114 </span>            : 
+<span class="lineNum">     115 </span>            :     return NS_OK;
+<span class="lineNum">     116 </span>            :   }
+<span class="lineNum">     117 </span>            : 
+<span class="lineNum">     118 </span>            : private:
+<span class="lineNum">     119 </span>            :   RefPtr&lt;LoadMonitor&gt; mLoadMonitor;
+<a name="120"><span class="lineNum">     120 </span>            : };</a>
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 : class LoadMonitorRemoveObserver : public Runnable</span>
+<a name="123"><span class="lineNum">     123 </span>            : {</a>
+<span class="lineNum">     124 </span>            : public:
+<span class="lineNum">     125 </span><span class="lineNoCov">          0 :   explicit LoadMonitorRemoveObserver(RefPtr&lt;LoadMonitor&gt; loadMonitor)</span>
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :   {</span>
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 :     mLoadMonitor = loadMonitor;</span>
+<a name="128"><span class="lineNum">     128 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">     129 </span>            : 
+<span class="lineNum">     130 </span><span class="lineNoCov">          0 :   NS_IMETHOD Run() override</span>
+<span class="lineNum">     131 </span>            :   {
+<span class="lineNum">     132 </span>            :     // remove xpcom shutdown observer
+<span class="lineNum">     133 </span>            :     nsCOMPtr&lt;nsIObserverService&gt; observerService =
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :       mozilla::services::GetObserverService();</span>
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 :     if (observerService)</span>
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :       observerService-&gt;RemoveObserver(mLoadMonitor, &quot;xpcom-shutdown-threads&quot;);</span>
+<span class="lineNum">     138 </span>            : 
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :     return NS_OK;</span>
+<span class="lineNum">     140 </span>            :   }
+<span class="lineNum">     141 </span>            : 
+<span class="lineNum">     142 </span>            : private:
+<span class="lineNum">     143 </span>            :   RefPtr&lt;LoadMonitor&gt; mLoadMonitor;
+<a name="144"><span class="lineNum">     144 </span>            : };</a>
+<span class="lineNum">     145 </span>            : 
+<span class="lineNum">     146 </span><span class="lineNoCov">          0 : void LoadMonitor::Shutdown()</span>
+<span class="lineNum">     147 </span>            : {
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 :   if (mLoadInfoThread) {</span>
+<span class="lineNum">     149 </span>            :     {
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :       MutexAutoLock lock(mLock);</span>
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :       LOG((&quot;LoadMonitor: shutting down&quot;));</span>
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :       mShutdownPending = true;</span>
+<span class="lineNum">     153 </span><span class="lineNoCov">          0 :       mCondVar.Notify();</span>
+<span class="lineNum">     154 </span>            :     }
+<span class="lineNum">     155 </span>            : 
+<span class="lineNum">     156 </span>            :     // Note: can't just call -&gt;Shutdown() from here; that spins the event
+<span class="lineNum">     157 </span>            :     // loop here, causing re-entrancy issues if we're invoked from cycle
+<span class="lineNum">     158 </span>            :     // collection.  Argh.
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :     mLoadInfoThread = nullptr;</span>
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :     RefPtr&lt;LoadMonitorRemoveObserver&gt; remObsRunner = new LoadMonitorRemoveObserver(this);</span>
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :     if (!NS_IsMainThread()) {</span>
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :       NS_DispatchToMainThread(remObsRunner);</span>
+<span class="lineNum">     164 </span>            :     } else {
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 :       remObsRunner-&gt;Run();</span>
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     167 </span>            :   }
+<span class="lineNum">     168 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     169 </span>            : 
+<span class="lineNum">     170 </span>            : #ifdef XP_WIN
+<span class="lineNum">     171 </span>            : static LPCTSTR TotalCounterPath = _T(&quot;\\Processor(_Total)\\% Processor Time&quot;);
+<span class="lineNum">     172 </span>            : 
+<span class="lineNum">     173 </span>            : class WinProcMon
+<span class="lineNum">     174 </span>            : {
+<span class="lineNum">     175 </span>            : public:
+<span class="lineNum">     176 </span>            :   WinProcMon():
+<span class="lineNum">     177 </span>            :     mQuery(0), mCounter(0) {};
+<span class="lineNum">     178 </span>            :   ~WinProcMon();
+<span class="lineNum">     179 </span>            :   nsresult Init();
+<span class="lineNum">     180 </span>            :   nsresult QuerySystemLoad(float* load_percent);
+<span class="lineNum">     181 </span>            :   static const uint64_t TicksPerSec = 10000000; //100nsec tick (10MHz)
+<span class="lineNum">     182 </span>            : private:
+<span class="lineNum">     183 </span>            :   PDH_HQUERY mQuery;
+<span class="lineNum">     184 </span>            :   PDH_HCOUNTER mCounter;
+<span class="lineNum">     185 </span>            : };
+<span class="lineNum">     186 </span>            : 
+<span class="lineNum">     187 </span>            : WinProcMon::~WinProcMon()
+<span class="lineNum">     188 </span>            : {
+<span class="lineNum">     189 </span>            :   if (mQuery != 0) {
+<span class="lineNum">     190 </span>            :     PdhCloseQuery(mQuery);
+<span class="lineNum">     191 </span>            :     mQuery = 0;
+<span class="lineNum">     192 </span>            :   }
+<span class="lineNum">     193 </span>            : }
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span>            : nsresult
+<span class="lineNum">     196 </span>            : WinProcMon::Init()
+<span class="lineNum">     197 </span>            : {
+<span class="lineNum">     198 </span>            :   PDH_HQUERY query;
+<span class="lineNum">     199 </span>            :   PDH_HCOUNTER counter;
+<span class="lineNum">     200 </span>            : 
+<span class="lineNum">     201 </span>            :   // Get a query handle to the Performance Data Helper
+<span class="lineNum">     202 </span>            :   PDH_STATUS status = PdhOpenQuery(
+<span class="lineNum">     203 </span>            :                         NULL,      // No log file name: use real-time source
+<span class="lineNum">     204 </span>            :                         0,         // zero out user data token: unsued
+<span class="lineNum">     205 </span>            :                         &amp;query);
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span>            :   if (status != ERROR_SUCCESS) {
+<span class="lineNum">     208 </span>            :     LOG((&quot;PdhOpenQuery error = %X&quot;, status));
+<span class="lineNum">     209 </span>            :     return NS_ERROR_FAILURE;
+<span class="lineNum">     210 </span>            :   }
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span>            :   // Add a pre-defined high performance counter to the query.
+<span class="lineNum">     213 </span>            :   // This one is for the total CPU usage.
+<span class="lineNum">     214 </span>            :   status = PdhAddCounter(query, TotalCounterPath, 0, &amp;counter);
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span>            :   if (status != ERROR_SUCCESS) {
+<span class="lineNum">     217 </span>            :     PdhCloseQuery(query);
+<span class="lineNum">     218 </span>            :     LOG((&quot;PdhAddCounter (_Total) error = %X&quot;, status));
+<span class="lineNum">     219 </span>            :     return NS_ERROR_FAILURE;
+<span class="lineNum">     220 </span>            :   }
+<span class="lineNum">     221 </span>            : 
+<span class="lineNum">     222 </span>            :   // Need to make an initial query call to set up data capture.
+<span class="lineNum">     223 </span>            :   status = PdhCollectQueryData(query);
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span>            :   if (status != ERROR_SUCCESS) {
+<span class="lineNum">     226 </span>            :     PdhCloseQuery(query);
+<span class="lineNum">     227 </span>            :     LOG((&quot;PdhCollectQueryData (init) error = %X&quot;, status));
+<span class="lineNum">     228 </span>            :     return NS_ERROR_FAILURE;
+<span class="lineNum">     229 </span>            :   }
+<span class="lineNum">     230 </span>            : 
+<span class="lineNum">     231 </span>            :   mQuery = query;
+<span class="lineNum">     232 </span>            :   mCounter = counter;
+<span class="lineNum">     233 </span>            :   return NS_OK;
+<span class="lineNum">     234 </span>            : }
+<span class="lineNum">     235 </span>            : 
+<span class="lineNum">     236 </span>            : nsresult WinProcMon::QuerySystemLoad(float* load_percent)
+<span class="lineNum">     237 </span>            : {
+<span class="lineNum">     238 </span>            :   *load_percent = 0;
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span>            :   if (mQuery == 0) {
+<span class="lineNum">     241 </span>            :     return NS_ERROR_FAILURE;
+<span class="lineNum">     242 </span>            :   }
+<span class="lineNum">     243 </span>            : 
+<span class="lineNum">     244 </span>            :   // Update all counters associated with this query object.
+<span class="lineNum">     245 </span>            :   PDH_STATUS status = PdhCollectQueryData(mQuery);
+<span class="lineNum">     246 </span>            : 
+<span class="lineNum">     247 </span>            :   if (status != ERROR_SUCCESS) {
+<span class="lineNum">     248 </span>            :     LOG((&quot;PdhCollectQueryData error = %X&quot;, status));
+<span class="lineNum">     249 </span>            :     return NS_ERROR_FAILURE;
+<span class="lineNum">     250 </span>            :   }
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span>            :   PDH_FMT_COUNTERVALUE counter;
+<span class="lineNum">     253 </span>            :   // maximum is 100% regardless of CPU core count.
+<span class="lineNum">     254 </span>            :   status = PdhGetFormattedCounterValue(
+<span class="lineNum">     255 </span>            :                mCounter,
+<span class="lineNum">     256 </span>            :                PDH_FMT_DOUBLE,
+<span class="lineNum">     257 </span>            :                (LPDWORD)NULL,
+<span class="lineNum">     258 </span>            :                &amp;counter);
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span>            :   if (ERROR_SUCCESS != status ||
+<span class="lineNum">     261 </span>            :       // There are multiple success return values.
+<span class="lineNum">     262 </span>            :       !IsSuccessSeverity(counter.CStatus)) {
+<span class="lineNum">     263 </span>            :     LOG((&quot;PdhGetFormattedCounterValue error&quot;));
+<span class="lineNum">     264 </span>            :     return NS_ERROR_FAILURE;
+<span class="lineNum">     265 </span>            :   }
+<span class="lineNum">     266 </span>            : 
+<span class="lineNum">     267 </span>            :   // The result is a percent value, reduce to match expected scale.
+<span class="lineNum">     268 </span>            :   *load_percent = (float)(counter.doubleValue / 100.0f);
+<span class="lineNum">     269 </span>            :   return NS_OK;
+<span class="lineNum">     270 </span>            : }
+<span class="lineNum">     271 </span>            : #endif
+<span class="lineNum">     272 </span>            : 
+<span class="lineNum">     273 </span>            : // Use a non-generic class name, because otherwise we can get name collisions
+<span class="lineNum">     274 </span>            : // with other classes in the codebase.  The normal way of dealing with that is
+<span class="lineNum">     275 </span>            : // to put the class in an anonymous namespace, but this class is used as a
+<span class="lineNum">     276 </span>            : // member of RTCLoadInfo, which can't be in the anonymous namespace, so it also
+<span class="lineNum">     277 </span>            : // can't be in an anonymous namespace: gcc warns about that setup and this
+<span class="lineNum">     278 </span>            : // directory is fail-on-warnings.
+<span class="lineNum">     279 </span>            : class RTCLoadStats
+<span class="lineNum">     280 </span>            : {
+<span class="lineNum">     281 </span>            : public:
+<span class="lineNum">     282 </span>            :   RTCLoadStats() :
+<span class="lineNum">     283 </span>            :     mPrevTotalTimes(0),
+<span class="lineNum">     284 </span>            :     mPrevCpuTimes(0),
+<span class="lineNum">     285 </span><span class="lineNoCov">          0 :     mPrevLoad(0) {};</span>
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span><span class="lineNoCov">          0 :   double GetLoad() { return (double)mPrevLoad; };</span>
+<span class="lineNum">     288 </span>            : 
+<span class="lineNum">     289 </span>            :   uint64_t mPrevTotalTimes;
+<span class="lineNum">     290 </span>            :   uint64_t mPrevCpuTimes;
+<span class="lineNum">     291 </span>            :   float mPrevLoad;               // Previous load value.
+<span class="lineNum">     292 </span>            : };
+<span class="lineNum">     293 </span>            : 
+<span class="lineNum">     294 </span>            : // Use a non-generic class name, because otherwise we can get name collisions
+<span class="lineNum">     295 </span>            : // with other classes in the codebase.  The normal way of dealing with that is
+<span class="lineNum">     296 </span>            : // to put the class in an anonymous namespace, but this class is used as a
+<span class="lineNum">     297 </span>            : // member of LoadInfoCollectRunner, which can't be in the anonymous namespace,
+<span class="lineNum">     298 </span>            : // so it also can't be in an anonymous namespace: gcc warns about that setup
+<span class="lineNum">     299 </span>            : // and this directory is fail-on-warnings.
+<span class="lineNum">     300 </span>            : class RTCLoadInfo final
+<span class="lineNum">     301 </span>            : {
+<span class="lineNum">     302 </span>            : private:
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 :   ~RTCLoadInfo() {}</span>
+<a name="304"><span class="lineNum">     304 </span>            : </a>
+<span class="lineNum">     305 </span>            : public:
+<a name="306"><span class="lineNum">     306 </span><span class="lineNoCov">          0 :   NS_INLINE_DECL_REFCOUNTING(RTCLoadInfo)</span></a>
+<span class="lineNum">     307 </span>            : 
+<span class="lineNum">     308 </span><span class="lineNoCov">          0 :   RTCLoadInfo(): mLoadUpdateInterval(0) {};</span>
+<span class="lineNum">     309 </span>            :   nsresult Init(int aLoadUpdateInterval);
+<span class="lineNum">     310 </span><span class="lineNoCov">          0 :   double GetSystemLoad() { return mSystemLoad.GetLoad(); };</span>
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :   double GetProcessLoad() { return mProcessLoad.GetLoad(); };</span>
+<span class="lineNum">     312 </span>            :   nsresult UpdateSystemLoad();
+<span class="lineNum">     313 </span>            :   nsresult UpdateProcessLoad();
+<span class="lineNum">     314 </span>            : 
+<span class="lineNum">     315 </span>            : private:
+<span class="lineNum">     316 </span>            :   void UpdateCpuLoad(uint64_t ticks_per_interval,
+<span class="lineNum">     317 </span>            :                      uint64_t current_total_times,
+<span class="lineNum">     318 </span>            :                      uint64_t current_cpu_times,
+<span class="lineNum">     319 </span>            :                      RTCLoadStats* loadStat);
+<span class="lineNum">     320 </span>            : #ifdef XP_WIN
+<span class="lineNum">     321 </span>            :   WinProcMon mSysMon;
+<span class="lineNum">     322 </span>            :   HANDLE mProcHandle;
+<span class="lineNum">     323 </span>            :   int mNumProcessors;
+<span class="lineNum">     324 </span>            : #endif
+<span class="lineNum">     325 </span>            :   RTCLoadStats mSystemLoad;
+<span class="lineNum">     326 </span>            :   RTCLoadStats mProcessLoad;
+<span class="lineNum">     327 </span>            :   uint64_t mTicksPerInterval;
+<span class="lineNum">     328 </span>            :   int mLoadUpdateInterval;
+<a name="329"><span class="lineNum">     329 </span>            : };</a>
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span><span class="lineNoCov">          0 : nsresult RTCLoadInfo::Init(int aLoadUpdateInterval)</span>
+<span class="lineNum">     332 </span>            : {
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :   mLoadUpdateInterval = aLoadUpdateInterval;</span>
+<span class="lineNum">     334 </span>            : #ifdef XP_WIN
+<span class="lineNum">     335 </span>            :   mTicksPerInterval = (WinProcMon::TicksPerSec /*Hz*/
+<span class="lineNum">     336 </span>            :                        * mLoadUpdateInterval /*msec*/) / 1000 ;
+<span class="lineNum">     337 </span>            :   mNumProcessors = PR_GetNumberOfProcessors();
+<span class="lineNum">     338 </span>            :   mProcHandle = GetCurrentProcess();
+<span class="lineNum">     339 </span>            :   return mSysMon.Init();
+<span class="lineNum">     340 </span>            : #else
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :   mTicksPerInterval = (sysconf(_SC_CLK_TCK) * mLoadUpdateInterval) / 1000;</span>
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     343 </span>            : #endif
+<a name="344"><span class="lineNum">     344 </span>            : }</a>
+<span class="lineNum">     345 </span>            : 
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 : void RTCLoadInfo::UpdateCpuLoad(uint64_t ticks_per_interval,</span>
+<span class="lineNum">     347 </span>            :                                 uint64_t current_total_times,
+<span class="lineNum">     348 </span>            :                                 uint64_t current_cpu_times,
+<span class="lineNum">     349 </span>            :                                 RTCLoadStats *loadStat) {
+<span class="lineNum">     350 </span>            :   // Check if we get an inconsistent number of ticks.
+<span class="lineNum">     351 </span><span class="lineNoCov">          0 :   if (((current_total_times - loadStat-&gt;mPrevTotalTimes)</span>
+<span class="lineNum">     352 </span><span class="lineNoCov">          0 :        &gt; (ticks_per_interval * 10))</span>
+<span class="lineNum">     353 </span><span class="lineNoCov">          0 :       || current_total_times &lt; loadStat-&gt;mPrevTotalTimes</span>
+<span class="lineNum">     354 </span><span class="lineNoCov">          0 :       || current_cpu_times &lt; loadStat-&gt;mPrevCpuTimes) {</span>
+<span class="lineNum">     355 </span>            :     // Bug at least on the Nexus 4 and Galaxy S4
+<span class="lineNum">     356 </span>            :     // https://code.google.com/p/android/issues/detail?id=41630
+<span class="lineNum">     357 </span>            :     // We do need to update our previous times, or we can get stuck
+<span class="lineNum">     358 </span>            :     // when there is a blip upwards and then we get a bunch of consecutive
+<span class="lineNum">     359 </span>            :     // lower times. Just skip the load calculation.
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 :     LOG((&quot;Inconsistent time values are passed. ignored&quot;));</span>
+<span class="lineNum">     361 </span>            :     // Try to recover next tick
+<span class="lineNum">     362 </span><span class="lineNoCov">          0 :     loadStat-&gt;mPrevTotalTimes = current_total_times;</span>
+<span class="lineNum">     363 </span><span class="lineNoCov">          0 :     loadStat-&gt;mPrevCpuTimes = current_cpu_times;</span>
+<span class="lineNum">     364 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     365 </span>            :   }
+<span class="lineNum">     366 </span>            : 
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 :   const uint64_t cpu_diff = current_cpu_times - loadStat-&gt;mPrevCpuTimes;</span>
+<span class="lineNum">     368 </span><span class="lineNoCov">          0 :   const uint64_t total_diff = current_total_times - loadStat-&gt;mPrevTotalTimes;</span>
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :   if (total_diff &gt; 0) {</span>
+<span class="lineNum">     370 </span>            : #ifdef XP_WIN
+<span class="lineNum">     371 </span>            :     float result =  (float)cpu_diff / (float)total_diff/ (float)mNumProcessors;
+<span class="lineNum">     372 </span>            : #else
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :     float result =  (float)cpu_diff / (float)total_diff;</span>
+<span class="lineNum">     374 </span>            : #endif
+<span class="lineNum">     375 </span><span class="lineNoCov">          0 :     loadStat-&gt;mPrevLoad = result;</span>
+<span class="lineNum">     376 </span>            :   }
+<span class="lineNum">     377 </span><span class="lineNoCov">          0 :   loadStat-&gt;mPrevTotalTimes = current_total_times;</span>
+<span class="lineNum">     378 </span><span class="lineNoCov">          0 :   loadStat-&gt;mPrevCpuTimes = current_cpu_times;</span>
+<a name="379"><span class="lineNum">     379 </span>            : }</a>
+<span class="lineNum">     380 </span>            : 
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 : nsresult RTCLoadInfo::UpdateSystemLoad()</span>
+<span class="lineNum">     382 </span>            : {
+<span class="lineNum">     383 </span>            : #if defined(LINUX) || defined(ANDROID)
+<span class="lineNum">     384 </span><span class="lineNoCov">          0 :   nsCOMPtr&lt;nsIFile&gt; procStatFile = do_CreateInstance(NS_LOCAL_FILE_CONTRACTID);</span>
+<span class="lineNum">     385 </span><span class="lineNoCov">          0 :   procStatFile-&gt;InitWithPath(NS_LITERAL_STRING(&quot;/proc/stat&quot;));</span>
+<span class="lineNum">     386 </span>            : 
+<span class="lineNum">     387 </span>            :   nsCOMPtr&lt;nsIInputStream&gt; fileInputStream;
+<span class="lineNum">     388 </span>            :   nsresult rv = NS_NewLocalFileInputStream(getter_AddRefs(fileInputStream),
+<span class="lineNum">     389 </span><span class="lineNoCov">          0 :                                            procStatFile);</span>
+<span class="lineNum">     390 </span><span class="lineNoCov">          0 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span><span class="lineNoCov">          0 :   nsCOMPtr&lt;nsILineInputStream&gt; lineInputStream = do_QueryInterface(fileInputStream, &amp;rv);</span>
+<span class="lineNum">     393 </span><span class="lineNoCov">          0 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     394 </span>            : 
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 :   nsAutoCString buffer;</span>
+<span class="lineNum">     396 </span><span class="lineNoCov">          0 :   bool isMore = true;</span>
+<span class="lineNum">     397 </span><span class="lineNoCov">          0 :   lineInputStream-&gt;ReadLine(buffer, &amp;isMore);</span>
+<span class="lineNum">     398 </span>            : 
+<span class="lineNum">     399 </span>            :   uint64_t user;
+<span class="lineNum">     400 </span>            :   uint64_t nice;
+<span class="lineNum">     401 </span>            :   uint64_t system;
+<span class="lineNum">     402 </span>            :   uint64_t idle;
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :   if (PR_sscanf(buffer.get(), &quot;cpu %llu %llu %llu %llu&quot;,</span>
+<span class="lineNum">     404 </span>            :                 &amp;user, &amp;nice,
+<span class="lineNum">     405 </span><span class="lineNoCov">          0 :                 &amp;system, &amp;idle) != 4) {</span>
+<span class="lineNum">     406 </span><span class="lineNoCov">          0 :     LOG((&quot;Error parsing /proc/stat&quot;));</span>
+<span class="lineNum">     407 </span>            :     return NS_ERROR_FAILURE;
+<span class="lineNum">     408 </span>            :   }
+<span class="lineNum">     409 </span>            : 
+<span class="lineNum">     410 </span><span class="lineNoCov">          0 :   const uint64_t cpu_times = nice + system + user;</span>
+<span class="lineNum">     411 </span><span class="lineNoCov">          0 :   const uint64_t total_times = cpu_times + idle;</span>
+<span class="lineNum">     412 </span>            : 
+<span class="lineNum">     413 </span>            :   UpdateCpuLoad(mTicksPerInterval,
+<span class="lineNum">     414 </span>            :                 total_times,
+<span class="lineNum">     415 </span>            :                 cpu_times,
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :                 &amp;mSystemLoad);</span>
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     418 </span>            : #elif defined(XP_MACOSX)
+<span class="lineNum">     419 </span>            :   mach_msg_type_number_t info_cnt = HOST_CPU_LOAD_INFO_COUNT;
+<span class="lineNum">     420 </span>            :   host_cpu_load_info_data_t load_info;
+<span class="lineNum">     421 </span>            :   kern_return_t rv = host_statistics(mach_host_self(), HOST_CPU_LOAD_INFO,
+<span class="lineNum">     422 </span>            :                                      (host_info_t)(&amp;load_info), &amp;info_cnt);
+<span class="lineNum">     423 </span>            : 
+<span class="lineNum">     424 </span>            :   if (rv != KERN_SUCCESS || info_cnt != HOST_CPU_LOAD_INFO_COUNT) {
+<span class="lineNum">     425 </span>            :     LOG((&quot;Error from mach/host_statistics call&quot;));
+<span class="lineNum">     426 </span>            :     return NS_ERROR_FAILURE;
+<span class="lineNum">     427 </span>            :   }
+<span class="lineNum">     428 </span>            : 
+<span class="lineNum">     429 </span>            :   const uint64_t cpu_times = load_info.cpu_ticks[CPU_STATE_NICE]
+<span class="lineNum">     430 </span>            :                            + load_info.cpu_ticks[CPU_STATE_SYSTEM]
+<span class="lineNum">     431 </span>            :                            + load_info.cpu_ticks[CPU_STATE_USER];
+<span class="lineNum">     432 </span>            :   const uint64_t total_times = cpu_times + load_info.cpu_ticks[CPU_STATE_IDLE];
+<span class="lineNum">     433 </span>            : 
+<span class="lineNum">     434 </span>            :   UpdateCpuLoad(mTicksPerInterval,
+<span class="lineNum">     435 </span>            :                 total_times,
+<span class="lineNum">     436 </span>            :                 cpu_times,
+<span class="lineNum">     437 </span>            :                 &amp;mSystemLoad);
+<span class="lineNum">     438 </span>            :   return NS_OK;
+<span class="lineNum">     439 </span>            : #elif defined(__DragonFly__) || defined(__FreeBSD__) \
+<span class="lineNum">     440 </span>            :    || defined(__NetBSD__) || defined(__OpenBSD__)
+<span class="lineNum">     441 </span>            : #if defined(__NetBSD__)
+<span class="lineNum">     442 </span>            :   uint64_t cp_time[CPUSTATES];
+<span class="lineNum">     443 </span>            : #else
+<span class="lineNum">     444 </span>            :   long cp_time[CPUSTATES];
+<span class="lineNum">     445 </span>            : #endif // __NetBSD__
+<span class="lineNum">     446 </span>            :   size_t sz = sizeof(cp_time);
+<span class="lineNum">     447 </span>            : #ifdef KERN_CP_TIME
+<span class="lineNum">     448 </span>            :   int mib[] = {
+<span class="lineNum">     449 </span>            :     CTL_KERN,
+<span class="lineNum">     450 </span>            :     KERN_CP_TIME,
+<span class="lineNum">     451 </span>            :   };
+<span class="lineNum">     452 </span>            :   u_int miblen = sizeof(mib) / sizeof(mib[0]);
+<span class="lineNum">     453 </span>            :   if (sysctl(mib, miblen, &amp;cp_time, &amp;sz, nullptr, 0)) {
+<span class="lineNum">     454 </span>            : #else
+<span class="lineNum">     455 </span>            :   if (sysctlbyname(&quot;kern.cp_time&quot;, &amp;cp_time, &amp;sz, nullptr, 0)) {
+<span class="lineNum">     456 </span>            : #endif // KERN_CP_TIME
+<span class="lineNum">     457 </span>            :     LOG((&quot;sysctl kern.cp_time failed&quot;));
+<span class="lineNum">     458 </span>            :     return NS_ERROR_FAILURE;
+<span class="lineNum">     459 </span>            :   }
+<span class="lineNum">     460 </span>            : 
+<span class="lineNum">     461 </span>            :   const uint64_t cpu_times = cp_time[CP_NICE]
+<span class="lineNum">     462 </span>            :                            + cp_time[CP_SYS]
+<span class="lineNum">     463 </span>            :                            + cp_time[CP_INTR]
+<span class="lineNum">     464 </span>            :                            + cp_time[CP_USER];
+<span class="lineNum">     465 </span>            :   const uint64_t total_times = cpu_times + cp_time[CP_IDLE];
+<span class="lineNum">     466 </span>            : 
+<span class="lineNum">     467 </span>            :   UpdateCpuLoad(mTicksPerInterval,
+<span class="lineNum">     468 </span>            :                 total_times,
+<span class="lineNum">     469 </span>            :                 cpu_times,
+<span class="lineNum">     470 </span>            :                 &amp;mSystemLoad);
+<span class="lineNum">     471 </span>            :   return NS_OK;
+<span class="lineNum">     472 </span>            : #elif defined(XP_WIN)
+<span class="lineNum">     473 </span>            :   float load;
+<span class="lineNum">     474 </span>            :   nsresult rv = mSysMon.QuerySystemLoad(&amp;load);
+<span class="lineNum">     475 </span>            : 
+<span class="lineNum">     476 </span>            :   if (rv == NS_OK) {
+<span class="lineNum">     477 </span>            :     mSystemLoad.mPrevLoad = load;
+<span class="lineNum">     478 </span>            :   }
+<span class="lineNum">     479 </span>            : 
+<span class="lineNum">     480 </span>            :   return rv;
+<span class="lineNum">     481 </span>            : #else
+<span class="lineNum">     482 </span>            :   // Not implemented
+<span class="lineNum">     483 </span>            :   return NS_OK;
+<span class="lineNum">     484 </span>            : #endif
+<a name="485"><span class="lineNum">     485 </span>            : }</a>
+<span class="lineNum">     486 </span>            : 
+<span class="lineNum">     487 </span><span class="lineNoCov">          0 : nsresult RTCLoadInfo::UpdateProcessLoad() {</span>
+<span class="lineNum">     488 </span>            : #if defined(XP_UNIX)
+<span class="lineNum">     489 </span>            :   struct timeval tv;
+<span class="lineNum">     490 </span><span class="lineNoCov">          0 :   gettimeofday(&amp;tv, nullptr);</span>
+<span class="lineNum">     491 </span><span class="lineNoCov">          0 :   const uint64_t total_times = tv.tv_sec * PR_USEC_PER_SEC + tv.tv_usec;</span>
+<span class="lineNum">     492 </span>            : 
+<span class="lineNum">     493 </span>            :   rusage usage;
+<span class="lineNum">     494 </span><span class="lineNoCov">          0 :   if (getrusage(RUSAGE_SELF, &amp;usage) &lt; 0) {</span>
+<span class="lineNum">     495 </span><span class="lineNoCov">          0 :     LOG((&quot;getrusage failed&quot;));</span>
+<span class="lineNum">     496 </span>            :     return NS_ERROR_FAILURE;
+<span class="lineNum">     497 </span>            :   }
+<span class="lineNum">     498 </span>            : 
+<span class="lineNum">     499 </span>            :   const uint64_t cpu_times =
+<span class="lineNum">     500 </span><span class="lineNoCov">          0 :       (usage.ru_utime.tv_sec + usage.ru_stime.tv_sec) * PR_USEC_PER_SEC +</span>
+<span class="lineNum">     501 </span><span class="lineNoCov">          0 :        usage.ru_utime.tv_usec + usage.ru_stime.tv_usec;</span>
+<span class="lineNum">     502 </span>            : 
+<span class="lineNum">     503 </span><span class="lineNoCov">          0 :   UpdateCpuLoad(PR_USEC_PER_MSEC * mLoadUpdateInterval,</span>
+<span class="lineNum">     504 </span>            :                 total_times,
+<span class="lineNum">     505 </span>            :                 cpu_times,
+<span class="lineNum">     506 </span><span class="lineNoCov">          0 :                 &amp;mProcessLoad);</span>
+<span class="lineNum">     507 </span>            : #elif defined(XP_WIN)
+<span class="lineNum">     508 </span>            :   FILETIME clk_time, sys_time, user_time;
+<span class="lineNum">     509 </span>            :   uint64_t total_times, cpu_times;
+<span class="lineNum">     510 </span>            : 
+<span class="lineNum">     511 </span>            :   GetSystemTimeAsFileTime(&amp;clk_time);
+<span class="lineNum">     512 </span>            :   total_times = (((uint64_t)clk_time.dwHighDateTime) &lt;&lt; 32)
+<span class="lineNum">     513 </span>            :                 + (uint64_t)clk_time.dwLowDateTime;
+<span class="lineNum">     514 </span>            :   BOOL ok = GetProcessTimes(mProcHandle, &amp;clk_time, &amp;clk_time, &amp;sys_time, &amp;user_time);
+<span class="lineNum">     515 </span>            : 
+<span class="lineNum">     516 </span>            :   if (ok == 0) {
+<span class="lineNum">     517 </span>            :     return NS_ERROR_FAILURE;
+<span class="lineNum">     518 </span>            :   }
+<span class="lineNum">     519 </span>            : 
+<span class="lineNum">     520 </span>            :   cpu_times = (((uint64_t)sys_time.dwHighDateTime
+<span class="lineNum">     521 </span>            :                 + (uint64_t)user_time.dwHighDateTime) &lt;&lt; 32)
+<span class="lineNum">     522 </span>            :               + (uint64_t)sys_time.dwLowDateTime
+<span class="lineNum">     523 </span>            :               + (uint64_t)user_time.dwLowDateTime;
+<span class="lineNum">     524 </span>            : 
+<span class="lineNum">     525 </span>            :   UpdateCpuLoad(mTicksPerInterval,
+<span class="lineNum">     526 </span>            :                 total_times,
+<span class="lineNum">     527 </span>            :                 cpu_times,
+<span class="lineNum">     528 </span>            :                 &amp;mProcessLoad);
+<span class="lineNum">     529 </span>            : #endif
+<span class="lineNum">     530 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     531 </span>            : }
+<span class="lineNum">     532 </span>            : 
+<a name="533"><span class="lineNum">     533 </span>            : // Note: This class can't be in the anonymous namespace, because then we can't</a>
+<span class="lineNum">     534 </span>            : // declare it as a friend of LoadMonitor.
+<span class="lineNum">     535 </span><span class="lineNoCov">          0 : class LoadInfoCollectRunner : public Runnable</span>
+<a name="536"><span class="lineNum">     536 </span>            : {</a>
+<span class="lineNum">     537 </span>            : public:
+<span class="lineNum">     538 </span><span class="lineNoCov">          0 :   LoadInfoCollectRunner(RefPtr&lt;LoadMonitor&gt; loadMonitor,</span>
+<span class="lineNum">     539 </span>            :                         RefPtr&lt;RTCLoadInfo&gt; loadInfo,
+<span class="lineNum">     540 </span>            :                         nsIThread *loadInfoThread)
+<span class="lineNum">     541 </span>            :     : mThread(loadInfoThread),
+<span class="lineNum">     542 </span>            :       mLoadUpdateInterval(loadMonitor-&gt;mLoadUpdateInterval),
+<span class="lineNum">     543 </span><span class="lineNoCov">          0 :       mLoadNoiseCounter(0)</span>
+<span class="lineNum">     544 </span>            :   {
+<span class="lineNum">     545 </span><span class="lineNoCov">          0 :     mLoadMonitor = loadMonitor;</span>
+<span class="lineNum">     546 </span><span class="lineNoCov">          0 :     mLoadInfo = loadInfo;</span>
+<a name="547"><span class="lineNum">     547 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">     548 </span>            : 
+<span class="lineNum">     549 </span><span class="lineNoCov">          0 :   NS_IMETHOD Run() override</span>
+<span class="lineNum">     550 </span>            :   {
+<span class="lineNum">     551 </span><span class="lineNoCov">          0 :     if (NS_IsMainThread()) {</span>
+<span class="lineNum">     552 </span><span class="lineNoCov">          0 :       if (mThread) {</span>
+<span class="lineNum">     553 </span>            :         // Don't leak threads!
+<span class="lineNum">     554 </span><span class="lineNoCov">          0 :         mThread-&gt;Shutdown(); // can't Shutdown from the thread itself, darn</span>
+<span class="lineNum">     555 </span>            :         // Don't null out mThread!
+<span class="lineNum">     556 </span>            :         // See bug 999104.  We must hold a ref to the thread across Dispatch()
+<span class="lineNum">     557 </span>            :         // since the internal mThread ref could be released while processing
+<span class="lineNum">     558 </span>            :         // the Dispatch(), and Dispatch/PutEvent itself doesn't hold a ref; it
+<span class="lineNum">     559 </span>            :         // assumes the caller does.
+<span class="lineNum">     560 </span>            :       }
+<span class="lineNum">     561 </span>            :       return NS_OK;
+<span class="lineNum">     562 </span>            :     }
+<span class="lineNum">     563 </span>            : 
+<span class="lineNum">     564 </span><span class="lineNoCov">          0 :     MutexAutoLock lock(mLoadMonitor-&gt;mLock);</span>
+<span class="lineNum">     565 </span><span class="lineNoCov">          0 :     while (!mLoadMonitor-&gt;mShutdownPending) {</span>
+<span class="lineNum">     566 </span><span class="lineNoCov">          0 :       mLoadInfo-&gt;UpdateSystemLoad();</span>
+<span class="lineNum">     567 </span><span class="lineNoCov">          0 :       mLoadInfo-&gt;UpdateProcessLoad();</span>
+<span class="lineNum">     568 </span><span class="lineNoCov">          0 :       float sysLoad = mLoadInfo-&gt;GetSystemLoad();</span>
+<span class="lineNum">     569 </span><span class="lineNoCov">          0 :       float procLoad = mLoadInfo-&gt;GetProcessLoad();</span>
+<span class="lineNum">     570 </span>            : 
+<span class="lineNum">     571 </span><span class="lineNoCov">          0 :       if ((++mLoadNoiseCounter % (LOG_MANY_ENABLED() ? 1 : 10)) == 0) {</span>
+<span class="lineNum">     572 </span><span class="lineNoCov">          0 :         LOG((&quot;System Load: %f Process Load: %f&quot;, sysLoad, procLoad));</span>
+<span class="lineNum">     573 </span><span class="lineNoCov">          0 :         mLoadNoiseCounter = 0;</span>
+<span class="lineNum">     574 </span>            :       }
+<span class="lineNum">     575 </span><span class="lineNoCov">          0 :       mLoadMonitor-&gt;SetSystemLoad(sysLoad);</span>
+<span class="lineNum">     576 </span><span class="lineNoCov">          0 :       mLoadMonitor-&gt;SetProcessLoad(procLoad);</span>
+<span class="lineNum">     577 </span><span class="lineNoCov">          0 :       mLoadMonitor-&gt;FireCallbacks();</span>
+<span class="lineNum">     578 </span>            : 
+<span class="lineNum">     579 </span><span class="lineNoCov">          0 :       mLoadMonitor-&gt;mCondVar.Wait(PR_MillisecondsToInterval(mLoadUpdateInterval));</span>
+<span class="lineNum">     580 </span>            :     }
+<span class="lineNum">     581 </span>            :     // ok, we need to exit safely and can't shut ourselves down (DARN)
+<span class="lineNum">     582 </span><span class="lineNoCov">          0 :     NS_DispatchToMainThread(this);</span>
+<span class="lineNum">     583 </span><span class="lineNoCov">          0 :     return NS_OK;</span>
+<span class="lineNum">     584 </span>            :   }
+<span class="lineNum">     585 </span>            : 
+<span class="lineNum">     586 </span>            : private:
+<span class="lineNum">     587 </span>            :   nsCOMPtr&lt;nsIThread&gt; mThread;
+<span class="lineNum">     588 </span>            :   RefPtr&lt;RTCLoadInfo&gt; mLoadInfo;
+<span class="lineNum">     589 </span>            :   RefPtr&lt;LoadMonitor&gt; mLoadMonitor;
+<span class="lineNum">     590 </span>            :   int mLoadUpdateInterval;
+<span class="lineNum">     591 </span>            :   int mLoadNoiseCounter;
+<span class="lineNum">     592 </span>            : };
+<a name="593"><span class="lineNum">     593 </span>            : </a>
+<span class="lineNum">     594 </span>            : void
+<span class="lineNum">     595 </span><span class="lineNoCov">          0 : LoadMonitor::SetProcessLoad(float load) {</span>
+<span class="lineNum">     596 </span><span class="lineNoCov">          0 :   mLock.AssertCurrentThreadOwns();</span>
+<span class="lineNum">     597 </span><span class="lineNoCov">          0 :   mProcessLoad = load;</span>
+<span class="lineNum">     598 </span><span class="lineNoCov">          0 : }</span>
+<a name="599"><span class="lineNum">     599 </span>            : </a>
+<span class="lineNum">     600 </span>            : void
+<span class="lineNum">     601 </span><span class="lineNoCov">          0 : LoadMonitor::SetSystemLoad(float load) {</span>
+<span class="lineNum">     602 </span><span class="lineNoCov">          0 :   mLock.AssertCurrentThreadOwns();</span>
+<span class="lineNum">     603 </span><span class="lineNoCov">          0 :   mSystemLoad = load;</span>
+<span class="lineNum">     604 </span><span class="lineNoCov">          0 : }</span>
+<a name="605"><span class="lineNum">     605 </span>            : </a>
+<span class="lineNum">     606 </span>            : float
+<span class="lineNum">     607 </span><span class="lineNoCov">          0 : LoadMonitor::GetProcessLoad() {</span>
+<span class="lineNum">     608 </span><span class="lineNoCov">          0 :   MutexAutoLock lock(mLock);</span>
+<span class="lineNum">     609 </span><span class="lineNoCov">          0 :   float load = mProcessLoad;</span>
+<span class="lineNum">     610 </span><span class="lineNoCov">          0 :   return load;</span>
+<span class="lineNum">     611 </span>            : }
+<a name="612"><span class="lineNum">     612 </span>            : </a>
+<span class="lineNum">     613 </span>            : void
+<span class="lineNum">     614 </span><span class="lineNoCov">          0 : LoadMonitor::FireCallbacks() {</span>
+<span class="lineNum">     615 </span><span class="lineNoCov">          0 :   if (mLoadNotificationCallback) {</span>
+<span class="lineNum">     616 </span><span class="lineNoCov">          0 :     mLoadNotificationCallback-&gt;LoadChanged(mSystemLoad, mProcessLoad);</span>
+<span class="lineNum">     617 </span>            :   }
+<span class="lineNum">     618 </span><span class="lineNoCov">          0 : }</span>
+<a name="619"><span class="lineNum">     619 </span>            : </a>
+<span class="lineNum">     620 </span>            : float
+<span class="lineNum">     621 </span><span class="lineNoCov">          0 : LoadMonitor::GetSystemLoad() {</span>
+<span class="lineNum">     622 </span><span class="lineNoCov">          0 :   MutexAutoLock lock(mLock);</span>
+<span class="lineNum">     623 </span><span class="lineNoCov">          0 :   float load = mSystemLoad;</span>
+<span class="lineNum">     624 </span><span class="lineNoCov">          0 :   return load;</span>
+<span class="lineNum">     625 </span>            : }
+<a name="626"><span class="lineNum">     626 </span>            : </a>
+<span class="lineNum">     627 </span>            : nsresult
+<span class="lineNum">     628 </span><span class="lineNoCov">          0 : LoadMonitor::Init(RefPtr&lt;LoadMonitor&gt; &amp;self)</span>
+<span class="lineNum">     629 </span>            : {
+<span class="lineNum">     630 </span><span class="lineNoCov">          0 :   LOG((&quot;Initializing LoadMonitor&quot;));</span>
+<span class="lineNum">     631 </span>            : 
+<span class="lineNum">     632 </span><span class="lineNoCov">          0 :   RefPtr&lt;RTCLoadInfo&gt; load_info = new RTCLoadInfo();</span>
+<span class="lineNum">     633 </span><span class="lineNoCov">          0 :   nsresult rv = load_info-&gt;Init(mLoadUpdateInterval);</span>
+<span class="lineNum">     634 </span>            : 
+<span class="lineNum">     635 </span><span class="lineNoCov">          0 :   if (NS_FAILED(rv)) {</span>
+<span class="lineNum">     636 </span><span class="lineNoCov">          0 :     LOG((&quot;RTCLoadInfo::Init error&quot;));</span>
+<span class="lineNum">     637 </span><span class="lineNoCov">          0 :     return rv;</span>
+<span class="lineNum">     638 </span>            :   }
+<span class="lineNum">     639 </span>            : 
+<span class="lineNum">     640 </span><span class="lineNoCov">          0 :   RefPtr&lt;LoadMonitorAddObserver&gt; addObsRunner = new LoadMonitorAddObserver(self);</span>
+<span class="lineNum">     641 </span><span class="lineNoCov">          0 :   NS_DispatchToMainThread(addObsRunner);</span>
+<span class="lineNum">     642 </span>            : 
+<span class="lineNum">     643 </span><span class="lineNoCov">          0 :   NS_NewNamedThread(&quot;Sys Load Info&quot;, getter_AddRefs(mLoadInfoThread));</span>
+<span class="lineNum">     644 </span>            : 
+<span class="lineNum">     645 </span>            :   RefPtr&lt;LoadInfoCollectRunner&gt; runner =
+<span class="lineNum">     646 </span><span class="lineNoCov">          0 :     new LoadInfoCollectRunner(self, load_info, mLoadInfoThread);</span>
+<span class="lineNum">     647 </span><span class="lineNoCov">          0 :   mLoadInfoThread-&gt;Dispatch(runner, NS_DISPATCH_NORMAL);</span>
+<span class="lineNum">     648 </span>            : 
+<span class="lineNum">     649 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     650 </span>            : }
+<a name="651"><span class="lineNum">     651 </span>            : </a>
+<span class="lineNum">     652 </span>            : void
+<span class="lineNum">     653 </span><span class="lineNoCov">          0 : LoadMonitor::SetLoadChangeCallback(LoadNotificationCallback* aCallback)</span>
+<span class="lineNum">     654 </span>            : {
+<span class="lineNum">     655 </span><span class="lineNoCov">          0 :   mLoadNotificationCallback = aCallback;</span>
+<span class="lineNum">     656 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     657 </span>            : 
+<span class="lineNum">     658 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

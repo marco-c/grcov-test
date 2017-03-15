@@ -1,0 +1,1007 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gfx/skia/skia/src/gpu/effects/GrPorterDuffXferProcessor.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../../index.html">top level</a> - <a href="index.html">gfx/skia/skia/src/gpu/effects</a> - GrPorterDuffXferProcessor.cpp<span style="font-size: 80%;"> (source / <a href="GrPorterDuffXferProcessor.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">238</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">54</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  * Copyright 2014 Google Inc.
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  * Use of this source code is governed by a BSD-style license that can be
+<span class="lineNum">       5 </span>            :  * found in the LICENSE file.
+<span class="lineNum">       6 </span>            :  */
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #include &quot;effects/GrPorterDuffXferProcessor.h&quot;
+<span class="lineNum">       9 </span>            : 
+<span class="lineNum">      10 </span>            : #include &quot;GrBlend.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;GrCaps.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;GrPipeline.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;GrProcessor.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;GrProcOptInfo.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;GrTypes.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;GrXferProcessor.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;glsl/GrGLSLBlend.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;glsl/GrGLSLFragmentShaderBuilder.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;glsl/GrGLSLProgramDataManager.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;glsl/GrGLSLUniformHandler.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;glsl/GrGLSLXferProcessor.h&quot;
+<span class="lineNum">      22 </span>            : #include &lt;utility&gt;
+<span class="lineNum">      23 </span>            : 
+<span class="lineNum">      24 </span>            : /**
+<span class="lineNum">      25 </span>            :  * Wraps the shader outputs and HW blend state that comprise a Porter Duff blend mode with coverage.
+<span class="lineNum">      26 </span>            :  */
+<span class="lineNum">      27 </span>            : struct BlendFormula {
+<span class="lineNum">      28 </span>            : public:
+<span class="lineNum">      29 </span>            :     /**
+<span class="lineNum">      30 </span>            :      * Values the shader can write to primary and secondary outputs. These must all be modulated by
+<span class="lineNum">      31 </span>            :      * coverage to support mixed samples. The XP will ignore the multiplies when not using coverage.
+<span class="lineNum">      32 </span>            :      */
+<span class="lineNum">      33 </span>            :     enum OutputType {
+<span class="lineNum">      34 </span>            :         kNone_OutputType,        //&lt;! 0
+<span class="lineNum">      35 </span>            :         kCoverage_OutputType,    //&lt;! inputCoverage
+<span class="lineNum">      36 </span>            :         kModulate_OutputType,    //&lt;! inputColor * inputCoverage
+<span class="lineNum">      37 </span>            :         kSAModulate_OutputType,  //&lt;! inputColor.a * inputCoverage
+<span class="lineNum">      38 </span>            :         kISAModulate_OutputType, //&lt;! (1 - inputColor.a) * inputCoverage
+<span class="lineNum">      39 </span>            :         kISCModulate_OutputType, //&lt;! (1 - inputColor) * inputCoverage
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span>            :         kLast_OutputType = kISCModulate_OutputType
+<span class="lineNum">      42 </span>            :     };
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span>            :     enum Properties {
+<span class="lineNum">      45 </span>            :         kModifiesDst_Property              = 1,
+<span class="lineNum">      46 </span>            :         kUsesDstColor_Property             = 1 &lt;&lt; 1,
+<span class="lineNum">      47 </span>            :         kUsesInputColor_Property           = 1 &lt;&lt; 2,
+<span class="lineNum">      48 </span>            :         kCanTweakAlphaForCoverage_Property = 1 &lt;&lt; 3,
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            :         kLast_Property = kCanTweakAlphaForCoverage_Property
+<span class="lineNum">      51 </span>            :     };
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span>            :     BlendFormula&amp; operator =(const BlendFormula&amp; other) {
+<span class="lineNum">      54 </span><span class="lineNoCov">          0 :         fData = other.fData;</span>
+<span class="lineNum">      55 </span>            :         return *this;
+<span class="lineNum">      56 </span>            :     }
+<span class="lineNum">      57 </span>            : 
+<span class="lineNum">      58 </span>            :     bool operator ==(const BlendFormula&amp; other) const {
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 :         return fData == other.fData;</span>
+<span class="lineNum">      60 </span>            :     }
+<span class="lineNum">      61 </span>            : 
+<span class="lineNum">      62 </span><span class="lineNoCov">          0 :     bool hasSecondaryOutput() const { return kNone_OutputType != fSecondaryOutputType; }</span>
+<span class="lineNum">      63 </span><span class="lineNoCov">          0 :     bool modifiesDst() const { return SkToBool(fProps &amp; kModifiesDst_Property); }</span>
+<span class="lineNum">      64 </span><span class="lineNoCov">          0 :     bool usesDstColor() const { return SkToBool(fProps &amp; kUsesDstColor_Property); }</span>
+<span class="lineNum">      65 </span><span class="lineNoCov">          0 :     bool usesInputColor() const { return SkToBool(fProps &amp; kUsesInputColor_Property); }</span>
+<span class="lineNum">      66 </span>            :     bool canTweakAlphaForCoverage() const {
+<span class="lineNum">      67 </span><span class="lineNoCov">          0 :         return SkToBool(fProps &amp; kCanTweakAlphaForCoverage_Property);</span>
+<span class="lineNum">      68 </span>            :     }
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            :     /**
+<span class="lineNum">      71 </span>            :      * Deduce the properties of a compile-time constant BlendFormula.
+<span class="lineNum">      72 </span>            :      */
+<span class="lineNum">      73 </span>            :     template&lt;OutputType PrimaryOut, OutputType SecondaryOut,
+<span class="lineNum">      74 </span>            :              GrBlendEquation BlendEquation, GrBlendCoeff SrcCoeff, GrBlendCoeff DstCoeff&gt;
+<span class="lineNum">      75 </span>            :     struct get_properties : std::integral_constant&lt;Properties, static_cast&lt;Properties&gt;(
+<span class="lineNum">      76 </span>            : 
+<span class="lineNum">      77 </span>            :         (GR_BLEND_MODIFIES_DST(BlendEquation, SrcCoeff, DstCoeff) ?
+<span class="lineNum">      78 </span>            :             kModifiesDst_Property : 0) |
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span>            :         (GR_BLEND_COEFFS_USE_DST_COLOR(SrcCoeff, DstCoeff) ?
+<span class="lineNum">      81 </span>            :             kUsesDstColor_Property : 0) |
+<span class="lineNum">      82 </span>            : 
+<span class="lineNum">      83 </span>            :         ((PrimaryOut &gt;= kModulate_OutputType &amp;&amp; GR_BLEND_COEFFS_USE_SRC_COLOR(SrcCoeff,DstCoeff)) ||
+<span class="lineNum">      84 </span>            :          (SecondaryOut &gt;= kModulate_OutputType &amp;&amp; GR_BLEND_COEFF_REFS_SRC2(DstCoeff)) ?
+<span class="lineNum">      85 </span>            :             kUsesInputColor_Property : 0) |  // We assert later that SrcCoeff doesn't ref src2.
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span>            :         (kModulate_OutputType == PrimaryOut &amp;&amp;
+<span class="lineNum">      88 </span>            :          kNone_OutputType == SecondaryOut &amp;&amp;
+<span class="lineNum">      89 </span>            :          GR_BLEND_CAN_TWEAK_ALPHA_FOR_COVERAGE(BlendEquation, SrcCoeff, DstCoeff) ?
+<span class="lineNum">      90 </span>            :             kCanTweakAlphaForCoverage_Property : 0))&gt; {
+<span class="lineNum">      91 </span>            : 
+<span class="lineNum">      92 </span>            :         // The provided formula should already be optimized.
+<span class="lineNum">      93 </span>            :         GR_STATIC_ASSERT((kNone_OutputType == PrimaryOut) ==
+<span class="lineNum">      94 </span>            :                          !GR_BLEND_COEFFS_USE_SRC_COLOR(SrcCoeff, DstCoeff));
+<span class="lineNum">      95 </span>            :         GR_STATIC_ASSERT(!GR_BLEND_COEFF_REFS_SRC2(SrcCoeff));
+<span class="lineNum">      96 </span>            :         GR_STATIC_ASSERT((kNone_OutputType == SecondaryOut) ==
+<span class="lineNum">      97 </span>            :                          !GR_BLEND_COEFF_REFS_SRC2(DstCoeff));
+<span class="lineNum">      98 </span>            :         GR_STATIC_ASSERT(PrimaryOut != SecondaryOut || kNone_OutputType == PrimaryOut);
+<span class="lineNum">      99 </span>            :         GR_STATIC_ASSERT(kNone_OutputType != PrimaryOut || kNone_OutputType == SecondaryOut);
+<span class="lineNum">     100 </span>            :     };
+<span class="lineNum">     101 </span>            : 
+<span class="lineNum">     102 </span>            :     union {
+<span class="lineNum">     103 </span>            :         struct {
+<span class="lineNum">     104 </span>            :             // We allot the enums one more bit than they require because MSVC seems to sign-extend
+<span class="lineNum">     105 </span>            :             // them when the top bit is set. (This is in violation of the C++03 standard 9.6/4)
+<span class="lineNum">     106 </span>            :             OutputType        fPrimaryOutputType    : 4;
+<span class="lineNum">     107 </span>            :             OutputType        fSecondaryOutputType  : 4;
+<span class="lineNum">     108 </span>            :             GrBlendEquation   fBlendEquation        : 6;
+<span class="lineNum">     109 </span>            :             GrBlendCoeff      fSrcCoeff             : 6;
+<span class="lineNum">     110 </span>            :             GrBlendCoeff      fDstCoeff             : 6;
+<span class="lineNum">     111 </span>            :             Properties        fProps                : 32 - (4 + 4 + 6 + 6 + 6);
+<span class="lineNum">     112 </span>            :         };
+<span class="lineNum">     113 </span>            :         uint32_t fData;
+<span class="lineNum">     114 </span>            :     };
+<span class="lineNum">     115 </span>            : 
+<span class="lineNum">     116 </span>            :     GR_STATIC_ASSERT(kLast_OutputType      &lt; (1 &lt;&lt; 3));
+<span class="lineNum">     117 </span>            :     GR_STATIC_ASSERT(kLast_GrBlendEquation &lt; (1 &lt;&lt; 5));
+<span class="lineNum">     118 </span>            :     GR_STATIC_ASSERT(kLast_GrBlendCoeff    &lt; (1 &lt;&lt; 5));
+<span class="lineNum">     119 </span>            :     GR_STATIC_ASSERT(kLast_Property        &lt; (1 &lt;&lt; 6));
+<span class="lineNum">     120 </span>            : };
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span>            : GR_STATIC_ASSERT(4 == sizeof(BlendFormula));
+<span class="lineNum">     123 </span>            : 
+<span class="lineNum">     124 </span>            : GR_MAKE_BITFIELD_OPS(BlendFormula::Properties);
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span>            : /**
+<span class="lineNum">     127 </span>            :  * Initialize a compile-time constant BlendFormula and automatically deduce fProps.
+<span class="lineNum">     128 </span>            :  */
+<span class="lineNum">     129 </span>            : #define INIT_BLEND_FORMULA(PRIMARY_OUT, SECONDARY_OUT, BLEND_EQUATION, SRC_COEFF, DST_COEFF) \
+<span class="lineNum">     130 </span>            :     {{{PRIMARY_OUT, \
+<span class="lineNum">     131 </span>            :        SECONDARY_OUT, \
+<span class="lineNum">     132 </span>            :        BLEND_EQUATION, SRC_COEFF, DST_COEFF, \
+<span class="lineNum">     133 </span>            :        BlendFormula::get_properties&lt;PRIMARY_OUT, SECONDARY_OUT, \
+<span class="lineNum">     134 </span>            :                                     BLEND_EQUATION, SRC_COEFF, DST_COEFF&gt;::value}}}
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span>            : /**
+<span class="lineNum">     137 </span>            :  * When there is no coverage, or the blend mode can tweak alpha for coverage, we use the standard
+<span class="lineNum">     138 </span>            :  * Porter Duff formula.
+<span class="lineNum">     139 </span>            :  */
+<span class="lineNum">     140 </span>            : #define COEFF_FORMULA(SRC_COEFF, DST_COEFF) \
+<span class="lineNum">     141 </span>            :     INIT_BLEND_FORMULA(BlendFormula::kModulate_OutputType, \
+<span class="lineNum">     142 </span>            :                        BlendFormula::kNone_OutputType, \
+<span class="lineNum">     143 </span>            :                        kAdd_GrBlendEquation, SRC_COEFF, DST_COEFF)
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span>            : /**
+<span class="lineNum">     146 </span>            :  * Basic coeff formula similar to COEFF_FORMULA but we will make the src f*Sa. This is used in
+<span class="lineNum">     147 </span>            :  * LCD dst-out.
+<span class="lineNum">     148 </span>            :  */
+<span class="lineNum">     149 </span>            : #define COEFF_FORMULA_SA_MODULATE(SRC_COEFF, DST_COEFF) \
+<span class="lineNum">     150 </span>            :     INIT_BLEND_FORMULA(BlendFormula::kSAModulate_OutputType, \
+<span class="lineNum">     151 </span>            :                        BlendFormula::kNone_OutputType, \
+<span class="lineNum">     152 </span>            :                        kAdd_GrBlendEquation, SRC_COEFF, DST_COEFF)
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span>            : /**
+<span class="lineNum">     155 </span>            :  * When the coeffs are (Zero, Zero), we clear the dst. This formula has its own macro so we can set
+<span class="lineNum">     156 </span>            :  * the primary output type to none.
+<span class="lineNum">     157 </span>            :  */
+<span class="lineNum">     158 </span>            : #define DST_CLEAR_FORMULA \
+<span class="lineNum">     159 </span>            :     INIT_BLEND_FORMULA(BlendFormula::kNone_OutputType, \
+<span class="lineNum">     160 </span>            :                        BlendFormula::kNone_OutputType, \
+<span class="lineNum">     161 </span>            :                        kAdd_GrBlendEquation, kZero_GrBlendCoeff, kZero_GrBlendCoeff)
+<span class="lineNum">     162 </span>            : 
+<span class="lineNum">     163 </span>            : /**
+<span class="lineNum">     164 </span>            :  * When the coeffs are (Zero, One), we don't write to the dst at all. This formula has its own macro
+<span class="lineNum">     165 </span>            :  * so we can set the primary output type to none.
+<span class="lineNum">     166 </span>            :  */
+<span class="lineNum">     167 </span>            : #define NO_DST_WRITE_FORMULA \
+<span class="lineNum">     168 </span>            :     INIT_BLEND_FORMULA(BlendFormula::kNone_OutputType, \
+<span class="lineNum">     169 </span>            :                        BlendFormula::kNone_OutputType, \
+<span class="lineNum">     170 </span>            :                        kAdd_GrBlendEquation, kZero_GrBlendCoeff, kOne_GrBlendCoeff)
+<span class="lineNum">     171 </span>            : 
+<span class="lineNum">     172 </span>            : /**
+<span class="lineNum">     173 </span>            :  * When there is coverage, the equation with f=coverage is:
+<span class="lineNum">     174 </span>            :  *
+<span class="lineNum">     175 </span>            :  *   D' = f * (S * srcCoeff + D * dstCoeff) + (1-f) * D
+<span class="lineNum">     176 </span>            :  *
+<span class="lineNum">     177 </span>            :  * This can be rewritten as:
+<span class="lineNum">     178 </span>            :  *
+<span class="lineNum">     179 </span>            :  *   D' = f * S * srcCoeff + D * (1 - [f * (1 - dstCoeff)])
+<span class="lineNum">     180 </span>            :  *
+<span class="lineNum">     181 </span>            :  * To implement this formula, we output [f * (1 - dstCoeff)] for the secondary color and replace the
+<span class="lineNum">     182 </span>            :  * HW dst coeff with IS2C.
+<span class="lineNum">     183 </span>            :  *
+<span class="lineNum">     184 </span>            :  * Xfer modes: dst-atop (Sa!=1)
+<span class="lineNum">     185 </span>            :  */
+<span class="lineNum">     186 </span>            : #define COVERAGE_FORMULA(ONE_MINUS_DST_COEFF_MODULATE_OUTPUT, SRC_COEFF) \
+<span class="lineNum">     187 </span>            :     INIT_BLEND_FORMULA(BlendFormula::kModulate_OutputType, \
+<span class="lineNum">     188 </span>            :                        ONE_MINUS_DST_COEFF_MODULATE_OUTPUT, \
+<span class="lineNum">     189 </span>            :                        kAdd_GrBlendEquation, SRC_COEFF, kIS2C_GrBlendCoeff)
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span>            : /**
+<span class="lineNum">     192 </span>            :  * When there is coverage and the src coeff is Zero, the equation with f=coverage becomes:
+<span class="lineNum">     193 </span>            :  *
+<span class="lineNum">     194 </span>            :  *   D' = f * D * dstCoeff + (1-f) * D
+<span class="lineNum">     195 </span>            :  *
+<span class="lineNum">     196 </span>            :  * This can be rewritten as:
+<span class="lineNum">     197 </span>            :  *
+<span class="lineNum">     198 </span>            :  *   D' = D - D * [f * (1 - dstCoeff)]
+<span class="lineNum">     199 </span>            :  *
+<span class="lineNum">     200 </span>            :  * To implement this formula, we output [f * (1 - dstCoeff)] for the primary color and use a reverse
+<span class="lineNum">     201 </span>            :  * subtract HW blend equation with coeffs of (DC, One).
+<span class="lineNum">     202 </span>            :  *
+<span class="lineNum">     203 </span>            :  * Xfer modes: clear, dst-out (Sa=1), dst-in (Sa!=1), modulate (Sc!=1)
+<span class="lineNum">     204 </span>            :  */
+<span class="lineNum">     205 </span>            : #define COVERAGE_SRC_COEFF_ZERO_FORMULA(ONE_MINUS_DST_COEFF_MODULATE_OUTPUT) \
+<span class="lineNum">     206 </span>            :     INIT_BLEND_FORMULA(ONE_MINUS_DST_COEFF_MODULATE_OUTPUT, \
+<span class="lineNum">     207 </span>            :                        BlendFormula::kNone_OutputType, \
+<span class="lineNum">     208 </span>            :                        kReverseSubtract_GrBlendEquation, kDC_GrBlendCoeff, kOne_GrBlendCoeff)
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span>            : /**
+<span class="lineNum">     211 </span>            :  * When there is coverage and the dst coeff is Zero, the equation with f=coverage becomes:
+<span class="lineNum">     212 </span>            :  *
+<span class="lineNum">     213 </span>            :  *   D' = f * S * srcCoeff + (1-f) * D
+<span class="lineNum">     214 </span>            :  *
+<span class="lineNum">     215 </span>            :  * To implement this formula, we output [f] for the secondary color and replace the HW dst coeff
+<span class="lineNum">     216 </span>            :  * with IS2A. (Note that we can avoid dual source blending when Sa=1 by using ISA.)
+<span class="lineNum">     217 </span>            :  *
+<span class="lineNum">     218 </span>            :  * Xfer modes (Sa!=1): src, src-in, src-out
+<span class="lineNum">     219 </span>            :  */
+<span class="lineNum">     220 </span>            : #define COVERAGE_DST_COEFF_ZERO_FORMULA(SRC_COEFF) \
+<span class="lineNum">     221 </span>            :     INIT_BLEND_FORMULA(BlendFormula::kModulate_OutputType, \
+<span class="lineNum">     222 </span>            :                        BlendFormula::kCoverage_OutputType, \
+<span class="lineNum">     223 </span>            :                        kAdd_GrBlendEquation, SRC_COEFF, kIS2A_GrBlendCoeff)
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span>            : /**
+<span class="lineNum">     226 </span>            :  * This table outlines the blend formulas we will use with each xfermode, with and without coverage,
+<span class="lineNum">     227 </span>            :  * with and without an opaque input color. Optimization properties are deduced at compile time so we
+<span class="lineNum">     228 </span>            :  * can make runtime decisions quickly. RGB coverage is not supported.
+<span class="lineNum">     229 </span>            :  */
+<span class="lineNum">     230 </span>            : static const BlendFormula gBlendTable[2][2][SkXfermode::kLastCoeffMode + 1] = {
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span>            :                      /*&gt;&gt; No coverage, input color unknown &lt;&lt;*/ {{
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span>            :     /* clear */      DST_CLEAR_FORMULA,
+<span class="lineNum">     235 </span>            :     /* src */        COEFF_FORMULA(   kOne_GrBlendCoeff,    kZero_GrBlendCoeff),
+<span class="lineNum">     236 </span>            :     /* dst */        NO_DST_WRITE_FORMULA,
+<span class="lineNum">     237 </span>            :     /* src-over */   COEFF_FORMULA(   kOne_GrBlendCoeff,    kISA_GrBlendCoeff),
+<span class="lineNum">     238 </span>            :     /* dst-over */   COEFF_FORMULA(   kIDA_GrBlendCoeff,    kOne_GrBlendCoeff),
+<span class="lineNum">     239 </span>            :     /* src-in */     COEFF_FORMULA(   kDA_GrBlendCoeff,     kZero_GrBlendCoeff),
+<span class="lineNum">     240 </span>            :     /* dst-in */     COEFF_FORMULA(   kZero_GrBlendCoeff,   kSA_GrBlendCoeff),
+<span class="lineNum">     241 </span>            :     /* src-out */    COEFF_FORMULA(   kIDA_GrBlendCoeff,    kZero_GrBlendCoeff),
+<span class="lineNum">     242 </span>            :     /* dst-out */    COEFF_FORMULA(   kZero_GrBlendCoeff,   kISA_GrBlendCoeff),
+<span class="lineNum">     243 </span>            :     /* src-atop */   COEFF_FORMULA(   kDA_GrBlendCoeff,     kISA_GrBlendCoeff),
+<span class="lineNum">     244 </span>            :     /* dst-atop */   COEFF_FORMULA(   kIDA_GrBlendCoeff,    kSA_GrBlendCoeff),
+<span class="lineNum">     245 </span>            :     /* xor */        COEFF_FORMULA(   kIDA_GrBlendCoeff,    kISA_GrBlendCoeff),
+<span class="lineNum">     246 </span>            :     /* plus */       COEFF_FORMULA(   kOne_GrBlendCoeff,    kOne_GrBlendCoeff),
+<span class="lineNum">     247 </span>            :     /* modulate */   COEFF_FORMULA(   kZero_GrBlendCoeff,   kSC_GrBlendCoeff),
+<span class="lineNum">     248 </span>            :     /* screen */     COEFF_FORMULA(   kOne_GrBlendCoeff,    kISC_GrBlendCoeff),
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span>            :                      }, /*&gt;&gt; Has coverage, input color unknown &lt;&lt;*/ {
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span>            :     /* clear */      COVERAGE_SRC_COEFF_ZERO_FORMULA(BlendFormula::kCoverage_OutputType),
+<span class="lineNum">     253 </span>            :     /* src */        COVERAGE_DST_COEFF_ZERO_FORMULA(kOne_GrBlendCoeff),
+<span class="lineNum">     254 </span>            :     /* dst */        NO_DST_WRITE_FORMULA,
+<span class="lineNum">     255 </span>            :     /* src-over */   COEFF_FORMULA(   kOne_GrBlendCoeff,    kISA_GrBlendCoeff),
+<span class="lineNum">     256 </span>            :     /* dst-over */   COEFF_FORMULA(   kIDA_GrBlendCoeff,    kOne_GrBlendCoeff),
+<span class="lineNum">     257 </span>            :     /* src-in */     COVERAGE_DST_COEFF_ZERO_FORMULA(kDA_GrBlendCoeff),
+<span class="lineNum">     258 </span>            :     /* dst-in */     COVERAGE_SRC_COEFF_ZERO_FORMULA(BlendFormula::kISAModulate_OutputType),
+<span class="lineNum">     259 </span>            :     /* src-out */    COVERAGE_DST_COEFF_ZERO_FORMULA(kIDA_GrBlendCoeff),
+<span class="lineNum">     260 </span>            :     /* dst-out */    COEFF_FORMULA(   kZero_GrBlendCoeff,   kISA_GrBlendCoeff),
+<span class="lineNum">     261 </span>            :     /* src-atop */   COEFF_FORMULA(   kDA_GrBlendCoeff,     kISA_GrBlendCoeff),
+<span class="lineNum">     262 </span>            :     /* dst-atop */   COVERAGE_FORMULA(BlendFormula::kISAModulate_OutputType, kIDA_GrBlendCoeff),
+<span class="lineNum">     263 </span>            :     /* xor */        COEFF_FORMULA(   kIDA_GrBlendCoeff,    kISA_GrBlendCoeff),
+<span class="lineNum">     264 </span>            :     /* plus */       COEFF_FORMULA(   kOne_GrBlendCoeff,    kOne_GrBlendCoeff),
+<span class="lineNum">     265 </span>            :     /* modulate */   COVERAGE_SRC_COEFF_ZERO_FORMULA(BlendFormula::kISCModulate_OutputType),
+<span class="lineNum">     266 </span>            :     /* screen */     COEFF_FORMULA(   kOne_GrBlendCoeff,    kISC_GrBlendCoeff),
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span>            :                      }}, /*&gt;&gt; No coverage, input color opaque &lt;&lt;*/ {{
+<span class="lineNum">     269 </span>            : 
+<span class="lineNum">     270 </span>            :     /* clear */      DST_CLEAR_FORMULA,
+<span class="lineNum">     271 </span>            :     /* src */        COEFF_FORMULA(   kOne_GrBlendCoeff,    kZero_GrBlendCoeff),
+<span class="lineNum">     272 </span>            :     /* dst */        NO_DST_WRITE_FORMULA,
+<span class="lineNum">     273 </span>            :     /* src-over */   COEFF_FORMULA(   kOne_GrBlendCoeff,    kZero_GrBlendCoeff),
+<span class="lineNum">     274 </span>            :     /* dst-over */   COEFF_FORMULA(   kIDA_GrBlendCoeff,    kOne_GrBlendCoeff),
+<span class="lineNum">     275 </span>            :     /* src-in */     COEFF_FORMULA(   kDA_GrBlendCoeff,     kZero_GrBlendCoeff),
+<span class="lineNum">     276 </span>            :     /* dst-in */     NO_DST_WRITE_FORMULA,
+<span class="lineNum">     277 </span>            :     /* src-out */    COEFF_FORMULA(   kIDA_GrBlendCoeff,    kZero_GrBlendCoeff),
+<span class="lineNum">     278 </span>            :     /* dst-out */    DST_CLEAR_FORMULA,
+<span class="lineNum">     279 </span>            :     /* src-atop */   COEFF_FORMULA(   kDA_GrBlendCoeff,     kZero_GrBlendCoeff),
+<span class="lineNum">     280 </span>            :     /* dst-atop */   COEFF_FORMULA(   kIDA_GrBlendCoeff,    kOne_GrBlendCoeff),
+<span class="lineNum">     281 </span>            :     /* xor */        COEFF_FORMULA(   kIDA_GrBlendCoeff,    kZero_GrBlendCoeff),
+<span class="lineNum">     282 </span>            :     /* plus */       COEFF_FORMULA(   kOne_GrBlendCoeff,    kOne_GrBlendCoeff),
+<span class="lineNum">     283 </span>            :     /* modulate */   COEFF_FORMULA(   kZero_GrBlendCoeff,   kSC_GrBlendCoeff),
+<span class="lineNum">     284 </span>            :     /* screen */     COEFF_FORMULA(   kOne_GrBlendCoeff,    kISC_GrBlendCoeff),
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span>            :                      }, /*&gt;&gt; Has coverage, input color opaque &lt;&lt;*/ {
+<span class="lineNum">     287 </span>            : 
+<span class="lineNum">     288 </span>            :     /* clear */      COVERAGE_SRC_COEFF_ZERO_FORMULA(BlendFormula::kCoverage_OutputType),
+<span class="lineNum">     289 </span>            :     /* src */        COEFF_FORMULA(   kOne_GrBlendCoeff,    kISA_GrBlendCoeff),
+<span class="lineNum">     290 </span>            :     /* dst */        NO_DST_WRITE_FORMULA,
+<span class="lineNum">     291 </span>            :     /* src-over */   COEFF_FORMULA(   kOne_GrBlendCoeff,    kISA_GrBlendCoeff),
+<span class="lineNum">     292 </span>            :     /* dst-over */   COEFF_FORMULA(   kIDA_GrBlendCoeff,    kOne_GrBlendCoeff),
+<span class="lineNum">     293 </span>            :     /* src-in */     COEFF_FORMULA(   kDA_GrBlendCoeff,     kISA_GrBlendCoeff),
+<span class="lineNum">     294 </span>            :     /* dst-in */     NO_DST_WRITE_FORMULA,
+<span class="lineNum">     295 </span>            :     /* src-out */    COEFF_FORMULA(   kIDA_GrBlendCoeff,    kISA_GrBlendCoeff),
+<span class="lineNum">     296 </span>            :     /* dst-out */    COVERAGE_SRC_COEFF_ZERO_FORMULA(BlendFormula::kCoverage_OutputType),
+<span class="lineNum">     297 </span>            :     /* src-atop */   COEFF_FORMULA(   kDA_GrBlendCoeff,     kISA_GrBlendCoeff),
+<span class="lineNum">     298 </span>            :     /* dst-atop */   COEFF_FORMULA(   kIDA_GrBlendCoeff,    kOne_GrBlendCoeff),
+<span class="lineNum">     299 </span>            :     /* xor */        COEFF_FORMULA(   kIDA_GrBlendCoeff,    kISA_GrBlendCoeff),
+<span class="lineNum">     300 </span>            :     /* plus */       COEFF_FORMULA(   kOne_GrBlendCoeff,    kOne_GrBlendCoeff),
+<span class="lineNum">     301 </span>            :     /* modulate */   COVERAGE_SRC_COEFF_ZERO_FORMULA(BlendFormula::kISCModulate_OutputType),
+<span class="lineNum">     302 </span>            :     /* screen */     COEFF_FORMULA(   kOne_GrBlendCoeff,    kISC_GrBlendCoeff),
+<span class="lineNum">     303 </span>            : }}};
+<span class="lineNum">     304 </span>            : 
+<span class="lineNum">     305 </span>            : static const BlendFormula gLCDBlendTable[SkXfermode::kLastCoeffMode + 1] = {
+<span class="lineNum">     306 </span>            :     /* clear */      COVERAGE_SRC_COEFF_ZERO_FORMULA(BlendFormula::kCoverage_OutputType),
+<span class="lineNum">     307 </span>            :     /* src */        COVERAGE_FORMULA(BlendFormula::kCoverage_OutputType, kOne_GrBlendCoeff),
+<span class="lineNum">     308 </span>            :     /* dst */        NO_DST_WRITE_FORMULA,
+<span class="lineNum">     309 </span>            :     /* src-over */   COVERAGE_FORMULA(BlendFormula::kSAModulate_OutputType, kOne_GrBlendCoeff),
+<span class="lineNum">     310 </span>            :     /* dst-over */   COEFF_FORMULA(   kIDA_GrBlendCoeff,    kOne_GrBlendCoeff),
+<span class="lineNum">     311 </span>            :     /* src-in */     COVERAGE_FORMULA(BlendFormula::kCoverage_OutputType, kDA_GrBlendCoeff),
+<span class="lineNum">     312 </span>            :     /* dst-in */     COVERAGE_SRC_COEFF_ZERO_FORMULA(BlendFormula::kISAModulate_OutputType),
+<span class="lineNum">     313 </span>            :     /* src-out */    COVERAGE_FORMULA(BlendFormula::kCoverage_OutputType, kIDA_GrBlendCoeff),
+<span class="lineNum">     314 </span>            :     /* dst-out */    COEFF_FORMULA_SA_MODULATE(   kZero_GrBlendCoeff,   kISC_GrBlendCoeff),
+<span class="lineNum">     315 </span>            :     /* src-atop */   COVERAGE_FORMULA(BlendFormula::kSAModulate_OutputType, kDA_GrBlendCoeff),
+<span class="lineNum">     316 </span>            :     /* dst-atop */   COVERAGE_FORMULA(BlendFormula::kISAModulate_OutputType, kIDA_GrBlendCoeff),
+<span class="lineNum">     317 </span>            :     /* xor */        COVERAGE_FORMULA(BlendFormula::kSAModulate_OutputType, kIDA_GrBlendCoeff),
+<span class="lineNum">     318 </span>            :     /* plus */       COEFF_FORMULA(   kOne_GrBlendCoeff,    kOne_GrBlendCoeff),
+<span class="lineNum">     319 </span>            :     /* modulate */   COVERAGE_SRC_COEFF_ZERO_FORMULA(BlendFormula::kISCModulate_OutputType),
+<span class="lineNum">     320 </span>            :     /* screen */     COEFF_FORMULA(   kOne_GrBlendCoeff,    kISC_GrBlendCoeff),
+<a name="321"><span class="lineNum">     321 </span>            : };</a>
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span><span class="lineNoCov">          0 : static BlendFormula get_blend_formula(const GrProcOptInfo&amp; colorPOI,</span>
+<span class="lineNum">     324 </span>            :                                       const GrProcOptInfo&amp; coveragePOI,
+<span class="lineNum">     325 </span>            :                                       bool hasMixedSamples,
+<span class="lineNum">     326 </span>            :                                       SkXfermode::Mode xfermode) {
+<span class="lineNum">     327 </span>            :     SkASSERT(xfermode &gt;= 0 &amp;&amp; xfermode &lt;= SkXfermode::kLastCoeffMode);
+<span class="lineNum">     328 </span>            :     SkASSERT(!coveragePOI.isFourChannelOutput());
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 :     bool conflatesCoverage = !coveragePOI.isSolidWhite() || hasMixedSamples;</span>
+<span class="lineNum">     331 </span><span class="lineNoCov">          0 :     return gBlendTable[colorPOI.isOpaque()][conflatesCoverage][xfermode];</span>
+<span class="lineNum">     332 </span>            : }
+<span class="lineNum">     333 </span>            : 
+<span class="lineNum">     334 </span>            : static BlendFormula get_lcd_blend_formula(const GrProcOptInfo&amp; coveragePOI,
+<span class="lineNum">     335 </span>            :                                           SkXfermode::Mode xfermode) {
+<span class="lineNum">     336 </span>            :     SkASSERT(xfermode &gt;= 0 &amp;&amp; xfermode &lt;= SkXfermode::kLastCoeffMode);
+<span class="lineNum">     337 </span>            :     SkASSERT(coveragePOI.isFourChannelOutput());
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 :     return gLCDBlendTable[xfermode];</span>
+<span class="lineNum">     340 </span>            : }
+<span class="lineNum">     341 </span>            : 
+<a name="342"><span class="lineNum">     342 </span>            : ///////////////////////////////////////////////////////////////////////////////</a>
+<span class="lineNum">     343 </span>            : 
+<a name="344"><span class="lineNum">     344 </span><span class="lineNoCov">          0 : class PorterDuffXferProcessor : public GrXferProcessor {</span></a>
+<span class="lineNum">     345 </span>            : public:
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :     PorterDuffXferProcessor(BlendFormula blendFormula) : fBlendFormula(blendFormula) {</span>
+<span class="lineNum">     347 </span><span class="lineNoCov">          0 :         this-&gt;initClassID&lt;PorterDuffXferProcessor&gt;();</span>
+<a name="348"><span class="lineNum">     348 </span><span class="lineNoCov">          0 :     }</span></a>
+<span class="lineNum">     349 </span>            : 
+<span class="lineNum">     350 </span><span class="lineNoCov">          0 :     const char* name() const override { return &quot;Porter Duff&quot;; }</span>
+<span class="lineNum">     351 </span>            : 
+<span class="lineNum">     352 </span>            :     GrGLSLXferProcessor* createGLSLInstance() const override;
+<span class="lineNum">     353 </span>            : 
+<span class="lineNum">     354 </span><span class="lineNoCov">          0 :     BlendFormula getBlendFormula() const { return fBlendFormula; }</span>
+<span class="lineNum">     355 </span>            : 
+<span class="lineNum">     356 </span>            : private:
+<span class="lineNum">     357 </span>            :     GrXferProcessor::OptFlags onGetOptimizations(const GrPipelineOptimizations&amp; optimizations,
+<span class="lineNum">     358 </span>            :                                                  bool doesStencilWrite,
+<span class="lineNum">     359 </span>            :                                                  GrColor* overrideColor,
+<span class="lineNum">     360 </span>            :                                                  const GrCaps&amp; caps) const override;
+<span class="lineNum">     361 </span>            : 
+<a name="362"><span class="lineNum">     362 </span>            :     void onGetGLSLProcessorKey(const GrGLSLCaps&amp; caps, GrProcessorKeyBuilder* b) const override;</a>
+<span class="lineNum">     363 </span>            : 
+<a name="364"><span class="lineNum">     364 </span><span class="lineNoCov">          0 :     bool onHasSecondaryOutput() const override { return fBlendFormula.hasSecondaryOutput(); }</span></a>
+<span class="lineNum">     365 </span>            : 
+<span class="lineNum">     366 </span><span class="lineNoCov">          0 :     void onGetBlendInfo(GrXferProcessor::BlendInfo* blendInfo) const override {</span>
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 :         blendInfo-&gt;fEquation = fBlendFormula.fBlendEquation;</span>
+<span class="lineNum">     368 </span><span class="lineNoCov">          0 :         blendInfo-&gt;fSrcBlend = fBlendFormula.fSrcCoeff;</span>
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :         blendInfo-&gt;fDstBlend = fBlendFormula.fDstCoeff;</span>
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :         blendInfo-&gt;fWriteColor = fBlendFormula.modifiesDst();</span>
+<a name="371"><span class="lineNum">     371 </span><span class="lineNoCov">          0 :     }</span></a>
+<span class="lineNum">     372 </span>            : 
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :     bool onIsEqual(const GrXferProcessor&amp; xpBase) const override {</span>
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :         const PorterDuffXferProcessor&amp; xp = xpBase.cast&lt;PorterDuffXferProcessor&gt;();</span>
+<span class="lineNum">     375 </span><span class="lineNoCov">          0 :         return fBlendFormula == xp.fBlendFormula;</span>
+<span class="lineNum">     376 </span>            :     }
+<span class="lineNum">     377 </span>            : 
+<span class="lineNum">     378 </span>            :     const BlendFormula fBlendFormula;
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span>            :     typedef GrXferProcessor INHERITED;
+<span class="lineNum">     381 </span>            : };
+<span class="lineNum">     382 </span>            : 
+<a name="383"><span class="lineNum">     383 </span>            : ///////////////////////////////////////////////////////////////////////////////</a>
+<span class="lineNum">     384 </span>            : 
+<span class="lineNum">     385 </span><span class="lineNoCov">          0 : static void append_color_output(const PorterDuffXferProcessor&amp; xp,</span>
+<span class="lineNum">     386 </span>            :                                 GrGLSLXPFragmentBuilder* fragBuilder,
+<span class="lineNum">     387 </span>            :                                 BlendFormula::OutputType outputType, const char* output,
+<span class="lineNum">     388 </span>            :                                 const char* inColor, const char* inCoverage) {
+<span class="lineNum">     389 </span><span class="lineNoCov">          0 :     switch (outputType) {</span>
+<span class="lineNum">     390 </span>            :         case BlendFormula::kNone_OutputType:
+<span class="lineNum">     391 </span><span class="lineNoCov">          0 :             fragBuilder-&gt;codeAppendf(&quot;%s = vec4(0.0);&quot;, output);</span>
+<span class="lineNum">     392 </span>            :             break;
+<span class="lineNum">     393 </span>            :         case BlendFormula::kCoverage_OutputType:
+<span class="lineNum">     394 </span>            :             // We can have a coverage formula while not reading coverage if there are mixed samples.
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 :             if (inCoverage) {</span>
+<span class="lineNum">     396 </span><span class="lineNoCov">          0 :                 fragBuilder-&gt;codeAppendf(&quot;%s = %s;&quot;, output, inCoverage);</span>
+<span class="lineNum">     397 </span>            :             } else {
+<span class="lineNum">     398 </span><span class="lineNoCov">          0 :                 fragBuilder-&gt;codeAppendf(&quot;%s = vec4(1.0);&quot;, output);</span>
+<span class="lineNum">     399 </span>            :             }
+<span class="lineNum">     400 </span>            :             break;
+<span class="lineNum">     401 </span>            :         case BlendFormula::kModulate_OutputType:
+<span class="lineNum">     402 </span><span class="lineNoCov">          0 :             if (inCoverage) {</span>
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :                 fragBuilder-&gt;codeAppendf(&quot;%s = %s * %s;&quot;, output, inColor, inCoverage);</span>
+<span class="lineNum">     404 </span>            :             } else {
+<span class="lineNum">     405 </span><span class="lineNoCov">          0 :                 fragBuilder-&gt;codeAppendf(&quot;%s = %s;&quot;, output, inColor);</span>
+<span class="lineNum">     406 </span>            :             }
+<span class="lineNum">     407 </span>            :             break;
+<span class="lineNum">     408 </span>            :         case BlendFormula::kSAModulate_OutputType:
+<span class="lineNum">     409 </span><span class="lineNoCov">          0 :             if (inCoverage) {</span>
+<span class="lineNum">     410 </span><span class="lineNoCov">          0 :                 fragBuilder-&gt;codeAppendf(&quot;%s = %s.a * %s;&quot;, output, inColor, inCoverage);</span>
+<span class="lineNum">     411 </span>            :             } else {
+<span class="lineNum">     412 </span><span class="lineNoCov">          0 :                 fragBuilder-&gt;codeAppendf(&quot;%s = %s;&quot;, output, inColor);</span>
+<span class="lineNum">     413 </span>            :             }
+<span class="lineNum">     414 </span>            :             break;
+<span class="lineNum">     415 </span>            :         case BlendFormula::kISAModulate_OutputType:
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :             if (inCoverage) {</span>
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :                 fragBuilder-&gt;codeAppendf(&quot;%s = (1.0 - %s.a) * %s;&quot;, output, inColor, inCoverage);</span>
+<span class="lineNum">     418 </span>            :             } else {
+<span class="lineNum">     419 </span><span class="lineNoCov">          0 :                 fragBuilder-&gt;codeAppendf(&quot;%s = vec4(1.0 - %s.a);&quot;, output, inColor);</span>
+<span class="lineNum">     420 </span>            :             }
+<span class="lineNum">     421 </span>            :             break;
+<span class="lineNum">     422 </span>            :         case BlendFormula::kISCModulate_OutputType:
+<span class="lineNum">     423 </span><span class="lineNoCov">          0 :             if (inCoverage) {</span>
+<span class="lineNum">     424 </span><span class="lineNoCov">          0 :                 fragBuilder-&gt;codeAppendf(&quot;%s = (vec4(1.0) - %s) * %s;&quot;, output, inColor, inCoverage);</span>
+<span class="lineNum">     425 </span>            :             } else {
+<span class="lineNum">     426 </span><span class="lineNoCov">          0 :                 fragBuilder-&gt;codeAppendf(&quot;%s = vec4(1.0) - %s;&quot;, output, inColor);</span>
+<span class="lineNum">     427 </span>            :             }
+<span class="lineNum">     428 </span>            :             break;
+<span class="lineNum">     429 </span>            :         default:
+<span class="lineNum">     430 </span><span class="lineNoCov">          0 :             SkFAIL(&quot;Unsupported output type.&quot;);</span>
+<span class="lineNum">     431 </span>            :             break;
+<span class="lineNum">     432 </span>            :     }
+<a name="433"><span class="lineNum">     433 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     434 </span>            : 
+<a name="435"><span class="lineNum">     435 </span><span class="lineNoCov">          0 : class GLPorterDuffXferProcessor : public GrGLSLXferProcessor {</span></a>
+<span class="lineNum">     436 </span>            : public:
+<span class="lineNum">     437 </span><span class="lineNoCov">          0 :     static void GenKey(const GrProcessor&amp; processor, GrProcessorKeyBuilder* b) {</span>
+<span class="lineNum">     438 </span><span class="lineNoCov">          0 :         const PorterDuffXferProcessor&amp; xp = processor.cast&lt;PorterDuffXferProcessor&gt;();</span>
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :         b-&gt;add32(xp.getBlendFormula().fPrimaryOutputType |</span>
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :                  (xp.getBlendFormula().fSecondaryOutputType &lt;&lt; 3));</span>
+<span class="lineNum">     441 </span>            :         GR_STATIC_ASSERT(BlendFormula::kLast_OutputType &lt; 8);
+<span class="lineNum">     442 </span><span class="lineNoCov">          0 :     }</span>
+<a name="443"><span class="lineNum">     443 </span>            : </a>
+<span class="lineNum">     444 </span>            : private:
+<span class="lineNum">     445 </span><span class="lineNoCov">          0 :     void emitOutputsForBlendState(const EmitArgs&amp; args) override {</span>
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :         const PorterDuffXferProcessor&amp; xp = args.fXP.cast&lt;PorterDuffXferProcessor&gt;();</span>
+<span class="lineNum">     447 </span><span class="lineNoCov">          0 :         GrGLSLXPFragmentBuilder* fragBuilder = args.fXPFragBuilder;</span>
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span><span class="lineNoCov">          0 :         BlendFormula blendFormula = xp.getBlendFormula();</span>
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 :         if (blendFormula.hasSecondaryOutput()) {</span>
+<span class="lineNum">     451 </span>            :             append_color_output(xp, fragBuilder, blendFormula.fSecondaryOutputType,
+<span class="lineNum">     452 </span><span class="lineNoCov">          0 :                                 args.fOutputSecondary, args.fInputColor, args.fInputCoverage);</span>
+<span class="lineNum">     453 </span>            :         }
+<span class="lineNum">     454 </span>            :         append_color_output(xp, fragBuilder, blendFormula.fPrimaryOutputType,
+<span class="lineNum">     455 </span><span class="lineNoCov">          0 :                             args.fOutputPrimary, args.fInputColor, args.fInputCoverage);</span>
+<a name="456"><span class="lineNum">     456 </span><span class="lineNoCov">          0 :     }</span></a>
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span><span class="lineNoCov">          0 :     void onSetData(const GrGLSLProgramDataManager&amp;, const GrXferProcessor&amp;) override {}</span>
+<span class="lineNum">     459 </span>            : 
+<span class="lineNum">     460 </span>            :     typedef GrGLSLXferProcessor INHERITED;
+<span class="lineNum">     461 </span>            : };
+<span class="lineNum">     462 </span>            : 
+<a name="463"><span class="lineNum">     463 </span>            : ///////////////////////////////////////////////////////////////////////////////</a>
+<span class="lineNum">     464 </span>            : 
+<span class="lineNum">     465 </span><span class="lineNoCov">          0 : void PorterDuffXferProcessor::onGetGLSLProcessorKey(const GrGLSLCaps&amp;,</span>
+<span class="lineNum">     466 </span>            :                                                     GrProcessorKeyBuilder* b) const {
+<span class="lineNum">     467 </span><span class="lineNoCov">          0 :     GLPorterDuffXferProcessor::GenKey(*this, b);</span>
+<a name="468"><span class="lineNum">     468 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     469 </span>            : 
+<span class="lineNum">     470 </span><span class="lineNoCov">          0 : GrGLSLXferProcessor* PorterDuffXferProcessor::createGLSLInstance() const {</span>
+<span class="lineNum">     471 </span><span class="lineNoCov">          0 :     return new GLPorterDuffXferProcessor;</span>
+<span class="lineNum">     472 </span>            : }
+<a name="473"><span class="lineNum">     473 </span>            : </a>
+<span class="lineNum">     474 </span>            : GrXferProcessor::OptFlags
+<span class="lineNum">     475 </span><span class="lineNoCov">          0 : PorterDuffXferProcessor::onGetOptimizations(const GrPipelineOptimizations&amp; optimizations,</span>
+<span class="lineNum">     476 </span>            :                                             bool doesStencilWrite,
+<span class="lineNum">     477 </span>            :                                             GrColor* overrideColor,
+<span class="lineNum">     478 </span>            :                                             const GrCaps&amp; caps) const {
+<span class="lineNum">     479 </span><span class="lineNoCov">          0 :     GrXferProcessor::OptFlags optFlags = GrXferProcessor::kNone_OptFlags;</span>
+<span class="lineNum">     480 </span><span class="lineNoCov">          0 :     if (!fBlendFormula.modifiesDst()) {</span>
+<span class="lineNum">     481 </span><span class="lineNoCov">          0 :         if (!doesStencilWrite) {</span>
+<span class="lineNum">     482 </span>            :             optFlags |= GrXferProcessor::kSkipDraw_OptFlag;
+<span class="lineNum">     483 </span>            :         }
+<span class="lineNum">     484 </span><span class="lineNoCov">          0 :         optFlags |= (GrXferProcessor::kIgnoreColor_OptFlag |</span>
+<span class="lineNum">     485 </span>            :                      GrXferProcessor::kIgnoreCoverage_OptFlag |
+<span class="lineNum">     486 </span>            :                      GrXferProcessor::kCanTweakAlphaForCoverage_OptFlag);
+<span class="lineNum">     487 </span>            :     } else {
+<span class="lineNum">     488 </span><span class="lineNoCov">          0 :         if (!fBlendFormula.usesInputColor()) {</span>
+<span class="lineNum">     489 </span>            :             optFlags |= GrXferProcessor::kIgnoreColor_OptFlag;
+<span class="lineNum">     490 </span>            :         }
+<span class="lineNum">     491 </span><span class="lineNoCov">          0 :         if (optimizations.fCoveragePOI.isSolidWhite()) {</span>
+<span class="lineNum">     492 </span>            :             optFlags |= GrXferProcessor::kIgnoreCoverage_OptFlag;
+<span class="lineNum">     493 </span>            :         }
+<span class="lineNum">     494 </span><span class="lineNoCov">          0 :         if (optimizations.fColorPOI.allStagesMultiplyInput() &amp;&amp;</span>
+<span class="lineNum">     495 </span><span class="lineNoCov">          0 :             fBlendFormula.canTweakAlphaForCoverage() &amp;&amp;</span>
+<span class="lineNum">     496 </span><span class="lineNoCov">          0 :             !optimizations.fCoveragePOI.isFourChannelOutput()) {</span>
+<span class="lineNum">     497 </span>            :             optFlags |= GrXferProcessor::kCanTweakAlphaForCoverage_OptFlag;
+<span class="lineNum">     498 </span>            :         }
+<span class="lineNum">     499 </span>            :     }
+<span class="lineNum">     500 </span><span class="lineNoCov">          0 :     return optFlags;</span>
+<span class="lineNum">     501 </span>            : }
+<span class="lineNum">     502 </span>            : 
+<a name="503"><span class="lineNum">     503 </span>            : ///////////////////////////////////////////////////////////////////////////////</a>
+<span class="lineNum">     504 </span>            : 
+<a name="505"><span class="lineNum">     505 </span><span class="lineNoCov">          0 : class ShaderPDXferProcessor : public GrXferProcessor {</span></a>
+<span class="lineNum">     506 </span>            : public:
+<span class="lineNum">     507 </span><span class="lineNoCov">          0 :     ShaderPDXferProcessor(const DstTexture* dstTexture,</span>
+<span class="lineNum">     508 </span>            :                           bool hasMixedSamples,
+<span class="lineNum">     509 </span>            :                           SkXfermode::Mode xfermode)
+<span class="lineNum">     510 </span>            :         : INHERITED(dstTexture, true, hasMixedSamples)
+<span class="lineNum">     511 </span><span class="lineNoCov">          0 :         , fXfermode(xfermode) {</span>
+<span class="lineNum">     512 </span><span class="lineNoCov">          0 :         this-&gt;initClassID&lt;ShaderPDXferProcessor&gt;();</span>
+<a name="513"><span class="lineNum">     513 </span><span class="lineNoCov">          0 :     }</span></a>
+<span class="lineNum">     514 </span>            : 
+<span class="lineNum">     515 </span><span class="lineNoCov">          0 :     const char* name() const override { return &quot;Porter Duff Shader&quot;; }</span>
+<span class="lineNum">     516 </span>            : 
+<span class="lineNum">     517 </span>            :     GrGLSLXferProcessor* createGLSLInstance() const override;
+<span class="lineNum">     518 </span>            : 
+<span class="lineNum">     519 </span>            :     SkXfermode::Mode getXfermode() const { return fXfermode; }
+<a name="520"><span class="lineNum">     520 </span>            : </a>
+<span class="lineNum">     521 </span>            : private:
+<span class="lineNum">     522 </span><span class="lineNoCov">          0 :     GrXferProcessor::OptFlags onGetOptimizations(const GrPipelineOptimizations&amp;, bool, GrColor*,</span>
+<span class="lineNum">     523 </span>            :                                                  const GrCaps&amp;) const override {
+<span class="lineNum">     524 </span><span class="lineNoCov">          0 :         return kNone_OptFlags;</span>
+<span class="lineNum">     525 </span>            :     }
+<span class="lineNum">     526 </span>            : 
+<a name="527"><span class="lineNum">     527 </span>            :     void onGetGLSLProcessorKey(const GrGLSLCaps&amp; caps, GrProcessorKeyBuilder* b) const override;</a>
+<span class="lineNum">     528 </span>            : 
+<span class="lineNum">     529 </span><span class="lineNoCov">          0 :     bool onIsEqual(const GrXferProcessor&amp; xpBase) const override {</span>
+<span class="lineNum">     530 </span><span class="lineNoCov">          0 :         const ShaderPDXferProcessor&amp; xp = xpBase.cast&lt;ShaderPDXferProcessor&gt;();</span>
+<span class="lineNum">     531 </span><span class="lineNoCov">          0 :         return fXfermode == xp.fXfermode;</span>
+<span class="lineNum">     532 </span>            :     }
+<span class="lineNum">     533 </span>            : 
+<span class="lineNum">     534 </span>            :     const SkXfermode::Mode fXfermode;
+<span class="lineNum">     535 </span>            : 
+<span class="lineNum">     536 </span>            :     typedef GrXferProcessor INHERITED;
+<span class="lineNum">     537 </span>            : };
+<span class="lineNum">     538 </span>            : 
+<a name="539"><span class="lineNum">     539 </span>            : ///////////////////////////////////////////////////////////////////////////////</a>
+<span class="lineNum">     540 </span>            : 
+<a name="541"><span class="lineNum">     541 </span><span class="lineNoCov">          0 : class GLShaderPDXferProcessor : public GrGLSLXferProcessor {</span></a>
+<span class="lineNum">     542 </span>            : public:
+<span class="lineNum">     543 </span><span class="lineNoCov">          0 :     static void GenKey(const GrProcessor&amp; processor, GrProcessorKeyBuilder* b) {</span>
+<span class="lineNum">     544 </span><span class="lineNoCov">          0 :         const ShaderPDXferProcessor&amp; xp = processor.cast&lt;ShaderPDXferProcessor&gt;();</span>
+<span class="lineNum">     545 </span><span class="lineNoCov">          0 :         b-&gt;add32(xp.getXfermode());</span>
+<span class="lineNum">     546 </span><span class="lineNoCov">          0 :     }</span>
+<a name="547"><span class="lineNum">     547 </span>            : </a>
+<span class="lineNum">     548 </span>            : private:
+<span class="lineNum">     549 </span><span class="lineNoCov">          0 :     void emitBlendCodeForDstRead(GrGLSLXPFragmentBuilder* fragBuilder,</span>
+<span class="lineNum">     550 </span>            :                                  GrGLSLUniformHandler* uniformHandler,
+<span class="lineNum">     551 </span>            :                                  const char* srcColor,
+<span class="lineNum">     552 </span>            :                                  const char* srcCoverage,
+<span class="lineNum">     553 </span>            :                                  const char* dstColor,
+<span class="lineNum">     554 </span>            :                                  const char* outColor,
+<span class="lineNum">     555 </span>            :                                  const char* outColorSecondary,
+<span class="lineNum">     556 </span>            :                                  const GrXferProcessor&amp; proc) override {
+<span class="lineNum">     557 </span><span class="lineNoCov">          0 :         const ShaderPDXferProcessor&amp; xp = proc.cast&lt;ShaderPDXferProcessor&gt;();</span>
+<span class="lineNum">     558 </span>            : 
+<span class="lineNum">     559 </span><span class="lineNoCov">          0 :         GrGLSLBlend::AppendMode(fragBuilder, srcColor, dstColor, outColor, xp.getXfermode());</span>
+<span class="lineNum">     560 </span>            : 
+<span class="lineNum">     561 </span>            :         // Apply coverage.
+<span class="lineNum">     562 </span>            :         INHERITED::DefaultCoverageModulation(fragBuilder, srcCoverage, dstColor, outColor,
+<span class="lineNum">     563 </span><span class="lineNoCov">          0 :                                              outColorSecondary, xp);</span>
+<a name="564"><span class="lineNum">     564 </span><span class="lineNoCov">          0 :     }</span></a>
+<span class="lineNum">     565 </span>            : 
+<span class="lineNum">     566 </span><span class="lineNoCov">          0 :     void onSetData(const GrGLSLProgramDataManager&amp;, const GrXferProcessor&amp;) override {}</span>
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span>            :     typedef GrGLSLXferProcessor INHERITED;
+<span class="lineNum">     569 </span>            : };
+<span class="lineNum">     570 </span>            : 
+<a name="571"><span class="lineNum">     571 </span>            : ///////////////////////////////////////////////////////////////////////////////</a>
+<span class="lineNum">     572 </span>            : 
+<span class="lineNum">     573 </span><span class="lineNoCov">          0 : void ShaderPDXferProcessor::onGetGLSLProcessorKey(const GrGLSLCaps&amp;,</span>
+<span class="lineNum">     574 </span>            :                                                   GrProcessorKeyBuilder* b) const {
+<span class="lineNum">     575 </span><span class="lineNoCov">          0 :     GLShaderPDXferProcessor::GenKey(*this, b);</span>
+<a name="576"><span class="lineNum">     576 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span><span class="lineNoCov">          0 : GrGLSLXferProcessor* ShaderPDXferProcessor::createGLSLInstance() const {</span>
+<span class="lineNum">     579 </span><span class="lineNoCov">          0 :     return new GLShaderPDXferProcessor;</span>
+<span class="lineNum">     580 </span>            : }
+<span class="lineNum">     581 </span>            : 
+<span class="lineNum">     582 </span>            : ///////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">     583 </span>            : 
+<span class="lineNum">     584 </span>            : class PDLCDXferProcessor : public GrXferProcessor {
+<span class="lineNum">     585 </span>            : public:
+<span class="lineNum">     586 </span>            :     static GrXferProcessor* Create(SkXfermode::Mode xfermode, const GrProcOptInfo&amp; colorPOI);
+<span class="lineNum">     587 </span>            : 
+<a name="588"><span class="lineNum">     588 </span>            :     ~PDLCDXferProcessor() override;</a>
+<span class="lineNum">     589 </span>            : 
+<span class="lineNum">     590 </span><span class="lineNoCov">          0 :     const char* name() const override { return &quot;Porter Duff LCD&quot;; }</span>
+<span class="lineNum">     591 </span>            : 
+<span class="lineNum">     592 </span>            :     GrGLSLXferProcessor* createGLSLInstance() const override;
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span>            : private:
+<span class="lineNum">     595 </span>            :     PDLCDXferProcessor(GrColor blendConstant, uint8_t alpha);
+<span class="lineNum">     596 </span>            : 
+<span class="lineNum">     597 </span>            :     GrXferProcessor::OptFlags onGetOptimizations(const GrPipelineOptimizations&amp; optimizations,
+<span class="lineNum">     598 </span>            :                                                  bool doesStencilWrite,
+<span class="lineNum">     599 </span>            :                                                  GrColor* overrideColor,
+<span class="lineNum">     600 </span>            :                                                  const GrCaps&amp; caps) const override;
+<span class="lineNum">     601 </span>            : 
+<a name="602"><span class="lineNum">     602 </span>            :     void onGetGLSLProcessorKey(const GrGLSLCaps&amp; caps, GrProcessorKeyBuilder* b) const override;</a>
+<span class="lineNum">     603 </span>            : 
+<span class="lineNum">     604 </span><span class="lineNoCov">          0 :     void onGetBlendInfo(GrXferProcessor::BlendInfo* blendInfo) const override {</span>
+<span class="lineNum">     605 </span><span class="lineNoCov">          0 :         blendInfo-&gt;fSrcBlend = kConstC_GrBlendCoeff;</span>
+<span class="lineNum">     606 </span><span class="lineNoCov">          0 :         blendInfo-&gt;fDstBlend = kISC_GrBlendCoeff;</span>
+<span class="lineNum">     607 </span><span class="lineNoCov">          0 :         blendInfo-&gt;fBlendConstant = fBlendConstant;</span>
+<a name="608"><span class="lineNum">     608 </span><span class="lineNoCov">          0 :     }</span></a>
+<span class="lineNum">     609 </span>            : 
+<span class="lineNum">     610 </span><span class="lineNoCov">          0 :     bool onIsEqual(const GrXferProcessor&amp; xpBase) const override {</span>
+<span class="lineNum">     611 </span><span class="lineNoCov">          0 :         const PDLCDXferProcessor&amp; xp = xpBase.cast&lt;PDLCDXferProcessor&gt;();</span>
+<span class="lineNum">     612 </span><span class="lineNoCov">          0 :         if (fBlendConstant != xp.fBlendConstant ||</span>
+<span class="lineNum">     613 </span>            :             fAlpha != xp.fAlpha) {
+<span class="lineNum">     614 </span>            :             return false;
+<span class="lineNum">     615 </span>            :         }
+<span class="lineNum">     616 </span><span class="lineNoCov">          0 :         return true;</span>
+<span class="lineNum">     617 </span>            :     }
+<span class="lineNum">     618 </span>            : 
+<span class="lineNum">     619 </span>            :     GrColor      fBlendConstant;
+<span class="lineNum">     620 </span>            :     uint8_t      fAlpha;
+<span class="lineNum">     621 </span>            : 
+<span class="lineNum">     622 </span>            :     typedef GrXferProcessor INHERITED;
+<span class="lineNum">     623 </span>            : };
+<span class="lineNum">     624 </span>            : 
+<span class="lineNum">     625 </span>            : ///////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">     626 </span>            : 
+<span class="lineNum">     627 </span>            : class GLPDLCDXferProcessor : public GrGLSLXferProcessor {
+<span class="lineNum">     628 </span>            : public:
+<a name="629"><span class="lineNum">     629 </span><span class="lineNoCov">          0 :     GLPDLCDXferProcessor(const GrProcessor&amp;) {}</span></a>
+<span class="lineNum">     630 </span>            : 
+<span class="lineNum">     631 </span><span class="lineNoCov">          0 :     virtual ~GLPDLCDXferProcessor() {}</span>
+<span class="lineNum">     632 </span>            : 
+<span class="lineNum">     633 </span>            :     static void GenKey(const GrProcessor&amp; processor, const GrGLSLCaps&amp; caps,
+<span class="lineNum">     634 </span>            :                        GrProcessorKeyBuilder* b) {}
+<a name="635"><span class="lineNum">     635 </span>            : </a>
+<span class="lineNum">     636 </span>            : private:
+<span class="lineNum">     637 </span><span class="lineNoCov">          0 :     void emitOutputsForBlendState(const EmitArgs&amp; args) override {</span>
+<span class="lineNum">     638 </span><span class="lineNoCov">          0 :         GrGLSLXPFragmentBuilder* fragBuilder = args.fXPFragBuilder;</span>
+<span class="lineNum">     639 </span>            :         SkASSERT(args.fInputCoverage);
+<span class="lineNum">     640 </span>            :         fragBuilder-&gt;codeAppendf(&quot;%s = %s * %s;&quot;, args.fOutputPrimary, args.fInputColor,
+<span class="lineNum">     641 </span><span class="lineNoCov">          0 :                                  args.fInputCoverage);</span>
+<a name="642"><span class="lineNum">     642 </span><span class="lineNoCov">          0 :     }</span></a>
+<span class="lineNum">     643 </span>            : 
+<span class="lineNum">     644 </span><span class="lineNoCov">          0 :     void onSetData(const GrGLSLProgramDataManager&amp;, const GrXferProcessor&amp;) override {}</span>
+<span class="lineNum">     645 </span>            : 
+<span class="lineNum">     646 </span>            :     typedef GrGLSLXferProcessor INHERITED;
+<span class="lineNum">     647 </span>            : };
+<span class="lineNum">     648 </span>            : 
+<a name="649"><span class="lineNum">     649 </span>            : ///////////////////////////////////////////////////////////////////////////////</a>
+<span class="lineNum">     650 </span>            : 
+<span class="lineNum">     651 </span><span class="lineNoCov">          0 : PDLCDXferProcessor::PDLCDXferProcessor(GrColor blendConstant, uint8_t alpha)</span>
+<span class="lineNum">     652 </span>            :     : fBlendConstant(blendConstant)
+<span class="lineNum">     653 </span><span class="lineNoCov">          0 :     , fAlpha(alpha) {</span>
+<span class="lineNum">     654 </span><span class="lineNoCov">          0 :     this-&gt;initClassID&lt;PDLCDXferProcessor&gt;();</span>
+<a name="655"><span class="lineNum">     655 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     656 </span>            : 
+<span class="lineNum">     657 </span><span class="lineNoCov">          0 : GrXferProcessor* PDLCDXferProcessor::Create(SkXfermode::Mode xfermode,</span>
+<span class="lineNum">     658 </span>            :                                             const GrProcOptInfo&amp; colorPOI) {
+<span class="lineNum">     659 </span><span class="lineNoCov">          0 :     if (SkXfermode::kSrcOver_Mode != xfermode) {</span>
+<span class="lineNum">     660 </span>            :         return nullptr;
+<span class="lineNum">     661 </span>            :     }
+<span class="lineNum">     662 </span>            : 
+<span class="lineNum">     663 </span><span class="lineNoCov">          0 :     if (kRGBA_GrColorComponentFlags != colorPOI.validFlags()) {</span>
+<span class="lineNum">     664 </span>            :         return nullptr;
+<span class="lineNum">     665 </span>            :     }
+<span class="lineNum">     666 </span>            : 
+<span class="lineNum">     667 </span><span class="lineNoCov">          0 :     GrColor blendConstant = GrUnpremulColor(colorPOI.color());</span>
+<span class="lineNum">     668 </span><span class="lineNoCov">          0 :     uint8_t alpha = GrColorUnpackA(blendConstant);</span>
+<span class="lineNum">     669 </span><span class="lineNoCov">          0 :     blendConstant |= (0xff &lt;&lt; GrColor_SHIFT_A);</span>
+<span class="lineNum">     670 </span>            : 
+<span class="lineNum">     671 </span><span class="lineNoCov">          0 :     return new PDLCDXferProcessor(blendConstant, alpha);</span>
+<a name="672"><span class="lineNum">     672 </span>            : }</a>
+<span class="lineNum">     673 </span>            : 
+<span class="lineNum">     674 </span><span class="lineNoCov">          0 : PDLCDXferProcessor::~PDLCDXferProcessor() {</span>
+<a name="675"><span class="lineNum">     675 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     676 </span>            : 
+<span class="lineNum">     677 </span><span class="lineNoCov">          0 : void PDLCDXferProcessor::onGetGLSLProcessorKey(const GrGLSLCaps&amp; caps,</span>
+<span class="lineNum">     678 </span>            :                                                GrProcessorKeyBuilder* b) const {
+<span class="lineNum">     679 </span><span class="lineNoCov">          0 :     GLPDLCDXferProcessor::GenKey(*this, caps, b);</span>
+<a name="680"><span class="lineNum">     680 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     681 </span>            : 
+<span class="lineNum">     682 </span><span class="lineNoCov">          0 : GrGLSLXferProcessor* PDLCDXferProcessor::createGLSLInstance() const {</span>
+<span class="lineNum">     683 </span><span class="lineNoCov">          0 :     return new GLPDLCDXferProcessor(*this);</span>
+<span class="lineNum">     684 </span>            : }
+<a name="685"><span class="lineNum">     685 </span>            : </a>
+<span class="lineNum">     686 </span>            : GrXferProcessor::OptFlags
+<span class="lineNum">     687 </span><span class="lineNoCov">          0 : PDLCDXferProcessor::onGetOptimizations(const GrPipelineOptimizations&amp; optimizations,</span>
+<span class="lineNum">     688 </span>            :                                        bool doesStencilWrite,
+<span class="lineNum">     689 </span>            :                                        GrColor* overrideColor,
+<span class="lineNum">     690 </span>            :                                        const GrCaps&amp; caps) const {
+<span class="lineNum">     691 </span>            :         // We want to force our primary output to be alpha * Coverage, where alpha is the alpha
+<span class="lineNum">     692 </span>            :         // value of the blend the constant. We should already have valid blend coeff's if we are at
+<span class="lineNum">     693 </span>            :         // a point where we have RGB coverage. We don't need any color stages since the known color
+<span class="lineNum">     694 </span>            :         // output is already baked into the blendConstant.
+<span class="lineNum">     695 </span><span class="lineNoCov">          0 :         *overrideColor = GrColorPackRGBA(fAlpha, fAlpha, fAlpha, fAlpha);</span>
+<span class="lineNum">     696 </span><span class="lineNoCov">          0 :         return GrXferProcessor::kOverrideColor_OptFlag;</span>
+<span class="lineNum">     697 </span>            : }
+<span class="lineNum">     698 </span>            : 
+<a name="699"><span class="lineNum">     699 </span>            : ///////////////////////////////////////////////////////////////////////////////</a>
+<span class="lineNum">     700 </span>            : 
+<span class="lineNum">     701 </span><span class="lineNoCov">          0 : GrPorterDuffXPFactory::GrPorterDuffXPFactory(SkXfermode::Mode xfermode)</span>
+<span class="lineNum">     702 </span><span class="lineNoCov">          0 :     : fXfermode(xfermode) {</span>
+<span class="lineNum">     703 </span>            :     SkASSERT(fXfermode &lt;= SkXfermode::kLastCoeffMode);
+<span class="lineNum">     704 </span><span class="lineNoCov">          0 :     this-&gt;initClassID&lt;GrPorterDuffXPFactory&gt;();</span>
+<a name="705"><span class="lineNum">     705 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     706 </span>            : 
+<span class="lineNum">     707 </span><span class="lineNoCov">          0 : sk_sp&lt;GrXPFactory&gt; GrPorterDuffXPFactory::Make(SkXfermode::Mode xfermode) {</span>
+<span class="lineNum">     708 </span><span class="lineNoCov">          0 :     static GrPorterDuffXPFactory gClearPDXPF(SkXfermode::kClear_Mode);</span>
+<span class="lineNum">     709 </span><span class="lineNoCov">          0 :     static GrPorterDuffXPFactory gSrcPDXPF(SkXfermode::kSrc_Mode);</span>
+<span class="lineNum">     710 </span><span class="lineNoCov">          0 :     static GrPorterDuffXPFactory gDstPDXPF(SkXfermode::kDst_Mode);</span>
+<span class="lineNum">     711 </span><span class="lineNoCov">          0 :     static GrPorterDuffXPFactory gSrcOverPDXPF(SkXfermode::kSrcOver_Mode);</span>
+<span class="lineNum">     712 </span><span class="lineNoCov">          0 :     static GrPorterDuffXPFactory gDstOverPDXPF(SkXfermode::kDstOver_Mode);</span>
+<span class="lineNum">     713 </span><span class="lineNoCov">          0 :     static GrPorterDuffXPFactory gSrcInPDXPF(SkXfermode::kSrcIn_Mode);</span>
+<span class="lineNum">     714 </span><span class="lineNoCov">          0 :     static GrPorterDuffXPFactory gDstInPDXPF(SkXfermode::kDstIn_Mode);</span>
+<span class="lineNum">     715 </span><span class="lineNoCov">          0 :     static GrPorterDuffXPFactory gSrcOutPDXPF(SkXfermode::kSrcOut_Mode);</span>
+<span class="lineNum">     716 </span><span class="lineNoCov">          0 :     static GrPorterDuffXPFactory gDstOutPDXPF(SkXfermode::kDstOut_Mode);</span>
+<span class="lineNum">     717 </span><span class="lineNoCov">          0 :     static GrPorterDuffXPFactory gSrcATopPDXPF(SkXfermode::kSrcATop_Mode);</span>
+<span class="lineNum">     718 </span><span class="lineNoCov">          0 :     static GrPorterDuffXPFactory gDstATopPDXPF(SkXfermode::kDstATop_Mode);</span>
+<span class="lineNum">     719 </span><span class="lineNoCov">          0 :     static GrPorterDuffXPFactory gXorPDXPF(SkXfermode::kXor_Mode);</span>
+<span class="lineNum">     720 </span><span class="lineNoCov">          0 :     static GrPorterDuffXPFactory gPlusPDXPF(SkXfermode::kPlus_Mode);</span>
+<span class="lineNum">     721 </span><span class="lineNoCov">          0 :     static GrPorterDuffXPFactory gModulatePDXPF(SkXfermode::kModulate_Mode);</span>
+<span class="lineNum">     722 </span><span class="lineNoCov">          0 :     static GrPorterDuffXPFactory gScreenPDXPF(SkXfermode::kScreen_Mode);</span>
+<span class="lineNum">     723 </span>            : 
+<span class="lineNum">     724 </span>            :     static GrPorterDuffXPFactory* gFactories[] = {
+<span class="lineNum">     725 </span>            :         &amp;gClearPDXPF, &amp;gSrcPDXPF, &amp;gDstPDXPF, &amp;gSrcOverPDXPF, &amp;gDstOverPDXPF, &amp;gSrcInPDXPF,
+<span class="lineNum">     726 </span>            :         &amp;gDstInPDXPF, &amp;gSrcOutPDXPF, &amp;gDstOutPDXPF, &amp;gSrcATopPDXPF, &amp;gDstATopPDXPF, &amp;gXorPDXPF,
+<span class="lineNum">     727 </span>            :         &amp;gPlusPDXPF, &amp;gModulatePDXPF, &amp;gScreenPDXPF
+<span class="lineNum">     728 </span>            :     };
+<span class="lineNum">     729 </span>            :     GR_STATIC_ASSERT(SK_ARRAY_COUNT(gFactories) == SkXfermode::kLastCoeffMode + 1);
+<span class="lineNum">     730 </span>            : 
+<span class="lineNum">     731 </span><span class="lineNoCov">          0 :     if (xfermode &lt; 0 || xfermode &gt; SkXfermode::kLastCoeffMode) {</span>
+<span class="lineNum">     732 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">     733 </span>            :     }
+<span class="lineNum">     734 </span><span class="lineNoCov">          0 :     return sk_sp&lt;GrXPFactory&gt;(SkRef(gFactories[xfermode]));</span>
+<span class="lineNum">     735 </span>            : }
+<a name="736"><span class="lineNum">     736 </span>            : </a>
+<span class="lineNum">     737 </span>            : GrXferProcessor*
+<span class="lineNum">     738 </span><span class="lineNoCov">          0 : GrPorterDuffXPFactory::onCreateXferProcessor(const GrCaps&amp; caps,</span>
+<span class="lineNum">     739 </span>            :                                              const GrPipelineOptimizations&amp; optimizations,
+<span class="lineNum">     740 </span>            :                                              bool hasMixedSamples,
+<span class="lineNum">     741 </span>            :                                              const DstTexture* dstTexture) const {
+<span class="lineNum">     742 </span><span class="lineNoCov">          0 :     if (optimizations.fOverrides.fUsePLSDstRead) {</span>
+<span class="lineNum">     743 </span><span class="lineNoCov">          0 :         return new ShaderPDXferProcessor(dstTexture, hasMixedSamples, fXfermode);</span>
+<span class="lineNum">     744 </span>            :     }
+<span class="lineNum">     745 </span>            :     BlendFormula blendFormula;
+<span class="lineNum">     746 </span><span class="lineNoCov">          0 :     if (optimizations.fCoveragePOI.isFourChannelOutput()) {</span>
+<span class="lineNum">     747 </span><span class="lineNoCov">          0 :         if (SkXfermode::kSrcOver_Mode == fXfermode &amp;&amp;</span>
+<span class="lineNum">     748 </span><span class="lineNoCov">          0 :             kRGBA_GrColorComponentFlags == optimizations.fColorPOI.validFlags() &amp;&amp;</span>
+<span class="lineNum">     749 </span><span class="lineNoCov">          0 :             !caps.shaderCaps()-&gt;dualSourceBlendingSupport() &amp;&amp;</span>
+<span class="lineNum">     750 </span><span class="lineNoCov">          0 :             !caps.shaderCaps()-&gt;dstReadInShaderSupport()) {</span>
+<span class="lineNum">     751 </span>            :             // If we don't have dual source blending or in shader dst reads, we fall back to this
+<span class="lineNum">     752 </span>            :             // trick for rendering SrcOver LCD text instead of doing a dst copy.
+<span class="lineNum">     753 </span>            :             SkASSERT(!dstTexture || !dstTexture-&gt;texture());
+<span class="lineNum">     754 </span><span class="lineNoCov">          0 :             return PDLCDXferProcessor::Create(fXfermode, optimizations.fColorPOI);</span>
+<span class="lineNum">     755 </span>            :         }
+<span class="lineNum">     756 </span><span class="lineNoCov">          0 :         blendFormula = get_lcd_blend_formula(optimizations.fCoveragePOI, fXfermode);</span>
+<span class="lineNum">     757 </span>            :     } else {
+<span class="lineNum">     758 </span><span class="lineNoCov">          0 :         blendFormula = get_blend_formula(optimizations.fColorPOI, optimizations.fCoveragePOI,</span>
+<span class="lineNum">     759 </span><span class="lineNoCov">          0 :                                          hasMixedSamples, fXfermode);</span>
+<span class="lineNum">     760 </span>            :     }
+<span class="lineNum">     761 </span>            : 
+<span class="lineNum">     762 </span><span class="lineNoCov">          0 :     if (blendFormula.hasSecondaryOutput() &amp;&amp; !caps.shaderCaps()-&gt;dualSourceBlendingSupport()) {</span>
+<span class="lineNum">     763 </span><span class="lineNoCov">          0 :         return new ShaderPDXferProcessor(dstTexture, hasMixedSamples, fXfermode);</span>
+<span class="lineNum">     764 </span>            :     }
+<span class="lineNum">     765 </span>            : 
+<span class="lineNum">     766 </span>            :     SkASSERT(!dstTexture || !dstTexture-&gt;texture());
+<span class="lineNum">     767 </span><span class="lineNoCov">          0 :     return new PorterDuffXferProcessor(blendFormula);</span>
+<a name="768"><span class="lineNum">     768 </span>            : }</a>
+<span class="lineNum">     769 </span>            : 
+<span class="lineNum">     770 </span><span class="lineNoCov">          0 : void GrPorterDuffXPFactory::getInvariantBlendedColor(const GrProcOptInfo&amp; colorPOI,</span>
+<span class="lineNum">     771 </span>            :                                                      InvariantBlendedColor* blendedColor) const {
+<span class="lineNum">     772 </span>            :     // Find the blended color info based on the formula that does not have coverage.
+<span class="lineNum">     773 </span><span class="lineNoCov">          0 :     BlendFormula colorFormula = gBlendTable[colorPOI.isOpaque()][0][fXfermode];</span>
+<span class="lineNum">     774 </span><span class="lineNoCov">          0 :     if (colorFormula.usesDstColor()) {</span>
+<span class="lineNum">     775 </span><span class="lineNoCov">          0 :         blendedColor-&gt;fWillBlendWithDst = true;</span>
+<span class="lineNum">     776 </span><span class="lineNoCov">          0 :         blendedColor-&gt;fKnownColorFlags = kNone_GrColorComponentFlags;</span>
+<span class="lineNum">     777 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     778 </span>            :     }
+<span class="lineNum">     779 </span>            : 
+<span class="lineNum">     780 </span><span class="lineNoCov">          0 :     blendedColor-&gt;fWillBlendWithDst = false;</span>
+<span class="lineNum">     781 </span>            : 
+<span class="lineNum">     782 </span>            :     SkASSERT(kAdd_GrBlendEquation == colorFormula.fBlendEquation);
+<span class="lineNum">     783 </span>            : 
+<span class="lineNum">     784 </span><span class="lineNoCov">          0 :     switch (colorFormula.fSrcCoeff) {</span>
+<span class="lineNum">     785 </span>            :         case kZero_GrBlendCoeff:
+<span class="lineNum">     786 </span><span class="lineNoCov">          0 :             blendedColor-&gt;fKnownColor = 0;</span>
+<span class="lineNum">     787 </span><span class="lineNoCov">          0 :             blendedColor-&gt;fKnownColorFlags = kRGBA_GrColorComponentFlags;</span>
+<span class="lineNum">     788 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">     789 </span>            : 
+<span class="lineNum">     790 </span>            :         case kOne_GrBlendCoeff:
+<span class="lineNum">     791 </span><span class="lineNoCov">          0 :             blendedColor-&gt;fKnownColor = colorPOI.color();</span>
+<span class="lineNum">     792 </span><span class="lineNoCov">          0 :             blendedColor-&gt;fKnownColorFlags = colorPOI.validFlags();</span>
+<span class="lineNum">     793 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">     794 </span>            : 
+<span class="lineNum">     795 </span>            :         default:
+<span class="lineNum">     796 </span><span class="lineNoCov">          0 :             blendedColor-&gt;fKnownColorFlags = kNone_GrColorComponentFlags;</span>
+<span class="lineNum">     797 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">     798 </span>            :     }
+<a name="799"><span class="lineNum">     799 </span>            : }</a>
+<span class="lineNum">     800 </span>            : 
+<span class="lineNum">     801 </span><span class="lineNoCov">          0 : bool GrPorterDuffXPFactory::onWillReadDstColor(const GrCaps&amp; caps,</span>
+<span class="lineNum">     802 </span>            :                                                const GrPipelineOptimizations&amp; optimizations) const {
+<span class="lineNum">     803 </span><span class="lineNoCov">          0 :     if (caps.shaderCaps()-&gt;dualSourceBlendingSupport()) {</span>
+<span class="lineNum">     804 </span>            :         return false;
+<span class="lineNum">     805 </span>            :     }
+<span class="lineNum">     806 </span>            : 
+<span class="lineNum">     807 </span>            :     // When we have four channel coverage we always need to read the dst in order to correctly
+<span class="lineNum">     808 </span>            :     // blend. The one exception is when we are using srcover mode and we know the input color into
+<span class="lineNum">     809 </span>            :     // the XP.
+<span class="lineNum">     810 </span><span class="lineNoCov">          0 :     if (optimizations.fCoveragePOI.isFourChannelOutput()) {</span>
+<span class="lineNum">     811 </span><span class="lineNoCov">          0 :         if (SkXfermode::kSrcOver_Mode == fXfermode &amp;&amp;</span>
+<span class="lineNum">     812 </span><span class="lineNoCov">          0 :             kRGBA_GrColorComponentFlags == optimizations.fColorPOI.validFlags() &amp;&amp;</span>
+<span class="lineNum">     813 </span><span class="lineNoCov">          0 :             !caps.shaderCaps()-&gt;dstReadInShaderSupport()) {</span>
+<span class="lineNum">     814 </span>            :             return false;
+<span class="lineNum">     815 </span>            :         }
+<span class="lineNum">     816 </span><span class="lineNoCov">          0 :         return get_lcd_blend_formula(optimizations.fCoveragePOI, fXfermode).hasSecondaryOutput();</span>
+<span class="lineNum">     817 </span>            :     }
+<span class="lineNum">     818 </span>            : 
+<span class="lineNum">     819 </span>            :     // We fallback on the shader XP when the blend formula would use dual source blending but we
+<span class="lineNum">     820 </span>            :     // don't have support for it.
+<span class="lineNum">     821 </span>            :     static const bool kHasMixedSamples = false;
+<span class="lineNum">     822 </span>            :     SkASSERT(!caps.usesMixedSamples()); // We never use mixed samples without dual source blending.
+<span class="lineNum">     823 </span>            :     return get_blend_formula(optimizations.fColorPOI, optimizations.fCoveragePOI, kHasMixedSamples,
+<span class="lineNum">     824 </span><span class="lineNoCov">          0 :                              fXfermode).hasSecondaryOutput();</span>
+<span class="lineNum">     825 </span>            : }
+<span class="lineNum">     826 </span>            : 
+<a name="827"><span class="lineNum">     827 </span>            : GR_DEFINE_XP_FACTORY_TEST(GrPorterDuffXPFactory);</a>
+<span class="lineNum">     828 </span>            : 
+<span class="lineNum">     829 </span><span class="lineNoCov">          0 : sk_sp&lt;GrXPFactory&gt; GrPorterDuffXPFactory::TestCreate(GrProcessorTestData* d) {</span>
+<span class="lineNum">     830 </span><span class="lineNoCov">          0 :     SkXfermode::Mode mode = SkXfermode::Mode(d-&gt;fRandom-&gt;nextULessThan(SkXfermode::kLastCoeffMode));</span>
+<span class="lineNum">     831 </span><span class="lineNoCov">          0 :     return GrPorterDuffXPFactory::Make(mode);</span>
+<a name="832"><span class="lineNum">     832 </span>            : }</a>
+<span class="lineNum">     833 </span>            : 
+<span class="lineNum">     834 </span><span class="lineNoCov">          0 : void GrPorterDuffXPFactory::TestGetXPOutputTypes(const GrXferProcessor* xp,</span>
+<span class="lineNum">     835 </span>            :                                                  int* outPrimary,
+<span class="lineNum">     836 </span>            :                                                  int* outSecondary) {
+<span class="lineNum">     837 </span><span class="lineNoCov">          0 :     if (!!strcmp(xp-&gt;name(), &quot;Porter Duff&quot;)) {</span>
+<span class="lineNum">     838 </span><span class="lineNoCov">          0 :         *outPrimary = *outSecondary = -1;</span>
+<span class="lineNum">     839 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">     840 </span>            :     }
+<span class="lineNum">     841 </span><span class="lineNoCov">          0 :     BlendFormula blendFormula = static_cast&lt;const PorterDuffXferProcessor*&gt;(xp)-&gt;getBlendFormula();</span>
+<span class="lineNum">     842 </span><span class="lineNoCov">          0 :     *outPrimary = blendFormula.fPrimaryOutputType;</span>
+<span class="lineNum">     843 </span><span class="lineNoCov">          0 :     *outSecondary = blendFormula.fSecondaryOutputType;</span>
+<span class="lineNum">     844 </span>            : }
+<span class="lineNum">     845 </span>            : 
+<span class="lineNum">     846 </span>            : 
+<span class="lineNum">     847 </span>            : ////////////////////////////////////////////////////////////////////////////////////////////////
+<a name="848"><span class="lineNum">     848 </span>            : // SrcOver Global functions</a>
+<span class="lineNum">     849 </span>            : ////////////////////////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">     850 </span><span class="lineNoCov">          0 : const GrXferProcessor&amp; GrPorterDuffXPFactory::SimpleSrcOverXP() {</span>
+<span class="lineNum">     851 </span>            :     static BlendFormula gSrcOverBlendFormula = COEFF_FORMULA(kOne_GrBlendCoeff,
+<span class="lineNum">     852 </span>            :                                                              kISA_GrBlendCoeff);
+<span class="lineNum">     853 </span><span class="lineNoCov">          0 :     static PorterDuffXferProcessor gSrcOverXP(gSrcOverBlendFormula);</span>
+<span class="lineNum">     854 </span><span class="lineNoCov">          0 :     return gSrcOverXP;</span>
+<a name="855"><span class="lineNum">     855 </span>            : }</a>
+<span class="lineNum">     856 </span>            : 
+<span class="lineNum">     857 </span><span class="lineNoCov">          0 : GrXferProcessor* GrPorterDuffXPFactory::CreateSrcOverXferProcessor(</span>
+<span class="lineNum">     858 </span>            :         const GrCaps&amp; caps,
+<span class="lineNum">     859 </span>            :         const GrPipelineOptimizations&amp; optimizations,
+<span class="lineNum">     860 </span>            :         bool hasMixedSamples,
+<span class="lineNum">     861 </span>            :         const GrXferProcessor::DstTexture* dstTexture) {
+<span class="lineNum">     862 </span><span class="lineNoCov">          0 :     if (optimizations.fOverrides.fUsePLSDstRead) {</span>
+<span class="lineNum">     863 </span><span class="lineNoCov">          0 :         return new ShaderPDXferProcessor(dstTexture, hasMixedSamples, SkXfermode::kSrcOver_Mode);</span>
+<span class="lineNum">     864 </span>            :     }
+<span class="lineNum">     865 </span>            : 
+<span class="lineNum">     866 </span>            :     // We want to not make an xfer processor if possible. Thus for the simple case where we are not
+<span class="lineNum">     867 </span>            :     // doing lcd blending we will just use our global SimpleSrcOverXP. This slightly differs from
+<span class="lineNum">     868 </span>            :     // the general case where we convert a src-over blend that has solid coverage and an opaque
+<span class="lineNum">     869 </span>            :     // color to src-mode, which allows disabling of blending.
+<span class="lineNum">     870 </span><span class="lineNoCov">          0 :     if (!optimizations.fCoveragePOI.isFourChannelOutput()) {</span>
+<span class="lineNum">     871 </span>            :         // We return nullptr here, which our caller interprets as meaning &quot;use SimpleSrcOverXP&quot;.
+<span class="lineNum">     872 </span>            :         // We don't simply return the address of that XP here because our caller would have to unref
+<span class="lineNum">     873 </span>            :         // it and since it is a global object and GrProgramElement's ref-cnting system is not thread
+<span class="lineNum">     874 </span>            :         // safe.
+<span class="lineNum">     875 </span>            :         return nullptr;
+<span class="lineNum">     876 </span>            :     }
+<span class="lineNum">     877 </span>            : 
+<span class="lineNum">     878 </span><span class="lineNoCov">          0 :     if (kRGBA_GrColorComponentFlags == optimizations.fColorPOI.validFlags() &amp;&amp;</span>
+<span class="lineNum">     879 </span><span class="lineNoCov">          0 :         !caps.shaderCaps()-&gt;dualSourceBlendingSupport() &amp;&amp;</span>
+<span class="lineNum">     880 </span><span class="lineNoCov">          0 :         !caps.shaderCaps()-&gt;dstReadInShaderSupport()) {</span>
+<span class="lineNum">     881 </span>            :         // If we don't have dual source blending or in shader dst reads, we fall
+<span class="lineNum">     882 </span>            :         // back to this trick for rendering SrcOver LCD text instead of doing a
+<span class="lineNum">     883 </span>            :         // dst copy.
+<span class="lineNum">     884 </span>            :         SkASSERT(!dstTexture || !dstTexture-&gt;texture());
+<span class="lineNum">     885 </span><span class="lineNoCov">          0 :         return PDLCDXferProcessor::Create(SkXfermode::kSrcOver_Mode, optimizations.fColorPOI);</span>
+<span class="lineNum">     886 </span>            :     }
+<span class="lineNum">     887 </span>            : 
+<span class="lineNum">     888 </span>            :     BlendFormula blendFormula;
+<span class="lineNum">     889 </span><span class="lineNoCov">          0 :     blendFormula = get_lcd_blend_formula(optimizations.fCoveragePOI, SkXfermode::kSrcOver_Mode);</span>
+<span class="lineNum">     890 </span><span class="lineNoCov">          0 :     if (blendFormula.hasSecondaryOutput() &amp;&amp; !caps.shaderCaps()-&gt;dualSourceBlendingSupport()) {</span>
+<span class="lineNum">     891 </span><span class="lineNoCov">          0 :         return new ShaderPDXferProcessor(dstTexture, hasMixedSamples, SkXfermode::kSrcOver_Mode);</span>
+<span class="lineNum">     892 </span>            :     }
+<span class="lineNum">     893 </span>            : 
+<span class="lineNum">     894 </span>            :     SkASSERT(!dstTexture || !dstTexture-&gt;texture());
+<span class="lineNum">     895 </span><span class="lineNoCov">          0 :     return new PorterDuffXferProcessor(blendFormula);</span>
+<a name="896"><span class="lineNum">     896 </span>            : }</a>
+<span class="lineNum">     897 </span>            : 
+<span class="lineNum">     898 </span><span class="lineNoCov">          0 : bool GrPorterDuffXPFactory::SrcOverWillNeedDstTexture(const GrCaps&amp; caps,</span>
+<span class="lineNum">     899 </span>            :                                                      const GrPipelineOptimizations&amp; optimizations) {
+<span class="lineNum">     900 </span><span class="lineNoCov">          0 :     if (caps.shaderCaps()-&gt;dstReadInShaderSupport() ||</span>
+<span class="lineNum">     901 </span><span class="lineNoCov">          0 :         caps.shaderCaps()-&gt;dualSourceBlendingSupport()) {</span>
+<span class="lineNum">     902 </span>            :         return false;
+<span class="lineNum">     903 </span>            :     }
+<span class="lineNum">     904 </span>            : 
+<span class="lineNum">     905 </span>            :     // When we have four channel coverage we always need to read the dst in order to correctly
+<span class="lineNum">     906 </span>            :     // blend. The one exception is when we are using srcover mode and we know the input color
+<span class="lineNum">     907 </span>            :     // into the XP.
+<span class="lineNum">     908 </span><span class="lineNoCov">          0 :     if (optimizations.fCoveragePOI.isFourChannelOutput()) {</span>
+<span class="lineNum">     909 </span><span class="lineNoCov">          0 :         if (kRGBA_GrColorComponentFlags == optimizations.fColorPOI.validFlags() &amp;&amp;</span>
+<span class="lineNum">     910 </span><span class="lineNoCov">          0 :             !caps.shaderCaps()-&gt;dstReadInShaderSupport()) {</span>
+<span class="lineNum">     911 </span>            :             return false;
+<span class="lineNum">     912 </span>            :         }
+<span class="lineNum">     913 </span>            :         return get_lcd_blend_formula(optimizations.fCoveragePOI,
+<span class="lineNum">     914 </span><span class="lineNoCov">          0 :                                      SkXfermode::kSrcOver_Mode).hasSecondaryOutput();</span>
+<span class="lineNum">     915 </span>            :     }
+<span class="lineNum">     916 </span>            : 
+<span class="lineNum">     917 </span>            :     // We fallback on the shader XP when the blend formula would use dual source blending but we
+<span class="lineNum">     918 </span>            :     // don't have support for it.
+<span class="lineNum">     919 </span>            :     static const bool kHasMixedSamples = false;
+<span class="lineNum">     920 </span>            :     SkASSERT(!caps.usesMixedSamples()); // We never use mixed samples without dual source blending.
+<span class="lineNum">     921 </span>            :     return get_blend_formula(optimizations.fColorPOI, optimizations.fCoveragePOI,
+<span class="lineNum">     922 </span><span class="lineNoCov">          0 :                              kHasMixedSamples, SkXfermode::kSrcOver_Mode).hasSecondaryOutput();</span>
+<span class="lineNum">     923 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

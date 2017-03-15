@@ -1,0 +1,891 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/nss/lib/pk11wrap/pk11auth.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">security/nss/lib/pk11wrap</a> - pk11auth.c<span style="font-size: 80%;"> (source / <a href="pk11auth.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">194</td>
+            <td class="headerCovTableEntry">333</td>
+            <td class="headerCovTableEntryLo">58.3 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">20</td>
+            <td class="headerCovTableEntry">28</td>
+            <td class="headerCovTableEntryLo">71.4 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public</a>
+<span class="lineNum">       2 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       3 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       4 </span>            : /*
+<span class="lineNum">       5 </span>            :  * This file deals with PKCS #11 passwords and authentication.
+<span class="lineNum">       6 </span>            :  */
+<span class="lineNum">       7 </span>            : #include &quot;seccomon.h&quot;
+<span class="lineNum">       8 </span>            : #include &quot;secmod.h&quot;
+<span class="lineNum">       9 </span>            : #include &quot;secmodi.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;secmodti.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;pkcs11t.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;pk11func.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;secitem.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;secerr.h&quot;
+<span class="lineNum">      15 </span>            : 
+<span class="lineNum">      16 </span>            : #include &quot;pkim.h&quot;
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : /*************************************************************
+<span class="lineNum">      19 </span>            :  * local static and global data
+<span class="lineNum">      20 </span>            :  *************************************************************/
+<span class="lineNum">      21 </span>            : /*
+<span class="lineNum">      22 </span>            :  * This structure keeps track of status that spans all the Slots.
+<span class="lineNum">      23 </span>            :  * NOTE: This is a global data structure. It semantics expect thread crosstalk
+<span class="lineNum">      24 </span>            :  * be very careful when you see it used.
+<span class="lineNum">      25 </span>            :  *  It's major purpose in life is to allow the user to log in one PER
+<span class="lineNum">      26 </span>            :  * Tranaction, even if a transaction spans threads. The problem is the user
+<span class="lineNum">      27 </span>            :  * may have to enter a password one just to be able to look at the
+<span class="lineNum">      28 </span>            :  * personalities/certificates (s)he can use. Then if Auth every is one, they
+<span class="lineNum">      29 </span>            :  * may have to enter the password again to use the card. See PK11_StartTransac
+<span class="lineNum">      30 </span>            :  * and PK11_EndTransaction.
+<span class="lineNum">      31 </span>            :  */
+<span class="lineNum">      32 </span>            : static struct PK11GlobalStruct {
+<span class="lineNum">      33 </span>            :     int transaction;
+<span class="lineNum">      34 </span>            :     PRBool inTransaction;
+<span class="lineNum">      35 </span>            :     char *(PR_CALLBACK *getPass)(PK11SlotInfo *, PRBool, void *);
+<span class="lineNum">      36 </span>            :     PRBool(PR_CALLBACK *verifyPass)(PK11SlotInfo *, void *);
+<span class="lineNum">      37 </span>            :     PRBool(PR_CALLBACK *isLoggedIn)(PK11SlotInfo *, void *);
+<span class="lineNum">      38 </span>            : } PK11_Global = { 1, PR_FALSE, NULL, NULL, NULL };
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : /***********************************************************
+<span class="lineNum">      41 </span>            :  * Password Utilities
+<span class="lineNum">      42 </span>            :  ***********************************************************/
+<span class="lineNum">      43 </span>            : /*
+<span class="lineNum">      44 </span>            :  * Check the user's password. Log into the card if it's correct.
+<span class="lineNum">      45 </span>            :  * succeed if the user is already logged in.
+<a name="46"><span class="lineNum">      46 </span>            :  */</a>
+<span class="lineNum">      47 </span>            : static SECStatus
+<span class="lineNum">      48 </span><span class="lineCov">          1 : pk11_CheckPassword(PK11SlotInfo *slot, CK_SESSION_HANDLE session,</span>
+<span class="lineNum">      49 </span>            :                    char *pw, PRBool alreadyLocked, PRBool contextSpecific)
+<span class="lineNum">      50 </span>            : {
+<span class="lineNum">      51 </span><span class="lineCov">          1 :     int len = 0;</span>
+<span class="lineNum">      52 </span>            :     CK_RV crv;
+<span class="lineNum">      53 </span>            :     SECStatus rv;
+<span class="lineNum">      54 </span><span class="lineCov">          1 :     PRTime currtime = PR_Now();</span>
+<span class="lineNum">      55 </span>            :     PRBool mustRetry;
+<span class="lineNum">      56 </span><span class="lineCov">          1 :     int retry = 0;</span>
+<span class="lineNum">      57 </span>            : 
+<span class="lineNum">      58 </span><span class="lineCov">          1 :     if (slot-&gt;protectedAuthPath) {</span>
+<span class="lineNum">      59 </span>            :         len = 0;
+<span class="lineNum">      60 </span>            :         pw = NULL;
+<span class="lineNum">      61 </span><span class="lineCov">          1 :     } else if (pw == NULL) {</span>
+<span class="lineNum">      62 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">      63 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">      64 </span>            :     } else {
+<span class="lineNum">      65 </span><span class="lineCov">          1 :         len = PORT_Strlen(pw);</span>
+<span class="lineNum">      66 </span>            :     }
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            :     do {
+<span class="lineNum">      69 </span><span class="lineCov">          1 :         if (!alreadyLocked)</span>
+<span class="lineNum">      70 </span><span class="lineCov">          1 :             PK11_EnterSlotMonitor(slot);</span>
+<span class="lineNum">      71 </span><span class="lineCov">          1 :         crv = PK11_GETTAB(slot)-&gt;C_Login(session,</span>
+<span class="lineNum">      72 </span>            :                                          contextSpecific ? CKU_CONTEXT_SPECIFIC : CKU_USER,
+<span class="lineNum">      73 </span>            :                                          (unsigned char *)pw, len);
+<span class="lineNum">      74 </span><span class="lineCov">          1 :         slot-&gt;lastLoginCheck = 0;</span>
+<span class="lineNum">      75 </span><span class="lineCov">          1 :         mustRetry = PR_FALSE;</span>
+<span class="lineNum">      76 </span><span class="lineCov">          1 :         if (!alreadyLocked)</span>
+<span class="lineNum">      77 </span><span class="lineCov">          1 :             PK11_ExitSlotMonitor(slot);</span>
+<span class="lineNum">      78 </span><span class="lineCov">          1 :         switch (crv) {</span>
+<span class="lineNum">      79 </span>            :             /* if we're already logged in, we're good to go */
+<span class="lineNum">      80 </span>            :             case CKR_OK:
+<span class="lineNum">      81 </span>            :                 /* TODO If it was for CKU_CONTEXT_SPECIFIC should we do this */
+<span class="lineNum">      82 </span><span class="lineCov">          1 :                 slot-&gt;authTransact = PK11_Global.transaction;</span>
+<span class="lineNum">      83 </span>            :             /* Fall through */
+<span class="lineNum">      84 </span>            :             case CKR_USER_ALREADY_LOGGED_IN:
+<span class="lineNum">      85 </span><span class="lineCov">          1 :                 slot-&gt;authTime = currtime;</span>
+<span class="lineNum">      86 </span><span class="lineCov">          1 :                 rv = SECSuccess;</span>
+<span class="lineNum">      87 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">      88 </span>            :             case CKR_PIN_INCORRECT:
+<span class="lineNum">      89 </span><span class="lineCov">          1 :                 PORT_SetError(SEC_ERROR_BAD_PASSWORD);</span>
+<span class="lineNum">      90 </span><span class="lineCov">          1 :                 rv = SECWouldBlock; /* everything else is ok, only the pin is bad */</span>
+<span class="lineNum">      91 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">      92 </span>            :             /* someone called reset while we fetched the password, try again once
+<span class="lineNum">      93 </span>            :              * if the token is still there. */
+<span class="lineNum">      94 </span>            :             case CKR_SESSION_HANDLE_INVALID:
+<span class="lineNum">      95 </span>            :             case CKR_SESSION_CLOSED:
+<span class="lineNum">      96 </span><span class="lineNoCov">          0 :                 if (session != slot-&gt;session) {</span>
+<span class="lineNum">      97 </span>            :                     /* don't bother retrying, we were in a middle of an operation,
+<span class="lineNum">      98 </span>            :                      * which is now lost. Just fail. */
+<span class="lineNum">      99 </span><span class="lineNoCov">          0 :                     PORT_SetError(PK11_MapError(crv));</span>
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :                     rv = SECFailure;</span>
+<span class="lineNum">     101 </span><span class="lineNoCov">          0 :                     break;</span>
+<span class="lineNum">     102 </span>            :                 }
+<span class="lineNum">     103 </span><span class="lineNoCov">          0 :                 if (retry++ == 0) {</span>
+<span class="lineNum">     104 </span><span class="lineNoCov">          0 :                     rv = PK11_InitToken(slot, PR_FALSE);</span>
+<span class="lineNum">     105 </span><span class="lineNoCov">          0 :                     if (rv == SECSuccess) {</span>
+<span class="lineNum">     106 </span><span class="lineNoCov">          0 :                         if (slot-&gt;session != CK_INVALID_SESSION) {</span>
+<span class="lineNum">     107 </span>            :                             session = slot-&gt;session; /* we should have
+<span class="lineNum">     108 </span>            :                                                       * a new session now */
+<span class="lineNum">     109 </span>            :                             mustRetry = PR_TRUE;
+<span class="lineNum">     110 </span>            :                         } else {
+<span class="lineNum">     111 </span><span class="lineNoCov">          0 :                             PORT_SetError(PK11_MapError(crv));</span>
+<span class="lineNum">     112 </span><span class="lineNoCov">          0 :                             rv = SECFailure;</span>
+<span class="lineNum">     113 </span>            :                         }
+<span class="lineNum">     114 </span>            :                     }
+<span class="lineNum">     115 </span>            :                     break;
+<span class="lineNum">     116 </span>            :                 }
+<span class="lineNum">     117 </span>            :             /* Fall through */
+<span class="lineNum">     118 </span>            :             default:
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 :                 PORT_SetError(PK11_MapError(crv));</span>
+<span class="lineNum">     120 </span><span class="lineNoCov">          0 :                 rv = SECFailure; /* some failure we can't fix by retrying */</span>
+<span class="lineNum">     121 </span>            :         }
+<span class="lineNum">     122 </span><span class="lineCov">          1 :     } while (mustRetry);</span>
+<span class="lineNum">     123 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">     124 </span>            : }
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span>            : /*
+<span class="lineNum">     127 </span>            :  * Check the user's password. Logout before hand to make sure that
+<span class="lineNum">     128 </span>            :  * we are really checking the password.
+<a name="129"><span class="lineNum">     129 </span>            :  */</a>
+<span class="lineNum">     130 </span>            : SECStatus
+<span class="lineNum">     131 </span><span class="lineCov">          1 : PK11_CheckUserPassword(PK11SlotInfo *slot, const char *pw)</span>
+<span class="lineNum">     132 </span>            : {
+<span class="lineNum">     133 </span><span class="lineCov">          1 :     int len = 0;</span>
+<span class="lineNum">     134 </span>            :     CK_RV crv;
+<span class="lineNum">     135 </span>            :     SECStatus rv;
+<span class="lineNum">     136 </span><span class="lineCov">          1 :     PRTime currtime = PR_Now();</span>
+<span class="lineNum">     137 </span>            : 
+<span class="lineNum">     138 </span><span class="lineCov">          1 :     if (slot-&gt;protectedAuthPath) {</span>
+<span class="lineNum">     139 </span>            :         len = 0;
+<span class="lineNum">     140 </span>            :         pw = NULL;
+<span class="lineNum">     141 </span><span class="lineCov">          1 :     } else if (pw == NULL) {</span>
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     144 </span>            :     } else {
+<span class="lineNum">     145 </span><span class="lineCov">          1 :         len = PORT_Strlen(pw);</span>
+<span class="lineNum">     146 </span>            :     }
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span>            :     /*
+<span class="lineNum">     149 </span>            :      * If the token doesn't need a login, don't try to relogin because the
+<span class="lineNum">     150 </span>            :      * effect is undefined. It's not clear what it means to check a non-empty
+<span class="lineNum">     151 </span>            :      * password with such a token, so treat that as an error.
+<span class="lineNum">     152 </span>            :      */
+<span class="lineNum">     153 </span><span class="lineCov">          1 :     if (!slot-&gt;needLogin) {</span>
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :         if (len == 0) {</span>
+<span class="lineNum">     155 </span>            :             rv = SECSuccess;
+<span class="lineNum">     156 </span>            :         } else {
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_BAD_PASSWORD);</span>
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :             rv = SECFailure;</span>
+<span class="lineNum">     159 </span>            :         }
+<span class="lineNum">     160 </span><span class="lineNoCov">          0 :         return rv;</span>
+<span class="lineNum">     161 </span>            :     }
+<span class="lineNum">     162 </span>            : 
+<span class="lineNum">     163 </span>            :     /* force a logout */
+<span class="lineNum">     164 </span><span class="lineCov">          1 :     PK11_EnterSlotMonitor(slot);</span>
+<span class="lineNum">     165 </span><span class="lineCov">          1 :     PK11_GETTAB(slot)-&gt;C_Logout(slot-&gt;session);</span>
+<span class="lineNum">     166 </span>            : 
+<span class="lineNum">     167 </span><span class="lineCov">          1 :     crv = PK11_GETTAB(slot)-&gt;C_Login(slot-&gt;session, CKU_USER,</span>
+<span class="lineNum">     168 </span>            :                                      (unsigned char *)pw, len);
+<span class="lineNum">     169 </span><span class="lineCov">          1 :     slot-&gt;lastLoginCheck = 0;</span>
+<span class="lineNum">     170 </span><span class="lineCov">          1 :     PK11_ExitSlotMonitor(slot);</span>
+<span class="lineNum">     171 </span><span class="lineCov">          1 :     switch (crv) {</span>
+<span class="lineNum">     172 </span>            :         /* if we're already logged in, we're good to go */
+<span class="lineNum">     173 </span>            :         case CKR_OK:
+<span class="lineNum">     174 </span><span class="lineCov">          1 :             slot-&gt;authTransact = PK11_Global.transaction;</span>
+<span class="lineNum">     175 </span><span class="lineCov">          1 :             slot-&gt;authTime = currtime;</span>
+<span class="lineNum">     176 </span><span class="lineCov">          1 :             rv = SECSuccess;</span>
+<span class="lineNum">     177 </span><span class="lineCov">          1 :             break;</span>
+<span class="lineNum">     178 </span>            :         case CKR_PIN_INCORRECT:
+<span class="lineNum">     179 </span><span class="lineCov">          1 :             PORT_SetError(SEC_ERROR_BAD_PASSWORD);</span>
+<span class="lineNum">     180 </span><span class="lineCov">          1 :             rv = SECWouldBlock; /* everything else is ok, only the pin is bad */</span>
+<span class="lineNum">     181 </span><span class="lineCov">          1 :             break;</span>
+<span class="lineNum">     182 </span>            :         default:
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 :             PORT_SetError(PK11_MapError(crv));</span>
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :             rv = SECFailure; /* some failure we can't fix by retrying */</span>
+<span class="lineNum">     185 </span>            :     }
+<span class="lineNum">     186 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">     187 </span>            : }
+<a name="188"><span class="lineNum">     188 </span>            : </a>
+<span class="lineNum">     189 </span>            : SECStatus
+<span class="lineNum">     190 </span><span class="lineCov">          1 : PK11_Logout(PK11SlotInfo *slot)</span>
+<span class="lineNum">     191 </span>            : {
+<span class="lineNum">     192 </span>            :     CK_RV crv;
+<span class="lineNum">     193 </span>            : 
+<span class="lineNum">     194 </span>            :     /* force a logout */
+<span class="lineNum">     195 </span><span class="lineCov">          1 :     PK11_EnterSlotMonitor(slot);</span>
+<span class="lineNum">     196 </span><span class="lineCov">          1 :     crv = PK11_GETTAB(slot)-&gt;C_Logout(slot-&gt;session);</span>
+<span class="lineNum">     197 </span><span class="lineCov">          1 :     slot-&gt;lastLoginCheck = 0;</span>
+<span class="lineNum">     198 </span><span class="lineCov">          1 :     PK11_ExitSlotMonitor(slot);</span>
+<span class="lineNum">     199 </span><span class="lineCov">          1 :     if (crv != CKR_OK) {</span>
+<span class="lineNum">     200 </span><span class="lineCov">          1 :         PORT_SetError(PK11_MapError(crv));</span>
+<span class="lineNum">     201 </span><span class="lineCov">          1 :         return SECFailure;</span>
+<span class="lineNum">     202 </span>            :     }
+<span class="lineNum">     203 </span>            :     return SECSuccess;
+<span class="lineNum">     204 </span>            : }
+<span class="lineNum">     205 </span>            : 
+<span class="lineNum">     206 </span>            : /*
+<span class="lineNum">     207 </span>            :  * transaction stuff is for when we test for the need to do every
+<span class="lineNum">     208 </span>            :  * time auth to see if we already did it for this slot/transaction
+<a name="209"><span class="lineNum">     209 </span>            :  */</a>
+<span class="lineNum">     210 </span>            : void
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 : PK11_StartAuthTransaction(void)</span>
+<span class="lineNum">     212 </span>            : {
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :     PK11_Global.transaction++;</span>
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 :     PK11_Global.inTransaction = PR_TRUE;</span>
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 : }</span>
+<a name="216"><span class="lineNum">     216 </span>            : </a>
+<span class="lineNum">     217 </span>            : void
+<span class="lineNum">     218 </span><span class="lineNoCov">          0 : PK11_EndAuthTransaction(void)</span>
+<span class="lineNum">     219 </span>            : {
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 :     PK11_Global.transaction++;</span>
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :     PK11_Global.inTransaction = PR_FALSE;</span>
+<span class="lineNum">     222 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span>            : /*
+<span class="lineNum">     225 </span>            :  * before we do a private key op, we check to see if we
+<span class="lineNum">     226 </span>            :  * need to reauthenticate.
+<a name="227"><span class="lineNum">     227 </span>            :  */</a>
+<span class="lineNum">     228 </span>            : void
+<span class="lineNum">     229 </span><span class="lineCov">          1 : PK11_HandlePasswordCheck(PK11SlotInfo *slot, void *wincx)</span>
+<span class="lineNum">     230 </span>            : {
+<span class="lineNum">     231 </span><span class="lineCov">          1 :     int askpw = slot-&gt;askpw;</span>
+<span class="lineNum">     232 </span><span class="lineCov">          1 :     PRBool NeedAuth = PR_FALSE;</span>
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span><span class="lineCov">          1 :     if (!slot-&gt;needLogin)</span>
+<span class="lineNum">     235 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     236 </span>            : 
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :     if ((slot-&gt;defaultFlags &amp; PK11_OWN_PW_DEFAULTS) == 0) {</span>
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :         PK11SlotInfo *def_slot = PK11_GetInternalKeySlot();</span>
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 :         if (def_slot) {</span>
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :             askpw = def_slot-&gt;askpw;</span>
+<span class="lineNum">     242 </span><span class="lineNoCov">          0 :             PK11_FreeSlot(def_slot);</span>
+<span class="lineNum">     243 </span>            :         }
+<span class="lineNum">     244 </span>            :     }
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span>            :     /* timeouts are handled by isLoggedIn */
+<span class="lineNum">     247 </span><span class="lineNoCov">          0 :     if (!PK11_IsLoggedIn(slot, wincx)) {</span>
+<span class="lineNum">     248 </span>            :         NeedAuth = PR_TRUE;
+<span class="lineNum">     249 </span><span class="lineNoCov">          0 :     } else if (askpw == -1) {</span>
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 :         if (!PK11_Global.inTransaction ||</span>
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 :             (PK11_Global.transaction != slot-&gt;authTransact)) {</span>
+<span class="lineNum">     252 </span><span class="lineNoCov">          0 :             PK11_EnterSlotMonitor(slot);</span>
+<span class="lineNum">     253 </span><span class="lineNoCov">          0 :             PK11_GETTAB(slot)-&gt;C_Logout(slot-&gt;session);</span>
+<span class="lineNum">     254 </span><span class="lineNoCov">          0 :             slot-&gt;lastLoginCheck = 0;</span>
+<span class="lineNum">     255 </span><span class="lineNoCov">          0 :             PK11_ExitSlotMonitor(slot);</span>
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 :             NeedAuth = PR_TRUE;</span>
+<span class="lineNum">     257 </span>            :         }
+<span class="lineNum">     258 </span>            :     }
+<span class="lineNum">     259 </span><span class="lineNoCov">          0 :     if (NeedAuth)</span>
+<span class="lineNum">     260 </span><span class="lineNoCov">          0 :         PK11_DoPassword(slot, slot-&gt;session, PR_TRUE,</span>
+<span class="lineNum">     261 </span>            :                         wincx, PR_FALSE, PR_FALSE);
+<span class="lineNum">     262 </span>            : }
+<a name="263"><span class="lineNum">     263 </span>            : </a>
+<span class="lineNum">     264 </span>            : void
+<span class="lineNum">     265 </span><span class="lineCov">          1 : PK11_SlotDBUpdate(PK11SlotInfo *slot)</span>
+<span class="lineNum">     266 </span>            : {
+<span class="lineNum">     267 </span><span class="lineCov">          1 :     SECMOD_UpdateModule(slot-&gt;module);</span>
+<span class="lineNum">     268 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     269 </span>            : 
+<span class="lineNum">     270 </span>            : /*
+<span class="lineNum">     271 </span>            :  * set new askpw and timeout values
+<a name="272"><span class="lineNum">     272 </span>            :  */</a>
+<span class="lineNum">     273 </span>            : void
+<span class="lineNum">     274 </span><span class="lineCov">          1 : PK11_SetSlotPWValues(PK11SlotInfo *slot, int askpw, int timeout)</span>
+<span class="lineNum">     275 </span>            : {
+<span class="lineNum">     276 </span><span class="lineCov">          1 :     slot-&gt;askpw = askpw;</span>
+<span class="lineNum">     277 </span><span class="lineCov">          1 :     slot-&gt;timeout = timeout;</span>
+<span class="lineNum">     278 </span><span class="lineCov">          1 :     slot-&gt;defaultFlags |= PK11_OWN_PW_DEFAULTS;</span>
+<span class="lineNum">     279 </span><span class="lineCov">          1 :     PK11_SlotDBUpdate(slot);</span>
+<span class="lineNum">     280 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span>            : /*
+<span class="lineNum">     283 </span>            :  * Get the askpw and timeout values for this slot
+<a name="284"><span class="lineNum">     284 </span>            :  */</a>
+<span class="lineNum">     285 </span>            : void
+<span class="lineNum">     286 </span><span class="lineCov">          1 : PK11_GetSlotPWValues(PK11SlotInfo *slot, int *askpw, int *timeout)</span>
+<span class="lineNum">     287 </span>            : {
+<span class="lineNum">     288 </span><span class="lineCov">          1 :     *askpw = slot-&gt;askpw;</span>
+<span class="lineNum">     289 </span><span class="lineCov">          1 :     *timeout = slot-&gt;timeout;</span>
+<span class="lineNum">     290 </span>            : 
+<span class="lineNum">     291 </span><span class="lineCov">          1 :     if ((slot-&gt;defaultFlags &amp; PK11_OWN_PW_DEFAULTS) == 0) {</span>
+<span class="lineNum">     292 </span><span class="lineNoCov">          0 :         PK11SlotInfo *def_slot = PK11_GetInternalKeySlot();</span>
+<span class="lineNum">     293 </span>            : 
+<span class="lineNum">     294 </span><span class="lineNoCov">          0 :         if (def_slot) {</span>
+<span class="lineNum">     295 </span><span class="lineNoCov">          0 :             *askpw = def_slot-&gt;askpw;</span>
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :             *timeout = def_slot-&gt;timeout;</span>
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :             PK11_FreeSlot(def_slot);</span>
+<span class="lineNum">     298 </span>            :         }
+<span class="lineNum">     299 </span>            :     }
+<span class="lineNum">     300 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span>            : /*
+<span class="lineNum">     303 </span>            :  * Returns true if the token is needLogin and isn't logged in.
+<span class="lineNum">     304 </span>            :  * This function is used to determine if authentication is needed
+<span class="lineNum">     305 </span>            :  * before attempting a potentially privelleged operation.
+<a name="306"><span class="lineNum">     306 </span>            :  */</a>
+<span class="lineNum">     307 </span>            : PRBool
+<span class="lineNum">     308 </span><span class="lineCov">          1 : pk11_LoginStillRequired(PK11SlotInfo *slot, void *wincx)</span>
+<span class="lineNum">     309 </span>            : {
+<span class="lineNum">     310 </span><span class="lineCov">          1 :     return slot-&gt;needLogin &amp;&amp; !PK11_IsLoggedIn(slot, wincx);</span>
+<span class="lineNum">     311 </span>            : }
+<span class="lineNum">     312 </span>            : 
+<span class="lineNum">     313 </span>            : /*
+<span class="lineNum">     314 </span>            :  * make sure a slot is authenticated...
+<span class="lineNum">     315 </span>            :  * This function only does the authentication if it is needed.
+<a name="316"><span class="lineNum">     316 </span>            :  */</a>
+<span class="lineNum">     317 </span>            : SECStatus
+<span class="lineNum">     318 </span><span class="lineCov">          1 : PK11_Authenticate(PK11SlotInfo *slot, PRBool loadCerts, void *wincx)</span>
+<span class="lineNum">     319 </span>            : {
+<span class="lineNum">     320 </span><span class="lineCov">          1 :     if (!slot) {</span>
+<span class="lineNum">     321 </span>            :         return SECFailure;
+<span class="lineNum">     322 </span>            :     }
+<span class="lineNum">     323 </span><span class="lineCov">          1 :     if (pk11_LoginStillRequired(slot, wincx)) {</span>
+<span class="lineNum">     324 </span><span class="lineCov">          1 :         return PK11_DoPassword(slot, slot-&gt;session, loadCerts, wincx,</span>
+<span class="lineNum">     325 </span>            :                                PR_FALSE, PR_FALSE);
+<span class="lineNum">     326 </span>            :     }
+<span class="lineNum">     327 </span>            :     return SECSuccess;
+<span class="lineNum">     328 </span>            : }
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span>            : /*
+<span class="lineNum">     331 </span>            :  * Authenticate to &quot;unfriendly&quot; tokens (tokens which need to be logged
+<span class="lineNum">     332 </span>            :  * in to find the certs.
+<a name="333"><span class="lineNum">     333 </span>            :  */</a>
+<span class="lineNum">     334 </span>            : SECStatus
+<span class="lineNum">     335 </span><span class="lineCov">          1 : pk11_AuthenticateUnfriendly(PK11SlotInfo *slot, PRBool loadCerts, void *wincx)</span>
+<span class="lineNum">     336 </span>            : {
+<span class="lineNum">     337 </span><span class="lineCov">          1 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     338 </span><span class="lineCov">          1 :     if (!PK11_IsFriendly(slot)) {</span>
+<span class="lineNum">     339 </span><span class="lineCov">          1 :         rv = PK11_Authenticate(slot, loadCerts, wincx);</span>
+<span class="lineNum">     340 </span>            :     }
+<span class="lineNum">     341 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">     342 </span>            : }
+<span class="lineNum">     343 </span>            : 
+<span class="lineNum">     344 </span>            : /*
+<span class="lineNum">     345 </span>            :  * NOTE: this assumes that we are logged out of the card before hand
+<a name="346"><span class="lineNum">     346 </span>            :  */</a>
+<span class="lineNum">     347 </span>            : SECStatus
+<span class="lineNum">     348 </span><span class="lineNoCov">          0 : PK11_CheckSSOPassword(PK11SlotInfo *slot, char *ssopw)</span>
+<span class="lineNum">     349 </span>            : {
+<span class="lineNum">     350 </span>            :     CK_SESSION_HANDLE rwsession;
+<span class="lineNum">     351 </span>            :     CK_RV crv;
+<span class="lineNum">     352 </span><span class="lineNoCov">          0 :     SECStatus rv = SECFailure;</span>
+<span class="lineNum">     353 </span><span class="lineNoCov">          0 :     int len = 0;</span>
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span>            :     /* get a rwsession */
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :     rwsession = PK11_GetRWSession(slot);</span>
+<span class="lineNum">     357 </span><span class="lineNoCov">          0 :     if (rwsession == CK_INVALID_SESSION) {</span>
+<span class="lineNum">     358 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_BAD_DATA);</span>
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 :         return rv;</span>
+<span class="lineNum">     360 </span>            :     }
+<span class="lineNum">     361 </span>            : 
+<span class="lineNum">     362 </span><span class="lineNoCov">          0 :     if (slot-&gt;protectedAuthPath) {</span>
+<span class="lineNum">     363 </span>            :         len = 0;
+<span class="lineNum">     364 </span>            :         ssopw = NULL;
+<span class="lineNum">     365 </span><span class="lineNoCov">          0 :     } else if (ssopw == NULL) {</span>
+<span class="lineNum">     366 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     368 </span>            :     } else {
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :         len = PORT_Strlen(ssopw);</span>
+<span class="lineNum">     370 </span>            :     }
+<span class="lineNum">     371 </span>            : 
+<span class="lineNum">     372 </span>            :     /* check the password */
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :     crv = PK11_GETTAB(slot)-&gt;C_Login(rwsession, CKU_SO,</span>
+<span class="lineNum">     374 </span>            :                                      (unsigned char *)ssopw, len);
+<span class="lineNum">     375 </span><span class="lineNoCov">          0 :     slot-&gt;lastLoginCheck = 0;</span>
+<span class="lineNum">     376 </span><span class="lineNoCov">          0 :     switch (crv) {</span>
+<span class="lineNum">     377 </span>            :         /* if we're already logged in, we're good to go */
+<span class="lineNum">     378 </span>            :         case CKR_OK:
+<span class="lineNum">     379 </span>            :             rv = SECSuccess;
+<span class="lineNum">     380 </span>            :             break;
+<span class="lineNum">     381 </span>            :         case CKR_PIN_INCORRECT:
+<span class="lineNum">     382 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_BAD_PASSWORD);</span>
+<span class="lineNum">     383 </span><span class="lineNoCov">          0 :             rv = SECWouldBlock; /* everything else is ok, only the pin is bad */</span>
+<span class="lineNum">     384 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     385 </span>            :         default:
+<span class="lineNum">     386 </span><span class="lineNoCov">          0 :             PORT_SetError(PK11_MapError(crv));</span>
+<span class="lineNum">     387 </span><span class="lineNoCov">          0 :             rv = SECFailure; /* some failure we can't fix by retrying */</span>
+<span class="lineNum">     388 </span>            :     }
+<span class="lineNum">     389 </span><span class="lineNoCov">          0 :     PK11_GETTAB(slot)-&gt;C_Logout(rwsession);</span>
+<span class="lineNum">     390 </span><span class="lineNoCov">          0 :     slot-&gt;lastLoginCheck = 0;</span>
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span>            :     /* release rwsession */
+<span class="lineNum">     393 </span><span class="lineNoCov">          0 :     PK11_RestoreROSession(slot, rwsession);</span>
+<span class="lineNum">     394 </span><span class="lineNoCov">          0 :     return rv;</span>
+<span class="lineNum">     395 </span>            : }
+<span class="lineNum">     396 </span>            : 
+<span class="lineNum">     397 </span>            : /*
+<span class="lineNum">     398 </span>            :  * make sure the password conforms to your token's requirements.
+<a name="399"><span class="lineNum">     399 </span>            :  */</a>
+<span class="lineNum">     400 </span>            : SECStatus
+<span class="lineNum">     401 </span><span class="lineNoCov">          0 : PK11_VerifyPW(PK11SlotInfo *slot, char *pw)</span>
+<span class="lineNum">     402 </span>            : {
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :     int len = PORT_Strlen(pw);</span>
+<span class="lineNum">     404 </span>            : 
+<span class="lineNum">     405 </span><span class="lineNoCov">          0 :     if ((slot-&gt;minPassword &gt; len) || (slot-&gt;maxPassword &lt; len)) {</span>
+<span class="lineNum">     406 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_BAD_DATA);</span>
+<span class="lineNum">     407 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     408 </span>            :     }
+<span class="lineNum">     409 </span>            :     return SECSuccess;
+<span class="lineNum">     410 </span>            : }
+<span class="lineNum">     411 </span>            : 
+<span class="lineNum">     412 </span>            : /*
+<span class="lineNum">     413 </span>            :  * initialize a user PIN Value
+<a name="414"><span class="lineNum">     414 </span>            :  */</a>
+<span class="lineNum">     415 </span>            : SECStatus
+<span class="lineNum">     416 </span><span class="lineCov">          1 : PK11_InitPin(PK11SlotInfo *slot, const char *ssopw, const char *userpw)</span>
+<span class="lineNum">     417 </span>            : {
+<span class="lineNum">     418 </span><span class="lineCov">          1 :     CK_SESSION_HANDLE rwsession = CK_INVALID_SESSION;</span>
+<span class="lineNum">     419 </span>            :     CK_RV crv;
+<span class="lineNum">     420 </span><span class="lineCov">          1 :     SECStatus rv = SECFailure;</span>
+<span class="lineNum">     421 </span>            :     int len;
+<span class="lineNum">     422 </span>            :     int ssolen;
+<span class="lineNum">     423 </span>            : 
+<span class="lineNum">     424 </span><span class="lineCov">          1 :     if (userpw == NULL)</span>
+<span class="lineNum">     425 </span><span class="lineCov">          1 :         userpw = &quot;&quot;;</span>
+<span class="lineNum">     426 </span><span class="lineCov">          1 :     if (ssopw == NULL)</span>
+<span class="lineNum">     427 </span><span class="lineCov">          1 :         ssopw = &quot;&quot;;</span>
+<span class="lineNum">     428 </span>            : 
+<span class="lineNum">     429 </span><span class="lineCov">          1 :     len = PORT_Strlen(userpw);</span>
+<span class="lineNum">     430 </span><span class="lineCov">          1 :     ssolen = PORT_Strlen(ssopw);</span>
+<span class="lineNum">     431 </span>            : 
+<span class="lineNum">     432 </span>            :     /* get a rwsession */
+<span class="lineNum">     433 </span><span class="lineCov">          1 :     rwsession = PK11_GetRWSession(slot);</span>
+<span class="lineNum">     434 </span><span class="lineCov">          1 :     if (rwsession == CK_INVALID_SESSION) {</span>
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_BAD_DATA);</span>
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :         slot-&gt;lastLoginCheck = 0;</span>
+<span class="lineNum">     437 </span><span class="lineNoCov">          0 :         return rv;</span>
+<span class="lineNum">     438 </span>            :     }
+<span class="lineNum">     439 </span>            : 
+<span class="lineNum">     440 </span><span class="lineCov">          1 :     if (slot-&gt;protectedAuthPath) {</span>
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :         len = 0;</span>
+<span class="lineNum">     442 </span><span class="lineNoCov">          0 :         ssolen = 0;</span>
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :         ssopw = NULL;</span>
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 :         userpw = NULL;</span>
+<span class="lineNum">     445 </span>            :     }
+<span class="lineNum">     446 </span>            : 
+<span class="lineNum">     447 </span>            :     /* check the password */
+<span class="lineNum">     448 </span><span class="lineCov">          1 :     crv = PK11_GETTAB(slot)-&gt;C_Login(rwsession, CKU_SO,</span>
+<span class="lineNum">     449 </span>            :                                      (unsigned char *)ssopw, ssolen);
+<span class="lineNum">     450 </span><span class="lineCov">          1 :     slot-&gt;lastLoginCheck = 0;</span>
+<span class="lineNum">     451 </span><span class="lineCov">          1 :     if (crv != CKR_OK) {</span>
+<span class="lineNum">     452 </span><span class="lineNoCov">          0 :         PORT_SetError(PK11_MapError(crv));</span>
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :         goto done;</span>
+<span class="lineNum">     454 </span>            :     }
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span><span class="lineCov">          1 :     crv = PK11_GETTAB(slot)-&gt;C_InitPIN(rwsession, (unsigned char *)userpw, len);</span>
+<span class="lineNum">     457 </span><span class="lineCov">          1 :     if (crv != CKR_OK) {</span>
+<span class="lineNum">     458 </span><span class="lineNoCov">          0 :         PORT_SetError(PK11_MapError(crv));</span>
+<span class="lineNum">     459 </span>            :     } else {
+<span class="lineNum">     460 </span>            :         rv = SECSuccess;
+<span class="lineNum">     461 </span>            :     }
+<span class="lineNum">     462 </span>            : 
+<span class="lineNum">     463 </span>            : done:
+<span class="lineNum">     464 </span><span class="lineCov">          1 :     PK11_GETTAB(slot)-&gt;C_Logout(rwsession);</span>
+<span class="lineNum">     465 </span><span class="lineCov">          1 :     slot-&gt;lastLoginCheck = 0;</span>
+<span class="lineNum">     466 </span><span class="lineCov">          1 :     PK11_RestoreROSession(slot, rwsession);</span>
+<span class="lineNum">     467 </span><span class="lineCov">          1 :     if (rv == SECSuccess) {</span>
+<span class="lineNum">     468 </span>            :         /* update our view of the world */
+<span class="lineNum">     469 </span><span class="lineCov">          1 :         PK11_InitToken(slot, PR_TRUE);</span>
+<span class="lineNum">     470 </span><span class="lineCov">          1 :         if (slot-&gt;needLogin) {</span>
+<span class="lineNum">     471 </span><span class="lineCov">          1 :             PK11_EnterSlotMonitor(slot);</span>
+<span class="lineNum">     472 </span><span class="lineCov">          1 :             PK11_GETTAB(slot)-&gt;C_Login(slot-&gt;session, CKU_USER,</span>
+<span class="lineNum">     473 </span>            :                                        (unsigned char *)userpw, len);
+<span class="lineNum">     474 </span><span class="lineCov">          1 :             slot-&gt;lastLoginCheck = 0;</span>
+<span class="lineNum">     475 </span><span class="lineCov">          1 :             PK11_ExitSlotMonitor(slot);</span>
+<span class="lineNum">     476 </span>            :         }
+<span class="lineNum">     477 </span>            :     }
+<span class="lineNum">     478 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">     479 </span>            : }
+<span class="lineNum">     480 </span>            : 
+<span class="lineNum">     481 </span>            : /*
+<span class="lineNum">     482 </span>            :  * Change an existing user password
+<a name="483"><span class="lineNum">     483 </span>            :  */</a>
+<span class="lineNum">     484 </span>            : SECStatus
+<span class="lineNum">     485 </span><span class="lineCov">          1 : PK11_ChangePW(PK11SlotInfo *slot, const char *oldpw, const char *newpw)</span>
+<span class="lineNum">     486 </span>            : {
+<span class="lineNum">     487 </span>            :     CK_RV crv;
+<span class="lineNum">     488 </span><span class="lineCov">          1 :     SECStatus rv = SECFailure;</span>
+<span class="lineNum">     489 </span><span class="lineCov">          1 :     int newLen = 0;</span>
+<span class="lineNum">     490 </span><span class="lineCov">          1 :     int oldLen = 0;</span>
+<span class="lineNum">     491 </span>            :     CK_SESSION_HANDLE rwsession;
+<span class="lineNum">     492 </span>            : 
+<span class="lineNum">     493 </span>            :     /* use NULL values to trigger the protected authentication path */
+<span class="lineNum">     494 </span><span class="lineCov">          1 :     if (!slot-&gt;protectedAuthPath) {</span>
+<span class="lineNum">     495 </span><span class="lineCov">          1 :         if (newpw == NULL)</span>
+<span class="lineNum">     496 </span><span class="lineNoCov">          0 :             newpw = &quot;&quot;;</span>
+<span class="lineNum">     497 </span><span class="lineCov">          1 :         if (oldpw == NULL)</span>
+<span class="lineNum">     498 </span><span class="lineNoCov">          0 :             oldpw = &quot;&quot;;</span>
+<span class="lineNum">     499 </span>            :     }
+<span class="lineNum">     500 </span><span class="lineCov">          1 :     if (newpw)</span>
+<span class="lineNum">     501 </span><span class="lineCov">          1 :         newLen = PORT_Strlen(newpw);</span>
+<span class="lineNum">     502 </span><span class="lineCov">          1 :     if (oldpw)</span>
+<span class="lineNum">     503 </span><span class="lineCov">          1 :         oldLen = PORT_Strlen(oldpw);</span>
+<span class="lineNum">     504 </span>            : 
+<span class="lineNum">     505 </span>            :     /* get a rwsession */
+<span class="lineNum">     506 </span><span class="lineCov">          1 :     rwsession = PK11_GetRWSession(slot);</span>
+<span class="lineNum">     507 </span><span class="lineCov">          1 :     if (rwsession == CK_INVALID_SESSION) {</span>
+<span class="lineNum">     508 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_BAD_DATA);</span>
+<span class="lineNum">     509 </span><span class="lineNoCov">          0 :         return rv;</span>
+<span class="lineNum">     510 </span>            :     }
+<span class="lineNum">     511 </span>            : 
+<span class="lineNum">     512 </span><span class="lineCov">          1 :     crv = PK11_GETTAB(slot)-&gt;C_SetPIN(rwsession,</span>
+<span class="lineNum">     513 </span>            :                                       (unsigned char *)oldpw, oldLen, (unsigned char *)newpw, newLen);
+<span class="lineNum">     514 </span><span class="lineCov">          1 :     if (crv == CKR_OK) {</span>
+<span class="lineNum">     515 </span>            :         rv = SECSuccess;
+<span class="lineNum">     516 </span>            :     } else {
+<span class="lineNum">     517 </span><span class="lineNoCov">          0 :         PORT_SetError(PK11_MapError(crv));</span>
+<span class="lineNum">     518 </span>            :     }
+<span class="lineNum">     519 </span>            : 
+<span class="lineNum">     520 </span><span class="lineCov">          1 :     PK11_RestoreROSession(slot, rwsession);</span>
+<span class="lineNum">     521 </span>            : 
+<span class="lineNum">     522 </span>            :     /* update our view of the world */
+<span class="lineNum">     523 </span><span class="lineCov">          1 :     PK11_InitToken(slot, PR_TRUE);</span>
+<span class="lineNum">     524 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">     525 </span>            : }
+<a name="526"><span class="lineNum">     526 </span>            : </a>
+<span class="lineNum">     527 </span>            : static char *
+<span class="lineNum">     528 </span><span class="lineCov">          1 : pk11_GetPassword(PK11SlotInfo *slot, PRBool retry, void *wincx)</span>
+<span class="lineNum">     529 </span>            : {
+<span class="lineNum">     530 </span><span class="lineCov">          1 :     if (PK11_Global.getPass == NULL)</span>
+<span class="lineNum">     531 </span>            :         return NULL;
+<span class="lineNum">     532 </span><span class="lineCov">          1 :     return (*PK11_Global.getPass)(slot, retry, wincx);</span>
+<span class="lineNum">     533 </span>            : }
+<a name="534"><span class="lineNum">     534 </span>            : </a>
+<span class="lineNum">     535 </span>            : void
+<span class="lineNum">     536 </span><span class="lineCov">          1 : PK11_SetPasswordFunc(PK11PasswordFunc func)</span>
+<span class="lineNum">     537 </span>            : {
+<span class="lineNum">     538 </span><span class="lineCov">          1 :     PK11_Global.getPass = func;</span>
+<span class="lineNum">     539 </span><span class="lineCov">          1 : }</span>
+<a name="540"><span class="lineNum">     540 </span>            : </a>
+<span class="lineNum">     541 </span>            : void
+<span class="lineNum">     542 </span><span class="lineNoCov">          0 : PK11_SetVerifyPasswordFunc(PK11VerifyPasswordFunc func)</span>
+<span class="lineNum">     543 </span>            : {
+<span class="lineNum">     544 </span><span class="lineNoCov">          0 :     PK11_Global.verifyPass = func;</span>
+<span class="lineNum">     545 </span><span class="lineNoCov">          0 : }</span>
+<a name="546"><span class="lineNum">     546 </span>            : </a>
+<span class="lineNum">     547 </span>            : void
+<span class="lineNum">     548 </span><span class="lineNoCov">          0 : PK11_SetIsLoggedInFunc(PK11IsLoggedInFunc func)</span>
+<span class="lineNum">     549 </span>            : {
+<span class="lineNum">     550 </span><span class="lineNoCov">          0 :     PK11_Global.isLoggedIn = func;</span>
+<span class="lineNum">     551 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     552 </span>            : 
+<span class="lineNum">     553 </span>            : /*
+<span class="lineNum">     554 </span>            :  * authenticate to a slot. This loops until we can't recover, the user
+<span class="lineNum">     555 </span>            :  * gives up, or we succeed. If we're already logged in and this function
+<span class="lineNum">     556 </span>            :  * is called we will still prompt for a password, but we will probably
+<span class="lineNum">     557 </span>            :  * succeed no matter what the password was (depending on the implementation
+<span class="lineNum">     558 </span>            :  * of the PKCS 11 module.
+<a name="559"><span class="lineNum">     559 </span>            :  */</a>
+<span class="lineNum">     560 </span>            : SECStatus
+<span class="lineNum">     561 </span><span class="lineCov">          1 : PK11_DoPassword(PK11SlotInfo *slot, CK_SESSION_HANDLE session,</span>
+<span class="lineNum">     562 </span>            :                 PRBool loadCerts, void *wincx, PRBool alreadyLocked,
+<span class="lineNum">     563 </span>            :                 PRBool contextSpecific)
+<span class="lineNum">     564 </span>            : {
+<span class="lineNum">     565 </span><span class="lineCov">          1 :     SECStatus rv = SECFailure;</span>
+<span class="lineNum">     566 </span>            :     char *password;
+<span class="lineNum">     567 </span><span class="lineCov">          1 :     PRBool attempt = PR_FALSE;</span>
+<span class="lineNum">     568 </span>            : 
+<span class="lineNum">     569 </span><span class="lineCov">          1 :     if (PK11_NeedUserInit(slot)) {</span>
+<span class="lineNum">     570 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_IO);</span>
+<span class="lineNum">     571 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     572 </span>            :     }
+<span class="lineNum">     573 </span>            : 
+<span class="lineNum">     574 </span>            :     /*
+<span class="lineNum">     575 </span>            :      * Central server type applications which control access to multiple
+<span class="lineNum">     576 </span>            :      * slave applications to single crypto devices need to virtuallize the
+<span class="lineNum">     577 </span>            :      * login state. This is done by a callback out of PK11_IsLoggedIn and
+<span class="lineNum">     578 </span>            :      * here. If we are actually logged in, then we got here because the
+<span class="lineNum">     579 </span>            :      * higher level code told us that the particular client application may
+<span class="lineNum">     580 </span>            :      * still need to be logged in. If that is the case, we simply tell the
+<span class="lineNum">     581 </span>            :      * server code that it should now verify the clients password and tell us
+<span class="lineNum">     582 </span>            :      * the results.
+<span class="lineNum">     583 </span>            :      */
+<span class="lineNum">     584 </span><span class="lineCov">          1 :     if (PK11_IsLoggedIn(slot, NULL) &amp;&amp;</span>
+<span class="lineNum">     585 </span><span class="lineNoCov">          0 :         (PK11_Global.verifyPass != NULL)) {</span>
+<span class="lineNum">     586 </span><span class="lineNoCov">          0 :         if (!PK11_Global.verifyPass(slot, wincx)) {</span>
+<span class="lineNum">     587 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_BAD_PASSWORD);</span>
+<span class="lineNum">     588 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">     589 </span>            :         }
+<span class="lineNum">     590 </span>            :         return SECSuccess;
+<span class="lineNum">     591 </span>            :     }
+<span class="lineNum">     592 </span>            : 
+<span class="lineNum">     593 </span>            :     /* get the password. This can drop out of the while loop
+<span class="lineNum">     594 </span>            :      * for the following reasons:
+<span class="lineNum">     595 </span>            :      *  (1) the user refused to enter a password.
+<span class="lineNum">     596 </span>            :      *                  (return error to caller)
+<span class="lineNum">     597 </span>            :      *  (2) the token user password is disabled [usually due to
+<span class="lineNum">     598 </span>            :      *     too many failed authentication attempts].
+<span class="lineNum">     599 </span>            :      *                  (return error to caller)
+<span class="lineNum">     600 </span>            :      *  (3) the password was successful.
+<span class="lineNum">     601 </span>            :      */
+<span class="lineNum">     602 </span><span class="lineCov">          1 :     while ((password = pk11_GetPassword(slot, attempt, wincx)) != NULL) {</span>
+<span class="lineNum">     603 </span>            :         /* if the token has a protectedAuthPath, the application may have
+<span class="lineNum">     604 </span>            :          * already issued the C_Login as part of it's pk11_GetPassword call.
+<span class="lineNum">     605 </span>            :          * In this case the application will tell us what the results were in
+<span class="lineNum">     606 </span>            :          * the password value (retry or the authentication was successful) so
+<span class="lineNum">     607 </span>            :          * we can skip our own C_Login call (which would force the token to
+<span class="lineNum">     608 </span>            :          * try to login again).
+<span class="lineNum">     609 </span>            :          *
+<span class="lineNum">     610 </span>            :          * Applications that don't know about protectedAuthPath will return a
+<span class="lineNum">     611 </span>            :          * password, which we will ignore and trigger the token to
+<span class="lineNum">     612 </span>            :          * 'authenticate' itself anyway. Hopefully the blinking display on
+<span class="lineNum">     613 </span>            :          * the reader, or the flashing light under the thumbprint reader will
+<span class="lineNum">     614 </span>            :          * attract the user's attention */
+<span class="lineNum">     615 </span><span class="lineCov">          1 :         attempt = PR_TRUE;</span>
+<span class="lineNum">     616 </span><span class="lineCov">          1 :         if (slot-&gt;protectedAuthPath) {</span>
+<span class="lineNum">     617 </span>            :             /* application tried to authenticate and failed. it wants to try
+<span class="lineNum">     618 </span>            :              * again, continue looping */
+<span class="lineNum">     619 </span><span class="lineNoCov">          0 :             if (strcmp(password, PK11_PW_RETRY) == 0) {</span>
+<span class="lineNum">     620 </span><span class="lineNoCov">          0 :                 rv = SECWouldBlock;</span>
+<span class="lineNum">     621 </span><span class="lineNoCov">          0 :                 PORT_Free(password);</span>
+<span class="lineNum">     622 </span><span class="lineNoCov">          0 :                 continue;</span>
+<span class="lineNum">     623 </span>            :             }
+<span class="lineNum">     624 </span>            :             /* applicaton tried to authenticate and succeeded we're done */
+<span class="lineNum">     625 </span><span class="lineNoCov">          0 :             if (strcmp(password, PK11_PW_AUTHENTICATED) == 0) {</span>
+<span class="lineNum">     626 </span><span class="lineNoCov">          0 :                 rv = SECSuccess;</span>
+<span class="lineNum">     627 </span><span class="lineNoCov">          0 :                 PORT_Free(password);</span>
+<span class="lineNum">     628 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     629 </span>            :             }
+<span class="lineNum">     630 </span>            :         }
+<span class="lineNum">     631 </span><span class="lineCov">          1 :         rv = pk11_CheckPassword(slot, session, password,</span>
+<span class="lineNum">     632 </span>            :                                 alreadyLocked, contextSpecific);
+<span class="lineNum">     633 </span><span class="lineCov">          1 :         PORT_Memset(password, 0, PORT_Strlen(password));</span>
+<span class="lineNum">     634 </span><span class="lineCov">          1 :         PORT_Free(password);</span>
+<span class="lineNum">     635 </span><span class="lineCov">          1 :         if (rv != SECWouldBlock)</span>
+<span class="lineNum">     636 </span>            :             break;
+<span class="lineNum">     637 </span>            :     }
+<span class="lineNum">     638 </span><span class="lineCov">          1 :     if (rv == SECSuccess) {</span>
+<span class="lineNum">     639 </span><span class="lineCov">          1 :         if (!PK11_IsFriendly(slot)) {</span>
+<span class="lineNum">     640 </span><span class="lineNoCov">          0 :             nssTrustDomain_UpdateCachedTokenCerts(slot-&gt;nssToken-&gt;trustDomain,</span>
+<span class="lineNum">     641 </span>            :                                                   slot-&gt;nssToken);
+<span class="lineNum">     642 </span>            :         }
+<span class="lineNum">     643 </span><span class="lineCov">          1 :     } else if (!attempt)</span>
+<span class="lineNum">     644 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_BAD_PASSWORD);</span>
+<span class="lineNum">     645 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">     646 </span>            : }
+<a name="647"><span class="lineNum">     647 </span>            : </a>
+<span class="lineNum">     648 </span>            : void
+<span class="lineNum">     649 </span><span class="lineCov">          1 : PK11_LogoutAll(void)</span>
+<span class="lineNum">     650 </span>            : {
+<span class="lineNum">     651 </span><span class="lineCov">          1 :     SECMODListLock *lock = SECMOD_GetDefaultModuleListLock();</span>
+<span class="lineNum">     652 </span>            :     SECMODModuleList *modList;
+<span class="lineNum">     653 </span><span class="lineCov">          1 :     SECMODModuleList *mlp = NULL;</span>
+<span class="lineNum">     654 </span>            :     int i;
+<span class="lineNum">     655 </span>            : 
+<span class="lineNum">     656 </span>            :     /* NSS is not initialized, there are not tokens to log out */
+<span class="lineNum">     657 </span><span class="lineCov">          1 :     if (lock == NULL) {</span>
+<span class="lineNum">     658 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     659 </span>            :     }
+<span class="lineNum">     660 </span>            : 
+<span class="lineNum">     661 </span><span class="lineCov">          1 :     SECMOD_GetReadLock(lock);</span>
+<span class="lineNum">     662 </span><span class="lineCov">          1 :     modList = SECMOD_GetDefaultModuleList();</span>
+<span class="lineNum">     663 </span>            :     /* find the number of entries */
+<span class="lineNum">     664 </span><span class="lineCov">          1 :     for (mlp = modList; mlp != NULL; mlp = mlp-&gt;next) {</span>
+<span class="lineNum">     665 </span><span class="lineCov">          1 :         for (i = 0; i &lt; mlp-&gt;module-&gt;slotCount; i++) {</span>
+<span class="lineNum">     666 </span><span class="lineCov">          1 :             PK11_Logout(mlp-&gt;module-&gt;slots[i]);</span>
+<span class="lineNum">     667 </span>            :         }
+<span class="lineNum">     668 </span>            :     }
+<span class="lineNum">     669 </span>            : 
+<span class="lineNum">     670 </span><span class="lineCov">          1 :     SECMOD_ReleaseReadLock(lock);</span>
+<span class="lineNum">     671 </span>            : }
+<a name="672"><span class="lineNum">     672 </span>            : </a>
+<span class="lineNum">     673 </span>            : int
+<span class="lineNum">     674 </span><span class="lineCov">          1 : PK11_GetMinimumPwdLength(PK11SlotInfo *slot)</span>
+<span class="lineNum">     675 </span>            : {
+<span class="lineNum">     676 </span><span class="lineCov">          1 :     return ((int)slot-&gt;minPassword);</span>
+<span class="lineNum">     677 </span>            : }
+<span class="lineNum">     678 </span>            : 
+<a name="679"><span class="lineNum">     679 </span>            : /* Does this slot have a protected pin path? */</a>
+<span class="lineNum">     680 </span>            : PRBool
+<span class="lineNum">     681 </span><span class="lineCov">          1 : PK11_ProtectedAuthenticationPath(PK11SlotInfo *slot)</span>
+<span class="lineNum">     682 </span>            : {
+<span class="lineNum">     683 </span><span class="lineCov">          1 :     return slot-&gt;protectedAuthPath;</span>
+<span class="lineNum">     684 </span>            : }
+<span class="lineNum">     685 </span>            : 
+<span class="lineNum">     686 </span>            : /*
+<span class="lineNum">     687 </span>            :  * we can initialize the password if 1) The toke is not inited
+<span class="lineNum">     688 </span>            :  * (need login == true and see need UserInit) or 2) the token has
+<span class="lineNum">     689 </span>            :  * a NULL password. (slot-&gt;needLogin = false &amp; need user Init = false).
+<a name="690"><span class="lineNum">     690 </span>            :  */</a>
+<span class="lineNum">     691 </span>            : PRBool
+<span class="lineNum">     692 </span><span class="lineNoCov">          0 : PK11_NeedPWInitForSlot(PK11SlotInfo *slot)</span>
+<span class="lineNum">     693 </span>            : {
+<span class="lineNum">     694 </span><span class="lineNoCov">          0 :     if (slot-&gt;needLogin &amp;&amp; PK11_NeedUserInit(slot)) {</span>
+<span class="lineNum">     695 </span>            :         return PR_TRUE;
+<span class="lineNum">     696 </span>            :     }
+<span class="lineNum">     697 </span><span class="lineNoCov">          0 :     if (!slot-&gt;needLogin &amp;&amp; !PK11_NeedUserInit(slot)) {</span>
+<span class="lineNum">     698 </span>            :         return PR_TRUE;
+<span class="lineNum">     699 </span>            :     }
+<span class="lineNum">     700 </span>            :     return PR_FALSE;
+<span class="lineNum">     701 </span>            : }
+<a name="702"><span class="lineNum">     702 </span>            : </a>
+<span class="lineNum">     703 </span>            : PRBool
+<span class="lineNum">     704 </span><span class="lineNoCov">          0 : PK11_NeedPWInit()</span>
+<span class="lineNum">     705 </span>            : {
+<span class="lineNum">     706 </span><span class="lineNoCov">          0 :     PK11SlotInfo *slot = PK11_GetInternalKeySlot();</span>
+<span class="lineNum">     707 </span><span class="lineNoCov">          0 :     PRBool ret = PK11_NeedPWInitForSlot(slot);</span>
+<span class="lineNum">     708 </span>            : 
+<span class="lineNum">     709 </span><span class="lineNoCov">          0 :     PK11_FreeSlot(slot);</span>
+<span class="lineNum">     710 </span><span class="lineNoCov">          0 :     return ret;</span>
+<span class="lineNum">     711 </span>            : }
+<a name="712"><span class="lineNum">     712 </span>            : </a>
+<span class="lineNum">     713 </span>            : PRBool
+<span class="lineNum">     714 </span><span class="lineCov">          1 : pk11_InDelayPeriod(PRIntervalTime lastTime, PRIntervalTime delayTime,</span>
+<span class="lineNum">     715 </span>            :                    PRIntervalTime *retTime)
+<span class="lineNum">     716 </span>            : {
+<span class="lineNum">     717 </span>            :     PRIntervalTime time;
+<span class="lineNum">     718 </span>            : 
+<span class="lineNum">     719 </span><span class="lineCov">          1 :     *retTime = time = PR_IntervalNow();</span>
+<span class="lineNum">     720 </span><span class="lineCov">          1 :     return (PRBool)(lastTime) &amp;&amp; ((time - lastTime) &lt; delayTime);</span>
+<span class="lineNum">     721 </span>            : }
+<span class="lineNum">     722 </span>            : 
+<span class="lineNum">     723 </span>            : /*
+<span class="lineNum">     724 </span>            :  * Determine if the token is logged in. We have to actually query the token,
+<span class="lineNum">     725 </span>            :  * because it's state can change without intervention from us.
+<a name="726"><span class="lineNum">     726 </span>            :  */</a>
+<span class="lineNum">     727 </span>            : PRBool
+<span class="lineNum">     728 </span><span class="lineCov">          1 : PK11_IsLoggedIn(PK11SlotInfo *slot, void *wincx)</span>
+<span class="lineNum">     729 </span>            : {
+<span class="lineNum">     730 </span>            :     CK_SESSION_INFO sessionInfo;
+<span class="lineNum">     731 </span><span class="lineCov">          1 :     int askpw = slot-&gt;askpw;</span>
+<span class="lineNum">     732 </span><span class="lineCov">          1 :     int timeout = slot-&gt;timeout;</span>
+<span class="lineNum">     733 </span>            :     CK_RV crv;
+<span class="lineNum">     734 </span>            :     PRIntervalTime curTime;
+<span class="lineNum">     735 </span>            :     static PRIntervalTime login_delay_time = 0;
+<span class="lineNum">     736 </span>            : 
+<span class="lineNum">     737 </span><span class="lineCov">          1 :     if (login_delay_time == 0) {</span>
+<span class="lineNum">     738 </span><span class="lineCov">          1 :         login_delay_time = PR_SecondsToInterval(1);</span>
+<span class="lineNum">     739 </span>            :     }
+<span class="lineNum">     740 </span>            : 
+<span class="lineNum">     741 </span>            :     /* If we don't have our own password default values, use the system
+<span class="lineNum">     742 </span>            :      * ones */
+<span class="lineNum">     743 </span><span class="lineCov">          1 :     if ((slot-&gt;defaultFlags &amp; PK11_OWN_PW_DEFAULTS) == 0) {</span>
+<span class="lineNum">     744 </span><span class="lineCov">          1 :         PK11SlotInfo *def_slot = PK11_GetInternalKeySlot();</span>
+<span class="lineNum">     745 </span>            : 
+<span class="lineNum">     746 </span><span class="lineCov">          1 :         if (def_slot) {</span>
+<span class="lineNum">     747 </span><span class="lineCov">          1 :             askpw = def_slot-&gt;askpw;</span>
+<span class="lineNum">     748 </span><span class="lineCov">          1 :             timeout = def_slot-&gt;timeout;</span>
+<span class="lineNum">     749 </span><span class="lineCov">          1 :             PK11_FreeSlot(def_slot);</span>
+<span class="lineNum">     750 </span>            :         }
+<span class="lineNum">     751 </span>            :     }
+<span class="lineNum">     752 </span>            : 
+<span class="lineNum">     753 </span><span class="lineCov">          1 :     if ((wincx != NULL) &amp;&amp; (PK11_Global.isLoggedIn != NULL) &amp;&amp;</span>
+<span class="lineNum">     754 </span><span class="lineNoCov">          0 :         (*PK11_Global.isLoggedIn)(slot, wincx) == PR_FALSE) {</span>
+<span class="lineNum">     755 </span>            :         return PR_FALSE;
+<span class="lineNum">     756 </span>            :     }
+<span class="lineNum">     757 </span>            : 
+<span class="lineNum">     758 </span>            :     /* forget the password if we've been inactive too long */
+<span class="lineNum">     759 </span><span class="lineCov">          1 :     if (askpw == 1) {</span>
+<span class="lineNum">     760 </span><span class="lineNoCov">          0 :         PRTime currtime = PR_Now();</span>
+<span class="lineNum">     761 </span>            :         PRTime result;
+<span class="lineNum">     762 </span>            :         PRTime mult;
+<span class="lineNum">     763 </span>            : 
+<span class="lineNum">     764 </span><span class="lineNoCov">          0 :         LL_I2L(result, timeout);</span>
+<span class="lineNum">     765 </span><span class="lineNoCov">          0 :         LL_I2L(mult, 60 * 1000 * 1000);</span>
+<span class="lineNum">     766 </span><span class="lineNoCov">          0 :         LL_MUL(result, result, mult);</span>
+<span class="lineNum">     767 </span><span class="lineNoCov">          0 :         LL_ADD(result, result, slot-&gt;authTime);</span>
+<span class="lineNum">     768 </span><span class="lineNoCov">          0 :         if (LL_CMP(result, &lt;, currtime)) {</span>
+<span class="lineNum">     769 </span><span class="lineNoCov">          0 :             PK11_EnterSlotMonitor(slot);</span>
+<span class="lineNum">     770 </span><span class="lineNoCov">          0 :             PK11_GETTAB(slot)-&gt;C_Logout(slot-&gt;session);</span>
+<span class="lineNum">     771 </span><span class="lineNoCov">          0 :             slot-&gt;lastLoginCheck = 0;</span>
+<span class="lineNum">     772 </span><span class="lineNoCov">          0 :             PK11_ExitSlotMonitor(slot);</span>
+<span class="lineNum">     773 </span>            :         } else {
+<span class="lineNum">     774 </span><span class="lineNoCov">          0 :             slot-&gt;authTime = currtime;</span>
+<span class="lineNum">     775 </span>            :         }
+<span class="lineNum">     776 </span>            :     }
+<span class="lineNum">     777 </span>            : 
+<span class="lineNum">     778 </span><span class="lineCov">          1 :     PK11_EnterSlotMonitor(slot);</span>
+<span class="lineNum">     779 </span><span class="lineCov">          1 :     if (pk11_InDelayPeriod(slot-&gt;lastLoginCheck, login_delay_time, &amp;curTime)) {</span>
+<span class="lineNum">     780 </span><span class="lineCov">          1 :         sessionInfo.state = slot-&gt;lastState;</span>
+<span class="lineNum">     781 </span><span class="lineCov">          1 :         crv = CKR_OK;</span>
+<span class="lineNum">     782 </span>            :     } else {
+<span class="lineNum">     783 </span><span class="lineCov">          1 :         crv = PK11_GETTAB(slot)-&gt;C_GetSessionInfo(slot-&gt;session, &amp;sessionInfo);</span>
+<span class="lineNum">     784 </span><span class="lineCov">          1 :         if (crv == CKR_OK) {</span>
+<span class="lineNum">     785 </span><span class="lineCov">          1 :             slot-&gt;lastState = sessionInfo.state;</span>
+<span class="lineNum">     786 </span><span class="lineCov">          1 :             slot-&gt;lastLoginCheck = curTime;</span>
+<span class="lineNum">     787 </span>            :         }
+<span class="lineNum">     788 </span>            :     }
+<span class="lineNum">     789 </span><span class="lineCov">          1 :     PK11_ExitSlotMonitor(slot);</span>
+<span class="lineNum">     790 </span>            :     /* if we can't get session info, something is really wrong */
+<span class="lineNum">     791 </span><span class="lineCov">          1 :     if (crv != CKR_OK) {</span>
+<span class="lineNum">     792 </span><span class="lineNoCov">          0 :         slot-&gt;session = CK_INVALID_SESSION;</span>
+<span class="lineNum">     793 </span><span class="lineNoCov">          0 :         return PR_FALSE;</span>
+<span class="lineNum">     794 </span>            :     }
+<span class="lineNum">     795 </span>            : 
+<span class="lineNum">     796 </span><span class="lineCov">          1 :     switch (sessionInfo.state) {</span>
+<span class="lineNum">     797 </span>            :         case CKS_RW_PUBLIC_SESSION:
+<span class="lineNum">     798 </span>            :         case CKS_RO_PUBLIC_SESSION:
+<span class="lineNum">     799 </span>            :         default:
+<span class="lineNum">     800 </span>            :             break; /* fail */
+<span class="lineNum">     801 </span>            :         case CKS_RW_USER_FUNCTIONS:
+<span class="lineNum">     802 </span>            :         case CKS_RW_SO_FUNCTIONS:
+<span class="lineNum">     803 </span>            :         case CKS_RO_USER_FUNCTIONS:
+<span class="lineNum">     804 </span>            :             return PR_TRUE;
+<span class="lineNum">     805 </span>            :     }
+<span class="lineNum">     806 </span><span class="lineCov">          1 :     return PR_FALSE;</span>
+<span class="lineNum">     807 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

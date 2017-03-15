@@ -1,0 +1,480 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - media/webrtc/trunk/webrtc/modules/rtp_rtcp/source/rtp_format_h264.cc</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../../../index.html">top level</a> - <a href="index.html">media/webrtc/trunk/webrtc/modules/rtp_rtcp/source</a> - rtp_format_h264.cc<span style="font-size: 80%;"> (source / <a href="rtp_format_h264.cc.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">177</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">17</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  *  Copyright (c) 2014 The WebRTC project authors. All Rights Reserved.
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  *  Use of this source code is governed by a BSD-style license
+<span class="lineNum">       5 </span>            :  *  that can be found in the LICENSE file in the root of the source
+<span class="lineNum">       6 </span>            :  *  tree. An additional intellectual property rights grant can be found
+<span class="lineNum">       7 </span>            :  *  in the file PATENTS.  All contributing project authors may
+<span class="lineNum">       8 </span>            :  *  be found in the AUTHORS file in the root of the source tree.
+<span class="lineNum">       9 </span>            :  */
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &lt;string.h&gt;
+<span class="lineNum">      12 </span>            : 
+<span class="lineNum">      13 </span>            : #include &quot;webrtc/base/logging.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;webrtc/modules/include/module_common_types.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;webrtc/modules/rtp_rtcp/source/byte_io.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;webrtc/modules/rtp_rtcp/source/h264_sps_parser.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;webrtc/modules/rtp_rtcp/source/rtp_format_h264.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;webrtc/system_wrappers/include/trace.h&quot;
+<span class="lineNum">      19 </span>            : 
+<span class="lineNum">      20 </span>            : namespace webrtc {
+<span class="lineNum">      21 </span>            : namespace {
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : enum Nalu { // 0-23 from H.264, 24-31 from RFC 6184
+<span class="lineNum">      24 </span>            :   kSlice = 1, // I/P/B slice
+<span class="lineNum">      25 </span>            :   kIdr = 5, // IDR slice
+<span class="lineNum">      26 </span>            :   kSei = 6, // Supplementary Enhancement Info
+<span class="lineNum">      27 </span>            :   kSeiRecPt = 6, // Recovery Point SEI Payload
+<span class="lineNum">      28 </span>            :   kSps = 7, // Sequence Parameter Set
+<span class="lineNum">      29 </span>            :   kPps = 8, // Picture Parameter Set
+<span class="lineNum">      30 </span>            :   kPrefix = 14, // Prefix
+<span class="lineNum">      31 </span>            :   kStapA = 24, // Single-Time Aggregation Packet Type A
+<span class="lineNum">      32 </span>            :   kFuA = 28 // Fragmentation Unit Type A
+<span class="lineNum">      33 </span>            : };
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : static const size_t kNalHeaderSize = 1;
+<span class="lineNum">      36 </span>            : static const size_t kFuAHeaderSize = 2;
+<span class="lineNum">      37 </span>            : static const size_t kLengthFieldSize = 2;
+<span class="lineNum">      38 </span>            : static const size_t kStapAHeaderSize = kNalHeaderSize + kLengthFieldSize;
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : // Bit masks for FU (A and B) indicators.
+<span class="lineNum">      41 </span>            : enum NalDefs { kFBit = 0x80, kNriMask = 0x60, kTypeMask = 0x1F };
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : // Bit masks for FU (A and B) headers.
+<span class="lineNum">      44 </span>            : enum FuDefs { kSBit = 0x80, kEBit = 0x40, kRBit = 0x20 };
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span>            : // TODO(pbos): Avoid parsing this here as well as inside the jitter buffer.
+<span class="lineNum">      47 </span>            : bool VerifyStapANaluLengths(const uint8_t* nalu_ptr, size_t length_remaining) {
+<span class="lineNum">      48 </span>            :   while (length_remaining &gt; 0) {
+<span class="lineNum">      49 </span>            :     // Buffer doesn't contain room for additional nalu length.
+<span class="lineNum">      50 </span>            :     if (length_remaining &lt; sizeof(uint16_t))
+<span class="lineNum">      51 </span>            :       return false;
+<span class="lineNum">      52 </span>            :     uint16_t nalu_size = nalu_ptr[0] &lt;&lt; 8 | nalu_ptr[1];
+<span class="lineNum">      53 </span>            :     nalu_ptr += sizeof(uint16_t);
+<span class="lineNum">      54 </span>            :     length_remaining -= sizeof(uint16_t);
+<span class="lineNum">      55 </span>            :     if (nalu_size &gt; length_remaining)
+<span class="lineNum">      56 </span>            :       return false;
+<span class="lineNum">      57 </span>            :     nalu_ptr += nalu_size;
+<span class="lineNum">      58 </span>            :     length_remaining -= nalu_size;
+<span class="lineNum">      59 </span>            :   }
+<span class="lineNum">      60 </span>            :   return true;
+<a name="61"><span class="lineNum">      61 </span>            : }</a>
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span><span class="lineNoCov">          0 : bool ParseSingleNalu(RtpDepacketizer::ParsedPayload* parsed_payload,</span>
+<span class="lineNum">      64 </span>            :                      const uint8_t* payload_data,
+<span class="lineNum">      65 </span>            :                      size_t payload_data_length) {
+<span class="lineNum">      66 </span><span class="lineNoCov">          0 :   parsed_payload-&gt;type.Video.width = 0;</span>
+<span class="lineNum">      67 </span><span class="lineNoCov">          0 :   parsed_payload-&gt;type.Video.height = 0;</span>
+<span class="lineNum">      68 </span><span class="lineNoCov">          0 :   parsed_payload-&gt;type.Video.codec = kRtpVideoH264;</span>
+<span class="lineNum">      69 </span><span class="lineNoCov">          0 :   parsed_payload-&gt;type.Video.isFirstPacket = true;</span>
+<span class="lineNum">      70 </span>            :   RTPVideoHeaderH264* h264_header =
+<span class="lineNum">      71 </span><span class="lineNoCov">          0 :       &amp;parsed_payload-&gt;type.Video.codecHeader.H264;</span>
+<span class="lineNum">      72 </span><span class="lineNoCov">          0 :   h264_header-&gt;single_nalu = true;</span>
+<span class="lineNum">      73 </span><span class="lineNoCov">          0 :   h264_header-&gt;stap_a = false;</span>
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span><span class="lineNoCov">          0 :   uint8_t nal_type = payload_data[0] &amp; kTypeMask;</span>
+<span class="lineNum">      76 </span><span class="lineNoCov">          0 :   size_t offset = 0;</span>
+<span class="lineNum">      77 </span><span class="lineNoCov">          0 :   if (nal_type == kStapA) {</span>
+<span class="lineNum">      78 </span><span class="lineNoCov">          0 :     offset = 3;</span>
+<span class="lineNum">      79 </span><span class="lineNoCov">          0 :     if (offset &gt;= payload_data_length) {</span>
+<span class="lineNum">      80 </span>            :       return false; // XXX malformed
+<span class="lineNum">      81 </span>            :     }
+<span class="lineNum">      82 </span><span class="lineNoCov">          0 :     nal_type = payload_data[offset] &amp; kTypeMask;</span>
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :     h264_header-&gt;stap_a = true;</span>
+<span class="lineNum">      84 </span>            :   }
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span>            :   // key frames start with SPS, PPS, IDR, or Recovery Point SEI
+<span class="lineNum">      87 </span>            :   // Recovery Point SEI's are used in AIR and GDR refreshes, which don't
+<span class="lineNum">      88 </span>            :   // send large iframes, and instead use forms of incremental/continuous refresh.
+<span class="lineNum">      89 </span><span class="lineNoCov">          0 :   switch (nal_type) {</span>
+<span class="lineNum">      90 </span>            :     case kSei: // check if it is a Recovery Point SEI (aka GDR)
+<span class="lineNum">      91 </span><span class="lineNoCov">          0 :       if (offset + 1 &gt;= payload_data_length) {</span>
+<span class="lineNum">      92 </span><span class="lineNoCov">          0 :         LOG(LS_ERROR) &lt;&lt; &quot;KSei packet with incorrect pachet length.&quot;;</span>
+<span class="lineNum">      93 </span>            :         return false; // XXX malformed
+<span class="lineNum">      94 </span>            :       }
+<span class="lineNum">      95 </span><span class="lineNoCov">          0 :       if (payload_data[offset + 1] != kSeiRecPt) {</span>
+<span class="lineNum">      96 </span><span class="lineNoCov">          0 :         parsed_payload-&gt;frame_type = kVideoFrameDelta;</span>
+<span class="lineNum">      97 </span><span class="lineNoCov">          0 :         break; // some other form of SEI - not a keyframe</span>
+<span class="lineNum">      98 </span>            :       }
+<span class="lineNum">      99 </span>            :       // else fall through since GDR is like IDR
+<span class="lineNum">     100 </span>            :     case kSps:
+<span class="lineNum">     101 </span>            :     case kPps:
+<span class="lineNum">     102 </span>            :       // These are always combined with other packets with the same timestamp...
+<span class="lineNum">     103 </span>            :       // XXX To support 'solitary' SPS/PPS/etc, either fix the jitter buffer to
+<span class="lineNum">     104 </span>            :       // accept multiple sessions with the same timestamp, or pass marker info
+<span class="lineNum">     105 </span>            :       // down into here (SPS/PPS as a pair without an kIdr NALU would still be
+<span class="lineNum">     106 </span>            :       // painful, but might work).
+<span class="lineNum">     107 </span><span class="lineNoCov">          0 :       h264_header-&gt;single_nalu = false;</span>
+<span class="lineNum">     108 </span>            :       // fall through...
+<span class="lineNum">     109 </span>            :     case kIdr:
+<span class="lineNum">     110 </span><span class="lineNoCov">          0 :       parsed_payload-&gt;frame_type = kVideoFrameKey;</span>
+<span class="lineNum">     111 </span><span class="lineNoCov">          0 :       break;</span>
+<span class="lineNum">     112 </span>            :     default:
+<span class="lineNum">     113 </span><span class="lineNoCov">          0 :       parsed_payload-&gt;frame_type = kVideoFrameDelta;</span>
+<span class="lineNum">     114 </span><span class="lineNoCov">          0 :       break;</span>
+<span class="lineNum">     115 </span>            :   }
+<span class="lineNum">     116 </span>            :   return true;
+<a name="117"><span class="lineNum">     117 </span>            : }</a>
+<span class="lineNum">     118 </span>            : 
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 : bool ParseFuaNalu(RtpDepacketizer::ParsedPayload* parsed_payload,</span>
+<span class="lineNum">     120 </span>            :                   const uint8_t* payload_data,
+<span class="lineNum">     121 </span>            :                   size_t payload_data_length,
+<span class="lineNum">     122 </span>            :                   size_t* offset) {
+<span class="lineNum">     123 </span><span class="lineNoCov">          0 :   if (payload_data_length &lt; kFuAHeaderSize) {</span>
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :     LOG(LS_ERROR) &lt;&lt; &quot;FU-A NAL units truncated.&quot;;</span>
+<span class="lineNum">     125 </span>            :     return false;
+<span class="lineNum">     126 </span>            :   }
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 :   uint8_t fnri = payload_data[0] &amp; (kFBit | kNriMask);</span>
+<span class="lineNum">     128 </span><span class="lineNoCov">          0 :   uint8_t original_nal_type = payload_data[1] &amp; kTypeMask;</span>
+<span class="lineNum">     129 </span><span class="lineNoCov">          0 :   bool first_fragment = (payload_data[1] &amp; kSBit) &gt; 0;</span>
+<span class="lineNum">     130 </span>            : 
+<span class="lineNum">     131 </span><span class="lineNoCov">          0 :   uint8_t original_nal_header = fnri | original_nal_type;</span>
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :   if (first_fragment) {</span>
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :     *offset = kNalHeaderSize;</span>
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :     uint8_t* payload = const_cast&lt;uint8_t*&gt;(payload_data + *offset);</span>
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 :     payload[0] = original_nal_header;</span>
+<span class="lineNum">     136 </span>            :   } else {
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :     *offset = kFuAHeaderSize;</span>
+<span class="lineNum">     138 </span>            :   }
+<span class="lineNum">     139 </span>            : 
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :   if (original_nal_type == kIdr) {</span>
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :     parsed_payload-&gt;frame_type = kVideoFrameKey;</span>
+<span class="lineNum">     142 </span>            :   } else {
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :     parsed_payload-&gt;frame_type = kVideoFrameDelta;</span>
+<span class="lineNum">     144 </span>            :   }
+<span class="lineNum">     145 </span><span class="lineNoCov">          0 :   parsed_payload-&gt;type.Video.width = 0;</span>
+<span class="lineNum">     146 </span><span class="lineNoCov">          0 :   parsed_payload-&gt;type.Video.height = 0;</span>
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 :   parsed_payload-&gt;type.Video.codec = kRtpVideoH264;</span>
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 :   parsed_payload-&gt;type.Video.isFirstPacket = first_fragment;</span>
+<span class="lineNum">     149 </span>            :   RTPVideoHeaderH264* h264_header =
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :       &amp;parsed_payload-&gt;type.Video.codecHeader.H264;</span>
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :   h264_header-&gt;single_nalu = false;</span>
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :   h264_header-&gt;stap_a = false;</span>
+<span class="lineNum">     153 </span><span class="lineNoCov">          0 :   return true;</span>
+<span class="lineNum">     154 </span>            : }
+<a name="155"><span class="lineNum">     155 </span>            : }  // namespace</a>
+<span class="lineNum">     156 </span>            : 
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 : RtpPacketizerH264::RtpPacketizerH264(FrameType frame_type,</span>
+<span class="lineNum">     158 </span>            :                                      size_t max_payload_len,
+<span class="lineNum">     159 </span>            :                                      uint8_t packetization_mode)
+<span class="lineNum">     160 </span>            :     : payload_data_(NULL),
+<span class="lineNum">     161 </span>            :       payload_size_(0),
+<span class="lineNum">     162 </span>            :       max_payload_len_(max_payload_len),
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :       packetization_mode_(packetization_mode) {</span>
+<a name="164"><span class="lineNum">     164 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 : RtpPacketizerH264::~RtpPacketizerH264() {</span>
+<a name="167"><span class="lineNum">     167 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     168 </span>            : 
+<span class="lineNum">     169 </span><span class="lineNoCov">          0 : void RtpPacketizerH264::SetPayloadData(</span>
+<span class="lineNum">     170 </span>            :     const uint8_t* payload_data,
+<span class="lineNum">     171 </span>            :     size_t payload_size,
+<span class="lineNum">     172 </span>            :     const RTPFragmentationHeader* fragmentation) {
+<span class="lineNum">     173 </span>            :   assert(packets_.empty());
+<span class="lineNum">     174 </span>            :   assert(fragmentation);
+<span class="lineNum">     175 </span><span class="lineNoCov">          0 :   payload_data_ = payload_data;</span>
+<span class="lineNum">     176 </span><span class="lineNoCov">          0 :   payload_size_ = payload_size;</span>
+<span class="lineNum">     177 </span><span class="lineNoCov">          0 :   fragmentation_.CopyFrom(*fragmentation);</span>
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :   GeneratePackets();</span>
+<a name="179"><span class="lineNum">     179 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     180 </span>            : 
+<span class="lineNum">     181 </span><span class="lineNoCov">          0 : void RtpPacketizerH264::GeneratePackets() {</span>
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :   for (size_t i = 0; i &lt; fragmentation_.fragmentationVectorSize;) {</span>
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 :     size_t fragment_offset = fragmentation_.fragmentationOffset[i];</span>
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :     size_t fragment_length = fragmentation_.fragmentationLength[i];</span>
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :     if (packetization_mode_ == 0) {</span>
+<span class="lineNum">     186 </span><span class="lineNoCov">          0 :       PacketizeMode0(fragment_offset, fragment_length);</span>
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 :       ++i;</span>
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :     } else if (fragment_length &gt; max_payload_len_) {</span>
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 :       PacketizeFuA(fragment_offset, fragment_length);</span>
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :       ++i;</span>
+<span class="lineNum">     191 </span>            :     } else {
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :       i = PacketizeStapA(i, fragment_offset, fragment_length);</span>
+<span class="lineNum">     193 </span>            :     }
+<span class="lineNum">     194 </span>            :   }
+<a name="195"><span class="lineNum">     195 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 : void RtpPacketizerH264::PacketizeMode0(size_t fragment_offset,</span>
+<span class="lineNum">     198 </span>            :                                        size_t fragment_length) {
+<span class="lineNum">     199 </span>            : 
+<span class="lineNum">     200 </span><span class="lineNoCov">          0 :   uint8_t header = payload_data_[fragment_offset];</span>
+<span class="lineNum">     201 </span>            :   packets_.push(Packet(fragment_offset,
+<span class="lineNum">     202 </span>            :                        fragment_length,
+<span class="lineNum">     203 </span>            :                        true,
+<span class="lineNum">     204 </span>            :                        true,
+<span class="lineNum">     205 </span>            :                        false,
+<span class="lineNum">     206 </span><span class="lineNoCov">          0 :                        header));</span>
+<a name="207"><span class="lineNum">     207 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 : void RtpPacketizerH264::PacketizeFuA(size_t fragment_offset,</span>
+<span class="lineNum">     210 </span>            :                                      size_t fragment_length) {
+<span class="lineNum">     211 </span>            :   // Fragment payload into packets (FU-A).
+<span class="lineNum">     212 </span>            :   // Strip out the original header and leave room for the FU-A header.
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :   fragment_length -= kNalHeaderSize;</span>
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 :   size_t offset = fragment_offset + kNalHeaderSize;</span>
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 :   size_t bytes_available = max_payload_len_ - kFuAHeaderSize;</span>
+<span class="lineNum">     216 </span>            :   size_t fragments =
+<span class="lineNum">     217 </span><span class="lineNoCov">          0 :       (fragment_length + (bytes_available - 1)) / bytes_available;</span>
+<span class="lineNum">     218 </span><span class="lineNoCov">          0 :   size_t avg_size = (fragment_length + fragments - 1) / fragments;</span>
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 :   while (fragment_length &gt; 0) {</span>
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 :     size_t packet_length = avg_size;</span>
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :     if (fragment_length &lt; avg_size)</span>
+<span class="lineNum">     222 </span><span class="lineNoCov">          0 :       packet_length = fragment_length;</span>
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :     uint8_t header = payload_data_[fragment_offset];</span>
+<span class="lineNum">     224 </span>            :     packets_.push(Packet(offset,
+<span class="lineNum">     225 </span>            :                          packet_length,
+<span class="lineNum">     226 </span><span class="lineNoCov">          0 :                          offset - kNalHeaderSize == fragment_offset,</span>
+<span class="lineNum">     227 </span>            :                          fragment_length == packet_length,
+<span class="lineNum">     228 </span>            :                          false,
+<span class="lineNum">     229 </span><span class="lineNoCov">          0 :                          header));</span>
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :     offset += packet_length;</span>
+<span class="lineNum">     231 </span><span class="lineNoCov">          0 :     fragment_length -= packet_length;</span>
+<span class="lineNum">     232 </span>            :   }
+<a name="233"><span class="lineNum">     233 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 : int RtpPacketizerH264::PacketizeStapA(size_t fragment_index,</span>
+<span class="lineNum">     236 </span>            :                                       size_t fragment_offset,
+<span class="lineNum">     237 </span>            :                                       size_t fragment_length) {
+<span class="lineNum">     238 </span>            :   // Aggregate fragments into one packet (STAP-A).
+<span class="lineNum">     239 </span><span class="lineNoCov">          0 :   size_t payload_size_left = max_payload_len_;</span>
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 :   int aggregated_fragments = 0;</span>
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :   size_t fragment_headers_length = 0;</span>
+<span class="lineNum">     242 </span>            :   assert(payload_size_left &gt;= fragment_length);
+<span class="lineNum">     243 </span><span class="lineNoCov">          0 :   while (payload_size_left &gt;= fragment_length + fragment_headers_length) {</span>
+<span class="lineNum">     244 </span>            :     assert(fragment_length &gt; 0);
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :     uint8_t header = payload_data_[fragment_offset];</span>
+<span class="lineNum">     246 </span>            :     packets_.push(Packet(fragment_offset,
+<span class="lineNum">     247 </span>            :                          fragment_length,
+<span class="lineNum">     248 </span>            :                          aggregated_fragments == 0,
+<span class="lineNum">     249 </span>            :                          false,
+<span class="lineNum">     250 </span>            :                          true,
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 :                          header));</span>
+<span class="lineNum">     252 </span><span class="lineNoCov">          0 :     payload_size_left -= fragment_length;</span>
+<span class="lineNum">     253 </span><span class="lineNoCov">          0 :     payload_size_left -= fragment_headers_length;</span>
+<span class="lineNum">     254 </span>            : 
+<span class="lineNum">     255 </span>            :     // Next fragment.
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 :     ++fragment_index;</span>
+<span class="lineNum">     257 </span><span class="lineNoCov">          0 :     if (fragment_index == fragmentation_.fragmentationVectorSize)</span>
+<span class="lineNum">     258 </span>            :       break;
+<span class="lineNum">     259 </span><span class="lineNoCov">          0 :     fragment_offset = fragmentation_.fragmentationOffset[fragment_index];</span>
+<span class="lineNum">     260 </span><span class="lineNoCov">          0 :     fragment_length = fragmentation_.fragmentationLength[fragment_index];</span>
+<span class="lineNum">     261 </span>            : 
+<span class="lineNum">     262 </span><span class="lineNoCov">          0 :     fragment_headers_length = kLengthFieldSize;</span>
+<span class="lineNum">     263 </span>            :     // If we are going to try to aggregate more fragments into this packet
+<span class="lineNum">     264 </span>            :     // we need to add the STAP-A NALU header and a length field for the first
+<span class="lineNum">     265 </span>            :     // NALU of this packet.
+<span class="lineNum">     266 </span><span class="lineNoCov">          0 :     if (aggregated_fragments == 0)</span>
+<span class="lineNum">     267 </span><span class="lineNoCov">          0 :       fragment_headers_length += kNalHeaderSize + kLengthFieldSize;</span>
+<span class="lineNum">     268 </span><span class="lineNoCov">          0 :     ++aggregated_fragments;</span>
+<span class="lineNum">     269 </span>            :   }
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 :   packets_.back().last_fragment = true;</span>
+<span class="lineNum">     271 </span><span class="lineNoCov">          0 :   return fragment_index;</span>
+<a name="272"><span class="lineNum">     272 </span>            : }</a>
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span><span class="lineNoCov">          0 : bool RtpPacketizerH264::NextPacket(uint8_t* buffer,</span>
+<span class="lineNum">     275 </span>            :                                    size_t* bytes_to_send,
+<span class="lineNum">     276 </span>            :                                    bool* last_packet) {
+<span class="lineNum">     277 </span><span class="lineNoCov">          0 :   *bytes_to_send = 0;</span>
+<span class="lineNum">     278 </span><span class="lineNoCov">          0 :   if (packets_.empty()) {</span>
+<span class="lineNum">     279 </span>            :     *bytes_to_send = 0;
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 :     *last_packet = true;</span>
+<span class="lineNum">     281 </span><span class="lineNoCov">          0 :     return false;</span>
+<span class="lineNum">     282 </span>            :   }
+<span class="lineNum">     283 </span>            : 
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 :   Packet packet = packets_.front();</span>
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span><span class="lineNoCov">          0 :   if (packet.first_fragment &amp;&amp; packet.last_fragment) {</span>
+<span class="lineNum">     287 </span>            :     // Single NAL unit packet.
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :     *bytes_to_send = packet.size;</span>
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :     memcpy(buffer, &amp;payload_data_[packet.offset], packet.size);</span>
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :     packets_.pop();</span>
+<span class="lineNum">     291 </span>            :     assert(*bytes_to_send &lt;= max_payload_len_);
+<span class="lineNum">     292 </span><span class="lineNoCov">          0 :   } else if (packet.aggregated) {</span>
+<span class="lineNum">     293 </span><span class="lineNoCov">          0 :     NextAggregatePacket(buffer, bytes_to_send);</span>
+<span class="lineNum">     294 </span>            :     assert(*bytes_to_send &lt;= max_payload_len_);
+<span class="lineNum">     295 </span>            :   } else {
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :     NextFragmentPacket(buffer, bytes_to_send);</span>
+<span class="lineNum">     297 </span>            :     assert(*bytes_to_send &lt;= max_payload_len_);
+<span class="lineNum">     298 </span>            :   }
+<span class="lineNum">     299 </span><span class="lineNoCov">          0 :   *last_packet = packets_.empty();</span>
+<span class="lineNum">     300 </span><span class="lineNoCov">          0 :   return true;</span>
+<a name="301"><span class="lineNum">     301 </span>            : }</a>
+<span class="lineNum">     302 </span>            : 
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 : void RtpPacketizerH264::NextAggregatePacket(uint8_t* buffer,</span>
+<span class="lineNum">     304 </span>            :                                             size_t* bytes_to_send) {
+<span class="lineNum">     305 </span><span class="lineNoCov">          0 :   Packet packet = packets_.front();</span>
+<span class="lineNum">     306 </span>            :   assert(packet.first_fragment);
+<span class="lineNum">     307 </span>            :   // STAP-A NALU header.
+<span class="lineNum">     308 </span><span class="lineNoCov">          0 :   buffer[0] = (packet.header &amp; (kFBit | kNriMask)) | kStapA;</span>
+<span class="lineNum">     309 </span><span class="lineNoCov">          0 :   int index = kNalHeaderSize;</span>
+<span class="lineNum">     310 </span><span class="lineNoCov">          0 :   *bytes_to_send += kNalHeaderSize;</span>
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :   while (packet.aggregated) {</span>
+<span class="lineNum">     312 </span>            :     // Add NAL unit length field.
+<span class="lineNum">     313 </span><span class="lineNoCov">          0 :     ByteWriter&lt;uint16_t&gt;::WriteBigEndian(&amp;buffer[index], packet.size);</span>
+<span class="lineNum">     314 </span><span class="lineNoCov">          0 :     index += kLengthFieldSize;</span>
+<span class="lineNum">     315 </span><span class="lineNoCov">          0 :     *bytes_to_send += kLengthFieldSize;</span>
+<span class="lineNum">     316 </span>            :     // Add NAL unit.
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :     memcpy(&amp;buffer[index], &amp;payload_data_[packet.offset], packet.size);</span>
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :     index += packet.size;</span>
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :     *bytes_to_send += packet.size;</span>
+<span class="lineNum">     320 </span><span class="lineNoCov">          0 :     packets_.pop();</span>
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :     if (packet.last_fragment)</span>
+<span class="lineNum">     322 </span>            :       break;
+<span class="lineNum">     323 </span><span class="lineNoCov">          0 :     packet = packets_.front();</span>
+<span class="lineNum">     324 </span>            :   }
+<span class="lineNum">     325 </span>            :   assert(packet.last_fragment);
+<a name="326"><span class="lineNum">     326 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     327 </span>            : 
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 : void RtpPacketizerH264::NextFragmentPacket(uint8_t* buffer,</span>
+<span class="lineNum">     329 </span>            :                                            size_t* bytes_to_send) {
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 :   Packet packet = packets_.front();</span>
+<span class="lineNum">     331 </span>            :   // NAL unit fragmented over multiple packets (FU-A).
+<span class="lineNum">     332 </span>            :   // We do not send original NALU header, so it will be replaced by the
+<span class="lineNum">     333 </span>            :   // FU indicator header of the first packet.
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :   uint8_t fu_indicator = (packet.header &amp; (kFBit | kNriMask)) | kFuA;</span>
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :   uint8_t fu_header = 0;</span>
+<span class="lineNum">     336 </span>            : 
+<span class="lineNum">     337 </span>            :   // S | E | R | 5 bit type.
+<span class="lineNum">     338 </span><span class="lineNoCov">          0 :   fu_header |= (packet.first_fragment ? kSBit : 0);</span>
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 :   fu_header |= (packet.last_fragment ? kEBit : 0);</span>
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :   uint8_t type = packet.header &amp; kTypeMask;</span>
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :   fu_header |= type;</span>
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 :   buffer[0] = fu_indicator;</span>
+<span class="lineNum">     343 </span><span class="lineNoCov">          0 :   buffer[1] = fu_header;</span>
+<span class="lineNum">     344 </span>            : 
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 :   if (packet.last_fragment) {</span>
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :     *bytes_to_send = packet.size + kFuAHeaderSize;</span>
+<span class="lineNum">     347 </span><span class="lineNoCov">          0 :     memcpy(buffer + kFuAHeaderSize, &amp;payload_data_[packet.offset], packet.size);</span>
+<span class="lineNum">     348 </span>            :   } else {
+<span class="lineNum">     349 </span><span class="lineNoCov">          0 :     *bytes_to_send = packet.size + kFuAHeaderSize;</span>
+<span class="lineNum">     350 </span><span class="lineNoCov">          0 :     memcpy(buffer + kFuAHeaderSize, &amp;payload_data_[packet.offset], packet.size);</span>
+<span class="lineNum">     351 </span>            :   }
+<span class="lineNum">     352 </span><span class="lineNoCov">          0 :   packets_.pop();</span>
+<a name="353"><span class="lineNum">     353 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span><span class="lineNoCov">          0 : ProtectionType RtpPacketizerH264::GetProtectionType() {</span>
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :   return kProtectedPacket;</span>
+<a name="357"><span class="lineNum">     357 </span>            : }</a>
+<span class="lineNum">     358 </span>            : 
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 : StorageType RtpPacketizerH264::GetStorageType(</span>
+<span class="lineNum">     360 </span>            :     uint32_t retransmission_settings) {
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 :   return kAllowRetransmission;</span>
+<a name="362"><span class="lineNum">     362 </span>            : }</a>
+<span class="lineNum">     363 </span>            : 
+<span class="lineNum">     364 </span><span class="lineNoCov">          0 : std::string RtpPacketizerH264::ToString() {</span>
+<span class="lineNum">     365 </span><span class="lineNoCov">          0 :   return &quot;RtpPacketizerH264&quot;;</span>
+<a name="366"><span class="lineNum">     366 </span>            : }</a>
+<span class="lineNum">     367 </span>            : 
+<span class="lineNum">     368 </span><span class="lineNoCov">          0 : bool RtpDepacketizerH264::Parse(ParsedPayload* parsed_payload,</span>
+<span class="lineNum">     369 </span>            :                                 const uint8_t* payload_data,
+<span class="lineNum">     370 </span>            :                                 size_t payload_data_length) {
+<span class="lineNum">     371 </span>            :   assert(parsed_payload != NULL);
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :   if (payload_data_length == 0) {</span>
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :     LOG(LS_ERROR) &lt;&lt; &quot;Empty payload.&quot;;</span>
+<span class="lineNum">     374 </span>            :     return false;
+<span class="lineNum">     375 </span>            :   }
+<span class="lineNum">     376 </span>            : 
+<span class="lineNum">     377 </span><span class="lineNoCov">          0 :   uint8_t nal_type = payload_data[0] &amp; kTypeMask;</span>
+<span class="lineNum">     378 </span><span class="lineNoCov">          0 :   size_t offset = 0;</span>
+<span class="lineNum">     379 </span><span class="lineNoCov">          0 :   if (nal_type == kFuA) {</span>
+<span class="lineNum">     380 </span>            :     // Fragmented NAL units (FU-A).
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 :     if (!ParseFuaNalu(</span>
+<span class="lineNum">     382 </span><span class="lineNoCov">          0 :             parsed_payload, payload_data, payload_data_length, &amp;offset)) {</span>
+<span class="lineNum">     383 </span>            :       return false;
+<span class="lineNum">     384 </span>            :     }
+<span class="lineNum">     385 </span>            :   } else {
+<span class="lineNum">     386 </span>            :     // We handle STAP-A and single NALU's the same way here. The jitter buffer
+<span class="lineNum">     387 </span>            :     // will depacketize the STAP-A into NAL units later.
+<span class="lineNum">     388 </span><span class="lineNoCov">          0 :     if (!ParseSingleNalu(parsed_payload, payload_data, payload_data_length))</span>
+<span class="lineNum">     389 </span>            :       return false;
+<span class="lineNum">     390 </span>            :   }
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span><span class="lineNoCov">          0 :   parsed_payload-&gt;payload = payload_data + offset;</span>
+<span class="lineNum">     393 </span><span class="lineNoCov">          0 :   parsed_payload-&gt;payload_length = payload_data_length - offset;</span>
+<span class="lineNum">     394 </span><span class="lineNoCov">          0 :   return true;</span>
+<span class="lineNum">     395 </span>            : }
+<span class="lineNum">     396 </span>            : }  // namespace webrtc
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

@@ -1,0 +1,548 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - media/webrtc/signaling/src/mediapipeline/MediaPipeline.h</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">media/webrtc/signaling/src/mediapipeline</a> - MediaPipeline.h<span style="font-size: 80%;"> (source / <a href="MediaPipeline.h.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">34</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">24</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       3 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+<span class="lineNum">       4 </span>            :  * You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       5 </span>            : 
+<span class="lineNum">       6 </span>            : // Original author: ekr@rtfm.com
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #ifndef mediapipeline_h__
+<span class="lineNum">       9 </span>            : #define mediapipeline_h__
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;sigslot.h&quot;
+<span class="lineNum">      12 </span>            : 
+<span class="lineNum">      13 </span>            : #include &quot;MediaConduitInterface.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;mozilla/ReentrantMonitor.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;mozilla/Atomics.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;SrtpFlow.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;databuffer.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;runnable_utils.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;transportflow.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;AudioPacketizer.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;StreamTracks.h&quot;
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : #include &quot;webrtc/modules/rtp_rtcp/include/rtp_header_parser.h&quot;
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : // Should come from MediaEngine.h, but that's a pain to include here
+<span class="lineNum">      26 </span>            : // because of the MOZILLA_EXTERNAL_LINKAGE stuff.
+<span class="lineNum">      27 </span>            : #define WEBRTC_DEFAULT_SAMPLE_RATE 32000
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : class nsIPrincipal;
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : namespace mozilla {
+<span class="lineNum">      32 </span>            : class MediaPipelineFilter;
+<span class="lineNum">      33 </span>            : class PeerIdentity;
+<span class="lineNum">      34 </span>            : class AudioProxyThread;
+<span class="lineNum">      35 </span>            : class VideoFrameConverter;
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            : namespace dom {
+<span class="lineNum">      38 </span>            :   class MediaStreamTrack;
+<span class="lineNum">      39 </span>            : } // namespace dom
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span>            : class SourceMediaStream;
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            : // A class that represents the pipeline of audio and video
+<span class="lineNum">      44 </span>            : // The dataflow looks like:
+<span class="lineNum">      45 </span>            : //
+<span class="lineNum">      46 </span>            : // TRANSMIT
+<span class="lineNum">      47 </span>            : // CaptureDevice -&gt; stream -&gt; [us] -&gt; conduit -&gt; [us] -&gt; transport -&gt; network
+<span class="lineNum">      48 </span>            : //
+<span class="lineNum">      49 </span>            : // RECEIVE
+<span class="lineNum">      50 </span>            : // network -&gt; transport -&gt; [us] -&gt; conduit -&gt; [us] -&gt; stream -&gt; Playout
+<span class="lineNum">      51 </span>            : //
+<span class="lineNum">      52 </span>            : // The boxes labeled [us] are just bridge logic implemented in this class
+<span class="lineNum">      53 </span>            : //
+<span class="lineNum">      54 </span>            : // We have to deal with a number of threads:
+<span class="lineNum">      55 </span>            : //
+<span class="lineNum">      56 </span>            : // GSM:
+<span class="lineNum">      57 </span>            : //   * Assembles the pipeline
+<span class="lineNum">      58 </span>            : // SocketTransportService
+<span class="lineNum">      59 </span>            : //   * Receives notification that ICE and DTLS have completed
+<span class="lineNum">      60 </span>            : //   * Processes incoming network data and passes it to the conduit
+<span class="lineNum">      61 </span>            : //   * Processes outgoing RTP and RTCP
+<span class="lineNum">      62 </span>            : // MediaStreamGraph
+<span class="lineNum">      63 </span>            : //   * Receives outgoing data from the MediaStreamGraph
+<span class="lineNum">      64 </span>            : //   * Receives pull requests for more data from the
+<span class="lineNum">      65 </span>            : //     MediaStreamGraph
+<span class="lineNum">      66 </span>            : // One or another GIPS threads
+<span class="lineNum">      67 </span>            : //   * Receives RTCP messages to send to the other side
+<span class="lineNum">      68 </span>            : //   * Processes video frames GIPS wants to render
+<span class="lineNum">      69 </span>            : //
+<span class="lineNum">      70 </span>            : // For a transmitting conduit, &quot;output&quot; is RTP and &quot;input&quot; is RTCP.
+<span class="lineNum">      71 </span>            : // For a receiving conduit, &quot;input&quot; is RTP and &quot;output&quot; is RTCP.
+<span class="lineNum">      72 </span>            : //
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span>            : class MediaPipeline : public sigslot::has_slots&lt;&gt; {
+<span class="lineNum">      75 </span>            :  public:
+<span class="lineNum">      76 </span>            :   enum Direction { TRANSMIT, RECEIVE };
+<span class="lineNum">      77 </span>            :   enum State { MP_CONNECTING, MP_OPEN, MP_CLOSED };
+<span class="lineNum">      78 </span>            :   MediaPipeline(const std::string&amp; pc,
+<span class="lineNum">      79 </span>            :                 Direction direction,
+<span class="lineNum">      80 </span>            :                 nsCOMPtr&lt;nsIEventTarget&gt; main_thread,
+<span class="lineNum">      81 </span>            :                 nsCOMPtr&lt;nsIEventTarget&gt; sts_thread,
+<span class="lineNum">      82 </span>            :                 const std::string&amp; track_id,
+<span class="lineNum">      83 </span>            :                 int level,
+<span class="lineNum">      84 </span>            :                 RefPtr&lt;MediaSessionConduit&gt; conduit,
+<span class="lineNum">      85 </span>            :                 RefPtr&lt;TransportFlow&gt; rtp_transport,
+<span class="lineNum">      86 </span>            :                 RefPtr&lt;TransportFlow&gt; rtcp_transport,
+<span class="lineNum">      87 </span>            :                 nsAutoPtr&lt;MediaPipelineFilter&gt; filter);
+<span class="lineNum">      88 </span>            : 
+<span class="lineNum">      89 </span>            :   // Must be called on the STS thread.  Must be called after ShutdownMedia_m().
+<span class="lineNum">      90 </span>            :   void DetachTransport_s();
+<a name="91"><span class="lineNum">      91 </span>            : </a>
+<span class="lineNum">      92 </span>            :   // Must be called on the main thread.
+<span class="lineNum">      93 </span><span class="lineNoCov">          0 :   void ShutdownMedia_m()</span>
+<span class="lineNum">      94 </span>            :   {
+<span class="lineNum">      95 </span>            :     ASSERT_ON_THREAD(main_thread_);
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span><span class="lineNoCov">          0 :     if (direction_ == RECEIVE) {</span>
+<span class="lineNum">      98 </span><span class="lineNoCov">          0 :       conduit_-&gt;StopReceiving();</span>
+<span class="lineNum">      99 </span>            :     } else {
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :       conduit_-&gt;StopTransmitting();</span>
+<span class="lineNum">     101 </span>            :     }
+<span class="lineNum">     102 </span><span class="lineNoCov">          0 :     DetachMedia();</span>
+<span class="lineNum">     103 </span><span class="lineNoCov">          0 :   }</span>
+<span class="lineNum">     104 </span>            : 
+<span class="lineNum">     105 </span>            :   virtual nsresult Init();
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span>            :   void UpdateTransport_m(int level,
+<span class="lineNum">     108 </span>            :                          RefPtr&lt;TransportFlow&gt; rtp_transport,
+<span class="lineNum">     109 </span>            :                          RefPtr&lt;TransportFlow&gt; rtcp_transport,
+<span class="lineNum">     110 </span>            :                          nsAutoPtr&lt;MediaPipelineFilter&gt; filter);
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span>            :   void UpdateTransport_s(int level,
+<span class="lineNum">     113 </span>            :                          RefPtr&lt;TransportFlow&gt; rtp_transport,
+<span class="lineNum">     114 </span>            :                          RefPtr&lt;TransportFlow&gt; rtcp_transport,
+<span class="lineNum">     115 </span>            :                          nsAutoPtr&lt;MediaPipelineFilter&gt; filter);
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            :   // Used only for testing; installs a MediaPipelineFilter that filters
+<span class="lineNum">     118 </span>            :   // everything but the nth ssrc
+<span class="lineNum">     119 </span>            :   void SelectSsrc_m(size_t ssrc_index);
+<a name="120"><span class="lineNum">     120 </span>            :   void SelectSsrc_s(uint32_t ssrc);</a>
+<a name="121"><span class="lineNum">     121 </span>            : </a>
+<a name="122"><span class="lineNum">     122 </span><span class="lineNoCov">          0 :   virtual Direction direction() const { return direction_; }</span></a>
+<span class="lineNum">     123 </span><span class="lineNoCov">          0 :   virtual const std::string&amp; trackid() const { return track_id_; }</span>
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :   virtual int level() const { return level_; }</span>
+<span class="lineNum">     125 </span>            :   virtual bool IsVideo() const = 0;
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span>            :   bool IsDoingRtcpMux() const {
+<span class="lineNum">     128 </span>            :     return (rtp_.type_ == MUX);
+<span class="lineNum">     129 </span>            :   }
+<span class="lineNum">     130 </span>            : 
+<span class="lineNum">     131 </span>            :   int32_t rtp_packets_sent() const { return rtp_packets_sent_; }
+<span class="lineNum">     132 </span>            :   int64_t rtp_bytes_sent() const { return rtp_bytes_sent_; }
+<span class="lineNum">     133 </span>            :   int32_t rtcp_packets_sent() const { return rtcp_packets_sent_; }
+<span class="lineNum">     134 </span>            :   int32_t rtp_packets_received() const { return rtp_packets_received_; }
+<span class="lineNum">     135 </span>            :   int64_t rtp_bytes_received() const { return rtp_bytes_received_; }
+<span class="lineNum">     136 </span>            :   int32_t rtcp_packets_received() const { return rtcp_packets_received_; }
+<span class="lineNum">     137 </span>            : 
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 :   MediaSessionConduit *Conduit() const { return conduit_; }</span>
+<a name="139"><span class="lineNum">     139 </span>            : </a>
+<span class="lineNum">     140 </span>            :   // Thread counting
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :   NS_INLINE_DECL_THREADSAFE_REFCOUNTING(MediaPipeline)</span>
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span>            :   typedef enum {
+<span class="lineNum">     144 </span>            :     RTP,
+<span class="lineNum">     145 </span>            :     RTCP,
+<span class="lineNum">     146 </span>            :     MUX,
+<span class="lineNum">     147 </span>            :     MAX_RTP_TYPE
+<span class="lineNum">     148 </span>            :   } RtpType;
+<a name="149"><span class="lineNum">     149 </span>            : </a>
+<span class="lineNum">     150 </span>            :   // Separate class to allow ref counting
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :   class PipelineTransport : public TransportInterface {</span>
+<a name="152"><span class="lineNum">     152 </span>            :    public:</a>
+<span class="lineNum">     153 </span>            :     // Implement the TransportInterface functions
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :     explicit PipelineTransport(MediaPipeline *pipeline)</span>
+<span class="lineNum">     155 </span>            :         : pipeline_(pipeline),
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :           sts_thread_(pipeline-&gt;sts_thread_) {}</span>
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :     void Attach(MediaPipeline *pipeline) { pipeline_ = pipeline; }</span>
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :     void Detach() { pipeline_ = nullptr; }</span>
+<span class="lineNum">     160 </span>            :     MediaPipeline *pipeline() const { return pipeline_; }
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span>            :     virtual nsresult SendRtpPacket(const uint8_t* data, size_t len);
+<span class="lineNum">     163 </span>            :     virtual nsresult SendRtcpPacket(const uint8_t* data, size_t len);
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span>            :    private:
+<span class="lineNum">     166 </span>            :     nsresult SendRtpRtcpPacket_s(nsAutoPtr&lt;DataBuffer&gt; data,
+<span class="lineNum">     167 </span>            :                                  bool is_rtp);
+<span class="lineNum">     168 </span>            : 
+<span class="lineNum">     169 </span>            :     MediaPipeline *pipeline_;  // Raw pointer to avoid cycles
+<span class="lineNum">     170 </span>            :     nsCOMPtr&lt;nsIEventTarget&gt; sts_thread_;
+<span class="lineNum">     171 </span>            :   };
+<span class="lineNum">     172 </span>            : 
+<span class="lineNum">     173 </span>            :   RefPtr&lt;PipelineTransport&gt; GetPiplelineTransport() {
+<span class="lineNum">     174 </span>            :     return transport_;
+<span class="lineNum">     175 </span>            :   }
+<span class="lineNum">     176 </span>            : 
+<a name="177"><span class="lineNum">     177 </span>            :  protected:</a>
+<span class="lineNum">     178 </span>            :   virtual ~MediaPipeline();
+<span class="lineNum">     179 </span><span class="lineNoCov">          0 :   virtual void DetachMedia() {}</span>
+<span class="lineNum">     180 </span>            :   nsresult AttachTransport_s();
+<a name="181"><span class="lineNum">     181 </span>            :   friend class PipelineTransport;</a>
+<span class="lineNum">     182 </span>            : 
+<a name="183"><span class="lineNum">     183 </span><span class="lineNoCov">          0 :   class TransportInfo {</span></a>
+<span class="lineNum">     184 </span>            :     public:
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :       TransportInfo(RefPtr&lt;TransportFlow&gt; flow, RtpType type) :</span>
+<span class="lineNum">     186 </span>            :         transport_(flow),
+<span class="lineNum">     187 </span>            :         state_(MP_CONNECTING),
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :         type_(type) {</span>
+<span class="lineNum">     189 </span>            :         MOZ_ASSERT(flow);
+<a name="190"><span class="lineNum">     190 </span><span class="lineNoCov">          0 :       }</span></a>
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :       void Detach()</span>
+<span class="lineNum">     193 </span>            :       {
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 :         transport_ = nullptr;</span>
+<span class="lineNum">     195 </span><span class="lineNoCov">          0 :         send_srtp_ = nullptr;</span>
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :         recv_srtp_ = nullptr;</span>
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :       }</span>
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span>            :       RefPtr&lt;TransportFlow&gt; transport_;
+<span class="lineNum">     200 </span>            :       State state_;
+<span class="lineNum">     201 </span>            :       RefPtr&lt;SrtpFlow&gt; send_srtp_;
+<span class="lineNum">     202 </span>            :       RefPtr&lt;SrtpFlow&gt; recv_srtp_;
+<span class="lineNum">     203 </span>            :       RtpType type_;
+<span class="lineNum">     204 </span>            :   };
+<span class="lineNum">     205 </span>            : 
+<span class="lineNum">     206 </span>            :   // The transport is down
+<span class="lineNum">     207 </span>            :   virtual nsresult TransportFailed_s(TransportInfo &amp;info);
+<span class="lineNum">     208 </span>            :   // The transport is ready
+<span class="lineNum">     209 </span>            :   virtual nsresult TransportReady_s(TransportInfo &amp;info);
+<span class="lineNum">     210 </span>            :   void UpdateRtcpMuxState(TransportInfo &amp;info);
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span>            :   // Unhooks from signals
+<span class="lineNum">     213 </span>            :   void DisconnectTransport_s(TransportInfo &amp;info);
+<span class="lineNum">     214 </span>            :   nsresult ConnectTransport_s(TransportInfo &amp;info);
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span>            :   TransportInfo* GetTransportInfo_s(TransportFlow *flow);
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span>            :   void increment_rtp_packets_sent(int bytes);
+<span class="lineNum">     219 </span>            :   void increment_rtcp_packets_sent();
+<span class="lineNum">     220 </span>            :   void increment_rtp_packets_received(int bytes);
+<span class="lineNum">     221 </span>            :   void increment_rtcp_packets_received();
+<span class="lineNum">     222 </span>            : 
+<span class="lineNum">     223 </span>            :   virtual nsresult SendPacket(TransportFlow *flow, const void *data, int len);
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span>            :   // Process slots on transports
+<span class="lineNum">     226 </span>            :   void StateChange(TransportFlow *flow, TransportLayer::State);
+<span class="lineNum">     227 </span>            :   void RtpPacketReceived(TransportLayer *layer, const unsigned char *data,
+<span class="lineNum">     228 </span>            :                          size_t len);
+<span class="lineNum">     229 </span>            :   void RtcpPacketReceived(TransportLayer *layer, const unsigned char *data,
+<span class="lineNum">     230 </span>            :                           size_t len);
+<span class="lineNum">     231 </span>            :   void PacketReceived(TransportLayer *layer, const unsigned char *data,
+<span class="lineNum">     232 </span>            :                       size_t len);
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span>            :   Direction direction_;
+<span class="lineNum">     235 </span>            :   std::string track_id_;        // The track on the stream.
+<span class="lineNum">     236 </span>            :                                 // Written on the main thread.
+<span class="lineNum">     237 </span>            :                                 // Used on STS and MediaStreamGraph threads.
+<span class="lineNum">     238 </span>            :                                 // Not used outside initialization in MediaPipelineTransmit
+<span class="lineNum">     239 </span>            :   // The m-line index (starting at 0, to match convention) Atomic because
+<span class="lineNum">     240 </span>            :   // this value is updated from STS, but read on main, and we don't want to
+<span class="lineNum">     241 </span>            :   // bother with dispatches just to get an int occasionally.
+<span class="lineNum">     242 </span>            :   Atomic&lt;int&gt; level_;
+<span class="lineNum">     243 </span>            :   RefPtr&lt;MediaSessionConduit&gt; conduit_;  // Our conduit. Written on the main
+<span class="lineNum">     244 </span>            :                                          // thread. Read on STS thread.
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span>            :   // The transport objects. Read/written on STS thread.
+<span class="lineNum">     247 </span>            :   TransportInfo rtp_;
+<span class="lineNum">     248 </span>            :   TransportInfo rtcp_;
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span>            :   // Pointers to the threads we need. Initialized at creation
+<span class="lineNum">     251 </span>            :   // and used all over the place.
+<span class="lineNum">     252 </span>            :   nsCOMPtr&lt;nsIEventTarget&gt; main_thread_;
+<span class="lineNum">     253 </span>            :   nsCOMPtr&lt;nsIEventTarget&gt; sts_thread_;
+<span class="lineNum">     254 </span>            : 
+<span class="lineNum">     255 </span>            :   // Created on Init. Referenced by the conduit and eventually
+<span class="lineNum">     256 </span>            :   // destroyed on the STS thread.
+<span class="lineNum">     257 </span>            :   RefPtr&lt;PipelineTransport&gt; transport_;
+<span class="lineNum">     258 </span>            : 
+<span class="lineNum">     259 </span>            :   // Only safe to access from STS thread.
+<span class="lineNum">     260 </span>            :   // Build into TransportInfo?
+<span class="lineNum">     261 </span>            :   int32_t rtp_packets_sent_;
+<span class="lineNum">     262 </span>            :   int32_t rtcp_packets_sent_;
+<span class="lineNum">     263 </span>            :   int32_t rtp_packets_received_;
+<span class="lineNum">     264 </span>            :   int32_t rtcp_packets_received_;
+<span class="lineNum">     265 </span>            :   int64_t rtp_bytes_sent_;
+<span class="lineNum">     266 </span>            :   int64_t rtp_bytes_received_;
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span>            :   std::vector&lt;uint32_t&gt; ssrcs_received_;
+<span class="lineNum">     269 </span>            : 
+<span class="lineNum">     270 </span>            :   // Written on Init. Read on STS thread.
+<span class="lineNum">     271 </span>            :   std::string pc_;
+<span class="lineNum">     272 </span>            :   std::string description_;
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span>            :   // Written on Init, all following accesses are on the STS thread.
+<span class="lineNum">     275 </span>            :   nsAutoPtr&lt;MediaPipelineFilter&gt; filter_;
+<span class="lineNum">     276 </span>            :   nsAutoPtr&lt;webrtc::RtpHeaderParser&gt; rtp_parser_;
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span>            :  private:
+<span class="lineNum">     279 </span>            :   nsresult Init_s();
+<span class="lineNum">     280 </span>            : 
+<span class="lineNum">     281 </span>            :   bool IsRtp(const unsigned char *data, size_t len);
+<a name="282"><span class="lineNum">     282 </span>            : };</a>
+<span class="lineNum">     283 </span>            : 
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 : class ConduitDeleteEvent: public Runnable</span>
+<a name="285"><span class="lineNum">     285 </span>            : {</a>
+<span class="lineNum">     286 </span>            : public:
+<span class="lineNum">     287 </span><span class="lineNoCov">          0 :   explicit ConduitDeleteEvent(already_AddRefed&lt;MediaSessionConduit&gt; aConduit) :</span>
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :     mConduit(aConduit) {}</span>
+<a name="289"><span class="lineNum">     289 </span>            : </a>
+<span class="lineNum">     290 </span>            :   /* we exist solely to proxy release of the conduit */
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :   NS_IMETHOD Run() override { return NS_OK; }</span>
+<span class="lineNum">     292 </span>            : private:
+<span class="lineNum">     293 </span>            :   RefPtr&lt;MediaSessionConduit&gt; mConduit;
+<span class="lineNum">     294 </span>            : };
+<span class="lineNum">     295 </span>            : 
+<span class="lineNum">     296 </span>            : // A specialization of pipeline for reading from an input device
+<span class="lineNum">     297 </span>            : // and transmitting to the network.
+<span class="lineNum">     298 </span>            : class MediaPipelineTransmit : public MediaPipeline {
+<span class="lineNum">     299 </span>            : public:
+<span class="lineNum">     300 </span>            :   // Set rtcp_transport to nullptr to use rtcp-mux
+<span class="lineNum">     301 </span>            :   MediaPipelineTransmit(const std::string&amp; pc,
+<span class="lineNum">     302 </span>            :                         nsCOMPtr&lt;nsIEventTarget&gt; main_thread,
+<span class="lineNum">     303 </span>            :                         nsCOMPtr&lt;nsIEventTarget&gt; sts_thread,
+<span class="lineNum">     304 </span>            :                         dom::MediaStreamTrack* domtrack,
+<span class="lineNum">     305 </span>            :                         const std::string&amp; track_id,
+<span class="lineNum">     306 </span>            :                         int level,
+<span class="lineNum">     307 </span>            :                         RefPtr&lt;MediaSessionConduit&gt; conduit,
+<span class="lineNum">     308 </span>            :                         RefPtr&lt;TransportFlow&gt; rtp_transport,
+<span class="lineNum">     309 </span>            :                         RefPtr&lt;TransportFlow&gt; rtcp_transport,
+<span class="lineNum">     310 </span>            :                         nsAutoPtr&lt;MediaPipelineFilter&gt; filter);
+<span class="lineNum">     311 </span>            : 
+<span class="lineNum">     312 </span>            :   // Initialize (stuff here may fail)
+<span class="lineNum">     313 </span>            :   nsresult Init() override;
+<span class="lineNum">     314 </span>            : 
+<span class="lineNum">     315 </span>            :   virtual void AttachToTrack(const std::string&amp; track_id);
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span>            :   // written and used from MainThread
+<span class="lineNum">     318 </span>            :   bool IsVideo() const override;
+<span class="lineNum">     319 </span>            : 
+<span class="lineNum">     320 </span>            :   // When the principal of the domtrack changes, it calls through to here
+<span class="lineNum">     321 </span>            :   // so that we can determine whether to enable track transmission.
+<span class="lineNum">     322 </span>            :   // `track` has to be null or equal `domtrack_` for us to apply the update.
+<span class="lineNum">     323 </span>            :   virtual void UpdateSinkIdentity_m(dom::MediaStreamTrack* track,
+<span class="lineNum">     324 </span>            :                                     nsIPrincipal* principal,
+<span class="lineNum">     325 </span>            :                                     const PeerIdentity* sinkIdentity);
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span>            :   // Called on the main thread.
+<span class="lineNum">     328 </span>            :   void DetachMedia() override;
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span>            :   // Override MediaPipeline::TransportReady.
+<span class="lineNum">     331 </span>            :   nsresult TransportReady_s(TransportInfo &amp;info) override;
+<span class="lineNum">     332 </span>            : 
+<span class="lineNum">     333 </span>            :   // Replace a track with a different one
+<span class="lineNum">     334 </span>            :   // In non-compliance with the likely final spec, allow the new
+<span class="lineNum">     335 </span>            :   // track to be part of a different stream (since we don't support
+<span class="lineNum">     336 </span>            :   // multiple tracks of a type in a stream yet).  bug 1056650
+<span class="lineNum">     337 </span>            :   virtual nsresult ReplaceTrack(dom::MediaStreamTrack&amp; domtrack);
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span>            :   // Separate classes to allow ref counting
+<span class="lineNum">     340 </span>            :   class PipelineListener;
+<span class="lineNum">     341 </span>            :   class VideoFrameFeeder;
+<span class="lineNum">     342 </span>            : 
+<span class="lineNum">     343 </span>            :  protected:
+<span class="lineNum">     344 </span>            :   ~MediaPipelineTransmit();
+<span class="lineNum">     345 </span>            : 
+<span class="lineNum">     346 </span>            :  private:
+<span class="lineNum">     347 </span>            :   RefPtr&lt;PipelineListener&gt; listener_;
+<span class="lineNum">     348 </span>            :   RefPtr&lt;AudioProxyThread&gt; audio_processing_;
+<span class="lineNum">     349 </span>            :   RefPtr&lt;VideoFrameFeeder&gt; feeder_;
+<span class="lineNum">     350 </span>            :   RefPtr&lt;VideoFrameConverter&gt; converter_;
+<span class="lineNum">     351 </span>            :   dom::MediaStreamTrack* domtrack_;
+<span class="lineNum">     352 </span>            : };
+<span class="lineNum">     353 </span>            : 
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span>            : // A specialization of pipeline for reading from the network and
+<span class="lineNum">     356 </span>            : // rendering video.
+<span class="lineNum">     357 </span>            : class MediaPipelineReceive : public MediaPipeline {
+<span class="lineNum">     358 </span>            :  public:
+<span class="lineNum">     359 </span>            :   // Set rtcp_transport to nullptr to use rtcp-mux
+<span class="lineNum">     360 </span>            :   MediaPipelineReceive(const std::string&amp; pc,
+<span class="lineNum">     361 </span>            :                        nsCOMPtr&lt;nsIEventTarget&gt; main_thread,
+<span class="lineNum">     362 </span>            :                        nsCOMPtr&lt;nsIEventTarget&gt; sts_thread,
+<span class="lineNum">     363 </span>            :                        SourceMediaStream *stream,
+<span class="lineNum">     364 </span>            :                        const std::string&amp; track_id,
+<span class="lineNum">     365 </span>            :                        int level,
+<span class="lineNum">     366 </span>            :                        RefPtr&lt;MediaSessionConduit&gt; conduit,
+<span class="lineNum">     367 </span>            :                        RefPtr&lt;TransportFlow&gt; rtp_transport,
+<span class="lineNum">     368 </span>            :                        RefPtr&lt;TransportFlow&gt; rtcp_transport,
+<span class="lineNum">     369 </span>            :                        nsAutoPtr&lt;MediaPipelineFilter&gt; filter);
+<span class="lineNum">     370 </span>            : 
+<span class="lineNum">     371 </span>            :   int segments_added() const { return segments_added_; }
+<span class="lineNum">     372 </span>            : 
+<span class="lineNum">     373 </span>            :   // Sets the PrincipalHandle we set on the media chunks produced by this
+<span class="lineNum">     374 </span>            :   // pipeline. Must be called on the main thread.
+<span class="lineNum">     375 </span>            :   virtual void SetPrincipalHandle_m(const PrincipalHandle&amp; principal_handle) = 0;
+<span class="lineNum">     376 </span>            :  protected:
+<span class="lineNum">     377 </span>            :   ~MediaPipelineReceive();
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span>            :   RefPtr&lt;SourceMediaStream&gt; stream_;
+<span class="lineNum">     380 </span>            :   int segments_added_;
+<span class="lineNum">     381 </span>            : 
+<span class="lineNum">     382 </span>            :  private:
+<span class="lineNum">     383 </span>            : };
+<span class="lineNum">     384 </span>            : 
+<span class="lineNum">     385 </span>            : 
+<a name="386"><span class="lineNum">     386 </span>            : // A specialization of pipeline for reading from the network and</a>
+<span class="lineNum">     387 </span>            : // rendering audio.
+<span class="lineNum">     388 </span><span class="lineNoCov">          0 : class MediaPipelineReceiveAudio : public MediaPipelineReceive {</span>
+<span class="lineNum">     389 </span>            :  public:
+<span class="lineNum">     390 </span>            :   MediaPipelineReceiveAudio(const std::string&amp; pc,
+<span class="lineNum">     391 </span>            :                             nsCOMPtr&lt;nsIEventTarget&gt; main_thread,
+<span class="lineNum">     392 </span>            :                             nsCOMPtr&lt;nsIEventTarget&gt; sts_thread,
+<span class="lineNum">     393 </span>            :                             SourceMediaStream* stream,
+<span class="lineNum">     394 </span>            :                             // This comes from an msid attribute. Everywhere
+<span class="lineNum">     395 </span>            :                             // but MediaStreamGraph uses this.
+<span class="lineNum">     396 </span>            :                             const std::string&amp; media_stream_track_id,
+<span class="lineNum">     397 </span>            :                             // This is an integer identifier that is only
+<span class="lineNum">     398 </span>            :                             // unique within a single DOMMediaStream, which is
+<span class="lineNum">     399 </span>            :                             // used by MediaStreamGraph
+<span class="lineNum">     400 </span>            :                             TrackID numeric_track_id,
+<span class="lineNum">     401 </span>            :                             int level,
+<span class="lineNum">     402 </span>            :                             RefPtr&lt;AudioSessionConduit&gt; conduit,
+<span class="lineNum">     403 </span>            :                             RefPtr&lt;TransportFlow&gt; rtp_transport,
+<span class="lineNum">     404 </span>            :                             RefPtr&lt;TransportFlow&gt; rtcp_transport,
+<span class="lineNum">     405 </span>            :                             nsAutoPtr&lt;MediaPipelineFilter&gt; filter);
+<span class="lineNum">     406 </span>            : 
+<span class="lineNum">     407 </span>            :   void DetachMedia() override;
+<a name="408"><span class="lineNum">     408 </span>            : </a>
+<span class="lineNum">     409 </span>            :   nsresult Init() override;
+<span class="lineNum">     410 </span><span class="lineNoCov">          0 :   bool IsVideo() const override { return false; }</span>
+<span class="lineNum">     411 </span>            : 
+<span class="lineNum">     412 </span>            :   void SetPrincipalHandle_m(const PrincipalHandle&amp; principal_handle) override;
+<span class="lineNum">     413 </span>            : 
+<span class="lineNum">     414 </span>            :  private:
+<span class="lineNum">     415 </span>            :   // Separate class to allow ref counting
+<span class="lineNum">     416 </span>            :   class PipelineListener;
+<span class="lineNum">     417 </span>            : 
+<span class="lineNum">     418 </span>            :   RefPtr&lt;PipelineListener&gt; listener_;
+<span class="lineNum">     419 </span>            : };
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span>            : 
+<a name="422"><span class="lineNum">     422 </span>            : // A specialization of pipeline for reading from the network and</a>
+<span class="lineNum">     423 </span>            : // rendering video.
+<span class="lineNum">     424 </span><span class="lineNoCov">          0 : class MediaPipelineReceiveVideo : public MediaPipelineReceive {</span>
+<span class="lineNum">     425 </span>            :  public:
+<span class="lineNum">     426 </span>            :   MediaPipelineReceiveVideo(const std::string&amp; pc,
+<span class="lineNum">     427 </span>            :                             nsCOMPtr&lt;nsIEventTarget&gt; main_thread,
+<span class="lineNum">     428 </span>            :                             nsCOMPtr&lt;nsIEventTarget&gt; sts_thread,
+<span class="lineNum">     429 </span>            :                             SourceMediaStream *stream,
+<span class="lineNum">     430 </span>            :                             // This comes from an msid attribute. Everywhere
+<span class="lineNum">     431 </span>            :                             // but MediaStreamGraph uses this.
+<span class="lineNum">     432 </span>            :                             const std::string&amp; media_stream_track_id,
+<span class="lineNum">     433 </span>            :                             // This is an integer identifier that is only
+<span class="lineNum">     434 </span>            :                             // unique within a single DOMMediaStream, which is
+<span class="lineNum">     435 </span>            :                             // used by MediaStreamGraph
+<span class="lineNum">     436 </span>            :                             TrackID numeric_track_id,
+<span class="lineNum">     437 </span>            :                             int level,
+<span class="lineNum">     438 </span>            :                             RefPtr&lt;VideoSessionConduit&gt; conduit,
+<span class="lineNum">     439 </span>            :                             RefPtr&lt;TransportFlow&gt; rtp_transport,
+<span class="lineNum">     440 </span>            :                             RefPtr&lt;TransportFlow&gt; rtcp_transport,
+<span class="lineNum">     441 </span>            :                             nsAutoPtr&lt;MediaPipelineFilter&gt; filter);
+<span class="lineNum">     442 </span>            : 
+<span class="lineNum">     443 </span>            :   // Called on the main thread.
+<span class="lineNum">     444 </span>            :   void DetachMedia() override;
+<a name="445"><span class="lineNum">     445 </span>            : </a>
+<span class="lineNum">     446 </span>            :   nsresult Init() override;
+<span class="lineNum">     447 </span><span class="lineNoCov">          0 :   bool IsVideo() const override { return true; }</span>
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span>            :   void SetPrincipalHandle_m(const PrincipalHandle&amp; principal_handle) override;
+<span class="lineNum">     450 </span>            : 
+<span class="lineNum">     451 </span>            :  private:
+<span class="lineNum">     452 </span>            :   class PipelineRenderer;
+<span class="lineNum">     453 </span>            :   friend class PipelineRenderer;
+<span class="lineNum">     454 </span>            : 
+<span class="lineNum">     455 </span>            :   // Separate class to allow ref counting
+<span class="lineNum">     456 </span>            :   class PipelineListener;
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span>            :   RefPtr&lt;PipelineRenderer&gt; renderer_;
+<span class="lineNum">     459 </span>            :   RefPtr&lt;PipelineListener&gt; listener_;
+<span class="lineNum">     460 </span>            : };
+<span class="lineNum">     461 </span>            : 
+<span class="lineNum">     462 </span>            : 
+<span class="lineNum">     463 </span>            : }  // namespace mozilla
+<span class="lineNum">     464 </span>            : #endif
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

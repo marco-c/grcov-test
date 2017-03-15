@@ -1,0 +1,754 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gfx/skia/skia/src/utils/SkTextureCompressor_R11EAC.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">gfx/skia/skia/src/utils</a> - SkTextureCompressor_R11EAC.cpp<span style="font-size: 80%;"> (source / <a href="SkTextureCompressor_R11EAC.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">118</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">15</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  * Copyright 2014 Google Inc.
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  * Use of this source code is governed by a BSD-style license that can be
+<span class="lineNum">       5 </span>            :  * found in the LICENSE file.
+<span class="lineNum">       6 </span>            :  */
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #include &quot;SkTextureCompressor.h&quot;
+<span class="lineNum">       9 </span>            : #include &quot;SkTextureCompressor_Blitter.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;SkTextureCompressor_Utils.h&quot;
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : #include &quot;SkBlitter.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;SkEndian.h&quot;
+<span class="lineNum">      14 </span>            : 
+<span class="lineNum">      15 </span>            : // #define COMPRESS_R11_EAC_SLOW 1
+<span class="lineNum">      16 </span>            : // #define COMPRESS_R11_EAC_FAST 1
+<span class="lineNum">      17 </span>            : #define COMPRESS_R11_EAC_FASTEST 1
+<span class="lineNum">      18 </span>            : 
+<span class="lineNum">      19 </span>            : // Blocks compressed into R11 EAC are represented as follows:
+<span class="lineNum">      20 </span>            : // 0000000000000000000000000000000000000000000000000000000000000000
+<span class="lineNum">      21 </span>            : // |base_cw|mod|mul|  ----------------- indices -------------------
+<span class="lineNum">      22 </span>            : //
+<span class="lineNum">      23 </span>            : // To reconstruct the value of a given pixel, we use the formula:
+<span class="lineNum">      24 </span>            : // clamp[0, 2047](base_cw * 8 + 4 + mod_val*mul*8)
+<span class="lineNum">      25 </span>            : //
+<span class="lineNum">      26 </span>            : // mod_val is chosen from a palette of values based on the index of the
+<span class="lineNum">      27 </span>            : // given pixel. The palette is chosen by the value stored in mod.
+<span class="lineNum">      28 </span>            : // This formula returns a value between 0 and 2047, which is converted
+<span class="lineNum">      29 </span>            : // to a float from 0 to 1 in OpenGL.
+<span class="lineNum">      30 </span>            : //
+<span class="lineNum">      31 </span>            : // If mul is zero, then we set mul = 1/8, so that the formula becomes
+<span class="lineNum">      32 </span>            : // clamp[0, 2047](base_cw * 8 + 4 + mod_val)
+<span class="lineNum">      33 </span>            : 
+<span class="lineNum">      34 </span>            : static const int kNumR11EACPalettes = 16;
+<span class="lineNum">      35 </span>            : static const int kR11EACPaletteSize = 8;
+<span class="lineNum">      36 </span>            : static const int kR11EACModifierPalettes[kNumR11EACPalettes][kR11EACPaletteSize] = {
+<span class="lineNum">      37 </span>            :     {-3, -6, -9, -15, 2, 5, 8, 14},
+<span class="lineNum">      38 </span>            :     {-3, -7, -10, -13, 2, 6, 9, 12},
+<span class="lineNum">      39 </span>            :     {-2, -5, -8, -13, 1, 4, 7, 12},
+<span class="lineNum">      40 </span>            :     {-2, -4, -6, -13, 1, 3, 5, 12},
+<span class="lineNum">      41 </span>            :     {-3, -6, -8, -12, 2, 5, 7, 11},
+<span class="lineNum">      42 </span>            :     {-3, -7, -9, -11, 2, 6, 8, 10},
+<span class="lineNum">      43 </span>            :     {-4, -7, -8, -11, 3, 6, 7, 10},
+<span class="lineNum">      44 </span>            :     {-3, -5, -8, -11, 2, 4, 7, 10},
+<span class="lineNum">      45 </span>            :     {-2, -6, -8, -10, 1, 5, 7, 9},
+<span class="lineNum">      46 </span>            :     {-2, -5, -8, -10, 1, 4, 7, 9},
+<span class="lineNum">      47 </span>            :     {-2, -4, -8, -10, 1, 3, 7, 9},
+<span class="lineNum">      48 </span>            :     {-2, -5, -7, -10, 1, 4, 6, 9},
+<span class="lineNum">      49 </span>            :     {-3, -4, -7, -10, 2, 3, 6, 9},
+<span class="lineNum">      50 </span>            :     {-1, -2, -3, -10, 0, 1, 2, 9},
+<span class="lineNum">      51 </span>            :     {-4, -6, -8, -9, 3, 5, 7, 8},
+<span class="lineNum">      52 </span>            :     {-3, -5, -7, -9, 2, 4, 6, 8}
+<span class="lineNum">      53 </span>            : };
+<span class="lineNum">      54 </span>            : 
+<span class="lineNum">      55 </span>            : #if COMPRESS_R11_EAC_SLOW
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            : // Pack the base codeword, palette, and multiplier into the 64 bits necessary
+<span class="lineNum">      58 </span>            : // to decode it.
+<span class="lineNum">      59 </span>            : static uint64_t pack_r11eac_block(uint16_t base_cw, uint16_t palette, uint16_t multiplier,
+<span class="lineNum">      60 </span>            :                                   uint64_t indices) {
+<span class="lineNum">      61 </span>            :     SkASSERT(palette &lt; 16);
+<span class="lineNum">      62 </span>            :     SkASSERT(multiplier &lt; 16);
+<span class="lineNum">      63 </span>            :     SkASSERT(indices &lt; (static_cast&lt;uint64_t&gt;(1) &lt;&lt; 48));
+<span class="lineNum">      64 </span>            : 
+<span class="lineNum">      65 </span>            :     const uint64_t b = static_cast&lt;uint64_t&gt;(base_cw) &lt;&lt; 56;
+<span class="lineNum">      66 </span>            :     const uint64_t m = static_cast&lt;uint64_t&gt;(multiplier) &lt;&lt; 52;
+<span class="lineNum">      67 </span>            :     const uint64_t p = static_cast&lt;uint64_t&gt;(palette) &lt;&lt; 48;
+<span class="lineNum">      68 </span>            :     return SkEndian_SwapBE64(b | m | p | indices);
+<span class="lineNum">      69 </span>            : }
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span>            : // Given a base codeword, a modifier, and a multiplier, compute the proper
+<span class="lineNum">      72 </span>            : // pixel value in the range [0, 2047].
+<span class="lineNum">      73 </span>            : static uint16_t compute_r11eac_pixel(int base_cw, int modifier, int multiplier) {
+<span class="lineNum">      74 </span>            :     int ret = (base_cw * 8 + 4) + (modifier * multiplier * 8);
+<span class="lineNum">      75 </span>            :     return (ret &gt; 2047)? 2047 : ((ret &lt; 0)? 0 : ret);
+<span class="lineNum">      76 </span>            : }
+<span class="lineNum">      77 </span>            : 
+<span class="lineNum">      78 </span>            : // Compress a block into R11 EAC format.
+<span class="lineNum">      79 </span>            : // The compression works as follows:
+<span class="lineNum">      80 </span>            : // 1. Find the center of the span of the block's values. Use this as the base codeword.
+<span class="lineNum">      81 </span>            : // 2. Choose a multiplier based roughly on the size of the span of block values
+<span class="lineNum">      82 </span>            : // 3. Iterate through each palette and choose the one with the most accurate
+<span class="lineNum">      83 </span>            : // modifiers.
+<span class="lineNum">      84 </span>            : static inline uint64_t compress_heterogeneous_r11eac_block(const uint8_t block[16]) {
+<span class="lineNum">      85 </span>            :     // Find the center of the data...
+<span class="lineNum">      86 </span>            :     uint16_t bmin = block[0];
+<span class="lineNum">      87 </span>            :     uint16_t bmax = block[0];
+<span class="lineNum">      88 </span>            :     for (int i = 1; i &lt; 16; ++i) {
+<span class="lineNum">      89 </span>            :         bmin = SkTMin&lt;uint16_t&gt;(bmin, block[i]);
+<span class="lineNum">      90 </span>            :         bmax = SkTMax&lt;uint16_t&gt;(bmax, block[i]);
+<span class="lineNum">      91 </span>            :     }
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span>            :     uint16_t center = (bmax + bmin) &gt;&gt; 1;
+<span class="lineNum">      94 </span>            :     SkASSERT(center &lt;= 255);
+<span class="lineNum">      95 </span>            : 
+<span class="lineNum">      96 </span>            :     // Based on the min and max, we can guesstimate a proper multiplier
+<span class="lineNum">      97 </span>            :     // This is kind of a magic choice to start with.
+<span class="lineNum">      98 </span>            :     uint16_t multiplier = (bmax - center) / 10;
+<span class="lineNum">      99 </span>            : 
+<span class="lineNum">     100 </span>            :     // Now convert the block to 11 bits and transpose it to match
+<span class="lineNum">     101 </span>            :     // the proper layout
+<span class="lineNum">     102 </span>            :     uint16_t cblock[16];
+<span class="lineNum">     103 </span>            :     for (int i = 0; i &lt; 4; ++i) {
+<span class="lineNum">     104 </span>            :         for (int j = 0; j &lt; 4; ++j) {
+<span class="lineNum">     105 </span>            :             int srcIdx = i*4+j;
+<span class="lineNum">     106 </span>            :             int dstIdx = j*4+i;
+<span class="lineNum">     107 </span>            :             cblock[dstIdx] = (block[srcIdx] &lt;&lt; 3) | (block[srcIdx] &gt;&gt; 5);
+<span class="lineNum">     108 </span>            :         }
+<span class="lineNum">     109 </span>            :     }
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span>            :     // Finally, choose the proper palette and indices
+<span class="lineNum">     112 </span>            :     uint32_t bestError = 0xFFFFFFFF;
+<span class="lineNum">     113 </span>            :     uint64_t bestIndices = 0;
+<span class="lineNum">     114 </span>            :     uint16_t bestPalette = 0;
+<span class="lineNum">     115 </span>            :     for (uint16_t paletteIdx = 0; paletteIdx &lt; kNumR11EACPalettes; ++paletteIdx) {
+<span class="lineNum">     116 </span>            :         const int *palette = kR11EACModifierPalettes[paletteIdx];
+<span class="lineNum">     117 </span>            : 
+<span class="lineNum">     118 </span>            :         // Iterate through each pixel to find the best palette index
+<span class="lineNum">     119 </span>            :         // and update the indices with the choice. Also store the error
+<span class="lineNum">     120 </span>            :         // for this palette to be compared against the best error...
+<span class="lineNum">     121 </span>            :         uint32_t error = 0;
+<span class="lineNum">     122 </span>            :         uint64_t indices = 0;
+<span class="lineNum">     123 </span>            :         for (int pixelIdx = 0; pixelIdx &lt; 16; ++pixelIdx) {
+<span class="lineNum">     124 </span>            :             const uint16_t pixel = cblock[pixelIdx];
+<span class="lineNum">     125 </span>            : 
+<span class="lineNum">     126 </span>            :             // Iterate through each palette value to find the best index
+<span class="lineNum">     127 </span>            :             // for this particular pixel for this particular palette.
+<span class="lineNum">     128 </span>            :             uint16_t bestPixelError =
+<span class="lineNum">     129 </span>            :                 abs_diff(pixel, compute_r11eac_pixel(center, palette[0], multiplier));
+<span class="lineNum">     130 </span>            :             int bestIndex = 0;
+<span class="lineNum">     131 </span>            :             for (int i = 1; i &lt; kR11EACPaletteSize; ++i) {
+<span class="lineNum">     132 </span>            :                 const uint16_t p = compute_r11eac_pixel(center, palette[i], multiplier);
+<span class="lineNum">     133 </span>            :                 const uint16_t perror = abs_diff(pixel, p);
+<span class="lineNum">     134 </span>            : 
+<span class="lineNum">     135 </span>            :                 // Is this index better?
+<span class="lineNum">     136 </span>            :                 if (perror &lt; bestPixelError) {
+<span class="lineNum">     137 </span>            :                     bestIndex = i;
+<span class="lineNum">     138 </span>            :                     bestPixelError = perror;
+<span class="lineNum">     139 </span>            :                 }
+<span class="lineNum">     140 </span>            :             }
+<span class="lineNum">     141 </span>            : 
+<span class="lineNum">     142 </span>            :             SkASSERT(bestIndex &lt; 8);
+<span class="lineNum">     143 </span>            : 
+<span class="lineNum">     144 </span>            :             error += bestPixelError;
+<span class="lineNum">     145 </span>            :             indices &lt;&lt;= 3;
+<span class="lineNum">     146 </span>            :             indices |= bestIndex;
+<span class="lineNum">     147 </span>            :         }
+<span class="lineNum">     148 </span>            : 
+<span class="lineNum">     149 </span>            :         SkASSERT(indices &lt; (static_cast&lt;uint64_t&gt;(1) &lt;&lt; 48));
+<span class="lineNum">     150 </span>            : 
+<span class="lineNum">     151 </span>            :         // Is this palette better?
+<span class="lineNum">     152 </span>            :         if (error &lt; bestError) {
+<span class="lineNum">     153 </span>            :             bestPalette = paletteIdx;
+<span class="lineNum">     154 </span>            :             bestIndices = indices;
+<span class="lineNum">     155 </span>            :             bestError = error;
+<span class="lineNum">     156 </span>            :         }
+<span class="lineNum">     157 </span>            :     }
+<span class="lineNum">     158 </span>            : 
+<span class="lineNum">     159 </span>            :     // Finally, pack everything together...
+<span class="lineNum">     160 </span>            :     return pack_r11eac_block(center, bestPalette, multiplier, bestIndices);
+<span class="lineNum">     161 </span>            : }
+<span class="lineNum">     162 </span>            : #endif // COMPRESS_R11_EAC_SLOW
+<span class="lineNum">     163 </span>            : 
+<span class="lineNum">     164 </span>            : #if COMPRESS_R11_EAC_FAST
+<span class="lineNum">     165 </span>            : // This function takes into account that most blocks that we compress have a gradation from
+<span class="lineNum">     166 </span>            : // fully opaque to fully transparent. The compression scheme works by selecting the
+<span class="lineNum">     167 </span>            : // palette and multiplier that has the tightest fit to the 0-255 range. This is encoded
+<span class="lineNum">     168 </span>            : // as the block header (0x8490). The indices are then selected by considering the top
+<span class="lineNum">     169 </span>            : // three bits of each alpha value. For alpha masks, this reduces the dynamic range from
+<span class="lineNum">     170 </span>            : // 17 to 8, but the quality is still acceptable.
+<span class="lineNum">     171 </span>            : //
+<span class="lineNum">     172 </span>            : // There are a few caveats that need to be taken care of...
+<span class="lineNum">     173 </span>            : //
+<span class="lineNum">     174 </span>            : // 1. The block is read in as scanlines, so the indices are stored as:
+<span class="lineNum">     175 </span>            : //     0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15
+<span class="lineNum">     176 </span>            : //    However, the decomrpession routine reads them in column-major order, so they
+<span class="lineNum">     177 </span>            : //    need to be packed as:
+<span class="lineNum">     178 </span>            : //     0 4 8 12 1 5 9 13 2 6 10 14 3 7 11 15
+<span class="lineNum">     179 </span>            : //    So when reading, they must be transposed.
+<span class="lineNum">     180 </span>            : //
+<span class="lineNum">     181 </span>            : // 2. We cannot use the top three bits as an index directly, since the R11 EAC palettes
+<span class="lineNum">     182 </span>            : //    above store the modulation values first decreasing and then increasing:
+<span class="lineNum">     183 </span>            : //      e.g. {-3, -6, -9, -15, 2, 5, 8, 14}
+<span class="lineNum">     184 </span>            : //    Hence, we need to convert the indices with the following mapping:
+<span class="lineNum">     185 </span>            : //      From: 0 1 2 3 4 5 6 7
+<span class="lineNum">     186 </span>            : //      To:   3 2 1 0 4 5 6 7
+<span class="lineNum">     187 </span>            : static inline uint64_t compress_heterogeneous_r11eac_block(const uint8_t block[16]) {
+<span class="lineNum">     188 </span>            :     uint64_t retVal = static_cast&lt;uint64_t&gt;(0x8490) &lt;&lt; 48;
+<span class="lineNum">     189 </span>            :     for(int i = 0; i &lt; 4; ++i) {
+<span class="lineNum">     190 </span>            :         for(int j = 0; j &lt; 4; ++j) {
+<span class="lineNum">     191 </span>            :             const int shift = 45-3*(j*4+i);
+<span class="lineNum">     192 </span>            :             SkASSERT(shift &lt;= 45);
+<span class="lineNum">     193 </span>            :             const uint64_t idx = block[i*4+j] &gt;&gt; 5;
+<span class="lineNum">     194 </span>            :             SkASSERT(idx &lt; 8);
+<span class="lineNum">     195 </span>            : 
+<span class="lineNum">     196 </span>            :             // !SPEED! This is slightly faster than having an if-statement.
+<span class="lineNum">     197 </span>            :             switch(idx) {
+<span class="lineNum">     198 </span>            :                 case 0:
+<span class="lineNum">     199 </span>            :                 case 1:
+<span class="lineNum">     200 </span>            :                 case 2:
+<span class="lineNum">     201 </span>            :                 case 3:
+<span class="lineNum">     202 </span>            :                     retVal |= (3-idx) &lt;&lt; shift;
+<span class="lineNum">     203 </span>            :                     break;
+<span class="lineNum">     204 </span>            :                 default:
+<span class="lineNum">     205 </span>            :                     retVal |= idx &lt;&lt; shift;
+<span class="lineNum">     206 </span>            :                     break;
+<span class="lineNum">     207 </span>            :             }
+<span class="lineNum">     208 </span>            :         }
+<span class="lineNum">     209 </span>            :     }
+<span class="lineNum">     210 </span>            : 
+<span class="lineNum">     211 </span>            :     return SkEndian_SwapBE64(retVal);
+<span class="lineNum">     212 </span>            : }
+<span class="lineNum">     213 </span>            : #endif // COMPRESS_R11_EAC_FAST
+<span class="lineNum">     214 </span>            : 
+<span class="lineNum">     215 </span>            : #if (COMPRESS_R11_EAC_SLOW) || (COMPRESS_R11_EAC_FAST)
+<span class="lineNum">     216 </span>            : static uint64_t compress_r11eac_block(const uint8_t block[16]) {
+<span class="lineNum">     217 </span>            :     // Are all blocks a solid color?
+<span class="lineNum">     218 </span>            :     bool solid = true;
+<span class="lineNum">     219 </span>            :     for (int i = 1; i &lt; 16; ++i) {
+<span class="lineNum">     220 </span>            :         if (block[i] != block[0]) {
+<span class="lineNum">     221 </span>            :             solid = false;
+<span class="lineNum">     222 </span>            :             break;
+<span class="lineNum">     223 </span>            :         }
+<span class="lineNum">     224 </span>            :     }
+<span class="lineNum">     225 </span>            : 
+<span class="lineNum">     226 </span>            :     if (solid) {
+<span class="lineNum">     227 </span>            :         switch(block[0]) {
+<span class="lineNum">     228 </span>            :             // Fully transparent? We know the encoding...
+<span class="lineNum">     229 </span>            :             case 0:
+<span class="lineNum">     230 </span>            :                 // (0x0020 &lt;&lt; 48) produces the following:
+<span class="lineNum">     231 </span>            :                 // basw_cw: 0
+<span class="lineNum">     232 </span>            :                 // mod: 0, palette: {-3, -6, -9, -15, 2, 5, 8, 14}
+<span class="lineNum">     233 </span>            :                 // multiplier: 2
+<span class="lineNum">     234 </span>            :                 // mod_val: -3
+<span class="lineNum">     235 </span>            :                 //
+<span class="lineNum">     236 </span>            :                 // this gives the following formula:
+<span class="lineNum">     237 </span>            :                 // clamp[0, 2047](0*8+4+(-3)*2*8) = 0
+<span class="lineNum">     238 </span>            :                 //
+<span class="lineNum">     239 </span>            :                 // Furthermore, it is impervious to endianness:
+<span class="lineNum">     240 </span>            :                 // 0x0020000000002000ULL
+<span class="lineNum">     241 </span>            :                 // Will produce one pixel with index 2, which gives:
+<span class="lineNum">     242 </span>            :                 // clamp[0, 2047](0*8+4+(-9)*2*8) = 0
+<span class="lineNum">     243 </span>            :                 return 0x0020000000002000ULL;
+<span class="lineNum">     244 </span>            : 
+<span class="lineNum">     245 </span>            :             // Fully opaque? We know this encoding too...
+<span class="lineNum">     246 </span>            :             case 255:
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span>            :                 // -1 produces the following:
+<span class="lineNum">     249 </span>            :                 // basw_cw: 255
+<span class="lineNum">     250 </span>            :                 // mod: 15, palette: {-3, -5, -7, -9, 2, 4, 6, 8}
+<span class="lineNum">     251 </span>            :                 // mod_val: 8
+<span class="lineNum">     252 </span>            :                 //
+<span class="lineNum">     253 </span>            :                 // this gives the following formula:
+<span class="lineNum">     254 </span>            :                 // clamp[0, 2047](255*8+4+8*8*8) = clamp[0, 2047](2556) = 2047
+<span class="lineNum">     255 </span>            :                 return 0xFFFFFFFFFFFFFFFFULL;
+<span class="lineNum">     256 </span>            : 
+<span class="lineNum">     257 </span>            :             default:
+<span class="lineNum">     258 </span>            :                 // !TODO! krajcevski:
+<span class="lineNum">     259 </span>            :                 // This will probably never happen, since we're using this format
+<span class="lineNum">     260 </span>            :                 // primarily for compressing alpha maps. Usually the only
+<span class="lineNum">     261 </span>            :                 // non-fullly opaque or fully transparent blocks are not a solid
+<span class="lineNum">     262 </span>            :                 // intermediate color. If we notice that they are, then we can
+<span class="lineNum">     263 </span>            :                 // add another optimization...
+<span class="lineNum">     264 </span>            :                 break;
+<span class="lineNum">     265 </span>            :         }
+<span class="lineNum">     266 </span>            :     }
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span>            :     return compress_heterogeneous_r11eac_block(block);
+<span class="lineNum">     269 </span>            : }
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span>            : // This function is used by R11 EAC to compress 4x4 blocks
+<span class="lineNum">     272 </span>            : // of 8-bit alpha into 64-bit values that comprise the compressed data.
+<span class="lineNum">     273 </span>            : // We need to make sure that the dimensions of the src pixels are divisible
+<span class="lineNum">     274 </span>            : // by 4, and copy 4x4 blocks one at a time for compression.
+<span class="lineNum">     275 </span>            : typedef uint64_t (*A84x4To64BitProc)(const uint8_t block[]);
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span>            : static bool compress_4x4_a8_to_64bit(uint8_t* dst, const uint8_t* src,
+<span class="lineNum">     278 </span>            :                                      int width, int height, size_t rowBytes,
+<span class="lineNum">     279 </span>            :                                      A84x4To64BitProc proc) {
+<span class="lineNum">     280 </span>            :     // Make sure that our data is well-formed enough to be considered for compression
+<span class="lineNum">     281 </span>            :     if (0 == width || 0 == height || (width % 4) != 0 || (height % 4) != 0) {
+<span class="lineNum">     282 </span>            :         return false;
+<span class="lineNum">     283 </span>            :     }
+<span class="lineNum">     284 </span>            : 
+<span class="lineNum">     285 </span>            :     int blocksX = width &gt;&gt; 2;
+<span class="lineNum">     286 </span>            :     int blocksY = height &gt;&gt; 2;
+<span class="lineNum">     287 </span>            : 
+<span class="lineNum">     288 </span>            :     uint8_t block[16];
+<span class="lineNum">     289 </span>            :     uint64_t* encPtr = reinterpret_cast&lt;uint64_t*&gt;(dst);
+<span class="lineNum">     290 </span>            :     for (int y = 0; y &lt; blocksY; ++y) {
+<span class="lineNum">     291 </span>            :         for (int x = 0; x &lt; blocksX; ++x) {
+<span class="lineNum">     292 </span>            :             // Load block
+<span class="lineNum">     293 </span>            :             for (int k = 0; k &lt; 4; ++k) {
+<span class="lineNum">     294 </span>            :                 memcpy(block + k*4, src + k*rowBytes + 4*x, 4);
+<span class="lineNum">     295 </span>            :             }
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span>            :             // Compress it
+<span class="lineNum">     298 </span>            :             *encPtr = proc(block);
+<span class="lineNum">     299 </span>            :             ++encPtr;
+<span class="lineNum">     300 </span>            :         }
+<span class="lineNum">     301 </span>            :         src += 4 * rowBytes;
+<span class="lineNum">     302 </span>            :     }
+<span class="lineNum">     303 </span>            : 
+<span class="lineNum">     304 </span>            :     return true;
+<span class="lineNum">     305 </span>            : }
+<span class="lineNum">     306 </span>            : #endif  // (COMPRESS_R11_EAC_SLOW) || (COMPRESS_R11_EAC_FAST)
+<span class="lineNum">     307 </span>            : 
+<span class="lineNum">     308 </span>            : // This function converts an integer containing four bytes of alpha
+<span class="lineNum">     309 </span>            : // values into an integer containing four bytes of indices into R11 EAC.
+<span class="lineNum">     310 </span>            : // Note, there needs to be a mapping of indices:
+<span class="lineNum">     311 </span>            : // 0 1 2 3 4 5 6 7
+<span class="lineNum">     312 </span>            : // 3 2 1 0 4 5 6 7
+<span class="lineNum">     313 </span>            : //
+<span class="lineNum">     314 </span>            : // To compute this, we first negate each byte, and then add three, which
+<span class="lineNum">     315 </span>            : // gives the mapping
+<span class="lineNum">     316 </span>            : // 3 2 1 0 -1 -2 -3 -4
+<span class="lineNum">     317 </span>            : //
+<span class="lineNum">     318 </span>            : // Then we mask out the negative values, take their absolute value, and
+<span class="lineNum">     319 </span>            : // add three.
+<a name="320"><span class="lineNum">     320 </span>            : //</a>
+<span class="lineNum">     321 </span>            : // Most of the voodoo in this function comes from Hacker's Delight, section 2-18
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 : static inline uint32_t convert_indices(uint32_t x) {</span>
+<span class="lineNum">     323 </span>            :     // Take the top three bits...
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 :     x = SkTextureCompressor::ConvertToThreeBitIndex(x);</span>
+<span class="lineNum">     325 </span>            : 
+<span class="lineNum">     326 </span>            :     // Negate...
+<span class="lineNum">     327 </span><span class="lineNoCov">          0 :     x = ~((0x80808080 - x) ^ 0x7F7F7F7F);</span>
+<span class="lineNum">     328 </span>            : 
+<span class="lineNum">     329 </span>            :     // Add three
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 :     const uint32_t s = (x &amp; 0x7F7F7F7F) + 0x03030303;</span>
+<span class="lineNum">     331 </span><span class="lineNoCov">          0 :     x = ((x ^ 0x03030303) &amp; 0x80808080) ^ s;</span>
+<span class="lineNum">     332 </span>            : 
+<span class="lineNum">     333 </span>            :     // Absolute value
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :     const uint32_t a = x &amp; 0x80808080;</span>
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :     const uint32_t b = a &gt;&gt; 7;</span>
+<span class="lineNum">     336 </span>            : 
+<span class="lineNum">     337 </span>            :     // Aside: mask negatives (m is three if the byte was negative)
+<span class="lineNum">     338 </span><span class="lineNoCov">          0 :     const uint32_t m = (a &gt;&gt; 6) | b;</span>
+<span class="lineNum">     339 </span>            : 
+<span class="lineNum">     340 </span>            :     // .. continue absolute value
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :     x = (x ^ ((a - b) | a)) + b;</span>
+<span class="lineNum">     342 </span>            : 
+<span class="lineNum">     343 </span>            :     // Add three
+<span class="lineNum">     344 </span><span class="lineNoCov">          0 :     return x + m;</span>
+<span class="lineNum">     345 </span>            : }
+<span class="lineNum">     346 </span>            : 
+<a name="347"><span class="lineNum">     347 </span>            : #if COMPRESS_R11_EAC_FASTEST</a>
+<span class="lineNum">     348 </span>            : template&lt;unsigned shift&gt;
+<span class="lineNum">     349 </span><span class="lineNoCov">          0 : static inline uint64_t swap_shift(uint64_t x, uint64_t mask) {</span>
+<span class="lineNum">     350 </span><span class="lineNoCov">          0 :     const uint64_t t = (x ^ (x &gt;&gt; shift)) &amp; mask;</span>
+<span class="lineNum">     351 </span><span class="lineNoCov">          0 :     return x ^ t ^ (t &lt;&lt; shift);</span>
+<a name="352"><span class="lineNum">     352 </span>            : }</a>
+<span class="lineNum">     353 </span>            : 
+<span class="lineNum">     354 </span><span class="lineNoCov">          0 : static inline uint64_t interleave6(uint64_t topRows, uint64_t bottomRows) {</span>
+<span class="lineNum">     355 </span>            :     // If our 3-bit block indices are laid out as:
+<span class="lineNum">     356 </span>            :     // a b c d
+<span class="lineNum">     357 </span>            :     // e f g h
+<span class="lineNum">     358 </span>            :     // i j k l
+<span class="lineNum">     359 </span>            :     // m n o p
+<span class="lineNum">     360 </span>            :     //
+<span class="lineNum">     361 </span>            :     // This function expects topRows and bottomRows to contain the first two rows
+<span class="lineNum">     362 </span>            :     // of indices interleaved in the least significant bits of a and b. In other words...
+<span class="lineNum">     363 </span>            :     //
+<span class="lineNum">     364 </span>            :     // If the architecture is big endian, then topRows and bottomRows will contain the following:
+<span class="lineNum">     365 </span>            :     // Bits 31-0:
+<span class="lineNum">     366 </span>            :     // a: 00 a e 00 b f 00 c g 00 d h
+<span class="lineNum">     367 </span>            :     // b: 00 i m 00 j n 00 k o 00 l p
+<span class="lineNum">     368 </span>            :     //
+<span class="lineNum">     369 </span>            :     // If the architecture is little endian, then topRows and bottomRows will contain
+<span class="lineNum">     370 </span>            :     // the following:
+<span class="lineNum">     371 </span>            :     // Bits 31-0:
+<span class="lineNum">     372 </span>            :     // a: 00 d h 00 c g 00 b f 00 a e
+<span class="lineNum">     373 </span>            :     // b: 00 l p 00 k o 00 j n 00 i m
+<span class="lineNum">     374 </span>            :     //
+<span class="lineNum">     375 </span>            :     // This function returns a 48-bit packing of the form:
+<span class="lineNum">     376 </span>            :     // a e i m b f j n c g k o d h l p
+<span class="lineNum">     377 </span>            :     //
+<span class="lineNum">     378 </span>            :     // !SPEED! this function might be even faster if certain SIMD intrinsics are
+<span class="lineNum">     379 </span>            :     // used..
+<span class="lineNum">     380 </span>            : 
+<span class="lineNum">     381 </span>            :     // For both architectures, we can figure out a packing of the bits by
+<span class="lineNum">     382 </span>            :     // using a shuffle and a few shift-rotates...
+<span class="lineNum">     383 </span><span class="lineNoCov">          0 :     uint64_t x = (static_cast&lt;uint64_t&gt;(topRows) &lt;&lt; 32) | static_cast&lt;uint64_t&gt;(bottomRows);</span>
+<span class="lineNum">     384 </span>            : 
+<span class="lineNum">     385 </span>            :     // x: 00 a e 00 b f 00 c g 00 d h 00 i m 00 j n 00 k o 00 l p
+<span class="lineNum">     386 </span>            : 
+<span class="lineNum">     387 </span><span class="lineNoCov">          0 :     x = swap_shift&lt;10&gt;(x, 0x3FC0003FC00000ULL);</span>
+<span class="lineNum">     388 </span>            : 
+<span class="lineNum">     389 </span>            :     // x: b f 00 00 00 a e c g i m 00 00 00 d h j n 00 k o 00 l p
+<span class="lineNum">     390 </span>            : 
+<span class="lineNum">     391 </span><span class="lineNoCov">          0 :     x = (x | ((x &lt;&lt; 52) &amp; (0x3FULL &lt;&lt; 52)) | ((x &lt;&lt; 20) &amp; (0x3FULL &lt;&lt; 28))) &gt;&gt; 16;</span>
+<span class="lineNum">     392 </span>            : 
+<span class="lineNum">     393 </span>            :     // x: 00 00 00 00 00 00 00 00 b f l p a e c g i m k o d h j n
+<span class="lineNum">     394 </span>            : 
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 :     x = swap_shift&lt;6&gt;(x, 0xFC0000ULL);</span>
+<span class="lineNum">     396 </span>            : 
+<span class="lineNum">     397 </span>            : #if defined (SK_CPU_BENDIAN)
+<span class="lineNum">     398 </span>            :     // x: 00 00 00 00 00 00 00 00 b f l p a e i m c g k o d h j n
+<span class="lineNum">     399 </span>            : 
+<span class="lineNum">     400 </span>            :     x = swap_shift&lt;36&gt;(x, 0x3FULL);
+<span class="lineNum">     401 </span>            : 
+<span class="lineNum">     402 </span>            :     // x: 00 00 00 00 00 00 00 00 b f j n a e i m c g k o d h l p
+<span class="lineNum">     403 </span>            : 
+<span class="lineNum">     404 </span>            :     x = swap_shift&lt;12&gt;(x, 0xFFF000000ULL);
+<span class="lineNum">     405 </span>            : #else
+<span class="lineNum">     406 </span>            :     // If our CPU is little endian, then the above logic will
+<span class="lineNum">     407 </span>            :     // produce the following indices:
+<span class="lineNum">     408 </span>            :     // x: 00 00 00 00 00 00 00 00 c g i m d h l p b f j n a e k o
+<span class="lineNum">     409 </span>            : 
+<span class="lineNum">     410 </span><span class="lineNoCov">          0 :     x = swap_shift&lt;36&gt;(x, 0xFC0ULL);</span>
+<span class="lineNum">     411 </span>            : 
+<span class="lineNum">     412 </span>            :     // x: 00 00 00 00 00 00 00 00 a e i m d h l p b f j n c g k o
+<span class="lineNum">     413 </span>            : 
+<span class="lineNum">     414 </span><span class="lineNoCov">          0 :     x = (x &amp; (0xFFFULL &lt;&lt; 36)) | ((x &amp; 0xFFFFFFULL) &lt;&lt; 12) | ((x &gt;&gt; 24) &amp; 0xFFFULL);</span>
+<span class="lineNum">     415 </span>            : #endif
+<span class="lineNum">     416 </span>            : 
+<span class="lineNum">     417 </span>            :     // x: 00 00 00 00 00 00 00 00 a e i m b f j n c g k o d h l p
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 :     return x;</span>
+<span class="lineNum">     419 </span>            : }
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span>            : // This function follows the same basic procedure as compress_heterogeneous_r11eac_block
+<a name="422"><span class="lineNum">     422 </span>            : // above when COMPRESS_R11_EAC_FAST is defined, but it avoids a few loads/stores and</a>
+<span class="lineNum">     423 </span>            : // tries to optimize where it can using SIMD.
+<span class="lineNum">     424 </span><span class="lineNoCov">          0 : static uint64_t compress_r11eac_block_fast(const uint8_t* src, size_t rowBytes) {</span>
+<span class="lineNum">     425 </span>            :     // Store each row of alpha values in an integer
+<span class="lineNum">     426 </span><span class="lineNoCov">          0 :     const uint32_t alphaRow1 = *(reinterpret_cast&lt;const uint32_t*&gt;(src));</span>
+<span class="lineNum">     427 </span><span class="lineNoCov">          0 :     const uint32_t alphaRow2 = *(reinterpret_cast&lt;const uint32_t*&gt;(src + rowBytes));</span>
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :     const uint32_t alphaRow3 = *(reinterpret_cast&lt;const uint32_t*&gt;(src + 2*rowBytes));</span>
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 :     const uint32_t alphaRow4 = *(reinterpret_cast&lt;const uint32_t*&gt;(src + 3*rowBytes));</span>
+<span class="lineNum">     430 </span>            : 
+<span class="lineNum">     431 </span>            :     // Check for solid blocks. The explanations for these values
+<span class="lineNum">     432 </span>            :     // can be found in the comments of compress_r11eac_block above
+<span class="lineNum">     433 </span><span class="lineNoCov">          0 :     if (alphaRow1 == alphaRow2 &amp;&amp; alphaRow1 == alphaRow3 &amp;&amp; alphaRow1 == alphaRow4) {</span>
+<span class="lineNum">     434 </span><span class="lineNoCov">          0 :         if (0 == alphaRow1) {</span>
+<span class="lineNum">     435 </span>            :             // Fully transparent block
+<span class="lineNum">     436 </span>            :             return 0x0020000000002000ULL;
+<span class="lineNum">     437 </span><span class="lineNoCov">          0 :         } else if (0xFFFFFFFF == alphaRow1) {</span>
+<span class="lineNum">     438 </span>            :             // Fully opaque block
+<span class="lineNum">     439 </span>            :             return 0xFFFFFFFFFFFFFFFFULL;
+<span class="lineNum">     440 </span>            :         }
+<span class="lineNum">     441 </span>            :     }
+<span class="lineNum">     442 </span>            : 
+<span class="lineNum">     443 </span>            :     // Convert each integer of alpha values into an integer of indices
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 :     const uint32_t indexRow1 = convert_indices(alphaRow1);</span>
+<span class="lineNum">     445 </span><span class="lineNoCov">          0 :     const uint32_t indexRow2 = convert_indices(alphaRow2);</span>
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :     const uint32_t indexRow3 = convert_indices(alphaRow3);</span>
+<span class="lineNum">     447 </span><span class="lineNoCov">          0 :     const uint32_t indexRow4 = convert_indices(alphaRow4);</span>
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span>            :     // Interleave the indices from the top two rows and bottom two rows
+<span class="lineNum">     450 </span>            :     // prior to passing them to interleave6. Since each index is at most
+<span class="lineNum">     451 </span>            :     // three bits, then each byte can hold two indices... The way that the
+<span class="lineNum">     452 </span>            :     // compression scheme expects the packing allows us to efficiently pack
+<span class="lineNum">     453 </span>            :     // the top two rows and bottom two rows. Interleaving each 6-bit sequence
+<span class="lineNum">     454 </span>            :     // and tightly packing it into a uint64_t is a little trickier, which is
+<span class="lineNum">     455 </span>            :     // taken care of in interleave6.
+<span class="lineNum">     456 </span><span class="lineNoCov">          0 :     const uint32_t r1r2 = (indexRow1 &lt;&lt; 3) | indexRow2;</span>
+<span class="lineNum">     457 </span><span class="lineNoCov">          0 :     const uint32_t r3r4 = (indexRow3 &lt;&lt; 3) | indexRow4;</span>
+<span class="lineNum">     458 </span><span class="lineNoCov">          0 :     const uint64_t indices = interleave6(r1r2, r3r4);</span>
+<span class="lineNum">     459 </span>            : 
+<span class="lineNum">     460 </span>            :     // Return the packed incdices in the least significant bits with the magic header
+<span class="lineNum">     461 </span><span class="lineNoCov">          0 :     return SkEndian_SwapBE64(0x8490000000000000ULL | indices);</span>
+<a name="462"><span class="lineNum">     462 </span>            : }</a>
+<span class="lineNum">     463 </span>            : 
+<span class="lineNum">     464 </span><span class="lineNoCov">          0 : static bool compress_a8_to_r11eac_fast(uint8_t* dst, const uint8_t* src,</span>
+<span class="lineNum">     465 </span>            :                                        int width, int height, size_t rowBytes) {
+<span class="lineNum">     466 </span>            :     // Make sure that our data is well-formed enough to be considered for compression
+<span class="lineNum">     467 </span><span class="lineNoCov">          0 :     if (0 == width || 0 == height || (width % 4) != 0 || (height % 4) != 0) {</span>
+<span class="lineNum">     468 </span>            :         return false;
+<span class="lineNum">     469 </span>            :     }
+<span class="lineNum">     470 </span>            : 
+<span class="lineNum">     471 </span><span class="lineNoCov">          0 :     const int blocksX = width &gt;&gt; 2;</span>
+<span class="lineNum">     472 </span><span class="lineNoCov">          0 :     const int blocksY = height &gt;&gt; 2;</span>
+<span class="lineNum">     473 </span>            : 
+<span class="lineNum">     474 </span><span class="lineNoCov">          0 :     uint64_t* encPtr = reinterpret_cast&lt;uint64_t*&gt;(dst);</span>
+<span class="lineNum">     475 </span><span class="lineNoCov">          0 :     for (int y = 0; y &lt; blocksY; ++y) {</span>
+<span class="lineNum">     476 </span><span class="lineNoCov">          0 :         for (int x = 0; x &lt; blocksX; ++x) {</span>
+<span class="lineNum">     477 </span>            :             // Compress it
+<span class="lineNum">     478 </span><span class="lineNoCov">          0 :             *encPtr = compress_r11eac_block_fast(src + 4*x, rowBytes);</span>
+<span class="lineNum">     479 </span><span class="lineNoCov">          0 :             ++encPtr;</span>
+<span class="lineNum">     480 </span>            :         }
+<span class="lineNum">     481 </span><span class="lineNoCov">          0 :         src += 4 * rowBytes;</span>
+<span class="lineNum">     482 </span>            :     }
+<span class="lineNum">     483 </span>            :     return true;
+<span class="lineNum">     484 </span>            : }
+<span class="lineNum">     485 </span>            : #endif // COMPRESS_R11_EAC_FASTEST
+<span class="lineNum">     486 </span>            : 
+<span class="lineNum">     487 </span>            : ////////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">     488 </span>            : //
+<span class="lineNum">     489 </span>            : // Utility functions used by the blitter
+<span class="lineNum">     490 </span>            : //
+<span class="lineNum">     491 </span>            : ////////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">     492 </span>            : 
+<span class="lineNum">     493 </span>            : // The R11 EAC format expects that indices are given in column-major order. Since
+<span class="lineNum">     494 </span>            : // we receive alpha values in raster order, this usually means that we have to use
+<span class="lineNum">     495 </span>            : // pack6 above to properly pack our indices. However, if our indices come from the
+<span class="lineNum">     496 </span>            : // blitter, then each integer will be a column of indices, and hence can be efficiently
+<a name="497"><span class="lineNum">     497 </span>            : // packed. This function takes the bottom three bits of each byte and places them in</a>
+<span class="lineNum">     498 </span>            : // the least significant 12 bits of the resulting integer.
+<span class="lineNum">     499 </span><span class="lineNoCov">          0 : static inline uint32_t pack_indices_vertical(uint32_t x) {</span>
+<span class="lineNum">     500 </span>            : #if defined (SK_CPU_BENDIAN)
+<span class="lineNum">     501 </span>            :     return
+<span class="lineNum">     502 </span>            :         (x &amp; 7) |
+<span class="lineNum">     503 </span>            :         ((x &gt;&gt; 5) &amp; (7 &lt;&lt; 3)) |
+<span class="lineNum">     504 </span>            :         ((x &gt;&gt; 10) &amp; (7 &lt;&lt; 6)) |
+<span class="lineNum">     505 </span>            :         ((x &gt;&gt; 15) &amp; (7 &lt;&lt; 9));
+<span class="lineNum">     506 </span>            : #else
+<span class="lineNum">     507 </span>            :     return
+<span class="lineNum">     508 </span><span class="lineNoCov">          0 :         ((x &gt;&gt; 24) &amp; 7) |</span>
+<span class="lineNum">     509 </span><span class="lineNoCov">          0 :         ((x &gt;&gt; 13) &amp; (7 &lt;&lt; 3)) |</span>
+<span class="lineNum">     510 </span><span class="lineNoCov">          0 :         ((x &gt;&gt; 2) &amp; (7 &lt;&lt; 6)) |</span>
+<span class="lineNum">     511 </span><span class="lineNoCov">          0 :         ((x &lt;&lt; 9) &amp; (7 &lt;&lt; 9));</span>
+<span class="lineNum">     512 </span>            : #endif
+<span class="lineNum">     513 </span>            : }
+<span class="lineNum">     514 </span>            : 
+<span class="lineNum">     515 </span>            : // This function returns the compressed format of a block given as four columns of
+<span class="lineNum">     516 </span>            : // alpha values. Each column is assumed to be loaded from top to bottom, and hence
+<a name="517"><span class="lineNum">     517 </span>            : // must first be converted to indices and then packed into the resulting 64-bit</a>
+<span class="lineNum">     518 </span>            : // integer.
+<span class="lineNum">     519 </span><span class="lineNoCov">          0 : inline void compress_block_vertical(uint8_t* dstPtr, const uint8_t *block) {</span>
+<span class="lineNum">     520 </span>            : 
+<span class="lineNum">     521 </span><span class="lineNoCov">          0 :     const uint32_t* src = reinterpret_cast&lt;const uint32_t*&gt;(block);</span>
+<span class="lineNum">     522 </span><span class="lineNoCov">          0 :     uint64_t* dst = reinterpret_cast&lt;uint64_t*&gt;(dstPtr);</span>
+<span class="lineNum">     523 </span>            : 
+<span class="lineNum">     524 </span><span class="lineNoCov">          0 :     const uint32_t alphaColumn0 = src[0];</span>
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :     const uint32_t alphaColumn1 = src[1];</span>
+<span class="lineNum">     526 </span><span class="lineNoCov">          0 :     const uint32_t alphaColumn2 = src[2];</span>
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :     const uint32_t alphaColumn3 = src[3];</span>
+<span class="lineNum">     528 </span>            : 
+<span class="lineNum">     529 </span><span class="lineNoCov">          0 :     if (alphaColumn0 == alphaColumn1 &amp;&amp;</span>
+<span class="lineNum">     530 </span><span class="lineNoCov">          0 :         alphaColumn2 == alphaColumn3 &amp;&amp;</span>
+<span class="lineNum">     531 </span>            :         alphaColumn0 == alphaColumn2) {
+<span class="lineNum">     532 </span>            : 
+<span class="lineNum">     533 </span><span class="lineNoCov">          0 :         if (0 == alphaColumn0) {</span>
+<span class="lineNum">     534 </span>            :             // Transparent
+<span class="lineNum">     535 </span><span class="lineNoCov">          0 :             *dst = 0x0020000000002000ULL;</span>
+<span class="lineNum">     536 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">     537 </span>            :         }
+<span class="lineNum">     538 </span><span class="lineNoCov">          0 :         else if (0xFFFFFFFF == alphaColumn0) {</span>
+<span class="lineNum">     539 </span>            :             // Opaque
+<span class="lineNum">     540 </span><span class="lineNoCov">          0 :             *dst = 0xFFFFFFFFFFFFFFFFULL;</span>
+<span class="lineNum">     541 </span><span class="lineNoCov">          0 :             return;</span>
+<span class="lineNum">     542 </span>            :         }
+<span class="lineNum">     543 </span>            :     }
+<span class="lineNum">     544 </span>            : 
+<span class="lineNum">     545 </span><span class="lineNoCov">          0 :     const uint32_t indexColumn0 = convert_indices(alphaColumn0);</span>
+<span class="lineNum">     546 </span><span class="lineNoCov">          0 :     const uint32_t indexColumn1 = convert_indices(alphaColumn1);</span>
+<span class="lineNum">     547 </span><span class="lineNoCov">          0 :     const uint32_t indexColumn2 = convert_indices(alphaColumn2);</span>
+<span class="lineNum">     548 </span><span class="lineNoCov">          0 :     const uint32_t indexColumn3 = convert_indices(alphaColumn3);</span>
+<span class="lineNum">     549 </span>            : 
+<span class="lineNum">     550 </span><span class="lineNoCov">          0 :     const uint32_t packedIndexColumn0 = pack_indices_vertical(indexColumn0);</span>
+<span class="lineNum">     551 </span><span class="lineNoCov">          0 :     const uint32_t packedIndexColumn1 = pack_indices_vertical(indexColumn1);</span>
+<span class="lineNum">     552 </span><span class="lineNoCov">          0 :     const uint32_t packedIndexColumn2 = pack_indices_vertical(indexColumn2);</span>
+<span class="lineNum">     553 </span><span class="lineNoCov">          0 :     const uint32_t packedIndexColumn3 = pack_indices_vertical(indexColumn3);</span>
+<span class="lineNum">     554 </span>            : 
+<span class="lineNum">     555 </span><span class="lineNoCov">          0 :     *dst = SkEndian_SwapBE64(0x8490000000000000ULL |</span>
+<span class="lineNum">     556 </span>            :                              (static_cast&lt;uint64_t&gt;(packedIndexColumn0) &lt;&lt; 36) |
+<span class="lineNum">     557 </span>            :                              (static_cast&lt;uint64_t&gt;(packedIndexColumn1) &lt;&lt; 24) |
+<span class="lineNum">     558 </span>            :                              static_cast&lt;uint64_t&gt;(packedIndexColumn2 &lt;&lt; 12) |
+<span class="lineNum">     559 </span><span class="lineNoCov">          0 :                              static_cast&lt;uint64_t&gt;(packedIndexColumn3));</span>
+<a name="560"><span class="lineNum">     560 </span>            : }</a>
+<span class="lineNum">     561 </span>            : 
+<span class="lineNum">     562 </span><span class="lineNoCov">          0 : static inline int get_r11_eac_index(uint64_t block, int x, int y) {</span>
+<span class="lineNum">     563 </span>            :     SkASSERT(x &gt;= 0 &amp;&amp; x &lt; 4);
+<span class="lineNum">     564 </span>            :     SkASSERT(y &gt;= 0 &amp;&amp; y &lt; 4);
+<span class="lineNum">     565 </span><span class="lineNoCov">          0 :     const int idx = x*4 + y;</span>
+<span class="lineNum">     566 </span><span class="lineNoCov">          0 :     return (block &gt;&gt; ((15-idx)*3)) &amp; 0x7;</span>
+<a name="567"><span class="lineNum">     567 </span>            : }</a>
+<span class="lineNum">     568 </span>            : 
+<span class="lineNum">     569 </span><span class="lineNoCov">          0 : static void decompress_r11_eac_block(uint8_t* dst, int dstRowBytes, const uint8_t* src) {</span>
+<span class="lineNum">     570 </span><span class="lineNoCov">          0 :     const uint64_t block = SkEndian_SwapBE64(*(reinterpret_cast&lt;const uint64_t *&gt;(src)));</span>
+<span class="lineNum">     571 </span>            : 
+<span class="lineNum">     572 </span><span class="lineNoCov">          0 :     const int base_cw = (block &gt;&gt; 56) &amp; 0xFF;</span>
+<span class="lineNum">     573 </span><span class="lineNoCov">          0 :     const int mod = (block &gt;&gt; 52) &amp; 0xF;</span>
+<span class="lineNum">     574 </span><span class="lineNoCov">          0 :     const int palette_idx = (block &gt;&gt; 48) &amp; 0xF;</span>
+<span class="lineNum">     575 </span>            : 
+<span class="lineNum">     576 </span><span class="lineNoCov">          0 :     const int* palette = kR11EACModifierPalettes[palette_idx];</span>
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span><span class="lineNoCov">          0 :     for (int j = 0; j &lt; 4; ++j) {</span>
+<span class="lineNum">     579 </span><span class="lineNoCov">          0 :         for (int i = 0; i &lt; 4; ++i) {</span>
+<span class="lineNum">     580 </span><span class="lineNoCov">          0 :             const int idx = get_r11_eac_index(block, i, j);</span>
+<span class="lineNum">     581 </span><span class="lineNoCov">          0 :             const int val = base_cw*8 + 4 + palette[idx]*mod*8;</span>
+<span class="lineNum">     582 </span><span class="lineNoCov">          0 :             if (val &lt; 0) {</span>
+<span class="lineNum">     583 </span><span class="lineNoCov">          0 :                 dst[i] = 0;</span>
+<span class="lineNum">     584 </span><span class="lineNoCov">          0 :             } else if (val &gt; 2047) {</span>
+<span class="lineNum">     585 </span><span class="lineNoCov">          0 :                 dst[i] = 0xFF;</span>
+<span class="lineNum">     586 </span>            :             } else {
+<span class="lineNum">     587 </span><span class="lineNoCov">          0 :                 dst[i] = (val &gt;&gt; 3) &amp; 0xFF;</span>
+<span class="lineNum">     588 </span>            :             }
+<span class="lineNum">     589 </span>            :         }
+<span class="lineNum">     590 </span><span class="lineNoCov">          0 :         dst += dstRowBytes;</span>
+<span class="lineNum">     591 </span>            :     }
+<span class="lineNum">     592 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span>            : // This is the type passed as the CompressorType argument of the compressed
+<span class="lineNum">     595 </span>            : // blitter for the R11 EAC format. The static functions required to be in this
+<span class="lineNum">     596 </span>            : // struct are documented in SkTextureCompressor_Blitter.h
+<span class="lineNum">     597 </span>            : struct CompressorR11EAC {
+<span class="lineNum">     598 </span>            :     static inline void CompressA8Vertical(uint8_t* dst, const uint8_t* src) {
+<span class="lineNum">     599 </span><span class="lineNoCov">          0 :         compress_block_vertical(dst, src);</span>
+<a name="600"><span class="lineNum">     600 </span>            :     }</a>
+<span class="lineNum">     601 </span>            : 
+<span class="lineNum">     602 </span><span class="lineNoCov">          0 :     static inline void CompressA8Horizontal(uint8_t* dst, const uint8_t* src,</span>
+<span class="lineNum">     603 </span>            :                                             int srcRowBytes) {
+<span class="lineNum">     604 </span><span class="lineNoCov">          0 :         *(reinterpret_cast&lt;uint64_t*&gt;(dst)) = compress_r11eac_block_fast(src, srcRowBytes);</span>
+<span class="lineNum">     605 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     606 </span>            : 
+<span class="lineNum">     607 </span>            : #if PEDANTIC_BLIT_RECT
+<span class="lineNum">     608 </span>            :     static inline void UpdateBlock(uint8_t* dst, const uint8_t* src, int srcRowBytes,
+<span class="lineNum">     609 </span>            :                                    const uint8_t* mask) {
+<span class="lineNum">     610 </span>            :         // TODO: krajcevski
+<span class="lineNum">     611 </span>            :         // The implementation of this function should be similar to that of LATC, since
+<span class="lineNum">     612 </span>            :         // the R11EAC indices directly correspond to pixel values.
+<span class="lineNum">     613 </span>            :         SkFAIL(&quot;Implement me!&quot;);
+<span class="lineNum">     614 </span>            :     }
+<span class="lineNum">     615 </span>            : #endif
+<span class="lineNum">     616 </span>            : };
+<span class="lineNum">     617 </span>            : 
+<span class="lineNum">     618 </span>            : ////////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">     619 </span>            : 
+<a name="620"><span class="lineNum">     620 </span>            : namespace SkTextureCompressor {</a>
+<span class="lineNum">     621 </span>            : 
+<span class="lineNum">     622 </span><span class="lineNoCov">          0 : bool CompressA8ToR11EAC(uint8_t* dst, const uint8_t* src, int width, int height, size_t rowBytes) {</span>
+<span class="lineNum">     623 </span>            : 
+<span class="lineNum">     624 </span>            : #if (COMPRESS_R11_EAC_SLOW) || (COMPRESS_R11_EAC_FAST)
+<span class="lineNum">     625 </span>            : 
+<span class="lineNum">     626 </span>            :     return compress_4x4_a8_to_64bit(dst, src, width, height, rowBytes, compress_r11eac_block);
+<span class="lineNum">     627 </span>            : 
+<span class="lineNum">     628 </span>            : #elif COMPRESS_R11_EAC_FASTEST
+<span class="lineNum">     629 </span>            : 
+<span class="lineNum">     630 </span><span class="lineNoCov">          0 :     return compress_a8_to_r11eac_fast(dst, src, width, height, rowBytes);</span>
+<span class="lineNum">     631 </span>            : 
+<span class="lineNum">     632 </span>            : #else
+<span class="lineNum">     633 </span>            : #error &quot;Must choose R11 EAC algorithm&quot;
+<span class="lineNum">     634 </span>            : #endif
+<a name="635"><span class="lineNum">     635 </span>            : }</a>
+<span class="lineNum">     636 </span>            : 
+<span class="lineNum">     637 </span><span class="lineNoCov">          0 : SkBlitter* CreateR11EACBlitter(int width, int height, void* outputBuffer,</span>
+<span class="lineNum">     638 </span>            :                                SkTBlitterAllocator* allocator) {
+<span class="lineNum">     639 </span>            : 
+<span class="lineNum">     640 </span><span class="lineNoCov">          0 :     if ((width % 4) != 0 || (height % 4) != 0) {</span>
+<span class="lineNum">     641 </span>            :         return nullptr;
+<span class="lineNum">     642 </span>            :     }
+<span class="lineNum">     643 </span>            : 
+<span class="lineNum">     644 </span>            :     // Memset the output buffer to an encoding that decodes to zero. We must do this
+<span class="lineNum">     645 </span>            :     // in order to avoid having uninitialized values in the buffer if the blitter
+<span class="lineNum">     646 </span>            :     // decides not to write certain scanlines (and skip entire rows of blocks).
+<span class="lineNum">     647 </span>            :     // In the case of R11, we use the encoding from recognizing all zero pixels from above.
+<span class="lineNum">     648 </span><span class="lineNoCov">          0 :     const int nBlocks = (width * height / 16);  // 4x4 pixel blocks.</span>
+<span class="lineNum">     649 </span><span class="lineNoCov">          0 :     uint64_t *dst = reinterpret_cast&lt;uint64_t *&gt;(outputBuffer);</span>
+<span class="lineNum">     650 </span><span class="lineNoCov">          0 :     for (int i = 0; i &lt; nBlocks; ++i) {</span>
+<span class="lineNum">     651 </span><span class="lineNoCov">          0 :         *dst = 0x0020000000002000ULL;</span>
+<span class="lineNum">     652 </span><span class="lineNoCov">          0 :         ++dst;</span>
+<span class="lineNum">     653 </span>            :     }
+<span class="lineNum">     654 </span>            : 
+<span class="lineNum">     655 </span>            :     return allocator-&gt;createT&lt;
+<span class="lineNum">     656 </span>            :         SkTCompressedAlphaBlitter&lt;4, 8, CompressorR11EAC&gt;, int, int, void*&gt;
+<span class="lineNum">     657 </span><span class="lineNoCov">          0 :         (width, height, outputBuffer);</span>
+<a name="658"><span class="lineNum">     658 </span>            : }</a>
+<span class="lineNum">     659 </span>            : 
+<span class="lineNum">     660 </span><span class="lineNoCov">          0 : void DecompressR11EAC(uint8_t* dst, int dstRowBytes, const uint8_t* src, int width, int height) {</span>
+<span class="lineNum">     661 </span><span class="lineNoCov">          0 :     for (int j = 0; j &lt; height; j += 4) {</span>
+<span class="lineNum">     662 </span><span class="lineNoCov">          0 :         for (int i = 0; i &lt; width; i += 4) {</span>
+<span class="lineNum">     663 </span><span class="lineNoCov">          0 :             decompress_r11_eac_block(dst + i, dstRowBytes, src);</span>
+<span class="lineNum">     664 </span><span class="lineNoCov">          0 :             src += 8;</span>
+<span class="lineNum">     665 </span>            :         }
+<span class="lineNum">     666 </span><span class="lineNoCov">          0 :         dst += 4 * dstRowBytes;</span>
+<span class="lineNum">     667 </span>            :     }
+<span class="lineNum">     668 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     669 </span>            : 
+<span class="lineNum">     670 </span>            : }  // namespace SkTextureCompressor
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

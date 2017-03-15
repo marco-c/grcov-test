@@ -1,0 +1,704 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gfx/layers/ipc/CrossProcessCompositorBridgeParent.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">gfx/layers/ipc</a> - CrossProcessCompositorBridgeParent.cpp<span style="font-size: 80%;"> (source / <a href="CrossProcessCompositorBridgeParent.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">80</td>
+            <td class="headerCovTableEntry">216</td>
+            <td class="headerCovTableEntryLo">37.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">15</td>
+            <td class="headerCovTableEntry">37</td>
+            <td class="headerCovTableEntryLo">40.5 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* vim: set sw=2 ts=2 et tw=80 : */
+<span class="lineNum">       3 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #include &quot;mozilla/layers/CrossProcessCompositorBridgeParent.h&quot;
+<span class="lineNum">       8 </span>            : #include &lt;stdint.h&gt;                     // for uint64_t
+<span class="lineNum">       9 </span>            : #include &quot;LayerTransactionParent.h&quot;     // for LayerTransactionParent
+<span class="lineNum">      10 </span>            : #include &quot;base/message_loop.h&quot;          // for MessageLoop
+<span class="lineNum">      11 </span>            : #include &quot;base/task.h&quot;                  // for CancelableTask, etc
+<span class="lineNum">      12 </span>            : #include &quot;base/thread.h&quot;                // for Thread
+<span class="lineNum">      13 </span>            : #include &quot;mozilla/ipc/Transport.h&quot;      // for Transport
+<span class="lineNum">      14 </span>            : #include &quot;mozilla/layers/AnimationHelper.h&quot; // for CompositorAnimationStorage
+<span class="lineNum">      15 </span>            : #include &quot;mozilla/layers/APZCTreeManager.h&quot;  // for APZCTreeManager
+<span class="lineNum">      16 </span>            : #include &quot;mozilla/layers/APZCTreeManagerParent.h&quot;  // for APZCTreeManagerParent
+<span class="lineNum">      17 </span>            : #include &quot;mozilla/layers/APZThreadUtils.h&quot;  // for APZCTreeManager
+<span class="lineNum">      18 </span>            : #include &quot;mozilla/layers/AsyncCompositionManager.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;mozilla/layers/CompositorOptions.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;mozilla/layers/CompositorThread.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;mozilla/layers/LayerManagerComposite.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;mozilla/layers/LayerTreeOwnerTracker.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;mozilla/layers/PLayerTransactionParent.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;mozilla/layers/RemoteContentController.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;mozilla/layers/WebRenderBridgeParent.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;mozilla/layers/WebRenderCompositableHolder.h&quot;
+<span class="lineNum">      27 </span>            : #include &quot;mozilla/mozalloc.h&quot;           // for operator new, etc
+<span class="lineNum">      28 </span>            : #include &quot;nsDebug.h&quot;                    // for NS_ASSERTION, etc
+<span class="lineNum">      29 </span>            : #include &quot;nsTArray.h&quot;                   // for nsTArray
+<span class="lineNum">      30 </span>            : #include &quot;nsXULAppAPI.h&quot;                // for XRE_GetIOMessageLoop
+<span class="lineNum">      31 </span>            : #include &quot;mozilla/Unused.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;mozilla/StaticPtr.h&quot;
+<span class="lineNum">      33 </span>            : 
+<span class="lineNum">      34 </span>            : using namespace std;
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : namespace mozilla {
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : namespace layers {
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : // defined in CompositorBridgeParent.cpp
+<span class="lineNum">      41 </span>            : typedef map&lt;uint64_t, CompositorBridgeParent::LayerTreeState&gt; LayerTreeMap;
+<span class="lineNum">      42 </span><span class="lineCov">          1 : extern LayerTreeMap sIndirectLayerTrees;</span>
+<span class="lineNum">      43 </span>            : extern StaticAutoPtr&lt;mozilla::Monitor&gt; sIndirectLayerTreesLock;
+<span class="lineNum">      44 </span>            : void UpdateIndirectTree(uint64_t aId, Layer* aRoot, const TargetConfig&amp; aTargetConfig);
+<span class="lineNum">      45 </span>            : void EraseLayerState(uint64_t aId);
+<a name="46"><span class="lineNum">      46 </span>            : </a>
+<span class="lineNum">      47 </span>            : mozilla::ipc::IPCResult
+<span class="lineNum">      48 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::RecvRequestNotifyAfterRemotePaint()</span>
+<span class="lineNum">      49 </span>            : {
+<span class="lineNum">      50 </span><span class="lineNoCov">          0 :   mNotifyAfterRemotePaint = true;</span>
+<span class="lineNum">      51 </span><span class="lineNoCov">          0 :   return IPC_OK();</span>
+<span class="lineNum">      52 </span>            : }
+<a name="53"><span class="lineNum">      53 </span>            : </a>
+<span class="lineNum">      54 </span>            : void
+<span class="lineNum">      55 </span><span class="lineCov">          1 : CrossProcessCompositorBridgeParent::ActorDestroy(ActorDestroyReason aWhy)</span>
+<span class="lineNum">      56 </span>            : {
+<span class="lineNum">      57 </span>            :   // We must keep this object alive untill the code handling message
+<span class="lineNum">      58 </span>            :   // reception is finished on this thread.
+<span class="lineNum">      59 </span><span class="lineCov">          1 :   MessageLoop::current()-&gt;PostTask(NewRunnableMethod(this, &amp;CrossProcessCompositorBridgeParent::DeferredDestroy));</span>
+<span class="lineNum">      60 </span><span class="lineCov">          1 : }</span>
+<a name="61"><span class="lineNum">      61 </span>            : </a>
+<span class="lineNum">      62 </span>            : PLayerTransactionParent*
+<span class="lineNum">      63 </span><span class="lineCov">          1 : CrossProcessCompositorBridgeParent::AllocPLayerTransactionParent(</span>
+<span class="lineNum">      64 </span>            :   const nsTArray&lt;LayersBackend&gt;&amp;,
+<span class="lineNum">      65 </span>            :   const uint64_t&amp; aId,
+<span class="lineNum">      66 </span>            :   TextureFactoryIdentifier* aTextureFactoryIdentifier,
+<span class="lineNum">      67 </span>            :   bool *aSuccess)
+<span class="lineNum">      68 </span>            : {
+<span class="lineNum">      69 </span>            :   MOZ_ASSERT(aId != 0);
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span>            :   // Check to see if this child process has access to this layer tree.
+<span class="lineNum">      72 </span><span class="lineCov">          1 :   if (!LayerTreeOwnerTracker::Get()-&gt;IsMapped(aId, OtherPid())) {</span>
+<span class="lineNum">      73 </span>            :     NS_ERROR(&quot;Unexpected layers id in AllocPLayerTransactionParent; dropping message...&quot;);
+<span class="lineNum">      74 </span>            :     return nullptr;
+<span class="lineNum">      75 </span>            :   }
+<span class="lineNum">      76 </span>            : 
+<span class="lineNum">      77 </span><span class="lineCov">          1 :   MonitorAutoLock lock(*sIndirectLayerTreesLock);</span>
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span><span class="lineCov">          1 :   CompositorBridgeParent::LayerTreeState* state = nullptr;</span>
+<span class="lineNum">      80 </span><span class="lineCov">          1 :   LayerTreeMap::iterator itr = sIndirectLayerTrees.find(aId);</span>
+<span class="lineNum">      81 </span><span class="lineCov">          1 :   if (sIndirectLayerTrees.end() != itr) {</span>
+<span class="lineNum">      82 </span><span class="lineCov">          1 :     state = &amp;itr-&gt;second;</span>
+<span class="lineNum">      83 </span>            :   }
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span><span class="lineCov">          1 :   if (state &amp;&amp; state-&gt;mLayerManager) {</span>
+<span class="lineNum">      86 </span><span class="lineCov">          1 :     state-&gt;mCrossProcessParent = this;</span>
+<span class="lineNum">      87 </span><span class="lineCov">          1 :     HostLayerManager* lm = state-&gt;mLayerManager;</span>
+<span class="lineNum">      88 </span><span class="lineCov">          1 :     *aTextureFactoryIdentifier = lm-&gt;GetCompositor()-&gt;GetTextureFactoryIdentifier();</span>
+<span class="lineNum">      89 </span><span class="lineCov">          1 :     *aSuccess = true;</span>
+<span class="lineNum">      90 </span><span class="lineCov">          1 :     LayerTransactionParent* p = new LayerTransactionParent(lm, this, aId);</span>
+<span class="lineNum">      91 </span><span class="lineCov">          1 :     p-&gt;AddIPDLReference();</span>
+<span class="lineNum">      92 </span><span class="lineCov">          1 :     sIndirectLayerTrees[aId].mLayerTree = p;</span>
+<span class="lineNum">      93 </span><span class="lineCov">          1 :     if (state-&gt;mPendingCompositorUpdate) {</span>
+<span class="lineNum">      94 </span><span class="lineNoCov">          0 :       p-&gt;SetPendingCompositorUpdate(state-&gt;mPendingCompositorUpdate.value());</span>
+<span class="lineNum">      95 </span>            :     }
+<span class="lineNum">      96 </span><span class="lineCov">          1 :     return p;</span>
+<span class="lineNum">      97 </span>            :   }
+<span class="lineNum">      98 </span>            : 
+<span class="lineNum">      99 </span>            :   NS_WARNING(&quot;Created child without a matching parent?&quot;);
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :   *aSuccess = false;</span>
+<span class="lineNum">     101 </span><span class="lineNoCov">          0 :   LayerTransactionParent* p = new LayerTransactionParent(nullptr, this, aId);</span>
+<span class="lineNum">     102 </span><span class="lineNoCov">          0 :   p-&gt;AddIPDLReference();</span>
+<span class="lineNum">     103 </span><span class="lineNoCov">          0 :   return p;</span>
+<span class="lineNum">     104 </span>            : }
+<a name="105"><span class="lineNum">     105 </span>            : </a>
+<span class="lineNum">     106 </span>            : bool
+<span class="lineNum">     107 </span><span class="lineCov">          1 : CrossProcessCompositorBridgeParent::DeallocPLayerTransactionParent(PLayerTransactionParent* aLayers)</span>
+<span class="lineNum">     108 </span>            : {
+<span class="lineNum">     109 </span><span class="lineCov">          1 :   LayerTransactionParent* slp = static_cast&lt;LayerTransactionParent*&gt;(aLayers);</span>
+<span class="lineNum">     110 </span><span class="lineCov">          1 :   EraseLayerState(slp-&gt;GetId());</span>
+<span class="lineNum">     111 </span><span class="lineCov">          1 :   static_cast&lt;LayerTransactionParent*&gt;(aLayers)-&gt;ReleaseIPDLReference();</span>
+<span class="lineNum">     112 </span><span class="lineCov">          1 :   return true;</span>
+<span class="lineNum">     113 </span>            : }
+<a name="114"><span class="lineNum">     114 </span>            : </a>
+<span class="lineNum">     115 </span>            : mozilla::ipc::IPCResult
+<span class="lineNum">     116 </span><span class="lineCov">          1 : CrossProcessCompositorBridgeParent::RecvGetCompositorOptions(const uint64_t&amp; aLayersId,</span>
+<span class="lineNum">     117 </span>            :                                                              CompositorOptions* aOptions)
+<span class="lineNum">     118 </span>            : {
+<span class="lineNum">     119 </span>            :   // Check to see if this child process has access to this layer tree.
+<span class="lineNum">     120 </span><span class="lineCov">          1 :   if (!LayerTreeOwnerTracker::Get()-&gt;IsMapped(aLayersId, OtherPid())) {</span>
+<span class="lineNum">     121 </span>            :     NS_ERROR(&quot;Unexpected layers id in RecvGetCompositorOptions; dropping message...&quot;);
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :     return IPC_FAIL_NO_REASON(this);</span>
+<span class="lineNum">     123 </span>            :   }
+<span class="lineNum">     124 </span>            : 
+<span class="lineNum">     125 </span><span class="lineCov">          1 :   MonitorAutoLock lock(*sIndirectLayerTreesLock);</span>
+<span class="lineNum">     126 </span><span class="lineCov">          1 :   CompositorBridgeParent::LayerTreeState&amp; state = sIndirectLayerTrees[aLayersId];</span>
+<span class="lineNum">     127 </span>            : 
+<span class="lineNum">     128 </span><span class="lineCov">          1 :   if (state.mParent) {</span>
+<span class="lineNum">     129 </span><span class="lineCov">          1 :     *aOptions = state.mParent-&gt;GetOptions();</span>
+<span class="lineNum">     130 </span>            :   }
+<span class="lineNum">     131 </span><span class="lineCov">          1 :   return IPC_OK();</span>
+<span class="lineNum">     132 </span>            : }
+<a name="133"><span class="lineNum">     133 </span>            : </a>
+<span class="lineNum">     134 </span>            : PAPZCTreeManagerParent*
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::AllocPAPZCTreeManagerParent(const uint64_t&amp; aLayersId)</span>
+<span class="lineNum">     136 </span>            : {
+<span class="lineNum">     137 </span>            :   // Check to see if this child process has access to this layer tree.
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 :   if (!LayerTreeOwnerTracker::Get()-&gt;IsMapped(aLayersId, OtherPid())) {</span>
+<span class="lineNum">     139 </span>            :     NS_ERROR(&quot;Unexpected layers id in AllocPAPZCTreeManagerParent; dropping message...&quot;);
+<span class="lineNum">     140 </span>            :     return nullptr;
+<span class="lineNum">     141 </span>            :   }
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :   MonitorAutoLock lock(*sIndirectLayerTreesLock);</span>
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :   CompositorBridgeParent::LayerTreeState&amp; state = sIndirectLayerTrees[aLayersId];</span>
+<span class="lineNum">     145 </span>            :   MOZ_ASSERT(state.mParent);
+<span class="lineNum">     146 </span>            :   MOZ_ASSERT(!state.mApzcTreeManagerParent);
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 :   state.mApzcTreeManagerParent = new APZCTreeManagerParent(aLayersId, state.mParent-&gt;GetAPZCTreeManager());</span>
+<span class="lineNum">     148 </span>            : 
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :   return state.mApzcTreeManagerParent;</span>
+<a name="150"><span class="lineNum">     150 </span>            : }</a>
+<span class="lineNum">     151 </span>            : bool
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::DeallocPAPZCTreeManagerParent(PAPZCTreeManagerParent* aActor)</span>
+<span class="lineNum">     153 </span>            : {
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :   APZCTreeManagerParent* parent = static_cast&lt;APZCTreeManagerParent*&gt;(aActor);</span>
+<span class="lineNum">     155 </span>            : 
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :   MonitorAutoLock lock(*sIndirectLayerTreesLock);</span>
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :   auto iter = sIndirectLayerTrees.find(parent-&gt;LayersId());</span>
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :   if (iter != sIndirectLayerTrees.end()) {</span>
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :     CompositorBridgeParent::LayerTreeState&amp; state = iter-&gt;second;</span>
+<span class="lineNum">     160 </span>            :     MOZ_ASSERT(state.mApzcTreeManagerParent == parent);
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :     state.mApzcTreeManagerParent = nullptr;</span>
+<span class="lineNum">     162 </span>            :   }
+<span class="lineNum">     163 </span>            : 
+<span class="lineNum">     164 </span><span class="lineNoCov">          0 :   delete parent;</span>
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :   return true;</span>
+<span class="lineNum">     167 </span>            : }
+<a name="168"><span class="lineNum">     168 </span>            : </a>
+<span class="lineNum">     169 </span>            : PAPZParent*
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::AllocPAPZParent(const uint64_t&amp; aLayersId)</span>
+<span class="lineNum">     171 </span>            : {
+<span class="lineNum">     172 </span>            :   // Check to see if this child process has access to this layer tree.
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 :   if (!LayerTreeOwnerTracker::Get()-&gt;IsMapped(aLayersId, OtherPid())) {</span>
+<span class="lineNum">     174 </span>            :     NS_ERROR(&quot;Unexpected layers id in AllocPAPZParent; dropping message...&quot;);
+<span class="lineNum">     175 </span>            :     return nullptr;
+<span class="lineNum">     176 </span>            :   }
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :   RemoteContentController* controller = new RemoteContentController();</span>
+<span class="lineNum">     179 </span>            : 
+<span class="lineNum">     180 </span>            :   // Increment the controller's refcount before we return it. This will keep the
+<span class="lineNum">     181 </span>            :   // controller alive until it is released by IPDL in DeallocPAPZParent.
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :   controller-&gt;AddRef();</span>
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :   MonitorAutoLock lock(*sIndirectLayerTreesLock);</span>
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :   CompositorBridgeParent::LayerTreeState&amp; state = sIndirectLayerTrees[aLayersId];</span>
+<span class="lineNum">     186 </span>            :   MOZ_ASSERT(!state.mController);
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 :   state.mController = controller;</span>
+<span class="lineNum">     188 </span>            : 
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 :   return controller;</span>
+<span class="lineNum">     190 </span>            : }
+<a name="191"><span class="lineNum">     191 </span>            : </a>
+<span class="lineNum">     192 </span>            : bool
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::DeallocPAPZParent(PAPZParent* aActor)</span>
+<span class="lineNum">     194 </span>            : {
+<span class="lineNum">     195 </span><span class="lineNoCov">          0 :   RemoteContentController* controller = static_cast&lt;RemoteContentController*&gt;(aActor);</span>
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :   controller-&gt;Release();</span>
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :   return true;</span>
+<span class="lineNum">     198 </span>            : }
+<a name="199"><span class="lineNum">     199 </span>            : </a>
+<span class="lineNum">     200 </span>            : PWebRenderBridgeParent*
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::AllocPWebRenderBridgeParent(const wr::PipelineId&amp; aPipelineId,</span>
+<span class="lineNum">     202 </span>            :                                                                 const LayoutDeviceIntSize&amp; aSize,
+<span class="lineNum">     203 </span>            :                                                                 TextureFactoryIdentifier* aTextureFactoryIdentifier,
+<span class="lineNum">     204 </span>            :                                                                 uint32_t *aIdNamespace)
+<span class="lineNum">     205 </span>            : {
+<span class="lineNum">     206 </span>            : #ifndef MOZ_ENABLE_WEBRENDER
+<span class="lineNum">     207 </span>            :   // Extra guard since this in the parent process and we don't want a malicious
+<span class="lineNum">     208 </span>            :   // child process invoking this codepath before it's ready
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 :   MOZ_RELEASE_ASSERT(false);</span>
+<span class="lineNum">     210 </span>            : #endif
+<span class="lineNum">     211 </span>            :   // Check to see if this child process has access to this layer tree.
+<span class="lineNum">     212 </span>            :   if (!LayerTreeOwnerTracker::Get()-&gt;IsMapped(aPipelineId.mHandle, OtherPid())) {
+<span class="lineNum">     213 </span>            :     NS_ERROR(&quot;Unexpected layers id in AllocPAPZCTreeManagerParent; dropping message...&quot;);
+<span class="lineNum">     214 </span>            :     return nullptr;
+<span class="lineNum">     215 </span>            :   }
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span>            :   auto pipelineHandle = aPipelineId.mHandle;
+<span class="lineNum">     218 </span>            :   MonitorAutoLock lock(*sIndirectLayerTreesLock);
+<span class="lineNum">     219 </span>            :   MOZ_ASSERT(sIndirectLayerTrees.find(pipelineHandle) != sIndirectLayerTrees.end());
+<span class="lineNum">     220 </span>            :   MOZ_ASSERT(sIndirectLayerTrees[pipelineHandle].mWrBridge == nullptr);
+<span class="lineNum">     221 </span>            :   CompositorBridgeParent* cbp = sIndirectLayerTrees[pipelineHandle].mParent;
+<span class="lineNum">     222 </span>            :   WebRenderBridgeParent* root = sIndirectLayerTrees[cbp-&gt;RootLayerTreeId()].mWrBridge.get();
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span>            :   WebRenderBridgeParent* parent = nullptr;
+<span class="lineNum">     225 </span>            :   RefPtr&lt;wr::WebRenderAPI&gt; api = root-&gt;GetWebRenderAPI();
+<span class="lineNum">     226 </span>            :   RefPtr&lt;WebRenderCompositableHolder&gt; holder = new WebRenderCompositableHolder();
+<span class="lineNum">     227 </span>            :   parent = new WebRenderBridgeParent(this, aPipelineId, nullptr, root-&gt;CompositorScheduler(), Move(api), Move(holder));
+<span class="lineNum">     228 </span>            : 
+<span class="lineNum">     229 </span>            :   parent-&gt;AddRef(); // IPDL reference
+<span class="lineNum">     230 </span>            :   sIndirectLayerTrees[pipelineHandle].mCrossProcessParent = this;
+<span class="lineNum">     231 </span>            :   sIndirectLayerTrees[pipelineHandle].mWrBridge = parent;
+<span class="lineNum">     232 </span>            :   *aTextureFactoryIdentifier = parent-&gt;GetTextureFactoryIdentifier();
+<span class="lineNum">     233 </span>            :   *aIdNamespace = parent-&gt;GetIdNameSpace();
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span>            :   return parent;
+<span class="lineNum">     236 </span>            : }
+<a name="237"><span class="lineNum">     237 </span>            : </a>
+<span class="lineNum">     238 </span>            : bool
+<span class="lineNum">     239 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::DeallocPWebRenderBridgeParent(PWebRenderBridgeParent* aActor)</span>
+<span class="lineNum">     240 </span>            : {
+<span class="lineNum">     241 </span>            : #ifndef MOZ_ENABLE_WEBRENDER
+<span class="lineNum">     242 </span>            :   // Extra guard since this in the parent process and we don't want a malicious
+<span class="lineNum">     243 </span>            :   // child process invoking this codepath before it's ready
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :   MOZ_RELEASE_ASSERT(false);</span>
+<span class="lineNum">     245 </span>            : #endif
+<span class="lineNum">     246 </span>            :   WebRenderBridgeParent* parent = static_cast&lt;WebRenderBridgeParent*&gt;(aActor);
+<span class="lineNum">     247 </span>            :   EraseLayerState(parent-&gt;PipelineId().mHandle);
+<span class="lineNum">     248 </span>            :   parent-&gt;Release(); // IPDL reference
+<span class="lineNum">     249 </span>            :   return true;
+<span class="lineNum">     250 </span>            : }
+<a name="251"><span class="lineNum">     251 </span>            : </a>
+<span class="lineNum">     252 </span>            : mozilla::ipc::IPCResult
+<span class="lineNum">     253 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::RecvNotifyChildCreated(const uint64_t&amp; child)</span>
+<span class="lineNum">     254 </span>            : {
+<span class="lineNum">     255 </span><span class="lineNoCov">          0 :   MonitorAutoLock lock(*sIndirectLayerTreesLock);</span>
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 :   for (LayerTreeMap::iterator it = sIndirectLayerTrees.begin();</span>
+<span class="lineNum">     257 </span><span class="lineNoCov">          0 :        it != sIndirectLayerTrees.end(); it++) {</span>
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 :     CompositorBridgeParent::LayerTreeState* lts = &amp;it-&gt;second;</span>
+<span class="lineNum">     259 </span><span class="lineNoCov">          0 :     if (lts-&gt;mParent &amp;&amp; lts-&gt;mCrossProcessParent == this) {</span>
+<span class="lineNum">     260 </span><span class="lineNoCov">          0 :       lts-&gt;mParent-&gt;NotifyChildCreated(child);</span>
+<span class="lineNum">     261 </span><span class="lineNoCov">          0 :       return IPC_OK();</span>
+<span class="lineNum">     262 </span>            :     }
+<span class="lineNum">     263 </span>            :   }
+<span class="lineNum">     264 </span><span class="lineNoCov">          0 :   return IPC_FAIL_NO_REASON(this);</span>
+<span class="lineNum">     265 </span>            : }
+<a name="266"><span class="lineNum">     266 </span>            : </a>
+<span class="lineNum">     267 </span>            : void
+<span class="lineNum">     268 </span><span class="lineCov">          1 : CrossProcessCompositorBridgeParent::ShadowLayersUpdated(</span>
+<span class="lineNum">     269 </span>            :   LayerTransactionParent* aLayerTree,
+<span class="lineNum">     270 </span>            :   const TransactionInfo&amp; aInfo,
+<span class="lineNum">     271 </span>            :   bool aHitTestUpdate)
+<span class="lineNum">     272 </span>            : {
+<span class="lineNum">     273 </span><span class="lineCov">          1 :   uint64_t id = aLayerTree-&gt;GetId();</span>
+<span class="lineNum">     274 </span>            : 
+<span class="lineNum">     275 </span>            :   MOZ_ASSERT(id != 0);
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span>            :   CompositorBridgeParent::LayerTreeState* state =
+<span class="lineNum">     278 </span><span class="lineCov">          1 :     CompositorBridgeParent::GetIndirectShadowTree(id);</span>
+<span class="lineNum">     279 </span><span class="lineCov">          1 :   if (!state) {</span>
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     281 </span>            :   }
+<span class="lineNum">     282 </span>            :   MOZ_ASSERT(state-&gt;mParent);
+<span class="lineNum">     283 </span>            :   state-&gt;mParent-&gt;ScheduleRotationOnCompositorThread(
+<span class="lineNum">     284 </span>            :     aInfo.targetConfig(),
+<span class="lineNum">     285 </span><span class="lineCov">          1 :     aInfo.isFirstPaint());</span>
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span><span class="lineCov">          1 :   Layer* shadowRoot = aLayerTree-&gt;GetRoot();</span>
+<span class="lineNum">     288 </span><span class="lineCov">          1 :   if (shadowRoot) {</span>
+<span class="lineNum">     289 </span><span class="lineCov">          1 :     CompositorBridgeParent::SetShadowProperties(shadowRoot);</span>
+<span class="lineNum">     290 </span>            :   }
+<span class="lineNum">     291 </span><span class="lineCov">          1 :   UpdateIndirectTree(id, shadowRoot, aInfo.targetConfig());</span>
+<span class="lineNum">     292 </span>            : 
+<span class="lineNum">     293 </span>            :   // Cache the plugin data for this remote layer tree
+<span class="lineNum">     294 </span><span class="lineCov">          1 :   state-&gt;mPluginData = aInfo.plugins();</span>
+<span class="lineNum">     295 </span><span class="lineCov">          1 :   state-&gt;mUpdatedPluginDataAvailable = true;</span>
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span>            :   state-&gt;mParent-&gt;NotifyShadowTreeTransaction(
+<span class="lineNum">     298 </span>            :     id,
+<span class="lineNum">     299 </span>            :     aInfo.isFirstPaint(),
+<span class="lineNum">     300 </span>            :     aInfo.scheduleComposite(),
+<span class="lineNum">     301 </span>            :     aInfo.paintSequenceNumber(),
+<span class="lineNum">     302 </span>            :     aInfo.isRepeatTransaction(),
+<span class="lineNum">     303 </span><span class="lineCov">          1 :     aHitTestUpdate);</span>
+<span class="lineNum">     304 </span>            : 
+<span class="lineNum">     305 </span>            :   // Send the 'remote paint ready' message to the content thread if it has already asked.
+<span class="lineNum">     306 </span><span class="lineCov">          1 :   if(mNotifyAfterRemotePaint)  {</span>
+<span class="lineNum">     307 </span><span class="lineNoCov">          0 :     Unused &lt;&lt; SendRemotePaintIsReady();</span>
+<span class="lineNum">     308 </span><span class="lineNoCov">          0 :     mNotifyAfterRemotePaint = false;</span>
+<span class="lineNum">     309 </span>            :   }
+<span class="lineNum">     310 </span>            : 
+<span class="lineNum">     311 </span><span class="lineCov">          1 :   if (aLayerTree-&gt;ShouldParentObserveEpoch()) {</span>
+<span class="lineNum">     312 </span>            :     // Note that we send this through the window compositor, since this needs
+<span class="lineNum">     313 </span>            :     // to reach the widget owning the tab.
+<span class="lineNum">     314 </span><span class="lineNoCov">          0 :     Unused &lt;&lt; state-&gt;mParent-&gt;SendObserveLayerUpdate(id, aLayerTree-&gt;GetChildEpoch(), true);</span>
+<span class="lineNum">     315 </span>            :   }
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span><span class="lineCov">          1 :   aLayerTree-&gt;SetPendingTransactionId(aInfo.id());</span>
+<span class="lineNum">     318 </span>            : }
+<a name="319"><span class="lineNum">     319 </span>            : </a>
+<span class="lineNum">     320 </span>            : void
+<span class="lineNum">     321 </span><span class="lineCov">          1 : CrossProcessCompositorBridgeParent::DidComposite(</span>
+<span class="lineNum">     322 </span>            :   uint64_t aId,
+<span class="lineNum">     323 </span>            :   TimeStamp&amp; aCompositeStart,
+<span class="lineNum">     324 </span>            :   TimeStamp&amp; aCompositeEnd)
+<span class="lineNum">     325 </span>            : {
+<span class="lineNum">     326 </span>            :   sIndirectLayerTreesLock-&gt;AssertCurrentThreadOwns();
+<span class="lineNum">     327 </span><span class="lineCov">          1 :   if (LayerTransactionParent *layerTree = sIndirectLayerTrees[aId].mLayerTree) {</span>
+<span class="lineNum">     328 </span><span class="lineCov">          1 :     Unused &lt;&lt; SendDidComposite(aId, layerTree-&gt;GetPendingTransactionId(), aCompositeStart, aCompositeEnd);</span>
+<span class="lineNum">     329 </span><span class="lineCov">          1 :     layerTree-&gt;SetPendingTransactionId(0);</span>
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 :   } else if (WebRenderBridgeParent* wrbridge = sIndirectLayerTrees[aId].mWrBridge) {</span>
+<span class="lineNum">     331 </span><span class="lineNoCov">          0 :     Unused &lt;&lt; SendDidComposite(aId, wrbridge-&gt;FlushPendingTransactionIds(), aCompositeStart, aCompositeEnd);</span>
+<span class="lineNum">     332 </span>            :   }
+<span class="lineNum">     333 </span><span class="lineCov">          1 : }</span>
+<a name="334"><span class="lineNum">     334 </span>            : </a>
+<span class="lineNum">     335 </span>            : void
+<span class="lineNum">     336 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::ForceComposite(LayerTransactionParent* aLayerTree)</span>
+<span class="lineNum">     337 </span>            : {
+<span class="lineNum">     338 </span><span class="lineNoCov">          0 :   uint64_t id = aLayerTree-&gt;GetId();</span>
+<span class="lineNum">     339 </span>            :   MOZ_ASSERT(id != 0);
+<span class="lineNum">     340 </span>            :   CompositorBridgeParent* parent;
+<span class="lineNum">     341 </span>            :   { // scope lock
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 :     MonitorAutoLock lock(*sIndirectLayerTreesLock);</span>
+<span class="lineNum">     343 </span><span class="lineNoCov">          0 :     parent = sIndirectLayerTrees[id].mParent;</span>
+<span class="lineNum">     344 </span>            :   }
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 :   if (parent) {</span>
+<span class="lineNum">     346 </span>            :     parent-&gt;ForceComposite(aLayerTree);
+<span class="lineNum">     347 </span>            :   }
+<span class="lineNum">     348 </span><span class="lineNoCov">          0 : }</span>
+<a name="349"><span class="lineNum">     349 </span>            : </a>
+<span class="lineNum">     350 </span>            : void
+<span class="lineNum">     351 </span><span class="lineCov">          1 : CrossProcessCompositorBridgeParent::NotifyClearCachedResources(LayerTransactionParent* aLayerTree)</span>
+<span class="lineNum">     352 </span>            : {
+<span class="lineNum">     353 </span><span class="lineCov">          1 :   uint64_t id = aLayerTree-&gt;GetId();</span>
+<span class="lineNum">     354 </span>            :   MOZ_ASSERT(id != 0);
+<span class="lineNum">     355 </span>            : 
+<span class="lineNum">     356 </span>            :   const CompositorBridgeParent::LayerTreeState* state =
+<span class="lineNum">     357 </span><span class="lineCov">          1 :     CompositorBridgeParent::GetIndirectShadowTree(id);</span>
+<span class="lineNum">     358 </span><span class="lineCov">          1 :   if (state &amp;&amp; state-&gt;mParent) {</span>
+<span class="lineNum">     359 </span>            :     // Note that we send this through the window compositor, since this needs
+<span class="lineNum">     360 </span>            :     // to reach the widget owning the tab.
+<span class="lineNum">     361 </span><span class="lineCov">          1 :     Unused &lt;&lt; state-&gt;mParent-&gt;SendObserveLayerUpdate(id, aLayerTree-&gt;GetChildEpoch(), false);</span>
+<span class="lineNum">     362 </span>            :   }
+<span class="lineNum">     363 </span><span class="lineCov">          1 : }</span>
+<a name="364"><span class="lineNum">     364 </span>            : </a>
+<span class="lineNum">     365 </span>            : bool
+<span class="lineNum">     366 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::SetTestSampleTime(</span>
+<span class="lineNum">     367 </span>            :   LayerTransactionParent* aLayerTree, const TimeStamp&amp; aTime)
+<span class="lineNum">     368 </span>            : {
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :   uint64_t id = aLayerTree-&gt;GetId();</span>
+<span class="lineNum">     370 </span>            :   MOZ_ASSERT(id != 0);
+<span class="lineNum">     371 </span>            :   const CompositorBridgeParent::LayerTreeState* state =
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :     CompositorBridgeParent::GetIndirectShadowTree(id);</span>
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :   if (!state) {</span>
+<span class="lineNum">     374 </span>            :     return false;
+<span class="lineNum">     375 </span>            :   }
+<span class="lineNum">     376 </span>            : 
+<span class="lineNum">     377 </span>            :   MOZ_ASSERT(state-&gt;mParent);
+<span class="lineNum">     378 </span><span class="lineNoCov">          0 :   return state-&gt;mParent-&gt;SetTestSampleTime(aLayerTree, aTime);</span>
+<span class="lineNum">     379 </span>            : }
+<a name="380"><span class="lineNum">     380 </span>            : </a>
+<span class="lineNum">     381 </span>            : void
+<span class="lineNum">     382 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::LeaveTestMode(LayerTransactionParent* aLayerTree)</span>
+<span class="lineNum">     383 </span>            : {
+<span class="lineNum">     384 </span><span class="lineNoCov">          0 :   uint64_t id = aLayerTree-&gt;GetId();</span>
+<span class="lineNum">     385 </span>            :   MOZ_ASSERT(id != 0);
+<span class="lineNum">     386 </span>            :   const CompositorBridgeParent::LayerTreeState* state =
+<span class="lineNum">     387 </span><span class="lineNoCov">          0 :     CompositorBridgeParent::GetIndirectShadowTree(id);</span>
+<span class="lineNum">     388 </span><span class="lineNoCov">          0 :   if (!state) {</span>
+<span class="lineNum">     389 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     390 </span>            :   }
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span>            :   MOZ_ASSERT(state-&gt;mParent);
+<span class="lineNum">     393 </span><span class="lineNoCov">          0 :   state-&gt;mParent-&gt;LeaveTestMode(aLayerTree);</span>
+<span class="lineNum">     394 </span>            : }
+<a name="395"><span class="lineNum">     395 </span>            : </a>
+<span class="lineNum">     396 </span>            : void
+<span class="lineNum">     397 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::ApplyAsyncProperties(</span>
+<span class="lineNum">     398 </span>            :     LayerTransactionParent* aLayerTree)
+<span class="lineNum">     399 </span>            : {
+<span class="lineNum">     400 </span><span class="lineNoCov">          0 :   uint64_t id = aLayerTree-&gt;GetId();</span>
+<span class="lineNum">     401 </span>            :   MOZ_ASSERT(id != 0);
+<span class="lineNum">     402 </span>            :   const CompositorBridgeParent::LayerTreeState* state =
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :     CompositorBridgeParent::GetIndirectShadowTree(id);</span>
+<span class="lineNum">     404 </span><span class="lineNoCov">          0 :   if (!state) {</span>
+<span class="lineNum">     405 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     406 </span>            :   }
+<span class="lineNum">     407 </span>            : 
+<span class="lineNum">     408 </span>            :   MOZ_ASSERT(state-&gt;mParent);
+<span class="lineNum">     409 </span><span class="lineNoCov">          0 :   state-&gt;mParent-&gt;ApplyAsyncProperties(aLayerTree);</span>
+<span class="lineNum">     410 </span>            : }
+<a name="411"><span class="lineNum">     411 </span>            : </a>
+<span class="lineNum">     412 </span>            : CompositorAnimationStorage*
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::GetAnimationStorage(</span>
+<span class="lineNum">     414 </span>            :     const uint64_t&amp; aId)
+<span class="lineNum">     415 </span>            : {
+<span class="lineNum">     416 </span>            :   MOZ_ASSERT(aId != 0);
+<span class="lineNum">     417 </span>            :   const CompositorBridgeParent::LayerTreeState* state =
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 :     CompositorBridgeParent::GetIndirectShadowTree(aId);</span>
+<span class="lineNum">     419 </span><span class="lineNoCov">          0 :   if (!state) {</span>
+<span class="lineNum">     420 </span>            :     return nullptr;
+<span class="lineNum">     421 </span>            :   }
+<span class="lineNum">     422 </span>            : 
+<span class="lineNum">     423 </span>            :   MOZ_ASSERT(state-&gt;mParent);
+<span class="lineNum">     424 </span>            :   // GetAnimationStorage in CompositorBridgeParent expects id as 0
+<span class="lineNum">     425 </span><span class="lineNoCov">          0 :   return state-&gt;mParent-&gt;GetAnimationStorage(0);</span>
+<span class="lineNum">     426 </span>            : }
+<a name="427"><span class="lineNum">     427 </span>            : </a>
+<span class="lineNum">     428 </span>            : void
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::FlushApzRepaints(const LayerTransactionParent* aLayerTree)</span>
+<span class="lineNum">     430 </span>            : {
+<span class="lineNum">     431 </span><span class="lineNoCov">          0 :   uint64_t id = aLayerTree-&gt;GetId();</span>
+<span class="lineNum">     432 </span>            :   MOZ_ASSERT(id != 0);
+<span class="lineNum">     433 </span>            :   const CompositorBridgeParent::LayerTreeState* state =
+<span class="lineNum">     434 </span><span class="lineNoCov">          0 :     CompositorBridgeParent::GetIndirectShadowTree(id);</span>
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :   if (!state) {</span>
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     437 </span>            :   }
+<span class="lineNum">     438 </span>            : 
+<span class="lineNum">     439 </span>            :   MOZ_ASSERT(state-&gt;mParent);
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :   state-&gt;mParent-&gt;FlushApzRepaints(aLayerTree);</span>
+<span class="lineNum">     441 </span>            : }
+<a name="442"><span class="lineNum">     442 </span>            : </a>
+<span class="lineNum">     443 </span>            : void
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::GetAPZTestData(</span>
+<span class="lineNum">     445 </span>            :   const LayerTransactionParent* aLayerTree,
+<span class="lineNum">     446 </span>            :   APZTestData* aOutData)
+<span class="lineNum">     447 </span>            : {
+<span class="lineNum">     448 </span><span class="lineNoCov">          0 :   uint64_t id = aLayerTree-&gt;GetId();</span>
+<span class="lineNum">     449 </span>            :   MOZ_ASSERT(id != 0);
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 :   MonitorAutoLock lock(*sIndirectLayerTreesLock);</span>
+<span class="lineNum">     451 </span><span class="lineNoCov">          0 :   *aOutData = sIndirectLayerTrees[id].mApzTestData;</span>
+<span class="lineNum">     452 </span><span class="lineNoCov">          0 : }</span>
+<a name="453"><span class="lineNum">     453 </span>            : </a>
+<span class="lineNum">     454 </span>            : void
+<span class="lineNum">     455 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::SetConfirmedTargetAPZC(</span>
+<span class="lineNum">     456 </span>            :   const LayerTransactionParent* aLayerTree,
+<span class="lineNum">     457 </span>            :   const uint64_t&amp; aInputBlockId,
+<span class="lineNum">     458 </span>            :   const nsTArray&lt;ScrollableLayerGuid&gt;&amp; aTargets)
+<span class="lineNum">     459 </span>            : {
+<span class="lineNum">     460 </span><span class="lineNoCov">          0 :   uint64_t id = aLayerTree-&gt;GetId();</span>
+<span class="lineNum">     461 </span>            :   MOZ_ASSERT(id != 0);
+<span class="lineNum">     462 </span>            :   const CompositorBridgeParent::LayerTreeState* state =
+<span class="lineNum">     463 </span><span class="lineNoCov">          0 :     CompositorBridgeParent::GetIndirectShadowTree(id);</span>
+<span class="lineNum">     464 </span><span class="lineNoCov">          0 :   if (!state || !state-&gt;mParent) {</span>
+<span class="lineNum">     465 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     466 </span>            :   }
+<span class="lineNum">     467 </span>            : 
+<span class="lineNum">     468 </span><span class="lineNoCov">          0 :   state-&gt;mParent-&gt;SetConfirmedTargetAPZC(aLayerTree, aInputBlockId, aTargets);</span>
+<span class="lineNum">     469 </span>            : }
+<a name="470"><span class="lineNum">     470 </span>            : </a>
+<span class="lineNum">     471 </span>            : AsyncCompositionManager*
+<span class="lineNum">     472 </span><span class="lineCov">          1 : CrossProcessCompositorBridgeParent::GetCompositionManager(LayerTransactionParent* aLayerTree)</span>
+<span class="lineNum">     473 </span>            : {
+<span class="lineNum">     474 </span><span class="lineCov">          1 :   uint64_t id = aLayerTree-&gt;GetId();</span>
+<span class="lineNum">     475 </span>            :   const CompositorBridgeParent::LayerTreeState* state =
+<span class="lineNum">     476 </span><span class="lineCov">          1 :     CompositorBridgeParent::GetIndirectShadowTree(id);</span>
+<span class="lineNum">     477 </span><span class="lineCov">          1 :   if (!state) {</span>
+<span class="lineNum">     478 </span>            :     return nullptr;
+<span class="lineNum">     479 </span>            :   }
+<span class="lineNum">     480 </span>            : 
+<span class="lineNum">     481 </span>            :   MOZ_ASSERT(state-&gt;mParent);
+<span class="lineNum">     482 </span><span class="lineCov">          1 :   return state-&gt;mParent-&gt;GetCompositionManager(aLayerTree);</span>
+<span class="lineNum">     483 </span>            : }
+<a name="484"><span class="lineNum">     484 </span>            : </a>
+<span class="lineNum">     485 </span>            : mozilla::ipc::IPCResult
+<span class="lineNum">     486 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::RecvAcknowledgeCompositorUpdate(const uint64_t&amp; aLayersId,</span>
+<span class="lineNum">     487 </span>            :                                                                     const uint64_t&amp; aSeqNo)
+<span class="lineNum">     488 </span>            : {
+<span class="lineNum">     489 </span><span class="lineNoCov">          0 :   MonitorAutoLock lock(*sIndirectLayerTreesLock);</span>
+<span class="lineNum">     490 </span><span class="lineNoCov">          0 :   CompositorBridgeParent::LayerTreeState&amp; state = sIndirectLayerTrees[aLayersId];</span>
+<span class="lineNum">     491 </span>            : 
+<span class="lineNum">     492 </span><span class="lineNoCov">          0 :   if (LayerTransactionParent* ltp = state.mLayerTree) {</span>
+<span class="lineNum">     493 </span><span class="lineNoCov">          0 :     ltp-&gt;AcknowledgeCompositorUpdate(aSeqNo);</span>
+<span class="lineNum">     494 </span>            :   }
+<span class="lineNum">     495 </span><span class="lineNoCov">          0 :   if (state.mPendingCompositorUpdate == Some(aSeqNo)) {</span>
+<span class="lineNum">     496 </span><span class="lineNoCov">          0 :     state.mPendingCompositorUpdate = Nothing();</span>
+<span class="lineNum">     497 </span>            :   }
+<span class="lineNum">     498 </span><span class="lineNoCov">          0 :   return IPC_OK();</span>
+<span class="lineNum">     499 </span>            : }
+<a name="500"><span class="lineNum">     500 </span>            : </a>
+<span class="lineNum">     501 </span>            : void
+<span class="lineNum">     502 </span><span class="lineCov">          1 : CrossProcessCompositorBridgeParent::DeferredDestroy()</span>
+<span class="lineNum">     503 </span>            : {
+<span class="lineNum">     504 </span><span class="lineCov">          1 :   mCompositorThreadHolder = nullptr;</span>
+<span class="lineNum">     505 </span><span class="lineCov">          1 :   mSelfRef = nullptr;</span>
+<a name="506"><span class="lineNum">     506 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     507 </span>            : 
+<span class="lineNum">     508 </span><span class="lineCov">          1 : CrossProcessCompositorBridgeParent::~CrossProcessCompositorBridgeParent()</span>
+<span class="lineNum">     509 </span>            : {
+<span class="lineNum">     510 </span>            :   MOZ_ASSERT(XRE_GetIOMessageLoop());
+<span class="lineNum">     511 </span>            :   MOZ_ASSERT(IToplevelProtocol::GetTransport());
+<span class="lineNum">     512 </span><span class="lineCov">          1 : }</span>
+<a name="513"><span class="lineNum">     513 </span>            : </a>
+<span class="lineNum">     514 </span>            : PTextureParent*
+<span class="lineNum">     515 </span><span class="lineCov">          1 : CrossProcessCompositorBridgeParent::AllocPTextureParent(const SurfaceDescriptor&amp; aSharedData,</span>
+<span class="lineNum">     516 </span>            :                                                         const LayersBackend&amp; aLayersBackend,
+<span class="lineNum">     517 </span>            :                                                         const TextureFlags&amp; aFlags,
+<span class="lineNum">     518 </span>            :                                                         const uint64_t&amp; aId,
+<span class="lineNum">     519 </span>            :                                                         const uint64_t&amp; aSerial)
+<span class="lineNum">     520 </span>            : {
+<span class="lineNum">     521 </span><span class="lineCov">          1 :   CompositorBridgeParent::LayerTreeState* state = nullptr;</span>
+<span class="lineNum">     522 </span>            : 
+<span class="lineNum">     523 </span><span class="lineCov">          1 :   LayerTreeMap::iterator itr = sIndirectLayerTrees.find(aId);</span>
+<span class="lineNum">     524 </span><span class="lineCov">          1 :   if (sIndirectLayerTrees.end() != itr) {</span>
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :     state = &amp;itr-&gt;second;</span>
+<span class="lineNum">     526 </span>            :   }
+<span class="lineNum">     527 </span>            : 
+<span class="lineNum">     528 </span><span class="lineCov">          1 :   TextureFlags flags = aFlags;</span>
+<span class="lineNum">     529 </span>            : 
+<span class="lineNum">     530 </span><span class="lineCov">          1 :   if (!state || state-&gt;mPendingCompositorUpdate) {</span>
+<span class="lineNum">     531 </span>            :     // The compositor was recreated, and we're receiving layers updates for a
+<span class="lineNum">     532 </span>            :     // a layer manager that will soon be discarded or invalidated. We can't
+<span class="lineNum">     533 </span>            :     // return null because this will mess up deserialization later and we'll
+<span class="lineNum">     534 </span>            :     // kill the content process. Instead, we signal that the underlying
+<span class="lineNum">     535 </span>            :     // TextureHost should not attempt to access the compositor.
+<span class="lineNum">     536 </span>            :     flags |= TextureFlags::INVALID_COMPOSITOR;
+<span class="lineNum">     537 </span><span class="lineNoCov">          0 :   } else if (state-&gt;mLayerManager &amp;&amp; state-&gt;mLayerManager-&gt;GetCompositor() &amp;&amp;</span>
+<span class="lineNum">     538 </span><span class="lineNoCov">          0 :              aLayersBackend != state-&gt;mLayerManager-&gt;GetCompositor()-&gt;GetBackendType()) {</span>
+<span class="lineNum">     539 </span><span class="lineNoCov">          0 :     gfxDevCrash(gfx::LogReason::PAllocTextureBackendMismatch) &lt;&lt; &quot;Texture backend is wrong&quot;;</span>
+<span class="lineNum">     540 </span>            :   }
+<span class="lineNum">     541 </span>            : 
+<span class="lineNum">     542 </span><span class="lineCov">          1 :   return TextureHost::CreateIPDLActor(this, aSharedData, aLayersBackend, aFlags, aSerial);</span>
+<span class="lineNum">     543 </span>            : }
+<a name="544"><span class="lineNum">     544 </span>            : </a>
+<span class="lineNum">     545 </span>            : bool
+<span class="lineNum">     546 </span><span class="lineCov">          1 : CrossProcessCompositorBridgeParent::DeallocPTextureParent(PTextureParent* actor)</span>
+<span class="lineNum">     547 </span>            : {
+<span class="lineNum">     548 </span><span class="lineCov">          1 :   return TextureHost::DestroyIPDLActor(actor);</span>
+<span class="lineNum">     549 </span>            : }
+<a name="550"><span class="lineNum">     550 </span>            : </a>
+<span class="lineNum">     551 </span>            : bool
+<span class="lineNum">     552 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::IsSameProcess() const</span>
+<span class="lineNum">     553 </span>            : {
+<span class="lineNum">     554 </span><span class="lineNoCov">          0 :   return OtherPid() == base::GetCurrentProcId();</span>
+<span class="lineNum">     555 </span>            : }
+<a name="556"><span class="lineNum">     556 </span>            : </a>
+<span class="lineNum">     557 </span>            : mozilla::ipc::IPCResult
+<span class="lineNum">     558 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::RecvClearApproximatelyVisibleRegions(const uint64_t&amp; aLayersId,</span>
+<span class="lineNum">     559 </span>            :                                                                          const uint32_t&amp; aPresShellId)
+<span class="lineNum">     560 </span>            : {
+<span class="lineNum">     561 </span>            :   CompositorBridgeParent* parent;
+<span class="lineNum">     562 </span>            :   { // scope lock
+<span class="lineNum">     563 </span><span class="lineNoCov">          0 :     MonitorAutoLock lock(*sIndirectLayerTreesLock);</span>
+<span class="lineNum">     564 </span><span class="lineNoCov">          0 :     parent = sIndirectLayerTrees[aLayersId].mParent;</span>
+<span class="lineNum">     565 </span>            :   }
+<span class="lineNum">     566 </span><span class="lineNoCov">          0 :   if (parent) {</span>
+<span class="lineNum">     567 </span><span class="lineNoCov">          0 :     parent-&gt;ClearApproximatelyVisibleRegions(aLayersId, Some(aPresShellId));</span>
+<span class="lineNum">     568 </span>            :   }
+<span class="lineNum">     569 </span><span class="lineNoCov">          0 :   return IPC_OK();</span>
+<span class="lineNum">     570 </span>            : }
+<a name="571"><span class="lineNum">     571 </span>            : </a>
+<span class="lineNum">     572 </span>            : mozilla::ipc::IPCResult
+<span class="lineNum">     573 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::RecvNotifyApproximatelyVisibleRegion(const ScrollableLayerGuid&amp; aGuid,</span>
+<span class="lineNum">     574 </span>            :                                                                          const CSSIntRegion&amp; aRegion)
+<span class="lineNum">     575 </span>            : {
+<span class="lineNum">     576 </span>            :   CompositorBridgeParent* parent;
+<span class="lineNum">     577 </span>            :   { // scope lock
+<span class="lineNum">     578 </span><span class="lineNoCov">          0 :     MonitorAutoLock lock(*sIndirectLayerTreesLock);</span>
+<span class="lineNum">     579 </span><span class="lineNoCov">          0 :     parent = sIndirectLayerTrees[aGuid.mLayersId].mParent;</span>
+<span class="lineNum">     580 </span>            :   }
+<span class="lineNum">     581 </span><span class="lineNoCov">          0 :   if (parent) {</span>
+<span class="lineNum">     582 </span><span class="lineNoCov">          0 :     if (!parent-&gt;RecvNotifyApproximatelyVisibleRegion(aGuid, aRegion)) {</span>
+<span class="lineNum">     583 </span><span class="lineNoCov">          0 :       return IPC_FAIL_NO_REASON(this);</span>
+<span class="lineNum">     584 </span>            :     }
+<span class="lineNum">     585 </span>            :     return IPC_OK();;
+<span class="lineNum">     586 </span>            :   }
+<span class="lineNum">     587 </span>            :   return IPC_OK();
+<span class="lineNum">     588 </span>            : }
+<a name="589"><span class="lineNum">     589 </span>            : </a>
+<span class="lineNum">     590 </span>            : void
+<span class="lineNum">     591 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::UpdatePaintTime(LayerTransactionParent* aLayerTree, const TimeDuration&amp; aPaintTime)</span>
+<span class="lineNum">     592 </span>            : {
+<span class="lineNum">     593 </span><span class="lineNoCov">          0 :   uint64_t id = aLayerTree-&gt;GetId();</span>
+<span class="lineNum">     594 </span>            :   MOZ_ASSERT(id != 0);
+<span class="lineNum">     595 </span>            : 
+<span class="lineNum">     596 </span>            :   CompositorBridgeParent::LayerTreeState* state =
+<span class="lineNum">     597 </span><span class="lineNoCov">          0 :     CompositorBridgeParent::GetIndirectShadowTree(id);</span>
+<span class="lineNum">     598 </span><span class="lineNoCov">          0 :   if (!state || !state-&gt;mParent) {</span>
+<span class="lineNum">     599 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     600 </span>            :   }
+<span class="lineNum">     601 </span>            : 
+<span class="lineNum">     602 </span><span class="lineNoCov">          0 :   state-&gt;mParent-&gt;UpdatePaintTime(aLayerTree, aPaintTime);</span>
+<span class="lineNum">     603 </span>            : }
+<a name="604"><span class="lineNum">     604 </span>            : </a>
+<span class="lineNum">     605 </span>            : void
+<span class="lineNum">     606 </span><span class="lineNoCov">          0 : CrossProcessCompositorBridgeParent::ObserveLayerUpdate(uint64_t aLayersId, uint64_t aEpoch, bool aActive)</span>
+<span class="lineNum">     607 </span>            : {
+<span class="lineNum">     608 </span>            :   MOZ_ASSERT(aLayersId != 0);
+<span class="lineNum">     609 </span>            : 
+<span class="lineNum">     610 </span>            :   CompositorBridgeParent::LayerTreeState* state =
+<span class="lineNum">     611 </span><span class="lineNoCov">          0 :     CompositorBridgeParent::GetIndirectShadowTree(aLayersId);</span>
+<span class="lineNum">     612 </span><span class="lineNoCov">          0 :   if (!state || !state-&gt;mParent) {</span>
+<span class="lineNum">     613 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     614 </span>            :   }
+<span class="lineNum">     615 </span>            : 
+<span class="lineNum">     616 </span><span class="lineNoCov">          0 :   Unused &lt;&lt; state-&gt;mParent-&gt;SendObserveLayerUpdate(aLayersId, aEpoch, aActive);</span>
+<span class="lineNum">     617 </span>            : }
+<a name="618"><span class="lineNum">     618 </span>            : </a>
+<span class="lineNum">     619 </span>            : } // namespace layers
+<span class="lineNum">     620 </span><span class="lineCov">          1 : } // namespace mozilla</span>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

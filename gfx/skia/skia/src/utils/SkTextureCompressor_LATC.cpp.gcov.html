@@ -1,0 +1,603 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gfx/skia/skia/src/utils/SkTextureCompressor_LATC.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">gfx/skia/skia/src/utils</a> - SkTextureCompressor_LATC.cpp<span style="font-size: 80%;"> (source / <a href="SkTextureCompressor_LATC.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">76</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  * Copyright 2014 Google Inc.
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  * Use of this source code is governed by a BSD-style license that can be
+<span class="lineNum">       5 </span>            :  * found in the LICENSE file.
+<span class="lineNum">       6 </span>            :  */
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #include &quot;SkTextureCompressor_LATC.h&quot;
+<span class="lineNum">       9 </span>            : #include &quot;SkTextureCompressor_Blitter.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;SkTextureCompressor_Utils.h&quot;
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : #include &quot;SkBlitter.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;SkEndian.h&quot;
+<span class="lineNum">      14 </span>            : 
+<span class="lineNum">      15 </span>            : // Compression options. In general, the slow version is much more accurate, but
+<span class="lineNum">      16 </span>            : // much slower. The fast option is much faster, but much less accurate. YMMV.
+<span class="lineNum">      17 </span>            : #define COMPRESS_LATC_SLOW 0
+<span class="lineNum">      18 </span>            : #define COMPRESS_LATC_FAST 1
+<span class="lineNum">      19 </span>            : 
+<span class="lineNum">      20 </span>            : ////////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">      21 </span>            : 
+<span class="lineNum">      22 </span>            : // Generates an LATC palette. LATC constructs
+<span class="lineNum">      23 </span>            : // a palette of eight colors from LUM0 and LUM1 using the algorithm:
+<span class="lineNum">      24 </span>            : //
+<span class="lineNum">      25 </span>            : // LUM0,              if lum0 &gt; lum1 and code(x,y) == 0
+<span class="lineNum">      26 </span>            : // LUM1,              if lum0 &gt; lum1 and code(x,y) == 1
+<span class="lineNum">      27 </span>            : // (6*LUM0+  LUM1)/7, if lum0 &gt; lum1 and code(x,y) == 2
+<span class="lineNum">      28 </span>            : // (5*LUM0+2*LUM1)/7, if lum0 &gt; lum1 and code(x,y) == 3
+<span class="lineNum">      29 </span>            : // (4*LUM0+3*LUM1)/7, if lum0 &gt; lum1 and code(x,y) == 4
+<span class="lineNum">      30 </span>            : // (3*LUM0+4*LUM1)/7, if lum0 &gt; lum1 and code(x,y) == 5
+<span class="lineNum">      31 </span>            : // (2*LUM0+5*LUM1)/7, if lum0 &gt; lum1 and code(x,y) == 6
+<span class="lineNum">      32 </span>            : // (  LUM0+6*LUM1)/7, if lum0 &gt; lum1 and code(x,y) == 7
+<span class="lineNum">      33 </span>            : //
+<span class="lineNum">      34 </span>            : // LUM0,              if lum0 &lt;= lum1 and code(x,y) == 0
+<span class="lineNum">      35 </span>            : // LUM1,              if lum0 &lt;= lum1 and code(x,y) == 1
+<span class="lineNum">      36 </span>            : // (4*LUM0+  LUM1)/5, if lum0 &lt;= lum1 and code(x,y) == 2
+<span class="lineNum">      37 </span>            : // (3*LUM0+2*LUM1)/5, if lum0 &lt;= lum1 and code(x,y) == 3
+<span class="lineNum">      38 </span>            : // (2*LUM0+3*LUM1)/5, if lum0 &lt;= lum1 and code(x,y) == 4
+<span class="lineNum">      39 </span>            : // (  LUM0+4*LUM1)/5, if lum0 &lt;= lum1 and code(x,y) == 5
+<span class="lineNum">      40 </span>            : // 0,                 if lum0 &lt;= lum1 and code(x,y) == 6
+<span class="lineNum">      41 </span>            : // 255,               if lum0 &lt;= lum1 and code(x,y) == 7
+<a name="42"><span class="lineNum">      42 </span>            : </a>
+<span class="lineNum">      43 </span>            : static const int kLATCPaletteSize = 8;
+<span class="lineNum">      44 </span><span class="lineNoCov">          0 : static void generate_latc_palette(uint8_t palette[], uint8_t lum0, uint8_t lum1) {</span>
+<span class="lineNum">      45 </span><span class="lineNoCov">          0 :     palette[0] = lum0;</span>
+<span class="lineNum">      46 </span><span class="lineNoCov">          0 :     palette[1] = lum1;</span>
+<span class="lineNum">      47 </span><span class="lineNoCov">          0 :     if (lum0 &gt; lum1) {</span>
+<span class="lineNum">      48 </span><span class="lineNoCov">          0 :         for (int i = 1; i &lt; 7; i++) {</span>
+<span class="lineNum">      49 </span><span class="lineNoCov">          0 :             palette[i+1] = ((7-i)*lum0 + i*lum1) / 7;</span>
+<span class="lineNum">      50 </span>            :         }
+<span class="lineNum">      51 </span>            :     } else {
+<span class="lineNum">      52 </span><span class="lineNoCov">          0 :         for (int i = 1; i &lt; 5; i++) {</span>
+<span class="lineNum">      53 </span><span class="lineNoCov">          0 :             palette[i+1] = ((5-i)*lum0 + i*lum1) / 5;</span>
+<span class="lineNum">      54 </span>            :         }
+<span class="lineNum">      55 </span><span class="lineNoCov">          0 :         palette[6] = 0;</span>
+<span class="lineNum">      56 </span><span class="lineNoCov">          0 :         palette[7] = 255;</span>
+<span class="lineNum">      57 </span>            :     }
+<span class="lineNum">      58 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">      59 </span>            : 
+<span class="lineNum">      60 </span>            : ////////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">      61 </span>            : 
+<span class="lineNum">      62 </span>            : #if COMPRESS_LATC_SLOW
+<span class="lineNum">      63 </span>            : 
+<span class="lineNum">      64 </span>            : ////////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">      65 </span>            : //
+<span class="lineNum">      66 </span>            : // Utility Functions
+<span class="lineNum">      67 </span>            : //
+<span class="lineNum">      68 </span>            : ////////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            : // Absolute difference between two values. More correct than SkTAbs(a - b)
+<span class="lineNum">      71 </span>            : // because it works on unsigned values.
+<span class="lineNum">      72 </span>            : template &lt;typename T&gt; inline T abs_diff(const T &amp;a, const T &amp;b) {
+<span class="lineNum">      73 </span>            :     return (a &gt; b) ? (a - b) : (b - a);
+<span class="lineNum">      74 </span>            : }
+<span class="lineNum">      75 </span>            : 
+<span class="lineNum">      76 </span>            : static bool is_extremal(uint8_t pixel) {
+<span class="lineNum">      77 </span>            :     return 0 == pixel || 255 == pixel;
+<span class="lineNum">      78 </span>            : }
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span>            : typedef uint64_t (*A84x4To64BitProc)(const uint8_t block[]);
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            : // This function is used by both R11 EAC and LATC to compress 4x4 blocks
+<span class="lineNum">      83 </span>            : // of 8-bit alpha into 64-bit values that comprise the compressed data.
+<span class="lineNum">      84 </span>            : // For both formats, we need to make sure that the dimensions of the
+<span class="lineNum">      85 </span>            : // src pixels are divisible by 4, and copy 4x4 blocks one at a time
+<span class="lineNum">      86 </span>            : // for compression.
+<span class="lineNum">      87 </span>            : static bool compress_4x4_a8_to_64bit(uint8_t* dst, const uint8_t* src,
+<span class="lineNum">      88 </span>            :                                      int width, int height, size_t rowBytes,
+<span class="lineNum">      89 </span>            :                                      A84x4To64BitProc proc) {
+<span class="lineNum">      90 </span>            :     // Make sure that our data is well-formed enough to be considered for compression
+<span class="lineNum">      91 </span>            :     if (0 == width || 0 == height || (width % 4) != 0 || (height % 4) != 0) {
+<span class="lineNum">      92 </span>            :         return false;
+<span class="lineNum">      93 </span>            :     }
+<span class="lineNum">      94 </span>            : 
+<span class="lineNum">      95 </span>            :     int blocksX = width &gt;&gt; 2;
+<span class="lineNum">      96 </span>            :     int blocksY = height &gt;&gt; 2;
+<span class="lineNum">      97 </span>            : 
+<span class="lineNum">      98 </span>            :     uint8_t block[16];
+<span class="lineNum">      99 </span>            :     uint64_t* encPtr = reinterpret_cast&lt;uint64_t*&gt;(dst);
+<span class="lineNum">     100 </span>            :     for (int y = 0; y &lt; blocksY; ++y) {
+<span class="lineNum">     101 </span>            :         for (int x = 0; x &lt; blocksX; ++x) {
+<span class="lineNum">     102 </span>            :             // Load block
+<span class="lineNum">     103 </span>            :             for (int k = 0; k &lt; 4; ++k) {
+<span class="lineNum">     104 </span>            :                 memcpy(block + k*4, src + k*rowBytes + 4*x, 4);
+<span class="lineNum">     105 </span>            :             }
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span>            :             // Compress it
+<span class="lineNum">     108 </span>            :             *encPtr = proc(block);
+<span class="lineNum">     109 </span>            :             ++encPtr;
+<span class="lineNum">     110 </span>            :         }
+<span class="lineNum">     111 </span>            :         src += 4 * rowBytes;
+<span class="lineNum">     112 </span>            :     }
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span>            :     return true;
+<span class="lineNum">     115 </span>            : }
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            : ////////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">     118 </span>            : //
+<span class="lineNum">     119 </span>            : // LATC compressor
+<span class="lineNum">     120 </span>            : //
+<span class="lineNum">     121 </span>            : ////////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span>            : // LATC compressed texels down into square 4x4 blocks
+<span class="lineNum">     124 </span>            : static const int kLATCBlockSize = 4;
+<span class="lineNum">     125 </span>            : static const int kLATCPixelsPerBlock = kLATCBlockSize * kLATCBlockSize;
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span>            : // Compress a block by using the bounding box of the pixels. It is assumed that
+<span class="lineNum">     128 </span>            : // there are no extremal pixels in this block otherwise we would have used
+<span class="lineNum">     129 </span>            : // compressBlockBBIgnoreExtremal.
+<span class="lineNum">     130 </span>            : static uint64_t compress_latc_block_bb(const uint8_t pixels[]) {
+<span class="lineNum">     131 </span>            :     uint8_t minVal = 255;
+<span class="lineNum">     132 </span>            :     uint8_t maxVal = 0;
+<span class="lineNum">     133 </span>            :     for (int i = 0; i &lt; kLATCPixelsPerBlock; ++i) {
+<span class="lineNum">     134 </span>            :         minVal = SkTMin(pixels[i], minVal);
+<span class="lineNum">     135 </span>            :         maxVal = SkTMax(pixels[i], maxVal);
+<span class="lineNum">     136 </span>            :     }
+<span class="lineNum">     137 </span>            : 
+<span class="lineNum">     138 </span>            :     SkASSERT(!is_extremal(minVal));
+<span class="lineNum">     139 </span>            :     SkASSERT(!is_extremal(maxVal));
+<span class="lineNum">     140 </span>            : 
+<span class="lineNum">     141 </span>            :     uint8_t palette[kLATCPaletteSize];
+<span class="lineNum">     142 </span>            :     generate_latc_palette(palette, maxVal, minVal);
+<span class="lineNum">     143 </span>            : 
+<span class="lineNum">     144 </span>            :     uint64_t indices = 0;
+<span class="lineNum">     145 </span>            :     for (int i = kLATCPixelsPerBlock - 1; i &gt;= 0; --i) {
+<span class="lineNum">     146 </span>            : 
+<span class="lineNum">     147 </span>            :         // Find the best palette index
+<span class="lineNum">     148 </span>            :         uint8_t bestError = abs_diff(pixels[i], palette[0]);
+<span class="lineNum">     149 </span>            :         uint8_t idx = 0;
+<span class="lineNum">     150 </span>            :         for (int j = 1; j &lt; kLATCPaletteSize; ++j) {
+<span class="lineNum">     151 </span>            :             uint8_t error = abs_diff(pixels[i], palette[j]);
+<span class="lineNum">     152 </span>            :             if (error &lt; bestError) {
+<span class="lineNum">     153 </span>            :                 bestError = error;
+<span class="lineNum">     154 </span>            :                 idx = j;
+<span class="lineNum">     155 </span>            :             }
+<span class="lineNum">     156 </span>            :         }
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span>            :         indices &lt;&lt;= 3;
+<span class="lineNum">     159 </span>            :         indices |= idx;
+<span class="lineNum">     160 </span>            :     }
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span>            :     return
+<span class="lineNum">     163 </span>            :         SkEndian_SwapLE64(
+<span class="lineNum">     164 </span>            :             static_cast&lt;uint64_t&gt;(maxVal) |
+<span class="lineNum">     165 </span>            :             (static_cast&lt;uint64_t&gt;(minVal) &lt;&lt; 8) |
+<span class="lineNum">     166 </span>            :             (indices &lt;&lt; 16));
+<span class="lineNum">     167 </span>            : }
+<span class="lineNum">     168 </span>            : 
+<span class="lineNum">     169 </span>            : // Compress a block by using the bounding box of the pixels without taking into
+<span class="lineNum">     170 </span>            : // account the extremal values. The generated palette will contain extremal values
+<span class="lineNum">     171 </span>            : // and fewer points along the line segment to interpolate.
+<span class="lineNum">     172 </span>            : static uint64_t compress_latc_block_bb_ignore_extremal(const uint8_t pixels[]) {
+<span class="lineNum">     173 </span>            :     uint8_t minVal = 255;
+<span class="lineNum">     174 </span>            :     uint8_t maxVal = 0;
+<span class="lineNum">     175 </span>            :     for (int i = 0; i &lt; kLATCPixelsPerBlock; ++i) {
+<span class="lineNum">     176 </span>            :         if (is_extremal(pixels[i])) {
+<span class="lineNum">     177 </span>            :             continue;
+<span class="lineNum">     178 </span>            :         }
+<span class="lineNum">     179 </span>            : 
+<span class="lineNum">     180 </span>            :         minVal = SkTMin(pixels[i], minVal);
+<span class="lineNum">     181 </span>            :         maxVal = SkTMax(pixels[i], maxVal);
+<span class="lineNum">     182 </span>            :     }
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span>            :     SkASSERT(!is_extremal(minVal));
+<span class="lineNum">     185 </span>            :     SkASSERT(!is_extremal(maxVal));
+<span class="lineNum">     186 </span>            : 
+<span class="lineNum">     187 </span>            :     uint8_t palette[kLATCPaletteSize];
+<span class="lineNum">     188 </span>            :     generate_latc_palette(palette, minVal, maxVal);
+<span class="lineNum">     189 </span>            : 
+<span class="lineNum">     190 </span>            :     uint64_t indices = 0;
+<span class="lineNum">     191 </span>            :     for (int i = kLATCPixelsPerBlock - 1; i &gt;= 0; --i) {
+<span class="lineNum">     192 </span>            : 
+<span class="lineNum">     193 </span>            :         // Find the best palette index
+<span class="lineNum">     194 </span>            :         uint8_t idx = 0;
+<span class="lineNum">     195 </span>            :         if (is_extremal(pixels[i])) {
+<span class="lineNum">     196 </span>            :             if (0xFF == pixels[i]) {
+<span class="lineNum">     197 </span>            :                 idx = 7;
+<span class="lineNum">     198 </span>            :             } else if (0 == pixels[i]) {
+<span class="lineNum">     199 </span>            :                 idx = 6;
+<span class="lineNum">     200 </span>            :             } else {
+<span class="lineNum">     201 </span>            :                 SkFAIL(&quot;Pixel is extremal but not really?!&quot;);
+<span class="lineNum">     202 </span>            :             }
+<span class="lineNum">     203 </span>            :         } else {
+<span class="lineNum">     204 </span>            :             uint8_t bestError = abs_diff(pixels[i], palette[0]);
+<span class="lineNum">     205 </span>            :             for (int j = 1; j &lt; kLATCPaletteSize - 2; ++j) {
+<span class="lineNum">     206 </span>            :                 uint8_t error = abs_diff(pixels[i], palette[j]);
+<span class="lineNum">     207 </span>            :                 if (error &lt; bestError) {
+<span class="lineNum">     208 </span>            :                     bestError = error;
+<span class="lineNum">     209 </span>            :                     idx = j;
+<span class="lineNum">     210 </span>            :                 }
+<span class="lineNum">     211 </span>            :             }
+<span class="lineNum">     212 </span>            :         }
+<span class="lineNum">     213 </span>            : 
+<span class="lineNum">     214 </span>            :         indices &lt;&lt;= 3;
+<span class="lineNum">     215 </span>            :         indices |= idx;
+<span class="lineNum">     216 </span>            :     }
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span>            :     return
+<span class="lineNum">     219 </span>            :         SkEndian_SwapLE64(
+<span class="lineNum">     220 </span>            :             static_cast&lt;uint64_t&gt;(minVal) |
+<span class="lineNum">     221 </span>            :             (static_cast&lt;uint64_t&gt;(maxVal) &lt;&lt; 8) |
+<span class="lineNum">     222 </span>            :             (indices &lt;&lt; 16));
+<span class="lineNum">     223 </span>            : }
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span>            : 
+<span class="lineNum">     226 </span>            : // Compress LATC block. Each 4x4 block of pixels is decompressed by LATC from two
+<span class="lineNum">     227 </span>            : // values LUM0 and LUM1, and an index into the generated palette. Details of how
+<span class="lineNum">     228 </span>            : // the palette is generated can be found in the comments of generatePalette above.
+<span class="lineNum">     229 </span>            : //
+<span class="lineNum">     230 </span>            : // We choose which palette type to use based on whether or not 'pixels' contains
+<span class="lineNum">     231 </span>            : // any extremal values (0 or 255). If there are extremal values, then we use the
+<span class="lineNum">     232 </span>            : // palette that has the extremal values built in. Otherwise, we use the full bounding
+<span class="lineNum">     233 </span>            : // box.
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span>            : static uint64_t compress_latc_block(const uint8_t pixels[]) {
+<span class="lineNum">     236 </span>            :     // Collect unique pixels
+<span class="lineNum">     237 </span>            :     int nUniquePixels = 0;
+<span class="lineNum">     238 </span>            :     uint8_t uniquePixels[kLATCPixelsPerBlock];
+<span class="lineNum">     239 </span>            :     for (int i = 0; i &lt; kLATCPixelsPerBlock; ++i) {
+<span class="lineNum">     240 </span>            :         bool foundPixel = false;
+<span class="lineNum">     241 </span>            :         for (int j = 0; j &lt; nUniquePixels; ++j) {
+<span class="lineNum">     242 </span>            :             foundPixel = foundPixel || uniquePixels[j] == pixels[i];
+<span class="lineNum">     243 </span>            :         }
+<span class="lineNum">     244 </span>            : 
+<span class="lineNum">     245 </span>            :         if (!foundPixel) {
+<span class="lineNum">     246 </span>            :             uniquePixels[nUniquePixels] = pixels[i];
+<span class="lineNum">     247 </span>            :             ++nUniquePixels;
+<span class="lineNum">     248 </span>            :         }
+<span class="lineNum">     249 </span>            :     }
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span>            :     // If there's only one unique pixel, then our compression is easy.
+<span class="lineNum">     252 </span>            :     if (1 == nUniquePixels) {
+<span class="lineNum">     253 </span>            :         return SkEndian_SwapLE64(pixels[0] | (pixels[0] &lt;&lt; 8));
+<span class="lineNum">     254 </span>            : 
+<span class="lineNum">     255 </span>            :     // Similarly, if there are only two unique pixels, then our compression is
+<span class="lineNum">     256 </span>            :     // easy again: place the pixels in the block header, and assign the indices
+<span class="lineNum">     257 </span>            :     // with one or zero depending on which pixel they belong to.
+<span class="lineNum">     258 </span>            :     } else if (2 == nUniquePixels) {
+<span class="lineNum">     259 </span>            :         uint64_t outBlock = 0;
+<span class="lineNum">     260 </span>            :         for (int i = kLATCPixelsPerBlock - 1; i &gt;= 0; --i) {
+<span class="lineNum">     261 </span>            :             int idx = 0;
+<span class="lineNum">     262 </span>            :             if (pixels[i] == uniquePixels[1]) {
+<span class="lineNum">     263 </span>            :                 idx = 1;
+<span class="lineNum">     264 </span>            :             }
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span>            :             outBlock &lt;&lt;= 3;
+<span class="lineNum">     267 </span>            :             outBlock |= idx;
+<span class="lineNum">     268 </span>            :         }
+<span class="lineNum">     269 </span>            :         outBlock &lt;&lt;= 16;
+<span class="lineNum">     270 </span>            :         outBlock |= (uniquePixels[0] | (uniquePixels[1] &lt;&lt; 8));
+<span class="lineNum">     271 </span>            :         return SkEndian_SwapLE64(outBlock);
+<span class="lineNum">     272 </span>            :     }
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span>            :     // Count non-maximal pixel values
+<span class="lineNum">     275 </span>            :     int nonExtremalPixels = 0;
+<span class="lineNum">     276 </span>            :     for (int i = 0; i &lt; nUniquePixels; ++i) {
+<span class="lineNum">     277 </span>            :         if (!is_extremal(uniquePixels[i])) {
+<span class="lineNum">     278 </span>            :             ++nonExtremalPixels;
+<span class="lineNum">     279 </span>            :         }
+<span class="lineNum">     280 </span>            :     }
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span>            :     // If all the pixels are nonmaximal then compute the palette using
+<span class="lineNum">     283 </span>            :     // the bounding box of all the pixels.
+<span class="lineNum">     284 </span>            :     if (nonExtremalPixels == nUniquePixels) {
+<span class="lineNum">     285 </span>            :         // This is really just for correctness, in all of my tests we
+<span class="lineNum">     286 </span>            :         // never take this step. We don't lose too much perf here because
+<span class="lineNum">     287 </span>            :         // most of the processing in this function is worth it for the
+<span class="lineNum">     288 </span>            :         // 1 == nUniquePixels optimization.
+<span class="lineNum">     289 </span>            :         return compress_latc_block_bb(pixels);
+<span class="lineNum">     290 </span>            :     } else {
+<span class="lineNum">     291 </span>            :         return compress_latc_block_bb_ignore_extremal(pixels);
+<span class="lineNum">     292 </span>            :     }
+<span class="lineNum">     293 </span>            : }
+<span class="lineNum">     294 </span>            : 
+<span class="lineNum">     295 </span>            : #endif  // COMPRESS_LATC_SLOW
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span>            : ////////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">     298 </span>            : 
+<span class="lineNum">     299 </span>            : #if COMPRESS_LATC_FAST
+<span class="lineNum">     300 </span>            : 
+<a name="301"><span class="lineNum">     301 </span>            : // Take the top three bits of each index and pack them into the low 12</a>
+<span class="lineNum">     302 </span>            : // bits of the integer.
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 : static inline uint32_t pack_index(uint32_t x) {</span>
+<span class="lineNum">     304 </span>            :     // Pack it in...
+<span class="lineNum">     305 </span>            : #if defined (SK_CPU_BENDIAN)
+<span class="lineNum">     306 </span>            :     return
+<span class="lineNum">     307 </span>            :         (x &gt;&gt; 24) |
+<span class="lineNum">     308 </span>            :         ((x &gt;&gt; 13) &amp; 0x38) |
+<span class="lineNum">     309 </span>            :         ((x &gt;&gt; 2) &amp; 0x1C0) |
+<span class="lineNum">     310 </span>            :         ((x &lt;&lt; 9) &amp; 0xE00);
+<span class="lineNum">     311 </span>            : #else
+<span class="lineNum">     312 </span>            :     return
+<span class="lineNum">     313 </span><span class="lineNoCov">          0 :         (x &amp; 0x7) |</span>
+<span class="lineNum">     314 </span><span class="lineNoCov">          0 :         ((x &gt;&gt; 5) &amp; 0x38) |</span>
+<span class="lineNum">     315 </span><span class="lineNoCov">          0 :         ((x &gt;&gt; 10) &amp; 0x1C0) |</span>
+<span class="lineNum">     316 </span><span class="lineNoCov">          0 :         ((x &gt;&gt; 15) &amp; 0xE00);</span>
+<span class="lineNum">     317 </span>            : #endif
+<span class="lineNum">     318 </span>            : }
+<span class="lineNum">     319 </span>            : 
+<a name="320"><span class="lineNum">     320 </span>            : // Converts each 8-bit byte in the integer into an LATC index, and then packs</a>
+<span class="lineNum">     321 </span>            : // the indices into the low 12 bits of the integer.
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 : static inline uint32_t convert_index(uint32_t x) {</span>
+<span class="lineNum">     323 </span>            :     // Since the palette is
+<span class="lineNum">     324 </span>            :     // 255, 0, 219, 182, 146, 109, 73, 36
+<span class="lineNum">     325 </span>            :     // we need to map the high three bits of each byte in the integer
+<span class="lineNum">     326 </span>            :     // from
+<span class="lineNum">     327 </span>            :     // 0 1 2 3 4 5 6 7
+<span class="lineNum">     328 </span>            :     // to
+<span class="lineNum">     329 </span>            :     // 1 7 6 5 4 3 2 0
+<span class="lineNum">     330 </span>            :     //
+<span class="lineNum">     331 </span>            :     // This first operation takes the mapping from
+<span class="lineNum">     332 </span>            :     // 0 1 2 3 4 5 6 7  --&gt;  7 6 5 4 3 2 1 0
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :     x = 0x07070707 - SkTextureCompressor::ConvertToThreeBitIndex(x);</span>
+<span class="lineNum">     334 </span>            : 
+<span class="lineNum">     335 </span>            :     // mask is 1 if index is non-zero
+<span class="lineNum">     336 </span><span class="lineNoCov">          0 :     const uint32_t mask = (x | (x &gt;&gt; 1) | (x &gt;&gt; 2)) &amp; 0x01010101;</span>
+<span class="lineNum">     337 </span>            : 
+<span class="lineNum">     338 </span>            :     // add mask:
+<span class="lineNum">     339 </span>            :     // 7 6 5 4 3 2 1 0 --&gt; 8 7 6 5 4 3 2 0
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :     x = (x + mask);</span>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span>            :     // Handle overflow:
+<span class="lineNum">     343 </span>            :     // 8 7 6 5 4 3 2 0 --&gt; 9 7 6 5 4 3 2 0
+<span class="lineNum">     344 </span><span class="lineNoCov">          0 :     x |= (x &gt;&gt; 3) &amp; 0x01010101;</span>
+<span class="lineNum">     345 </span>            : 
+<span class="lineNum">     346 </span>            :     // Mask out high bits:
+<span class="lineNum">     347 </span>            :     // 9 7 6 5 4 3 2 0 --&gt; 1 7 6 5 4 3 2 0
+<span class="lineNum">     348 </span><span class="lineNoCov">          0 :     x &amp;= 0x07070707;</span>
+<span class="lineNum">     349 </span>            : 
+<span class="lineNum">     350 </span><span class="lineNoCov">          0 :     return pack_index(x);</span>
+<span class="lineNum">     351 </span>            : }
+<span class="lineNum">     352 </span>            : 
+<a name="353"><span class="lineNum">     353 </span>            : typedef uint64_t (*PackIndicesProc)(const uint8_t* alpha, size_t rowBytes);</a>
+<span class="lineNum">     354 </span>            : template&lt;PackIndicesProc packIndicesProc&gt;
+<span class="lineNum">     355 </span><span class="lineNoCov">          0 : static void compress_a8_latc_block(uint8_t** dstPtr, const uint8_t* src, size_t rowBytes) {</span>
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :     *(reinterpret_cast&lt;uint64_t*&gt;(*dstPtr)) =</span>
+<span class="lineNum">     357 </span><span class="lineNoCov">          0 :         SkEndian_SwapLE64(0xFF | (packIndicesProc(src, rowBytes) &lt;&lt; 16));</span>
+<span class="lineNum">     358 </span><span class="lineNoCov">          0 :     *dstPtr += 8;</span>
+<a name="359"><span class="lineNum">     359 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     360 </span>            : 
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 : inline uint64_t PackRowMajor(const uint8_t *indices, size_t rowBytes) {</span>
+<span class="lineNum">     362 </span><span class="lineNoCov">          0 :     uint64_t result = 0;</span>
+<span class="lineNum">     363 </span><span class="lineNoCov">          0 :     for (int i = 0; i &lt; 4; ++i) {</span>
+<span class="lineNum">     364 </span><span class="lineNoCov">          0 :         const uint32_t idx = *(reinterpret_cast&lt;const uint32_t*&gt;(indices + i*rowBytes));</span>
+<span class="lineNum">     365 </span><span class="lineNoCov">          0 :         result |= static_cast&lt;uint64_t&gt;(convert_index(idx)) &lt;&lt; 12*i;</span>
+<span class="lineNum">     366 </span>            :     }
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 :     return result;</span>
+<a name="368"><span class="lineNum">     368 </span>            : }</a>
+<span class="lineNum">     369 </span>            : 
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 : inline uint64_t PackColumnMajor(const uint8_t *indices, size_t rowBytes) {</span>
+<span class="lineNum">     371 </span>            :     // !SPEED! Blarg, this is kind of annoying. SSE4 can make this
+<span class="lineNum">     372 </span>            :     // a LOT faster.
+<span class="lineNum">     373 </span>            :     uint8_t transposed[16];
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :     for (int i = 0; i &lt; 4; ++i) {</span>
+<span class="lineNum">     375 </span><span class="lineNoCov">          0 :         for (int j = 0; j &lt; 4; ++j) {</span>
+<span class="lineNum">     376 </span><span class="lineNoCov">          0 :             transposed[j*4+i] = indices[i*rowBytes + j];</span>
+<span class="lineNum">     377 </span>            :         }
+<span class="lineNum">     378 </span>            :     }
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span><span class="lineNoCov">          0 :     return PackRowMajor(transposed, 4);</span>
+<a name="381"><span class="lineNum">     381 </span>            : }</a>
+<span class="lineNum">     382 </span>            : 
+<span class="lineNum">     383 </span><span class="lineNoCov">          0 : static bool compress_4x4_a8_latc(uint8_t* dst, const uint8_t* src,</span>
+<span class="lineNum">     384 </span>            :                                  int width, int height, size_t rowBytes) {
+<span class="lineNum">     385 </span>            : 
+<span class="lineNum">     386 </span><span class="lineNoCov">          0 :     if (width &lt; 0 || ((width % 4) != 0) || height &lt; 0 || ((height % 4) != 0)) {</span>
+<span class="lineNum">     387 </span>            :         return false;
+<span class="lineNum">     388 </span>            :     }
+<span class="lineNum">     389 </span>            : 
+<span class="lineNum">     390 </span>            :     uint8_t** dstPtr = &amp;dst;
+<span class="lineNum">     391 </span><span class="lineNoCov">          0 :     for (int y = 0; y &lt; height; y += 4) {</span>
+<span class="lineNum">     392 </span><span class="lineNoCov">          0 :         for (int x = 0; x &lt; width; x += 4) {</span>
+<span class="lineNum">     393 </span><span class="lineNoCov">          0 :             compress_a8_latc_block&lt;PackRowMajor&gt;(dstPtr, src + y*rowBytes + x, rowBytes);</span>
+<span class="lineNum">     394 </span>            :         }
+<span class="lineNum">     395 </span>            :     }
+<span class="lineNum">     396 </span>            : 
+<span class="lineNum">     397 </span>            :     return true;
+<a name="398"><span class="lineNum">     398 </span>            : }</a>
+<span class="lineNum">     399 </span>            : 
+<span class="lineNum">     400 </span><span class="lineNoCov">          0 : void CompressA8LATCBlockVertical(uint8_t* dst, const uint8_t block[]) {</span>
+<span class="lineNum">     401 </span><span class="lineNoCov">          0 :     compress_a8_latc_block&lt;PackColumnMajor&gt;(&amp;dst, block, 4);</span>
+<span class="lineNum">     402 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     403 </span>            : 
+<a name="404"><span class="lineNum">     404 </span>            : #endif  // COMPRESS_LATC_FAST</a>
+<span class="lineNum">     405 </span>            : 
+<span class="lineNum">     406 </span><span class="lineNoCov">          0 : void decompress_latc_block(uint8_t* dst, int dstRowBytes, const uint8_t* src) {</span>
+<span class="lineNum">     407 </span><span class="lineNoCov">          0 :     uint64_t block = SkEndian_SwapLE64(*(reinterpret_cast&lt;const uint64_t *&gt;(src)));</span>
+<span class="lineNum">     408 </span><span class="lineNoCov">          0 :     uint8_t lum0 = block &amp; 0xFF;</span>
+<span class="lineNum">     409 </span><span class="lineNoCov">          0 :     uint8_t lum1 = (block &gt;&gt; 8) &amp; 0xFF;</span>
+<span class="lineNum">     410 </span>            : 
+<span class="lineNum">     411 </span>            :     uint8_t palette[kLATCPaletteSize];
+<span class="lineNum">     412 </span><span class="lineNoCov">          0 :     generate_latc_palette(palette, lum0, lum1);</span>
+<span class="lineNum">     413 </span>            : 
+<span class="lineNum">     414 </span><span class="lineNoCov">          0 :     block &gt;&gt;= 16;</span>
+<span class="lineNum">     415 </span><span class="lineNoCov">          0 :     for (int j = 0; j &lt; 4; ++j) {</span>
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :         for (int i = 0; i &lt; 4; ++i) {</span>
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :             dst[i] = palette[block &amp; 0x7];</span>
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 :             block &gt;&gt;= 3;</span>
+<span class="lineNum">     419 </span>            :         }
+<span class="lineNum">     420 </span><span class="lineNoCov">          0 :         dst += dstRowBytes;</span>
+<span class="lineNum">     421 </span>            :     }
+<span class="lineNum">     422 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     423 </span>            : 
+<span class="lineNum">     424 </span>            : // This is the type passed as the CompressorType argument of the compressed
+<span class="lineNum">     425 </span>            : // blitter for the LATC format. The static functions required to be in this
+<a name="426"><span class="lineNum">     426 </span>            : // struct are documented in SkTextureCompressor_Blitter.h</a>
+<span class="lineNum">     427 </span>            : struct CompressorLATC {
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :     static inline void CompressA8Vertical(uint8_t* dst, const uint8_t block[]) {</span>
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 :         compress_a8_latc_block&lt;PackColumnMajor&gt;(&amp;dst, block, 4);</span>
+<span class="lineNum">     430 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     431 </span>            : 
+<span class="lineNum">     432 </span>            :     static inline void CompressA8Horizontal(uint8_t* dst, const uint8_t* src,
+<span class="lineNum">     433 </span>            :                                             int srcRowBytes) {
+<span class="lineNum">     434 </span><span class="lineNoCov">          0 :         compress_a8_latc_block&lt;PackRowMajor&gt;(&amp;dst, src, srcRowBytes);</span>
+<span class="lineNum">     435 </span>            :     }
+<span class="lineNum">     436 </span>            : 
+<span class="lineNum">     437 </span>            : #if PEDANTIC_BLIT_RECT
+<span class="lineNum">     438 </span>            :     static inline void UpdateBlock(uint8_t* dst, const uint8_t* src, int srcRowBytes,
+<span class="lineNum">     439 </span>            :                                    const uint8_t* mask) {
+<span class="lineNum">     440 </span>            :         // Pack the mask
+<span class="lineNum">     441 </span>            :         uint64_t cmpMask = 0;
+<span class="lineNum">     442 </span>            :         for (int i = 0; i &lt; 4; ++i) {
+<span class="lineNum">     443 </span>            :             const uint32_t idx = *(reinterpret_cast&lt;const uint32_t*&gt;(src + i*srcRowBytes));
+<span class="lineNum">     444 </span>            :             cmpMask |= static_cast&lt;uint64_t&gt;(pack_index(idx)) &lt;&lt; 12*i;
+<span class="lineNum">     445 </span>            :         }
+<span class="lineNum">     446 </span>            :         cmpMask = SkEndian_SwapLE64(cmpMask &lt;&lt; 16); // avoid header
+<span class="lineNum">     447 </span>            : 
+<span class="lineNum">     448 </span>            :         uint64_t cmpSrc;
+<span class="lineNum">     449 </span>            :         uint8_t *cmpSrcPtr = reinterpret_cast&lt;uint8_t*&gt;(&amp;cmpSrc);
+<span class="lineNum">     450 </span>            :         compress_a8_latc_block&lt;PackRowMajor&gt;(&amp;cmpSrcPtr, src, srcRowBytes);
+<span class="lineNum">     451 </span>            : 
+<span class="lineNum">     452 </span>            :         // Mask out header
+<span class="lineNum">     453 </span>            :         cmpSrc = cmpSrc &amp; cmpMask;
+<span class="lineNum">     454 </span>            : 
+<span class="lineNum">     455 </span>            :         // Read destination encoding
+<span class="lineNum">     456 </span>            :         uint64_t *cmpDst = reinterpret_cast&lt;uint64_t*&gt;(dst);
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span>            :         // If the destination is the encoding for a blank block, then we need
+<span class="lineNum">     459 </span>            :         // to properly set the header
+<span class="lineNum">     460 </span>            :         if (0 == cmpDst) {
+<span class="lineNum">     461 </span>            :             *cmpDst = SkTEndian_SwapLE64(0x24924924924900FFULL);
+<span class="lineNum">     462 </span>            :         }
+<span class="lineNum">     463 </span>            : 
+<span class="lineNum">     464 </span>            :         // Set the new indices
+<span class="lineNum">     465 </span>            :         *cmpDst &amp;= ~cmpMask;
+<span class="lineNum">     466 </span>            :         *cmpDst |= cmpSrc;
+<span class="lineNum">     467 </span>            :     }
+<span class="lineNum">     468 </span>            : #endif  // PEDANTIC_BLIT_RECT
+<span class="lineNum">     469 </span>            : };
+<span class="lineNum">     470 </span>            : 
+<span class="lineNum">     471 </span>            : ////////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">     472 </span>            : 
+<a name="473"><span class="lineNum">     473 </span>            : namespace SkTextureCompressor {</a>
+<span class="lineNum">     474 </span>            : 
+<span class="lineNum">     475 </span><span class="lineNoCov">          0 : bool CompressA8ToLATC(uint8_t* dst, const uint8_t* src, int width, int height, size_t rowBytes) {</span>
+<span class="lineNum">     476 </span>            : #if COMPRESS_LATC_FAST
+<span class="lineNum">     477 </span><span class="lineNoCov">          0 :     return compress_4x4_a8_latc(dst, src, width, height, rowBytes);</span>
+<span class="lineNum">     478 </span>            : #elif COMPRESS_LATC_SLOW
+<span class="lineNum">     479 </span>            :     return compress_4x4_a8_to_64bit(dst, src, width, height, rowBytes, compress_latc_block);
+<span class="lineNum">     480 </span>            : #else
+<span class="lineNum">     481 </span>            : #error &quot;Must choose either fast or slow LATC compression&quot;
+<span class="lineNum">     482 </span>            : #endif
+<a name="483"><span class="lineNum">     483 </span>            : }</a>
+<span class="lineNum">     484 </span>            : 
+<span class="lineNum">     485 </span><span class="lineNoCov">          0 : SkBlitter* CreateLATCBlitter(int width, int height, void* outputBuffer,</span>
+<span class="lineNum">     486 </span>            :                              SkTBlitterAllocator* allocator) {
+<span class="lineNum">     487 </span><span class="lineNoCov">          0 :     if ((width % 4) != 0 || (height % 4) != 0) {</span>
+<span class="lineNum">     488 </span>            :         return nullptr;
+<span class="lineNum">     489 </span>            :     }
+<span class="lineNum">     490 </span>            : 
+<span class="lineNum">     491 </span>            : #if COMPRESS_LATC_FAST
+<span class="lineNum">     492 </span>            :     // Memset the output buffer to an encoding that decodes to zero. We must do this
+<span class="lineNum">     493 </span>            :     // in order to avoid having uninitialized values in the buffer if the blitter
+<span class="lineNum">     494 </span>            :     // decides not to write certain scanlines (and skip entire rows of blocks).
+<span class="lineNum">     495 </span>            :     // In the case of LATC, if everything is zero, then LUM0 and LUM1 are also zero,
+<span class="lineNum">     496 </span>            :     // and they will only be non-zero (0xFF) if the index is 7. So bzero will do just fine.
+<span class="lineNum">     497 </span>            :     // (8 bytes per block) * (w * h / 16 blocks) = w * h / 2
+<span class="lineNum">     498 </span><span class="lineNoCov">          0 :     sk_bzero(outputBuffer, width * height / 2);</span>
+<span class="lineNum">     499 </span>            : 
+<span class="lineNum">     500 </span>            :     return allocator-&gt;createT&lt;
+<span class="lineNum">     501 </span>            :         SkTCompressedAlphaBlitter&lt;4, 8, CompressorLATC&gt;, int, int, void* &gt;
+<span class="lineNum">     502 </span><span class="lineNoCov">          0 :         (width, height, outputBuffer);</span>
+<span class="lineNum">     503 </span>            : #elif COMPRESS_LATC_SLOW
+<span class="lineNum">     504 </span>            :     // TODO (krajcevski)
+<span class="lineNum">     505 </span>            :     return nullptr;
+<span class="lineNum">     506 </span>            : #endif
+<a name="507"><span class="lineNum">     507 </span>            : }</a>
+<span class="lineNum">     508 </span>            : 
+<span class="lineNum">     509 </span><span class="lineNoCov">          0 : void DecompressLATC(uint8_t* dst, int dstRowBytes, const uint8_t* src, int width, int height) {</span>
+<span class="lineNum">     510 </span><span class="lineNoCov">          0 :     for (int j = 0; j &lt; height; j += 4) {</span>
+<span class="lineNum">     511 </span><span class="lineNoCov">          0 :         for (int i = 0; i &lt; width; i += 4) {</span>
+<span class="lineNum">     512 </span><span class="lineNoCov">          0 :             decompress_latc_block(dst + i, dstRowBytes, src);</span>
+<span class="lineNum">     513 </span><span class="lineNoCov">          0 :             src += 8;</span>
+<span class="lineNum">     514 </span>            :         }
+<span class="lineNum">     515 </span><span class="lineNoCov">          0 :         dst += 4 * dstRowBytes;</span>
+<span class="lineNum">     516 </span>            :     }
+<span class="lineNum">     517 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     518 </span>            : 
+<span class="lineNum">     519 </span>            : }  // SkTextureCompressor
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

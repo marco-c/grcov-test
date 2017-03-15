@@ -1,0 +1,464 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - image/DownscalingFilter.h</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">image</a> - DownscalingFilter.h<span style="font-size: 80%;"> (source / <a href="DownscalingFilter.h.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">101</td>
+            <td class="headerCovTableEntry">101</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">11</td>
+            <td class="headerCovTableEntry">11</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* vim: set ts=8 sts=2 et sw=2 tw=80: */
+<span class="lineNum">       3 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : /**
+<span class="lineNum">       8 </span>            :  * DownscalingSurfaceFilter is a SurfaceFilter implementation for use with
+<span class="lineNum">       9 </span>            :  * SurfacePipe which performs Lanczos downscaling.
+<span class="lineNum">      10 </span>            :  *
+<span class="lineNum">      11 </span>            :  * It's in this header file, separated from the other SurfaceFilters, because
+<span class="lineNum">      12 </span>            :  * some preprocessor magic is necessary to ensure that there aren't compilation
+<span class="lineNum">      13 </span>            :  * issues on platforms where Skia is unavailable.
+<span class="lineNum">      14 </span>            :  */
+<span class="lineNum">      15 </span>            : 
+<span class="lineNum">      16 </span>            : #ifndef mozilla_image_DownscalingFilter_h
+<span class="lineNum">      17 </span>            : #define mozilla_image_DownscalingFilter_h
+<span class="lineNum">      18 </span>            : 
+<span class="lineNum">      19 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      20 </span>            : #include &lt;ctime&gt;
+<span class="lineNum">      21 </span>            : #include &lt;stdint.h&gt;
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : #include &quot;mozilla/Maybe.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;mozilla/SSE.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;mozilla/mips.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;mozilla/UniquePtr.h&quot;
+<span class="lineNum">      27 </span>            : #include &quot;mozilla/gfx/2D.h&quot;
+<span class="lineNum">      28 </span>            : #include &quot;gfxPrefs.h&quot;
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : #ifdef MOZ_ENABLE_SKIA
+<span class="lineNum">      31 </span>            : #include &quot;convolver.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;image_operations.h&quot;
+<span class="lineNum">      33 </span>            : #include &quot;skia/include/core/SkTypes.h&quot;
+<span class="lineNum">      34 </span>            : #endif
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            : #include &quot;SurfacePipe.h&quot;
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : namespace mozilla {
+<span class="lineNum">      39 </span>            : namespace image {
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span>            : //////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">      42 </span>            : // DownscalingFilter
+<span class="lineNum">      43 </span>            : //////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span>            : template &lt;typename Next&gt; class DownscalingFilter;
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span>            : /**
+<span class="lineNum">      48 </span>            :  * A configuration struct for DownscalingConfig.
+<span class="lineNum">      49 </span>            :  */
+<span class="lineNum">      50 </span>            : struct DownscalingConfig
+<span class="lineNum">      51 </span>            : {
+<span class="lineNum">      52 </span>            :   template &lt;typename Next&gt; using Filter = DownscalingFilter&lt;Next&gt;;
+<span class="lineNum">      53 </span>            :   gfx::IntSize mInputSize;     /// The size of the input image. We'll downscale
+<span class="lineNum">      54 </span>            :                                /// from this size to the input size of the next
+<span class="lineNum">      55 </span>            :                                /// SurfaceFilter in the chain.
+<span class="lineNum">      56 </span>            :   gfx::SurfaceFormat mFormat;  /// The pixel format - BGRA or BGRX. (BGRX has
+<span class="lineNum">      57 </span>            :                                /// slightly better performance.)
+<span class="lineNum">      58 </span>            : };
+<span class="lineNum">      59 </span>            : 
+<span class="lineNum">      60 </span>            : #ifndef MOZ_ENABLE_SKIA
+<span class="lineNum">      61 </span>            : 
+<span class="lineNum">      62 </span>            : /**
+<span class="lineNum">      63 </span>            :  * DownscalingFilter requires Skia. This is a fallback implementation for
+<span class="lineNum">      64 </span>            :  * non-Skia builds that fails when Configure() is called (which will prevent
+<span class="lineNum">      65 </span>            :  * SurfacePipeFactory from returning an instance of it) and crashes if a caller
+<span class="lineNum">      66 </span>            :  * manually constructs an instance and attempts to actually use it. Callers
+<span class="lineNum">      67 </span>            :  * should avoid this by ensuring that they do not request downscaling in
+<span class="lineNum">      68 </span>            :  * non-Skia builds.
+<span class="lineNum">      69 </span>            :  */
+<span class="lineNum">      70 </span>            : template &lt;typename Next&gt;
+<span class="lineNum">      71 </span>            : class DownscalingFilter final : public SurfaceFilter
+<span class="lineNum">      72 </span>            : {
+<span class="lineNum">      73 </span>            : public:
+<span class="lineNum">      74 </span>            :   Maybe&lt;SurfaceInvalidRect&gt; TakeInvalidRect() override { return Nothing(); }
+<span class="lineNum">      75 </span>            : 
+<span class="lineNum">      76 </span>            :   template &lt;typename... Rest&gt;
+<span class="lineNum">      77 </span>            :   nsresult Configure(const DownscalingConfig&amp; aConfig, Rest... aRest)
+<span class="lineNum">      78 </span>            :   {
+<span class="lineNum">      79 </span>            :     return NS_ERROR_FAILURE;
+<span class="lineNum">      80 </span>            :   }
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            : protected:
+<span class="lineNum">      83 </span>            :   uint8_t* DoResetToFirstRow() override { MOZ_CRASH(); return nullptr; }
+<span class="lineNum">      84 </span>            :   uint8_t* DoAdvanceRow() override { MOZ_CRASH(); return nullptr; }
+<span class="lineNum">      85 </span>            : };
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span>            : #else
+<span class="lineNum">      88 </span>            : 
+<span class="lineNum">      89 </span>            : /**
+<span class="lineNum">      90 </span>            :  * DownscalingFilter performs Lanczos downscaling, taking image input data at one size
+<span class="lineNum">      91 </span>            :  * and outputting it rescaled to a different size.
+<span class="lineNum">      92 </span>            :  *
+<span class="lineNum">      93 </span>            :  * The 'Next' template parameter specifies the next filter in the chain.
+<span class="lineNum">      94 </span>            :  */
+<span class="lineNum">      95 </span>            : template &lt;typename Next&gt;
+<span class="lineNum">      96 </span>            : class DownscalingFilter final : public SurfaceFilter
+<a name="97"><span class="lineNum">      97 </span>            : {</a>
+<span class="lineNum">      98 </span>            : public:
+<span class="lineNum">      99 </span><span class="lineCov">          1 :   DownscalingFilter()</span>
+<span class="lineNum">     100 </span>            :     : mXFilter(MakeUnique&lt;skia::ConvolutionFilter1D&gt;())
+<span class="lineNum">     101 </span>            :     , mYFilter(MakeUnique&lt;skia::ConvolutionFilter1D&gt;())
+<span class="lineNum">     102 </span>            :     , mWindowCapacity(0)
+<span class="lineNum">     103 </span>            :     , mRowsInWindow(0)
+<span class="lineNum">     104 </span>            :     , mInputRow(0)
+<span class="lineNum">     105 </span>            :     , mOutputRow(0)
+<span class="lineNum">     106 </span><span class="lineCov">          1 :     , mHasAlpha(true)</span>
+<span class="lineNum">     107 </span>            :   {
+<span class="lineNum">     108 </span>            :     MOZ_ASSERT(gfxPrefs::ImageDownscaleDuringDecodeEnabled(),
+<span class="lineNum">     109 </span>            :                &quot;Downscaling even though downscale-during-decode is disabled?&quot;);
+<a name="110"><span class="lineNum">     110 </span><span class="lineCov">          1 :   }</span></a>
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span><span class="lineCov">          1 :   ~DownscalingFilter()</span>
+<span class="lineNum">     113 </span>            :   {
+<span class="lineNum">     114 </span><span class="lineCov">          1 :     ReleaseWindow();</span>
+<span class="lineNum">     115 </span><span class="lineCov">          1 :   }</span>
+<a name="116"><span class="lineNum">     116 </span>            : </a>
+<span class="lineNum">     117 </span>            :   template &lt;typename... Rest&gt;
+<span class="lineNum">     118 </span><span class="lineCov">          1 :   nsresult Configure(const DownscalingConfig&amp; aConfig, Rest... aRest)</span>
+<span class="lineNum">     119 </span>            :   {
+<span class="lineNum">     120 </span><span class="lineCov">          1 :     nsresult rv = mNext.Configure(aRest...);</span>
+<span class="lineNum">     121 </span><span class="lineCov">          1 :     if (NS_FAILED(rv)) {</span>
+<span class="lineNum">     122 </span>            :       return rv;
+<span class="lineNum">     123 </span>            :     }
+<span class="lineNum">     124 </span>            : 
+<span class="lineNum">     125 </span><span class="lineCov">          1 :     if (mNext.IsValidPalettedPipe()) {</span>
+<span class="lineNum">     126 </span>            :       NS_WARNING(&quot;Created a downscaler for a paletted surface?&quot;);
+<span class="lineNum">     127 </span>            :       return NS_ERROR_INVALID_ARG;
+<span class="lineNum">     128 </span>            :     }
+<span class="lineNum">     129 </span><span class="lineCov">          1 :     if (mNext.InputSize() == aConfig.mInputSize) {</span>
+<span class="lineNum">     130 </span>            :       NS_WARNING(&quot;Created a downscaler, but not downscaling?&quot;);
+<span class="lineNum">     131 </span>            :       return NS_ERROR_INVALID_ARG;
+<span class="lineNum">     132 </span>            :     }
+<span class="lineNum">     133 </span><span class="lineCov">          1 :     if (mNext.InputSize().width &gt; aConfig.mInputSize.width) {</span>
+<span class="lineNum">     134 </span>            :       NS_WARNING(&quot;Created a downscaler, but width is larger&quot;);
+<span class="lineNum">     135 </span>            :       return NS_ERROR_INVALID_ARG;
+<span class="lineNum">     136 </span>            :     }
+<span class="lineNum">     137 </span><span class="lineCov">          1 :     if (mNext.InputSize().height &gt; aConfig.mInputSize.height) {</span>
+<span class="lineNum">     138 </span>            :       NS_WARNING(&quot;Created a downscaler, but height is larger&quot;);
+<span class="lineNum">     139 </span>            :       return NS_ERROR_INVALID_ARG;
+<span class="lineNum">     140 </span>            :     }
+<span class="lineNum">     141 </span><span class="lineCov">          1 :     if (aConfig.mInputSize.width &lt;= 0 || aConfig.mInputSize.height &lt;= 0) {</span>
+<span class="lineNum">     142 </span>            :       NS_WARNING(&quot;Invalid input size for DownscalingFilter&quot;);
+<span class="lineNum">     143 </span>            :       return NS_ERROR_INVALID_ARG;
+<span class="lineNum">     144 </span>            :     }
+<span class="lineNum">     145 </span>            : 
+<span class="lineNum">     146 </span><span class="lineCov">          1 :     mInputSize = aConfig.mInputSize;</span>
+<span class="lineNum">     147 </span><span class="lineCov">          1 :     gfx::IntSize outputSize = mNext.InputSize();</span>
+<span class="lineNum">     148 </span><span class="lineCov">          1 :     mScale = gfxSize(double(mInputSize.width) / outputSize.width,</span>
+<span class="lineNum">     149 </span>            :                      double(mInputSize.height) / outputSize.height);
+<span class="lineNum">     150 </span><span class="lineCov">          1 :     mHasAlpha = aConfig.mFormat == gfx::SurfaceFormat::B8G8R8A8;</span>
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span><span class="lineCov">          1 :     ReleaseWindow();</span>
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span><span class="lineCov">          1 :     auto resizeMethod = skia::ImageOperations::RESIZE_LANCZOS3;</span>
+<span class="lineNum">     155 </span>            : 
+<span class="lineNum">     156 </span><span class="lineCov">          1 :     skia::resize::ComputeFilters(resizeMethod,</span>
+<span class="lineNum">     157 </span>            :                                  mInputSize.width, outputSize.width,
+<span class="lineNum">     158 </span>            :                                  0, outputSize.width,
+<span class="lineNum">     159 </span><span class="lineCov">          1 :                                  mXFilter.get());</span>
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span><span class="lineCov">          1 :     skia::resize::ComputeFilters(resizeMethod,</span>
+<span class="lineNum">     162 </span>            :                                  mInputSize.height, outputSize.height,
+<span class="lineNum">     163 </span>            :                                  0, outputSize.height,
+<span class="lineNum">     164 </span><span class="lineCov">          1 :                                  mYFilter.get());</span>
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span>            :     // Allocate the buffer, which contains scanlines of the input image.
+<span class="lineNum">     167 </span><span class="lineCov">          1 :     mRowBuffer.reset(new (fallible)</span>
+<span class="lineNum">     168 </span><span class="lineCov">          1 :                        uint8_t[PaddedWidthInBytes(mInputSize.width)]);</span>
+<span class="lineNum">     169 </span><span class="lineCov">          1 :     if (MOZ_UNLIKELY(!mRowBuffer)) {</span>
+<span class="lineNum">     170 </span>            :       return NS_ERROR_OUT_OF_MEMORY;
+<span class="lineNum">     171 </span>            :     }
+<span class="lineNum">     172 </span>            : 
+<span class="lineNum">     173 </span>            :     // Clear the buffer to avoid writing uninitialized memory to the output.
+<span class="lineNum">     174 </span><span class="lineCov">          1 :     memset(mRowBuffer.get(), 0, PaddedWidthInBytes(mInputSize.width));</span>
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span>            :     // Allocate the window, which contains horizontally downscaled scanlines. (We
+<span class="lineNum">     177 </span>            :     // can store scanlines which are already downscaled because our downscaling
+<span class="lineNum">     178 </span>            :     // filter is separable.)
+<span class="lineNum">     179 </span><span class="lineCov">          1 :     mWindowCapacity = mYFilter-&gt;max_filter();</span>
+<span class="lineNum">     180 </span><span class="lineCov">          1 :     mWindow.reset(new (fallible) uint8_t*[mWindowCapacity]);</span>
+<span class="lineNum">     181 </span><span class="lineCov">          1 :     if (MOZ_UNLIKELY(!mWindow)) {</span>
+<span class="lineNum">     182 </span>            :       return NS_ERROR_OUT_OF_MEMORY;
+<span class="lineNum">     183 </span>            :     }
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span>            :     // Allocate the &quot;window&quot; of recent rows that we keep in memory as input for
+<span class="lineNum">     186 </span>            :     // the downscaling code. We intentionally iterate through the entire array
+<span class="lineNum">     187 </span>            :     // even if an allocation fails, to ensure that all the pointers in it are
+<span class="lineNum">     188 </span>            :     // either valid or nullptr. That in turn ensures that ReleaseWindow() can
+<span class="lineNum">     189 </span>            :     // clean up correctly.
+<span class="lineNum">     190 </span><span class="lineCov">          1 :     bool anyAllocationFailed = false;</span>
+<span class="lineNum">     191 </span><span class="lineCov">          1 :     const uint32_t windowRowSizeInBytes = PaddedWidthInBytes(outputSize.width);</span>
+<span class="lineNum">     192 </span><span class="lineCov">          1 :     for (int32_t i = 0; i &lt; mWindowCapacity; ++i) {</span>
+<span class="lineNum">     193 </span><span class="lineCov">          1 :       mWindow[i] = new (fallible) uint8_t[windowRowSizeInBytes];</span>
+<span class="lineNum">     194 </span><span class="lineCov">          1 :       anyAllocationFailed = anyAllocationFailed || mWindow[i] == nullptr;</span>
+<span class="lineNum">     195 </span>            :     }
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span><span class="lineCov">          1 :     if (MOZ_UNLIKELY(anyAllocationFailed)) {</span>
+<span class="lineNum">     198 </span>            :       return NS_ERROR_OUT_OF_MEMORY;
+<span class="lineNum">     199 </span>            :     }
+<span class="lineNum">     200 </span>            : 
+<span class="lineNum">     201 </span><span class="lineCov">          1 :     ConfigureFilter(mInputSize, sizeof(uint32_t));</span>
+<span class="lineNum">     202 </span><span class="lineCov">          1 :     return NS_OK;</span>
+<a name="203"><span class="lineNum">     203 </span>            :   }</a>
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span><span class="lineCov">          1 :   Maybe&lt;SurfaceInvalidRect&gt; TakeInvalidRect() override</span>
+<span class="lineNum">     206 </span>            :   {
+<span class="lineNum">     207 </span><span class="lineCov">          1 :     Maybe&lt;SurfaceInvalidRect&gt; invalidRect = mNext.TakeInvalidRect();</span>
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span><span class="lineCov">          1 :     if (invalidRect) {</span>
+<span class="lineNum">     210 </span>            :       // Compute the input space invalid rect by scaling.
+<span class="lineNum">     211 </span><span class="lineCov">          1 :       invalidRect-&gt;mInputSpaceRect.ScaleRoundOut(mScale.width, mScale.height);</span>
+<span class="lineNum">     212 </span>            :     }
+<span class="lineNum">     213 </span>            : 
+<span class="lineNum">     214 </span><span class="lineCov">          1 :     return invalidRect;</span>
+<span class="lineNum">     215 </span>            :   }
+<a name="216"><span class="lineNum">     216 </span>            : </a>
+<span class="lineNum">     217 </span>            : protected:
+<span class="lineNum">     218 </span><span class="lineCov">          1 :   uint8_t* DoResetToFirstRow() override</span>
+<span class="lineNum">     219 </span>            :   {
+<span class="lineNum">     220 </span><span class="lineCov">          1 :     mNext.ResetToFirstRow();</span>
+<span class="lineNum">     221 </span>            : 
+<span class="lineNum">     222 </span><span class="lineCov">          1 :     mInputRow = 0;</span>
+<span class="lineNum">     223 </span><span class="lineCov">          1 :     mOutputRow = 0;</span>
+<span class="lineNum">     224 </span><span class="lineCov">          1 :     mRowsInWindow = 0;</span>
+<span class="lineNum">     225 </span>            : 
+<span class="lineNum">     226 </span><span class="lineCov">          1 :     return GetRowPointer();</span>
+<a name="227"><span class="lineNum">     227 </span>            :   }</a>
+<span class="lineNum">     228 </span>            : 
+<span class="lineNum">     229 </span><span class="lineCov">          1 :   uint8_t* DoAdvanceRow() override</span>
+<span class="lineNum">     230 </span>            :   {
+<span class="lineNum">     231 </span><span class="lineCov">          1 :     if (mInputRow &gt;= mInputSize.height) {</span>
+<span class="lineNum">     232 </span>            :       NS_WARNING(&quot;Advancing DownscalingFilter past the end of the input&quot;);
+<span class="lineNum">     233 </span>            :       return nullptr;
+<span class="lineNum">     234 </span>            :     }
+<span class="lineNum">     235 </span>            : 
+<span class="lineNum">     236 </span><span class="lineCov">          1 :     if (mOutputRow &gt;= mNext.InputSize().height) {</span>
+<span class="lineNum">     237 </span>            :       NS_WARNING(&quot;Advancing DownscalingFilter past the end of the output&quot;);
+<span class="lineNum">     238 </span>            :       return nullptr;
+<span class="lineNum">     239 </span>            :     }
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span><span class="lineCov">          1 :     int32_t filterOffset = 0;</span>
+<span class="lineNum">     242 </span><span class="lineCov">          1 :     int32_t filterLength = 0;</span>
+<span class="lineNum">     243 </span><span class="lineCov">          1 :     GetFilterOffsetAndLength(mYFilter, mOutputRow,</span>
+<span class="lineNum">     244 </span><span class="lineCov">          1 :                              &amp;filterOffset, &amp;filterLength);</span>
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span><span class="lineCov">          1 :     int32_t inputRowToRead = filterOffset + mRowsInWindow;</span>
+<span class="lineNum">     247 </span>            :     MOZ_ASSERT(mInputRow &lt;= inputRowToRead, &quot;Reading past end of input&quot;);
+<span class="lineNum">     248 </span><span class="lineCov">          1 :     if (mInputRow == inputRowToRead) {</span>
+<span class="lineNum">     249 </span><span class="lineCov">          1 :       skia::ConvolveHorizontally(mRowBuffer.get(), *mXFilter,</span>
+<span class="lineNum">     250 </span>            :                                  mWindow[mRowsInWindow++], mHasAlpha,
+<span class="lineNum">     251 </span><span class="lineCov">          1 :                                  supports_sse2() || supports_mmi());</span>
+<span class="lineNum">     252 </span>            :     }
+<span class="lineNum">     253 </span>            : 
+<span class="lineNum">     254 </span>            :     MOZ_ASSERT(mOutputRow &lt; mNext.InputSize().height,
+<span class="lineNum">     255 </span>            :                &quot;Writing past end of output&quot;);
+<span class="lineNum">     256 </span>            : 
+<span class="lineNum">     257 </span><span class="lineCov">          1 :     while (mRowsInWindow == filterLength) {</span>
+<span class="lineNum">     258 </span><span class="lineCov">          1 :       DownscaleInputRow();</span>
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span><span class="lineCov">          1 :       if (mOutputRow == mNext.InputSize().height) {</span>
+<span class="lineNum">     261 </span>            :         break;  // We're done.
+<span class="lineNum">     262 </span>            :       }
+<span class="lineNum">     263 </span>            : 
+<span class="lineNum">     264 </span><span class="lineCov">          1 :       GetFilterOffsetAndLength(mYFilter, mOutputRow,</span>
+<span class="lineNum">     265 </span>            :                                &amp;filterOffset, &amp;filterLength);
+<span class="lineNum">     266 </span>            :     }
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span><span class="lineCov">          1 :     mInputRow++;</span>
+<span class="lineNum">     269 </span>            : 
+<span class="lineNum">     270 </span>            :     return mInputRow &lt; mInputSize.height ? GetRowPointer()
+<span class="lineNum">     271 </span><span class="lineCov">          1 :                                          : nullptr;</span>
+<span class="lineNum">     272 </span>            :   }
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span>            : private:
+<span class="lineNum">     275 </span><span class="lineCov">          1 :   uint8_t* GetRowPointer() const { return mRowBuffer.get(); }</span>
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span>            :   static uint32_t PaddedWidthInBytes(uint32_t aLogicalWidth)
+<span class="lineNum">     278 </span>            :   {
+<span class="lineNum">     279 </span>            :     // Convert from width in BGRA/BGRX pixels to width in bytes, padding by 15
+<span class="lineNum">     280 </span>            :     // to handle overreads by the SIMD code inside Skia.
+<span class="lineNum">     281 </span><span class="lineCov">          1 :     return aLogicalWidth * sizeof(uint32_t) + 15;</span>
+<span class="lineNum">     282 </span>            :   }
+<a name="283"><span class="lineNum">     283 </span>            : </a>
+<span class="lineNum">     284 </span>            :   static void
+<span class="lineNum">     285 </span><span class="lineCov">          1 :   GetFilterOffsetAndLength(UniquePtr&lt;skia::ConvolutionFilter1D&gt;&amp; aFilter,</span>
+<span class="lineNum">     286 </span>            :                            int32_t aOutputImagePosition,
+<span class="lineNum">     287 </span>            :                            int32_t* aFilterOffsetOut,
+<span class="lineNum">     288 </span>            :                            int32_t* aFilterLengthOut)
+<span class="lineNum">     289 </span>            :   {
+<span class="lineNum">     290 </span>            :     MOZ_ASSERT(aOutputImagePosition &lt; aFilter-&gt;num_values());
+<span class="lineNum">     291 </span><span class="lineCov">          1 :     aFilter-&gt;FilterForValue(aOutputImagePosition,</span>
+<span class="lineNum">     292 </span>            :                             aFilterOffsetOut,
+<span class="lineNum">     293 </span>            :                             aFilterLengthOut);
+<a name="294"><span class="lineNum">     294 </span><span class="lineCov">          1 :   }</span></a>
+<span class="lineNum">     295 </span>            : 
+<span class="lineNum">     296 </span><span class="lineCov">          1 :   void DownscaleInputRow()</span>
+<span class="lineNum">     297 </span>            :   {
+<span class="lineNum">     298 </span>            :     typedef skia::ConvolutionFilter1D::Fixed FilterValue;
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span>            :     MOZ_ASSERT(mOutputRow &lt; mNext.InputSize().height,
+<span class="lineNum">     301 </span>            :                &quot;Writing past end of output&quot;);
+<span class="lineNum">     302 </span>            : 
+<span class="lineNum">     303 </span><span class="lineCov">          1 :     int32_t filterOffset = 0;</span>
+<span class="lineNum">     304 </span><span class="lineCov">          1 :     int32_t filterLength = 0;</span>
+<span class="lineNum">     305 </span>            :     MOZ_ASSERT(mOutputRow &lt; mYFilter-&gt;num_values());
+<span class="lineNum">     306 </span>            :     auto filterValues =
+<span class="lineNum">     307 </span><span class="lineCov">          1 :       mYFilter-&gt;FilterForValue(mOutputRow, &amp;filterOffset, &amp;filterLength);</span>
+<a name="308"><span class="lineNum">     308 </span>            : </a>
+<span class="lineNum">     309 </span><span class="lineCov">          1 :     mNext.template WriteUnsafeComputedRow&lt;uint32_t&gt;([&amp;](uint32_t* aRow,</span>
+<span class="lineNum">     310 </span><span class="lineCov">          1 :                                                         uint32_t aLength) {</span>
+<span class="lineNum">     311 </span><span class="lineCov">          1 :       skia::ConvolveVertically(static_cast&lt;const FilterValue*&gt;(filterValues),</span>
+<span class="lineNum">     312 </span><span class="lineCov">          1 :                                filterLength, mWindow.get(), mXFilter-&gt;num_values(),</span>
+<span class="lineNum">     313 </span>            :                                reinterpret_cast&lt;uint8_t*&gt;(aRow), mHasAlpha,
+<span class="lineNum">     314 </span><span class="lineCov">          1 :                                supports_sse2() || supports_mmi());</span>
+<span class="lineNum">     315 </span><span class="lineCov">          1 :     });</span>
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span><span class="lineCov">          1 :     mOutputRow++;</span>
+<span class="lineNum">     318 </span>            : 
+<span class="lineNum">     319 </span><span class="lineCov">          1 :     if (mOutputRow == mNext.InputSize().height) {</span>
+<span class="lineNum">     320 </span><span class="lineCov">          1 :       return;  // We're done.</span>
+<span class="lineNum">     321 </span>            :     }
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span><span class="lineCov">          1 :     int32_t newFilterOffset = 0;</span>
+<span class="lineNum">     324 </span><span class="lineCov">          1 :     int32_t newFilterLength = 0;</span>
+<span class="lineNum">     325 </span><span class="lineCov">          1 :     GetFilterOffsetAndLength(mYFilter, mOutputRow,</span>
+<span class="lineNum">     326 </span><span class="lineCov">          1 :                              &amp;newFilterOffset, &amp;newFilterLength);</span>
+<span class="lineNum">     327 </span>            : 
+<span class="lineNum">     328 </span><span class="lineCov">          1 :     int diff = newFilterOffset - filterOffset;</span>
+<span class="lineNum">     329 </span>            :     MOZ_ASSERT(diff &gt;= 0, &quot;Moving backwards in the filter?&quot;);
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span>            :     // Shift the buffer. We're just moving pointers here, so this is cheap.
+<span class="lineNum">     332 </span><span class="lineCov">          1 :     mRowsInWindow -= diff;</span>
+<span class="lineNum">     333 </span><span class="lineCov">          1 :     mRowsInWindow = std::max(mRowsInWindow, 0);</span>
+<span class="lineNum">     334 </span><span class="lineCov">          1 :     for (int32_t i = 0; i &lt; mRowsInWindow; ++i) {</span>
+<span class="lineNum">     335 </span><span class="lineCov">          1 :       std::swap(mWindow[i], mWindow[filterLength - mRowsInWindow + i]);</span>
+<span class="lineNum">     336 </span>            :     }
+<a name="337"><span class="lineNum">     337 </span>            :   }</a>
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span><span class="lineCov">          1 :   void ReleaseWindow()</span>
+<span class="lineNum">     340 </span>            :   {
+<span class="lineNum">     341 </span><span class="lineCov">          1 :     if (!mWindow) {</span>
+<span class="lineNum">     342 </span><span class="lineCov">          1 :       return;</span>
+<span class="lineNum">     343 </span>            :     }
+<span class="lineNum">     344 </span>            : 
+<span class="lineNum">     345 </span><span class="lineCov">          1 :     for (int32_t i = 0; i &lt; mWindowCapacity; ++i) {</span>
+<span class="lineNum">     346 </span><span class="lineCov">          1 :       delete[] mWindow[i];</span>
+<span class="lineNum">     347 </span>            :     }
+<span class="lineNum">     348 </span>            : 
+<span class="lineNum">     349 </span><span class="lineCov">          1 :     mWindow = nullptr;</span>
+<span class="lineNum">     350 </span><span class="lineCov">          1 :     mWindowCapacity = 0;</span>
+<span class="lineNum">     351 </span>            :   }
+<span class="lineNum">     352 </span>            : 
+<span class="lineNum">     353 </span>            :   Next mNext;                       /// The next SurfaceFilter in the chain.
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span>            :   gfx::IntSize mInputSize;          /// The size of the input image.
+<span class="lineNum">     356 </span>            :   gfxSize mScale;                   /// The scale factors in each dimension.
+<span class="lineNum">     357 </span>            :                                     /// Computed from @mInputSize and
+<span class="lineNum">     358 </span>            :                                     /// the next filter's input size.
+<span class="lineNum">     359 </span>            : 
+<span class="lineNum">     360 </span>            :   UniquePtr&lt;uint8_t[]&gt; mRowBuffer;  /// The buffer into which input is written.
+<span class="lineNum">     361 </span>            :   UniquePtr&lt;uint8_t*[]&gt; mWindow;    /// The last few rows which were written.
+<span class="lineNum">     362 </span>            : 
+<span class="lineNum">     363 </span>            :   UniquePtr&lt;skia::ConvolutionFilter1D&gt; mXFilter;  /// The Lanczos filter in X.
+<span class="lineNum">     364 </span>            :   UniquePtr&lt;skia::ConvolutionFilter1D&gt; mYFilter;  /// The Lanczos filter in Y.
+<span class="lineNum">     365 </span>            : 
+<span class="lineNum">     366 </span>            :   int32_t mWindowCapacity;  /// How many rows the window contains.
+<span class="lineNum">     367 </span>            : 
+<span class="lineNum">     368 </span>            :   int32_t mRowsInWindow;    /// How many rows we've buffered in the window.
+<span class="lineNum">     369 </span>            :   int32_t mInputRow;        /// The current row we're reading. (0-indexed)
+<span class="lineNum">     370 </span>            :   int32_t mOutputRow;       /// The current row we're writing. (0-indexed)
+<span class="lineNum">     371 </span>            : 
+<span class="lineNum">     372 </span>            :   bool mHasAlpha;           /// If true, the image has transparency.
+<span class="lineNum">     373 </span>            : };
+<span class="lineNum">     374 </span>            : 
+<span class="lineNum">     375 </span>            : #endif
+<span class="lineNum">     376 </span>            : 
+<span class="lineNum">     377 </span>            : } // namespace image
+<span class="lineNum">     378 </span>            : } // namespace mozilla
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span>            : #endif // mozilla_image_DownscalingFilter_h
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

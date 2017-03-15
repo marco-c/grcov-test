@@ -1,0 +1,305 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - storage/StorageBaseStatementInternal.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">storage</a> - StorageBaseStatementInternal.cpp<span style="font-size: 80%;"> (source / <a href="StorageBaseStatementInternal.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">61</td>
+            <td class="headerCovTableEntry">61</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-15 12:17:56</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*-</a>
+<span class="lineNum">       2 </span>            :  * vim: sw=2 ts=2 sts=2 expandtab
+<span class="lineNum">       3 </span>            :  * This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #include &quot;StorageBaseStatementInternal.h&quot;
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &quot;nsProxyRelease.h&quot;
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;mozStorageBindingParamsArray.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;mozStorageStatementData.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;mozStorageAsyncStatementExecution.h&quot;
+<span class="lineNum">      14 </span>            : 
+<span class="lineNum">      15 </span>            : namespace mozilla {
+<span class="lineNum">      16 </span>            : namespace storage {
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : ////////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">      19 </span>            : //// Local Classes
+<span class="lineNum">      20 </span>            : 
+<span class="lineNum">      21 </span>            : /**
+<a name="22"><span class="lineNum">      22 </span>            :  * Used to finalize an asynchronous statement on the background thread.</a>
+<span class="lineNum">      23 </span>            :  */
+<span class="lineNum">      24 </span><span class="lineCov">          1 : class AsyncStatementFinalizer : public Runnable</span>
+<span class="lineNum">      25 </span>            : {
+<span class="lineNum">      26 </span>            : public:
+<span class="lineNum">      27 </span>            :   /**
+<span class="lineNum">      28 </span>            :    * Constructor for the event.
+<span class="lineNum">      29 </span>            :    *
+<span class="lineNum">      30 </span>            :    * @param aStatement
+<span class="lineNum">      31 </span>            :    *        We need the AsyncStatement to be able to get at the sqlite3_stmt;
+<span class="lineNum">      32 </span>            :    *        we only access/create it on the async thread.
+<span class="lineNum">      33 </span>            :    * @param aConnection
+<span class="lineNum">      34 </span>            :    *        We need the connection to know what thread to release the statement
+<span class="lineNum">      35 </span>            :    *        on.  We release the statement on that thread since releasing the
+<a name="36"><span class="lineNum">      36 </span>            :    *        statement might end up releasing the connection too.</a>
+<span class="lineNum">      37 </span>            :    */
+<span class="lineNum">      38 </span><span class="lineCov">          1 :   AsyncStatementFinalizer(StorageBaseStatementInternal *aStatement,</span>
+<span class="lineNum">      39 </span>            :                           Connection *aConnection)
+<span class="lineNum">      40 </span>            :   : mStatement(aStatement)
+<span class="lineNum">      41 </span><span class="lineCov">          1 :   , mConnection(aConnection)</span>
+<span class="lineNum">      42 </span>            :   {
+<a name="43"><span class="lineNum">      43 </span><span class="lineCov">          1 :   }</span></a>
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span><span class="lineCov">          1 :   NS_IMETHOD Run() override</span>
+<span class="lineNum">      46 </span>            :   {
+<span class="lineNum">      47 </span><span class="lineCov">          1 :     if (mStatement-&gt;mAsyncStatement) {</span>
+<span class="lineNum">      48 </span><span class="lineCov">          1 :       sqlite3_finalize(mStatement-&gt;mAsyncStatement);</span>
+<span class="lineNum">      49 </span><span class="lineCov">          1 :       mStatement-&gt;mAsyncStatement = nullptr;</span>
+<span class="lineNum">      50 </span>            :     }
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span><span class="lineCov">          1 :     nsCOMPtr&lt;nsIThread&gt; targetThread(mConnection-&gt;threadOpenedOn);</span>
+<span class="lineNum">      53 </span><span class="lineCov">          1 :     NS_ProxyRelease(targetThread, mStatement.forget());</span>
+<span class="lineNum">      54 </span><span class="lineCov">          1 :     return NS_OK;</span>
+<span class="lineNum">      55 </span>            :   }
+<span class="lineNum">      56 </span>            : private:
+<span class="lineNum">      57 </span>            :   RefPtr&lt;StorageBaseStatementInternal&gt; mStatement;
+<span class="lineNum">      58 </span>            :   RefPtr&lt;Connection&gt; mConnection;
+<span class="lineNum">      59 </span>            : };
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span>            : /**
+<span class="lineNum">      62 </span>            :  * Finalize a sqlite3_stmt on the background thread for a statement whose
+<a name="63"><span class="lineNum">      63 </span>            :  * destructor was invoked and the statement was non-null.</a>
+<span class="lineNum">      64 </span>            :  */
+<span class="lineNum">      65 </span><span class="lineCov">          1 : class LastDitchSqliteStatementFinalizer : public Runnable</span>
+<span class="lineNum">      66 </span>            : {
+<span class="lineNum">      67 </span>            : public:
+<span class="lineNum">      68 </span>            :   /**
+<span class="lineNum">      69 </span>            :    * Event constructor.
+<span class="lineNum">      70 </span>            :    *
+<span class="lineNum">      71 </span>            :    * @param aConnection
+<span class="lineNum">      72 </span>            :    *        Used to keep the connection alive.  If we failed to do this, it
+<span class="lineNum">      73 </span>            :    *        is possible that the statement going out of scope invoking us
+<span class="lineNum">      74 </span>            :    *        might have the last reference to the connection and so trigger
+<span class="lineNum">      75 </span>            :    *        an attempt to close the connection which is doomed to fail
+<span class="lineNum">      76 </span>            :    *        (because the asynchronous execution thread must exist which will
+<span class="lineNum">      77 </span>            :    *        trigger the failure case).
+<span class="lineNum">      78 </span>            :    * @param aStatement
+<span class="lineNum">      79 </span>            :    *        The sqlite3_stmt to finalize.  This object takes ownership /
+<span class="lineNum">      80 </span>            :    *        responsibility for the instance and all other references to it
+<a name="81"><span class="lineNum">      81 </span>            :    *        should be forgotten.</a>
+<span class="lineNum">      82 </span>            :    */
+<span class="lineNum">      83 </span><span class="lineCov">          1 :   LastDitchSqliteStatementFinalizer(RefPtr&lt;Connection&gt; &amp;aConnection,</span>
+<span class="lineNum">      84 </span>            :                                     sqlite3_stmt *aStatement)
+<span class="lineNum">      85 </span>            :   : mConnection(aConnection)
+<span class="lineNum">      86 </span><span class="lineCov">          1 :   , mAsyncStatement(aStatement)</span>
+<span class="lineNum">      87 </span>            :   {
+<span class="lineNum">      88 </span>            :     NS_PRECONDITION(aConnection, &quot;You must provide a Connection&quot;);
+<a name="89"><span class="lineNum">      89 </span><span class="lineCov">          1 :   }</span></a>
+<span class="lineNum">      90 </span>            : 
+<span class="lineNum">      91 </span><span class="lineCov">          1 :   NS_IMETHOD Run() override</span>
+<span class="lineNum">      92 </span>            :   {
+<span class="lineNum">      93 </span><span class="lineCov">          1 :     (void)::sqlite3_finalize(mAsyncStatement);</span>
+<span class="lineNum">      94 </span><span class="lineCov">          1 :     mAsyncStatement = nullptr;</span>
+<span class="lineNum">      95 </span>            : 
+<span class="lineNum">      96 </span><span class="lineCov">          1 :     nsCOMPtr&lt;nsIThread&gt; target(mConnection-&gt;threadOpenedOn);</span>
+<span class="lineNum">      97 </span><span class="lineCov">          1 :     (void)::NS_ProxyRelease(target, mConnection.forget());</span>
+<span class="lineNum">      98 </span><span class="lineCov">          1 :     return NS_OK;</span>
+<span class="lineNum">      99 </span>            :   }
+<span class="lineNum">     100 </span>            : private:
+<span class="lineNum">     101 </span>            :   RefPtr&lt;Connection&gt; mConnection;
+<span class="lineNum">     102 </span>            :   sqlite3_stmt *mAsyncStatement;
+<span class="lineNum">     103 </span>            : };
+<span class="lineNum">     104 </span>            : 
+<span class="lineNum">     105 </span>            : ////////////////////////////////////////////////////////////////////////////////
+<a name="106"><span class="lineNum">     106 </span>            : //// StorageBaseStatementInternal</a>
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span><span class="lineCov">          1 : StorageBaseStatementInternal::StorageBaseStatementInternal()</span>
+<span class="lineNum">     109 </span><span class="lineCov">          1 : : mAsyncStatement(nullptr)</span>
+<span class="lineNum">     110 </span>            : {
+<span class="lineNum">     111 </span><span class="lineCov">          1 : }</span>
+<a name="112"><span class="lineNum">     112 </span>            : </a>
+<span class="lineNum">     113 </span>            : void
+<span class="lineNum">     114 </span><span class="lineCov">          1 : StorageBaseStatementInternal::asyncFinalize()</span>
+<span class="lineNum">     115 </span>            : {
+<span class="lineNum">     116 </span><span class="lineCov">          1 :   nsIEventTarget *target = mDBConnection-&gt;getAsyncExecutionTarget();</span>
+<span class="lineNum">     117 </span><span class="lineCov">          1 :   if (target) {</span>
+<span class="lineNum">     118 </span>            :     // Attempt to finalize asynchronously
+<span class="lineNum">     119 </span>            :     nsCOMPtr&lt;nsIRunnable&gt; event =
+<span class="lineNum">     120 </span><span class="lineCov">          1 :       new AsyncStatementFinalizer(this, mDBConnection);</span>
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span>            :     // Dispatch. Note that dispatching can fail, typically if
+<span class="lineNum">     123 </span>            :     // we have a race condition with asyncClose(). It's ok,
+<span class="lineNum">     124 </span>            :     // let asyncClose() win.
+<span class="lineNum">     125 </span><span class="lineCov">          1 :     (void)target-&gt;Dispatch(event, NS_DISPATCH_NORMAL);</span>
+<span class="lineNum">     126 </span>            :   }
+<span class="lineNum">     127 </span>            :   // If we cannot get the background thread,
+<span class="lineNum">     128 </span>            :   // mozStorageConnection::AsyncClose() has already been called and
+<span class="lineNum">     129 </span>            :   // the statement either has been or will be cleaned up by
+<span class="lineNum">     130 </span>            :   // internalClose().
+<span class="lineNum">     131 </span><span class="lineCov">          1 : }</span>
+<a name="132"><span class="lineNum">     132 </span>            : </a>
+<span class="lineNum">     133 </span>            : void
+<span class="lineNum">     134 </span><span class="lineCov">          1 : StorageBaseStatementInternal::destructorAsyncFinalize()</span>
+<span class="lineNum">     135 </span>            : {
+<span class="lineNum">     136 </span><span class="lineCov">          1 :   if (!mAsyncStatement)</span>
+<span class="lineNum">     137 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">     138 </span>            : 
+<span class="lineNum">     139 </span>            :   // If we reach this point, our owner has not finalized this
+<span class="lineNum">     140 </span>            :   // statement, yet we are being destructed. If possible, we want to
+<span class="lineNum">     141 </span>            :   // auto-finalize it early, to release the resources early.
+<span class="lineNum">     142 </span><span class="lineCov">          1 :   nsIEventTarget *target = mDBConnection-&gt;getAsyncExecutionTarget();</span>
+<span class="lineNum">     143 </span><span class="lineCov">          1 :   if (target) {</span>
+<span class="lineNum">     144 </span>            :     // If we can get the async execution target, we can indeed finalize
+<span class="lineNum">     145 </span>            :     // the statement, as the connection is still open.
+<span class="lineNum">     146 </span><span class="lineCov">          1 :     bool isAsyncThread = false;</span>
+<span class="lineNum">     147 </span><span class="lineCov">          1 :     (void)target-&gt;IsOnCurrentThread(&amp;isAsyncThread);</span>
+<span class="lineNum">     148 </span>            : 
+<span class="lineNum">     149 </span>            :     nsCOMPtr&lt;nsIRunnable&gt; event =
+<span class="lineNum">     150 </span><span class="lineCov">          1 :       new LastDitchSqliteStatementFinalizer(mDBConnection, mAsyncStatement);</span>
+<span class="lineNum">     151 </span><span class="lineCov">          1 :     if (isAsyncThread) {</span>
+<span class="lineNum">     152 </span><span class="lineCov">          1 :       (void)event-&gt;Run();</span>
+<span class="lineNum">     153 </span>            :     } else {
+<span class="lineNum">     154 </span><span class="lineCov">          1 :       (void)target-&gt;Dispatch(event, NS_DISPATCH_NORMAL);</span>
+<span class="lineNum">     155 </span>            :     }
+<span class="lineNum">     156 </span>            :   }
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span>            :   // We might not be able to dispatch to the background thread,
+<span class="lineNum">     159 </span>            :   // presumably because it is being shutdown. Since said shutdown will
+<span class="lineNum">     160 </span>            :   // finalize the statement, we just need to clean-up around here.
+<span class="lineNum">     161 </span><span class="lineCov">          1 :   mAsyncStatement = nullptr;</span>
+<span class="lineNum">     162 </span>            : }
+<a name="163"><span class="lineNum">     163 </span>            : </a>
+<span class="lineNum">     164 </span>            : NS_IMETHODIMP
+<span class="lineNum">     165 </span><span class="lineCov">          1 : StorageBaseStatementInternal::NewBindingParamsArray(</span>
+<span class="lineNum">     166 </span>            :   mozIStorageBindingParamsArray **_array
+<span class="lineNum">     167 </span>            : )
+<span class="lineNum">     168 </span>            : {
+<span class="lineNum">     169 </span><span class="lineCov">          1 :   nsCOMPtr&lt;mozIStorageBindingParamsArray&gt; array = new BindingParamsArray(this);</span>
+<span class="lineNum">     170 </span><span class="lineCov">          1 :   NS_ENSURE_TRUE(array, NS_ERROR_OUT_OF_MEMORY);</span>
+<span class="lineNum">     171 </span>            : 
+<span class="lineNum">     172 </span>            :   array.forget(_array);
+<span class="lineNum">     173 </span><span class="lineCov">          1 :   return NS_OK;</span>
+<span class="lineNum">     174 </span>            : }
+<a name="175"><span class="lineNum">     175 </span>            : </a>
+<span class="lineNum">     176 </span>            : NS_IMETHODIMP
+<span class="lineNum">     177 </span><span class="lineCov">          1 : StorageBaseStatementInternal::ExecuteAsync(</span>
+<span class="lineNum">     178 </span>            :   mozIStorageStatementCallback *aCallback,
+<span class="lineNum">     179 </span>            :   mozIStoragePendingStatement **_stmt
+<span class="lineNum">     180 </span>            : )
+<span class="lineNum">     181 </span>            : {
+<span class="lineNum">     182 </span>            :   // We used to call Connection::ExecuteAsync but it takes a
+<span class="lineNum">     183 </span>            :   // mozIStorageBaseStatement signature because it is also a public API.  Since
+<span class="lineNum">     184 </span>            :   // our 'this' has no static concept of mozIStorageBaseStatement and Connection
+<span class="lineNum">     185 </span>            :   // would just QI it back across to a StorageBaseStatementInternal and the
+<span class="lineNum">     186 </span>            :   // actual logic is very simple, we now roll our own.
+<span class="lineNum">     187 </span>            :   nsTArray&lt;StatementData&gt; stmts(1);
+<span class="lineNum">     188 </span><span class="lineCov">          1 :   StatementData data;</span>
+<span class="lineNum">     189 </span><span class="lineCov">          1 :   nsresult rv = getAsynchronousStatementData(data);</span>
+<span class="lineNum">     190 </span><span class="lineCov">          1 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     191 </span><span class="lineCov">          1 :   NS_ENSURE_TRUE(stmts.AppendElement(data), NS_ERROR_OUT_OF_MEMORY);</span>
+<span class="lineNum">     192 </span>            : 
+<span class="lineNum">     193 </span>            :   // Dispatch to the background
+<span class="lineNum">     194 </span>            :   return AsyncExecuteStatements::execute(stmts, mDBConnection,
+<span class="lineNum">     195 </span><span class="lineCov">          1 :                                          mNativeConnection, aCallback, _stmt);</span>
+<span class="lineNum">     196 </span>            : }
+<a name="197"><span class="lineNum">     197 </span>            : </a>
+<span class="lineNum">     198 </span>            : NS_IMETHODIMP
+<span class="lineNum">     199 </span><span class="lineCov">          1 : StorageBaseStatementInternal::EscapeStringForLIKE(</span>
+<span class="lineNum">     200 </span>            :   const nsAString &amp;aValue,
+<span class="lineNum">     201 </span>            :   const char16_t aEscapeChar,
+<span class="lineNum">     202 </span>            :   nsAString &amp;_escapedString
+<span class="lineNum">     203 </span>            : )
+<span class="lineNum">     204 </span>            : {
+<span class="lineNum">     205 </span><span class="lineCov">          1 :   const char16_t MATCH_ALL('%');</span>
+<span class="lineNum">     206 </span><span class="lineCov">          1 :   const char16_t MATCH_ONE('_');</span>
+<span class="lineNum">     207 </span>            : 
+<span class="lineNum">     208 </span>            :   _escapedString.Truncate(0);
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span><span class="lineCov">          1 :   for (uint32_t i = 0; i &lt; aValue.Length(); i++) {</span>
+<span class="lineNum">     211 </span><span class="lineCov">          1 :     if (aValue[i] == aEscapeChar || aValue[i] == MATCH_ALL ||</span>
+<span class="lineNum">     212 </span><span class="lineCov">          1 :         aValue[i] == MATCH_ONE) {</span>
+<span class="lineNum">     213 </span><span class="lineCov">          1 :       _escapedString += aEscapeChar;</span>
+<span class="lineNum">     214 </span>            :     }
+<span class="lineNum">     215 </span><span class="lineCov">          1 :     _escapedString += aValue[i];</span>
+<span class="lineNum">     216 </span>            :   }
+<span class="lineNum">     217 </span><span class="lineCov">          1 :   return NS_OK;</span>
+<span class="lineNum">     218 </span>            : }
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span>            : } // namespace storage
+<span class="lineNum">     221 </span>            : } // namespace mozilla
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>
