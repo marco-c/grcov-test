@@ -103,5 +103,5 @@ subprocess.call(["git", "pull"])
 git_commit = get_github_commit(revision)
 
 subprocess.call(["git", "checkout", git_commit])
-subprocess.call(["genhtml", "-o", "../report", "--show-details", "--highlight", "--ignore-errors", "source", "--legend", "../output.info"])
+subprocess.call(["genhtml", "-o", "../report", "--show-details", "--highlight", "--ignore-errors", "source", "--legend", "../output.info", "--prefix", os.getcwd()])
 subprocess.call(["git", "checkout", "master"])
