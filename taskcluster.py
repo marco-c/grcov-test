@@ -9,6 +9,12 @@ def get_last_task():
     return last_task['taskId']
 
 
+def get_try_task(revision):
+    r = requests.get('https://index.taskcluster.net/v1/task/gecko.v2.try.revision.' + revision + '.firefox.linux64-ccov-opt')
+    task = r.json()
+    return task['taskId']
+
+
 def get_task_details(task_id):
     r = requests.get('https://queue.taskcluster.net/v1/task/' + task_id)
     return r.json()
