@@ -120,10 +120,14 @@ def generate_report(src_dir, auto_use_gecko_dev, revision):
 
         subprocess.call(["git", "checkout", git_commit])
 
-    subprocess.call(["genhtml", "-o", "../report", "--show-details", "--highlight", "--ignore-errors", "source", "--legend", "../output.info", "--prefix", src_dir])
+        os.chdir("..")
+
+    subprocess.call(["genhtml", "-o", "report", "--show-details", "--highlight", "--ignore-errors", "source", "--legend", "output.info", "--prefix", src_dir])
 
     if auto_use_gecko_dev:
+        os.chdir("gecko-dev")
         subprocess.call(["git", "checkout", "master"])
+        os.chdir("..")
 
 
 def main():
