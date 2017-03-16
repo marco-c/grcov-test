@@ -4,7 +4,6 @@ import subprocess
 import time
 import argparse
 import requests
-import taskcluster
 
 
 def get_last_task():
@@ -108,7 +107,7 @@ def generate_info():
         time.sleep(60)
 
 
-def generate_report(src_dir, auto_use_gecko_dev):
+def generate_report(src_dir, auto_use_gecko_dev, revision):
     if auto_use_gecko_dev:
         if not os.path.isdir("gecko-dev"):
             subprocess.call(["git", "clone", "https://github.com/mozilla/gecko-dev.git"])
@@ -117,9 +116,6 @@ def generate_report(src_dir, auto_use_gecko_dev):
 
         subprocess.call(["git", "pull"])
 
-        task_id = taskcluster.get_last_task()
-        task_data = taskcluster.get_task_details(task_id)
-        revision = task_data["payload"]["env"]["GECKO_HEAD_REV"]
         git_commit = get_github_commit(revision)
 
         subprocess.call(["git", "checkout", git_commit])
@@ -146,15 +142,18 @@ def main():
         return
 
     if args.branch is None and args.commit is None:
-        task_id = taskcluster.get_last_task()
+        task_id = get_last_task()
+        task_data = get_task_details(task_id)
+        revision = task_data["payload"]["env"]["GECKO_HEAD_REV"]
     else:
-        task_id = taskcluster.get_task(args.branch, args.commit)
+        task_id = get_task(args.branch, args.commit)
+        revision = args.commit
 
-    taskcluster.download_coverage_artifacts(task_id)
+    download_coverage_artifacts(task_id)
 
-    generate_info(args.src_dir)
+    generate_info()
 
-    generate_report(args.src_dir, args.gecko_dev)
+    generate_report(args.src_dir, args.gecko_dev, revision)
 
 
 if __name__ == "__main__":
