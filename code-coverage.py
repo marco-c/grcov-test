@@ -1,6 +1,11 @@
 import os
 import subprocess
 import time
+import taskcluster
+
+
+task_id = taskcluster.get_last_task()
+taskcluster.download_coverage_artifacts(task_id)
 
 
 files = os.listdir(".")

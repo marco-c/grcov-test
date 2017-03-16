@@ -35,10 +35,27 @@ def get_tasks_in_group(group_id):
     return tasks
 
 
-def get_artifact(task_id, artifact):
+def download_artifact(task_id, artifact):
     file_name = task_id + '_' + os.path.basename(artifact['name'])
     r = requests.get('https://queue.taskcluster.net/v1/task/' + task_id + '/artifacts/' + artifact['name'], stream=True)
     with open(file_name, 'wb') as f:
         r.raw.decode_content = True
         shutil.copyfileobj(r.raw, f)
     return file_name
+
+
+def download_coverage_artifacts(build_task_id):
+    task_data = get_task_details(build_task_id)
+    revision = task_data["payload"]["env"]["GECKO_HEAD_REV"]
+
+    artifacts = get_task_artifacts(task_id)
+    for artifact in artifacts:
+        if 'target.code-coverage-gcno.zip' in artifact['name']:
+            download_artifact(task_id, artifact)
+
+    test_tasks = [t for t in get_tasks_in_group(task_data['taskGroupId']) if t['task']['metadata']['name'].startswith('test-linux64-ccov')]
+    for test_task in test_tasks:
+        artifacts = get_task_artifacts(test_task['status']['taskId'])
+        for artifact in artifacts:
+            if 'code-coverage-gcda.zip' in artifact['name']:
+                download_artifact(test_task['status']['taskId'], artifact)
