@@ -91,9 +91,9 @@ def generate_info():
             continue
 
         if 'gcno' in fname:
-            ordered_files.insert(0, fname)
+            ordered_files.insert(0, "ccov-artifacts/" + fname)
         else:
-            ordered_files.append(fname)
+            ordered_files.append("ccov-artifacts/" + fname)
 
     fout = open("output.info", 'w')
     ferr = open("error", 'w')
@@ -122,7 +122,10 @@ def generate_report(src_dir, auto_use_gecko_dev, revision):
 
         os.chdir("..")
 
-    subprocess.call(["genhtml", "-o", "report", "--show-details", "--highlight", "--ignore-errors", "source", "--legend", "output.info", "--prefix", src_dir])
+    cwd = os.getcwd()
+    os.chdir(src_dir)
+    subprocess.call(["genhtml", "-o", os.path.join(cwd, "report"), "--show-details", "--highlight", "--ignore-errors", "source", "--legend", os.path.join(cwd, "output.info"), "--prefix", src_dir])
+    os.chdir(cwd)
 
     if auto_use_gecko_dev:
         os.chdir("gecko-dev")
@@ -157,7 +160,7 @@ def main():
 
     generate_info()
 
-    generate_report(args.src_dir, args.gecko_dev, revision)
+    generate_report(os.path.abspath(args.src_dir), args.gecko_dev, revision)
 
 
 if __name__ == "__main__":
