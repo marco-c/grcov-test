@@ -83,7 +83,7 @@ def get_github_commit(mercurial_commit):
     return r.text.split(" ")[0]
 
 
-def generate_info():
+def generate_info(grcov_path):
     files = os.listdir("ccov-artifacts")
     ordered_files = []
     for fname in files:
@@ -97,8 +97,8 @@ def generate_info():
 
     fout = open("output.info", 'w')
     ferr = open("error", 'w')
-    cmd = ['grcov', '-z', '-t', 'lcov', '-s', '/home/worker/workspace/build/src/']
-    cmd.extend(ordered_files)
+    cmd = [grcov_path, '-z', '-t', 'lcov', '-s', '/home/worker/workspace/build/src/']
+    cmd.extend(ordered_files[:3])
     proc = subprocess.Popen(cmd, stdout=fout, stderr=ferr)
     i = 0
     while proc.poll() is None:
@@ -138,7 +138,7 @@ def main():
     parser.add_argument("src_dir", action="store", help="Path to the source directory")
     parser.add_argument("branch", action="store", nargs='?', help="Branch on which jobs ran")
     parser.add_argument("commit", action="store", nargs='?', help="Commit hash for push")
-    parser.add_argument("gecko-dev", action="store", nargs='?', help="Commit hash for push")
+    parser.add_argument("--grcov", action="store", nargs='?', default="grcov", help="path to grcov")
     parser.add_argument('--gecko-dev', dest='gecko_dev', action='store_true')
     parser.add_argument('--no-gecko-dev', dest='gecko_dev', action='store_false')
     parser.set_defaults(gecko_dev=False)
@@ -158,7 +158,7 @@ def main():
 
     download_coverage_artifacts(task_id)
 
-    generate_info()
+    generate_info(args.grcov)
 
     generate_report(os.path.abspath(args.src_dir), args.gecko_dev, revision)
 
