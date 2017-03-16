@@ -52,12 +52,11 @@ def download_artifact(task_id, artifact):
 
 def download_coverage_artifacts(build_task_id):
     task_data = get_task_details(build_task_id)
-    revision = task_data["payload"]["env"]["GECKO_HEAD_REV"]
 
-    artifacts = get_task_artifacts(task_id)
+    artifacts = get_task_artifacts(build_task_id)
     for artifact in artifacts:
         if 'target.code-coverage-gcno.zip' in artifact['name']:
-            download_artifact(task_id, artifact)
+            download_artifact(build_task_id, artifact)
 
     test_tasks = [t for t in get_tasks_in_group(task_data['taskGroupId']) if t['task']['metadata']['name'].startswith('test-linux64-ccov')]
     for test_task in test_tasks:
