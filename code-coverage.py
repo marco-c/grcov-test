@@ -97,13 +97,13 @@ def generate_info(grcov_path):
 
     fout = open("output.info", 'w')
     cmd = [grcov_path, '-z', '-t', 'lcov', '-s', '/home/worker/workspace/build/src/']
-    cmd.extend(ordered_files[:3])
+    cmd.extend(ordered_files[:14])
     proc = subprocess.Popen(cmd, stdout=fout, stderr=subprocess.PIPE)
     i = 0
     while proc.poll() is None:
         print('Running grcov... ' + str(i))
         i += 1
-        time.sleep(1)
+        time.sleep(60)
 
     if proc.poll() != 0:
         raise Exception("Error while running grcov:\n" + proc.stderr.read())
