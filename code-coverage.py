@@ -96,15 +96,17 @@ def generate_info(grcov_path):
             ordered_files.append("ccov-artifacts/" + fname)
 
     fout = open("output.info", 'w')
-    ferr = open("error", 'w')
     cmd = [grcov_path, '-z', '-t', 'lcov', '-s', '/home/worker/workspace/build/src/']
     cmd.extend(ordered_files[:3])
-    proc = subprocess.Popen(cmd, stdout=fout, stderr=ferr)
+    proc = subprocess.Popen(cmd, stdout=fout, stderr=subprocess.PIPE)
     i = 0
     while proc.poll() is None:
         print('Running grcov... ' + str(i))
         i += 1
-        time.sleep(60)
+        time.sleep(1)
+
+    if proc.poll() != 0:
+        raise Exception("Error while running grcov:\n" + proc.stderr.read())
 
 
 def generate_report(src_dir, auto_use_gecko_dev, revision):
@@ -124,7 +126,9 @@ def generate_report(src_dir, auto_use_gecko_dev, revision):
 
     cwd = os.getcwd()
     os.chdir(src_dir)
-    subprocess.call(["genhtml", "-o", os.path.join(cwd, "report"), "--show-details", "--highlight", "--ignore-errors", "source", "--legend", os.path.join(cwd, "output.info"), "--prefix", src_dir])
+    ret = subprocess.call(["genhtml", "-o", os.path.join(cwd, "report"), "--show-details", "--highlight", "--ignore-errors", "source", "--legend", os.path.join(cwd, "output.info"), "--prefix", src_dir])
+    if ret != 0:
+        raise Exception("Error while running genhtml.")
     os.chdir(cwd)
 
     if auto_use_gecko_dev:
