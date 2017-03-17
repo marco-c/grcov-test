@@ -1,0 +1,831 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - media/webrtc/trunk/webrtc/call/call.cc</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">media/webrtc/trunk/webrtc/call</a> - call.cc<span style="font-size: 80%;"> (source / <a href="call.cc.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">169</td>
+            <td class="headerCovTableEntry">304</td>
+            <td class="headerCovTableEntryLo">55.6 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">17</td>
+            <td class="headerCovTableEntry">25</td>
+            <td class="headerCovTableEntryLo">68.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  *  Copyright (c) 2013 The WebRTC project authors. All Rights Reserved.
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  *  Use of this source code is governed by a BSD-style license
+<span class="lineNum">       5 </span>            :  *  that can be found in the LICENSE file in the root of the source
+<span class="lineNum">       6 </span>            :  *  tree. An additional intellectual property rights grant can be found
+<span class="lineNum">       7 </span>            :  *  in the file PATENTS.  All contributing project authors may
+<span class="lineNum">       8 </span>            :  *  be found in the AUTHORS file in the root of the source tree.
+<span class="lineNum">       9 </span>            :  */
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &lt;string.h&gt;
+<span class="lineNum">      12 </span>            : 
+<span class="lineNum">      13 </span>            : #include &lt;map&gt;
+<span class="lineNum">      14 </span>            : #include &lt;vector&gt;
+<span class="lineNum">      15 </span>            : 
+<span class="lineNum">      16 </span>            : #include &quot;webrtc/audio/audio_receive_stream.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;webrtc/audio/audio_send_stream.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;webrtc/audio/audio_state.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;webrtc/audio/scoped_voe_interface.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;webrtc/base/checks.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;webrtc/base/logging.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;webrtc/base/scoped_ptr.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;webrtc/base/thread_annotations.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;webrtc/base/thread_checker.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;webrtc/base/trace_event.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;webrtc/call.h&quot;
+<span class="lineNum">      27 </span>            : #include &quot;webrtc/call/bitrate_allocator.h&quot;
+<span class="lineNum">      28 </span>            : #include &quot;webrtc/call/congestion_controller.h&quot;
+<span class="lineNum">      29 </span>            : #include &quot;webrtc/call/rtc_event_log.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;webrtc/common.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;webrtc/config.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;webrtc/modules/bitrate_controller/include/bitrate_controller.h&quot;
+<span class="lineNum">      33 </span>            : #include &quot;webrtc/modules/pacing/paced_sender.h&quot;
+<span class="lineNum">      34 </span>            : #include &quot;webrtc/modules/rtp_rtcp/include/rtp_header_parser.h&quot;
+<span class="lineNum">      35 </span>            : #include &quot;webrtc/modules/rtp_rtcp/source/byte_io.h&quot;
+<span class="lineNum">      36 </span>            : #include &quot;webrtc/modules/utility/include/process_thread.h&quot;
+<span class="lineNum">      37 </span>            : #include &quot;webrtc/system_wrappers/include/cpu_info.h&quot;
+<span class="lineNum">      38 </span>            : #include &quot;webrtc/system_wrappers/include/critical_section_wrapper.h&quot;
+<span class="lineNum">      39 </span>            : #include &quot;webrtc/system_wrappers/include/metrics.h&quot;
+<span class="lineNum">      40 </span>            : #include &quot;webrtc/system_wrappers/include/rw_lock_wrapper.h&quot;
+<span class="lineNum">      41 </span>            : #include &quot;webrtc/system_wrappers/include/trace.h&quot;
+<span class="lineNum">      42 </span>            : #include &quot;webrtc/video/call_stats.h&quot;
+<span class="lineNum">      43 </span>            : #include &quot;webrtc/video/video_receive_stream.h&quot;
+<span class="lineNum">      44 </span>            : #include &quot;webrtc/video/video_send_stream.h&quot;
+<span class="lineNum">      45 </span>            : #include &quot;webrtc/voice_engine/include/voe_codec.h&quot;
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span>            : namespace webrtc {
+<span class="lineNum">      48 </span>            : 
+<span class="lineNum">      49 </span>            : const int Call::Config::kDefaultStartBitrateBps = 300000;
+<span class="lineNum">      50 </span>            : 
+<span class="lineNum">      51 </span>            : namespace internal {
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span>            : class Call : public webrtc::Call, public PacketReceiver,
+<span class="lineNum">      54 </span>            :              public BitrateObserver {
+<span class="lineNum">      55 </span>            :  public:
+<span class="lineNum">      56 </span>            :   explicit Call(const Call::Config&amp; config);
+<span class="lineNum">      57 </span>            :   virtual ~Call();
+<span class="lineNum">      58 </span>            : 
+<span class="lineNum">      59 </span>            :   PacketReceiver* Receiver() override;
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span>            :   webrtc::AudioSendStream* CreateAudioSendStream(
+<span class="lineNum">      62 </span>            :       const webrtc::AudioSendStream::Config&amp; config) override;
+<span class="lineNum">      63 </span>            :   void DestroyAudioSendStream(webrtc::AudioSendStream* send_stream) override;
+<span class="lineNum">      64 </span>            : 
+<span class="lineNum">      65 </span>            :   webrtc::AudioReceiveStream* CreateAudioReceiveStream(
+<span class="lineNum">      66 </span>            :       const webrtc::AudioReceiveStream::Config&amp; config) override;
+<span class="lineNum">      67 </span>            :   void DestroyAudioReceiveStream(
+<span class="lineNum">      68 </span>            :       webrtc::AudioReceiveStream* receive_stream) override;
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            :   webrtc::VideoSendStream* CreateVideoSendStream(
+<span class="lineNum">      71 </span>            :       const webrtc::VideoSendStream::Config&amp; config,
+<span class="lineNum">      72 </span>            :       const VideoEncoderConfig&amp; encoder_config) override;
+<span class="lineNum">      73 </span>            :   void DestroyVideoSendStream(webrtc::VideoSendStream* send_stream) override;
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span>            :   webrtc::VideoReceiveStream* CreateVideoReceiveStream(
+<span class="lineNum">      76 </span>            :       const webrtc::VideoReceiveStream::Config&amp; config) override;
+<span class="lineNum">      77 </span>            :   void DestroyVideoReceiveStream(
+<span class="lineNum">      78 </span>            :       webrtc::VideoReceiveStream* receive_stream) override;
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span>            :   Stats GetStats() const override;
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            :   DeliveryStatus DeliverPacket(MediaType media_type,
+<span class="lineNum">      83 </span>            :                                const uint8_t* packet,
+<span class="lineNum">      84 </span>            :                                size_t length,
+<span class="lineNum">      85 </span>            :                                const PacketTime&amp; packet_time) override;
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span>            :   void SetBitrateConfig(
+<span class="lineNum">      88 </span>            :       const webrtc::Call::Config::BitrateConfig&amp; bitrate_config) override;
+<span class="lineNum">      89 </span>            :   void SignalNetworkState(NetworkState state) override;
+<span class="lineNum">      90 </span>            : 
+<span class="lineNum">      91 </span>            :   void OnSentPacket(const rtc::SentPacket&amp; sent_packet) override;
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span>            :   // Implements BitrateObserver.
+<span class="lineNum">      94 </span>            :   void OnNetworkChanged(uint32_t bitrate_bps, uint8_t fraction_loss,
+<a name="95"><span class="lineNum">      95 </span>            :                         int64_t rtt_ms) override;</a>
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span><span class="lineCov">          1 :   VoiceEngine* voice_engine() {</span>
+<span class="lineNum">      98 </span>            :     internal::AudioState* audio_state =
+<span class="lineNum">      99 </span><span class="lineCov">          1 :         static_cast&lt;internal::AudioState*&gt;(config_.audio_state.get());</span>
+<span class="lineNum">     100 </span><span class="lineCov">          1 :     if (audio_state)</span>
+<span class="lineNum">     101 </span><span class="lineNoCov">          0 :       return audio_state-&gt;voice_engine();</span>
+<span class="lineNum">     102 </span>            :     else
+<span class="lineNum">     103 </span>            :       return nullptr;
+<span class="lineNum">     104 </span>            :   };
+<span class="lineNum">     105 </span>            : 
+<span class="lineNum">     106 </span>            :  private:
+<span class="lineNum">     107 </span>            :   DeliveryStatus DeliverRtcp(MediaType media_type, const uint8_t* packet,
+<span class="lineNum">     108 </span>            :                              size_t length);
+<span class="lineNum">     109 </span>            :   DeliveryStatus DeliverRtp(MediaType media_type,
+<span class="lineNum">     110 </span>            :                             const uint8_t* packet,
+<span class="lineNum">     111 </span>            :                             size_t length,
+<span class="lineNum">     112 </span>            :                             const PacketTime&amp; packet_time);
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span>            :   void ConfigureSync(const std::string&amp; sync_group)
+<span class="lineNum">     115 </span>            :       EXCLUSIVE_LOCKS_REQUIRED(receive_crit_);
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            : 
+<span class="lineNum">     118 </span>            :   void UpdateSendHistograms() EXCLUSIVE_LOCKS_REQUIRED(&amp;bitrate_crit_);
+<span class="lineNum">     119 </span>            :   void UpdateReceiveHistograms();
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span>            :   Clock* const clock_;
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span>            :   const int num_cpu_cores_;
+<span class="lineNum">     124 </span>            :   const rtc::scoped_ptr&lt;ProcessThread&gt; module_process_thread_;
+<span class="lineNum">     125 </span>            :   const rtc::scoped_ptr&lt;CallStats&gt; call_stats_;
+<span class="lineNum">     126 </span>            :   const rtc::scoped_ptr&lt;BitrateAllocator&gt; bitrate_allocator_;
+<span class="lineNum">     127 </span>            :   Call::Config config_;
+<span class="lineNum">     128 </span>            :   rtc::ThreadChecker configuration_thread_checker_;
+<span class="lineNum">     129 </span>            : 
+<span class="lineNum">     130 </span>            :   bool network_enabled_;
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span>            :   rtc::scoped_ptr&lt;RWLockWrapper&gt; receive_crit_;
+<span class="lineNum">     133 </span>            :   // Audio and Video receive streams are owned by the client that creates them.
+<span class="lineNum">     134 </span>            :   std::map&lt;uint32_t, AudioReceiveStream*&gt; audio_receive_ssrcs_
+<span class="lineNum">     135 </span>            :       GUARDED_BY(receive_crit_);
+<span class="lineNum">     136 </span>            :   std::map&lt;uint32_t, VideoReceiveStream*&gt; video_receive_ssrcs_
+<span class="lineNum">     137 </span>            :       GUARDED_BY(receive_crit_);
+<span class="lineNum">     138 </span>            :   std::set&lt;VideoReceiveStream*&gt; video_receive_streams_
+<span class="lineNum">     139 </span>            :       GUARDED_BY(receive_crit_);
+<span class="lineNum">     140 </span>            :   std::map&lt;std::string, AudioReceiveStream*&gt; sync_stream_mapping_
+<span class="lineNum">     141 </span>            :       GUARDED_BY(receive_crit_);
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span>            :   rtc::scoped_ptr&lt;RWLockWrapper&gt; send_crit_;
+<span class="lineNum">     144 </span>            :   // Audio and Video send streams are owned by the client that creates them.
+<span class="lineNum">     145 </span>            :   std::map&lt;uint32_t, AudioSendStream*&gt; audio_send_ssrcs_ GUARDED_BY(send_crit_);
+<span class="lineNum">     146 </span>            :   std::map&lt;uint32_t, VideoSendStream*&gt; video_send_ssrcs_ GUARDED_BY(send_crit_);
+<span class="lineNum">     147 </span>            :   std::set&lt;VideoSendStream*&gt; video_send_streams_ GUARDED_BY(send_crit_);
+<span class="lineNum">     148 </span>            : 
+<span class="lineNum">     149 </span>            :   VideoSendStream::RtpStateMap suspended_video_send_ssrcs_;
+<span class="lineNum">     150 </span>            : 
+<span class="lineNum">     151 </span>            :   RtcEventLog* event_log_ = nullptr;
+<span class="lineNum">     152 </span>            : 
+<span class="lineNum">     153 </span>            :   // The following members are only accessed (exclusively) from one thread and
+<span class="lineNum">     154 </span>            :   // from the destructor, and therefore doesn't need any explicit
+<span class="lineNum">     155 </span>            :   // synchronization.
+<span class="lineNum">     156 </span>            :   int64_t received_video_bytes_;
+<span class="lineNum">     157 </span>            :   int64_t received_audio_bytes_;
+<span class="lineNum">     158 </span>            :   int64_t received_rtcp_bytes_;
+<span class="lineNum">     159 </span>            :   int64_t first_rtp_packet_received_ms_;
+<span class="lineNum">     160 </span>            :   int64_t last_rtp_packet_received_ms_;
+<span class="lineNum">     161 </span>            :   int64_t first_packet_sent_ms_;
+<span class="lineNum">     162 </span>            : 
+<span class="lineNum">     163 </span>            :   // TODO(holmer): Remove this lock once BitrateController no longer calls
+<span class="lineNum">     164 </span>            :   // OnNetworkChanged from multiple threads.
+<span class="lineNum">     165 </span>            :   rtc::CriticalSection bitrate_crit_;
+<span class="lineNum">     166 </span>            :   int64_t estimated_send_bitrate_sum_kbits_ GUARDED_BY(&amp;bitrate_crit_);
+<span class="lineNum">     167 </span>            :   int64_t pacer_bitrate_sum_kbits_ GUARDED_BY(&amp;bitrate_crit_);
+<span class="lineNum">     168 </span>            :   int64_t num_bitrate_updates_ GUARDED_BY(&amp;bitrate_crit_);
+<span class="lineNum">     169 </span>            : 
+<span class="lineNum">     170 </span>            :   const rtc::scoped_ptr&lt;CongestionController&gt; congestion_controller_;
+<span class="lineNum">     171 </span>            : 
+<span class="lineNum">     172 </span>            :   RTC_DISALLOW_COPY_AND_ASSIGN(Call);
+<span class="lineNum">     173 </span>            : };
+<a name="174"><span class="lineNum">     174 </span>            : }  // namespace internal</a>
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span><span class="lineCov">          1 : Call* Call::Create(const Call::Config&amp; config) {</span>
+<span class="lineNum">     177 </span><span class="lineCov">          1 :   return new internal::Call(config);</span>
+<span class="lineNum">     178 </span>            : }
+<span class="lineNum">     179 </span>            : 
+<a name="180"><span class="lineNum">     180 </span>            : namespace internal {</a>
+<span class="lineNum">     181 </span>            : 
+<span class="lineNum">     182 </span><span class="lineCov">          1 : Call::Call(const Call::Config&amp; config)</span>
+<span class="lineNum">     183 </span><span class="lineCov">          1 :     : clock_(Clock::GetRealTimeClock()),</span>
+<span class="lineNum">     184 </span><span class="lineCov">          1 :       num_cpu_cores_(CpuInfo::DetectNumberOfCores()),</span>
+<span class="lineNum">     185 </span>            :       module_process_thread_(ProcessThread::Create(&quot;ModuleProcessThread&quot;)),
+<span class="lineNum">     186 </span><span class="lineCov">          1 :       call_stats_(new CallStats(clock_)),</span>
+<span class="lineNum">     187 </span>            :       bitrate_allocator_(new BitrateAllocator()),
+<span class="lineNum">     188 </span>            :       config_(config),
+<span class="lineNum">     189 </span>            :       network_enabled_(true),
+<span class="lineNum">     190 </span>            :       receive_crit_(RWLockWrapper::CreateRWLock()),
+<span class="lineNum">     191 </span>            :       send_crit_(RWLockWrapper::CreateRWLock()),
+<span class="lineNum">     192 </span>            :       received_video_bytes_(0),
+<span class="lineNum">     193 </span>            :       received_audio_bytes_(0),
+<span class="lineNum">     194 </span>            :       received_rtcp_bytes_(0),
+<span class="lineNum">     195 </span>            :       first_rtp_packet_received_ms_(-1),
+<span class="lineNum">     196 </span>            :       last_rtp_packet_received_ms_(-1),
+<span class="lineNum">     197 </span>            :       first_packet_sent_ms_(-1),
+<span class="lineNum">     198 </span>            :       estimated_send_bitrate_sum_kbits_(0),
+<span class="lineNum">     199 </span>            :       pacer_bitrate_sum_kbits_(0),
+<span class="lineNum">     200 </span>            :       num_bitrate_updates_(0),
+<span class="lineNum">     201 </span>            :       congestion_controller_(
+<span class="lineNum">     202 </span><span class="lineCov">          1 :           new CongestionController(module_process_thread_.get(),</span>
+<span class="lineNum">     203 </span><span class="lineCov">          1 :                                    call_stats_.get(),</span>
+<span class="lineNum">     204 </span><span class="lineCov">          1 :                                    this)) {</span>
+<span class="lineNum">     205 </span>            :   RTC_DCHECK(configuration_thread_checker_.CalledOnValidThread());
+<span class="lineNum">     206 </span>            :   RTC_DCHECK_GE(config.bitrate_config.min_bitrate_bps, 0);
+<span class="lineNum">     207 </span>            :   RTC_DCHECK_GE(config.bitrate_config.start_bitrate_bps,
+<span class="lineNum">     208 </span>            :                 config.bitrate_config.min_bitrate_bps);
+<span class="lineNum">     209 </span>            :   if (config.bitrate_config.max_bitrate_bps != -1) {
+<span class="lineNum">     210 </span>            :     RTC_DCHECK_GE(config.bitrate_config.max_bitrate_bps,
+<span class="lineNum">     211 </span>            :                   config.bitrate_config.start_bitrate_bps);
+<span class="lineNum">     212 </span>            :   }
+<span class="lineNum">     213 </span><span class="lineCov">          1 :   if (config.audio_state.get()) {</span>
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 :     ScopedVoEInterface&lt;VoECodec&gt; voe_codec(voice_engine());</span>
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 :     event_log_ = voe_codec-&gt;GetEventLog();</span>
+<span class="lineNum">     216 </span>            :   }
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span><span class="lineCov">          1 :   Trace::CreateTrace();</span>
+<span class="lineNum">     219 </span><span class="lineCov">          1 :   module_process_thread_-&gt;Start();</span>
+<span class="lineNum">     220 </span><span class="lineCov">          1 :   module_process_thread_-&gt;RegisterModule(call_stats_.get());</span>
+<span class="lineNum">     221 </span>            : 
+<span class="lineNum">     222 </span><span class="lineCov">          1 :   congestion_controller_-&gt;SetBweBitrates(</span>
+<span class="lineNum">     223 </span>            :       config_.bitrate_config.min_bitrate_bps,
+<span class="lineNum">     224 </span>            :       config_.bitrate_config.start_bitrate_bps,
+<span class="lineNum">     225 </span><span class="lineCov">          1 :       config_.bitrate_config.max_bitrate_bps);</span>
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span><span class="lineCov">          1 :   congestion_controller_-&gt;GetBitrateController()-&gt;SetEventLog(event_log_);</span>
+<a name="228"><span class="lineNum">     228 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     229 </span>            : 
+<span class="lineNum">     230 </span><span class="lineCov">          1 : Call::~Call() {</span>
+<span class="lineNum">     231 </span>            :   RTC_DCHECK(configuration_thread_checker_.CalledOnValidThread());
+<span class="lineNum">     232 </span><span class="lineCov">          1 :   UpdateSendHistograms();</span>
+<span class="lineNum">     233 </span><span class="lineCov">          1 :   UpdateReceiveHistograms();</span>
+<span class="lineNum">     234 </span><span class="lineCov">          1 :   RTC_CHECK(audio_send_ssrcs_.empty());</span>
+<span class="lineNum">     235 </span><span class="lineCov">          1 :   RTC_CHECK(video_send_ssrcs_.empty());</span>
+<span class="lineNum">     236 </span><span class="lineCov">          1 :   RTC_CHECK(video_send_streams_.empty());</span>
+<span class="lineNum">     237 </span><span class="lineCov">          1 :   RTC_CHECK(audio_receive_ssrcs_.empty());</span>
+<span class="lineNum">     238 </span><span class="lineCov">          1 :   RTC_CHECK(video_receive_ssrcs_.empty());</span>
+<span class="lineNum">     239 </span><span class="lineCov">          1 :   RTC_CHECK(video_receive_streams_.empty());</span>
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span><span class="lineCov">          1 :   module_process_thread_-&gt;DeRegisterModule(call_stats_.get());</span>
+<span class="lineNum">     242 </span><span class="lineCov">          1 :   module_process_thread_-&gt;Stop();</span>
+<span class="lineNum">     243 </span><span class="lineCov">          1 :   Trace::ReturnTrace();</span>
+<a name="244"><span class="lineNum">     244 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span><span class="lineCov">          1 : void Call::UpdateSendHistograms() {</span>
+<span class="lineNum">     247 </span><span class="lineCov">          1 :   if (num_bitrate_updates_ == 0 || first_packet_sent_ms_ == -1)</span>
+<span class="lineNum">     248 </span>            :     return;
+<span class="lineNum">     249 </span>            :   int64_t elapsed_sec =
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 :       (clock_-&gt;TimeInMilliseconds() - first_packet_sent_ms_) / 1000;</span>
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 :   if (elapsed_sec &lt; metrics::kMinRunTimeInSeconds)</span>
+<span class="lineNum">     252 </span>            :     return;
+<span class="lineNum">     253 </span>            :   int send_bitrate_kbps =
+<span class="lineNum">     254 </span><span class="lineNoCov">          0 :       estimated_send_bitrate_sum_kbits_ / num_bitrate_updates_;</span>
+<span class="lineNum">     255 </span><span class="lineNoCov">          0 :   int pacer_bitrate_kbps = pacer_bitrate_sum_kbits_ / num_bitrate_updates_;</span>
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 :   if (send_bitrate_kbps &gt; 0) {</span>
+<span class="lineNum">     257 </span><span class="lineNoCov">          0 :     RTC_HISTOGRAM_COUNTS_SPARSE_100000(&quot;WebRTC.Call.EstimatedSendBitrateInKbps&quot;,</span>
+<span class="lineNum">     258 </span>            :                                        send_bitrate_kbps);
+<span class="lineNum">     259 </span>            :   }
+<span class="lineNum">     260 </span><span class="lineNoCov">          0 :   if (pacer_bitrate_kbps &gt; 0) {</span>
+<span class="lineNum">     261 </span><span class="lineNoCov">          0 :     RTC_HISTOGRAM_COUNTS_SPARSE_100000(&quot;WebRTC.Call.PacerBitrateInKbps&quot;,</span>
+<span class="lineNum">     262 </span>            :                                        pacer_bitrate_kbps);
+<span class="lineNum">     263 </span>            :   }
+<a name="264"><span class="lineNum">     264 </span>            : }</a>
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span><span class="lineCov">          1 : void Call::UpdateReceiveHistograms() {</span>
+<span class="lineNum">     267 </span><span class="lineCov">          1 :   if (first_rtp_packet_received_ms_ == -1)</span>
+<span class="lineNum">     268 </span>            :     return;
+<span class="lineNum">     269 </span>            :   int64_t elapsed_sec =
+<span class="lineNum">     270 </span><span class="lineCov">          1 :       (last_rtp_packet_received_ms_ - first_rtp_packet_received_ms_) / 1000;</span>
+<span class="lineNum">     271 </span><span class="lineCov">          1 :   if (elapsed_sec &lt; metrics::kMinRunTimeInSeconds)</span>
+<span class="lineNum">     272 </span>            :     return;
+<span class="lineNum">     273 </span><span class="lineCov">          1 :   int audio_bitrate_kbps = received_audio_bytes_ * 8 / elapsed_sec / 1000;</span>
+<span class="lineNum">     274 </span><span class="lineCov">          1 :   int video_bitrate_kbps = received_video_bytes_ * 8 / elapsed_sec / 1000;</span>
+<span class="lineNum">     275 </span><span class="lineCov">          1 :   int rtcp_bitrate_bps = received_rtcp_bytes_ * 8 / elapsed_sec;</span>
+<span class="lineNum">     276 </span><span class="lineCov">          1 :   if (video_bitrate_kbps &gt; 0) {</span>
+<span class="lineNum">     277 </span><span class="lineCov">          1 :     RTC_HISTOGRAM_COUNTS_SPARSE_100000(&quot;WebRTC.Call.VideoBitrateReceivedInKbps&quot;,</span>
+<span class="lineNum">     278 </span>            :                                        video_bitrate_kbps);
+<span class="lineNum">     279 </span>            :   }
+<span class="lineNum">     280 </span><span class="lineCov">          1 :   if (audio_bitrate_kbps &gt; 0) {</span>
+<span class="lineNum">     281 </span><span class="lineNoCov">          0 :     RTC_HISTOGRAM_COUNTS_SPARSE_100000(&quot;WebRTC.Call.AudioBitrateReceivedInKbps&quot;,</span>
+<span class="lineNum">     282 </span>            :                                        audio_bitrate_kbps);
+<span class="lineNum">     283 </span>            :   }
+<span class="lineNum">     284 </span><span class="lineCov">          1 :   if (rtcp_bitrate_bps &gt; 0) {</span>
+<span class="lineNum">     285 </span><span class="lineCov">          1 :     RTC_HISTOGRAM_COUNTS_SPARSE_100000(&quot;WebRTC.Call.RtcpBitrateReceivedInBps&quot;,</span>
+<span class="lineNum">     286 </span>            :                                        rtcp_bitrate_bps);
+<span class="lineNum">     287 </span>            :   }
+<span class="lineNum">     288 </span><span class="lineCov">          1 :   RTC_HISTOGRAM_COUNTS_SPARSE_100000(</span>
+<span class="lineNum">     289 </span>            :       &quot;WebRTC.Call.BitrateReceivedInKbps&quot;,
+<span class="lineNum">     290 </span>            :       audio_bitrate_kbps + video_bitrate_kbps + rtcp_bitrate_bps / 1000);
+<a name="291"><span class="lineNum">     291 </span>            : }</a>
+<span class="lineNum">     292 </span>            : 
+<span class="lineNum">     293 </span><span class="lineCov">          1 : PacketReceiver* Call::Receiver() {</span>
+<span class="lineNum">     294 </span>            :   // TODO(solenberg): Some test cases in EndToEndTest use this from a different
+<span class="lineNum">     295 </span>            :   // thread. Re-enable once that is fixed.
+<span class="lineNum">     296 </span>            :   // RTC_DCHECK(configuration_thread_checker_.CalledOnValidThread());
+<span class="lineNum">     297 </span><span class="lineCov">          1 :   return this;</span>
+<a name="298"><span class="lineNum">     298 </span>            : }</a>
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span><span class="lineNoCov">          0 : webrtc::AudioSendStream* Call::CreateAudioSendStream(</span>
+<span class="lineNum">     301 </span>            :     const webrtc::AudioSendStream::Config&amp; config) {
+<span class="lineNum">     302 </span><span class="lineNoCov">          0 :   TRACE_EVENT0(&quot;webrtc&quot;, &quot;Call::CreateAudioSendStream&quot;);</span>
+<span class="lineNum">     303 </span>            :   RTC_DCHECK(configuration_thread_checker_.CalledOnValidThread());
+<span class="lineNum">     304 </span>            :   AudioSendStream* send_stream = new AudioSendStream(
+<span class="lineNum">     305 </span><span class="lineNoCov">          0 :       config, config_.audio_state, congestion_controller_.get());</span>
+<span class="lineNum">     306 </span>            :   if (!network_enabled_)
+<span class="lineNum">     307 </span>            :     send_stream-&gt;SignalNetworkState(kNetworkDown);
+<span class="lineNum">     308 </span>            :   {
+<span class="lineNum">     309 </span><span class="lineNoCov">          0 :     WriteLockScoped write_lock(*send_crit_);</span>
+<span class="lineNum">     310 </span>            :     RTC_DCHECK(audio_send_ssrcs_.find(config.rtp.ssrc) ==
+<span class="lineNum">     311 </span>            :                audio_send_ssrcs_.end());
+<span class="lineNum">     312 </span><span class="lineNoCov">          0 :     audio_send_ssrcs_[config.rtp.ssrc] = send_stream;</span>
+<span class="lineNum">     313 </span>            :   }
+<span class="lineNum">     314 </span><span class="lineNoCov">          0 :   return send_stream;</span>
+<a name="315"><span class="lineNum">     315 </span>            : }</a>
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 : void Call::DestroyAudioSendStream(webrtc::AudioSendStream* send_stream) {</span>
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :   TRACE_EVENT0(&quot;webrtc&quot;, &quot;Call::DestroyAudioSendStream&quot;);</span>
+<span class="lineNum">     319 </span>            :   RTC_DCHECK(configuration_thread_checker_.CalledOnValidThread());
+<span class="lineNum">     320 </span>            :   RTC_DCHECK(send_stream != nullptr);
+<span class="lineNum">     321 </span>            : 
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 :   send_stream-&gt;Stop();</span>
+<span class="lineNum">     323 </span>            : 
+<span class="lineNum">     324 </span>            :   webrtc::internal::AudioSendStream* audio_send_stream =
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :       static_cast&lt;webrtc::internal::AudioSendStream*&gt;(send_stream);</span>
+<span class="lineNum">     326 </span>            :   {
+<span class="lineNum">     327 </span><span class="lineNoCov">          0 :     WriteLockScoped write_lock(*send_crit_);</span>
+<span class="lineNum">     328 </span>            :     size_t num_deleted = audio_send_ssrcs_.erase(
+<span class="lineNum">     329 </span><span class="lineNoCov">          0 :         audio_send_stream-&gt;config().rtp.ssrc);</span>
+<span class="lineNum">     330 </span><span class="lineNoCov">          0 :     RTC_DCHECK(num_deleted == 1);</span>
+<span class="lineNum">     331 </span>            :   }
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :   delete audio_send_stream;</span>
+<a name="333"><span class="lineNum">     333 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     334 </span>            : 
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 : webrtc::AudioReceiveStream* Call::CreateAudioReceiveStream(</span>
+<span class="lineNum">     336 </span>            :     const webrtc::AudioReceiveStream::Config&amp; config) {
+<span class="lineNum">     337 </span><span class="lineNoCov">          0 :   TRACE_EVENT0(&quot;webrtc&quot;, &quot;Call::CreateAudioReceiveStream&quot;);</span>
+<span class="lineNum">     338 </span>            :   RTC_DCHECK(configuration_thread_checker_.CalledOnValidThread());
+<span class="lineNum">     339 </span>            :   AudioReceiveStream* receive_stream = new AudioReceiveStream(
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :       congestion_controller_.get(), config, config_.audio_state);</span>
+<span class="lineNum">     341 </span>            :   {
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 :     WriteLockScoped write_lock(*receive_crit_);</span>
+<span class="lineNum">     343 </span>            :     RTC_DCHECK(audio_receive_ssrcs_.find(config.rtp.remote_ssrc) ==
+<span class="lineNum">     344 </span>            :                audio_receive_ssrcs_.end());
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 :     audio_receive_ssrcs_[config.rtp.remote_ssrc] = receive_stream;</span>
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :     ConfigureSync(config.sync_group);</span>
+<span class="lineNum">     347 </span>            :   }
+<span class="lineNum">     348 </span><span class="lineNoCov">          0 :   return receive_stream;</span>
+<a name="349"><span class="lineNum">     349 </span>            : }</a>
+<span class="lineNum">     350 </span>            : 
+<span class="lineNum">     351 </span><span class="lineNoCov">          0 : void Call::DestroyAudioReceiveStream(</span>
+<span class="lineNum">     352 </span>            :     webrtc::AudioReceiveStream* receive_stream) {
+<span class="lineNum">     353 </span><span class="lineNoCov">          0 :   TRACE_EVENT0(&quot;webrtc&quot;, &quot;Call::DestroyAudioReceiveStream&quot;);</span>
+<span class="lineNum">     354 </span>            :   RTC_DCHECK(configuration_thread_checker_.CalledOnValidThread());
+<span class="lineNum">     355 </span>            :   RTC_DCHECK(receive_stream != nullptr);
+<span class="lineNum">     356 </span>            :   webrtc::internal::AudioReceiveStream* audio_receive_stream =
+<span class="lineNum">     357 </span><span class="lineNoCov">          0 :       static_cast&lt;webrtc::internal::AudioReceiveStream*&gt;(receive_stream);</span>
+<span class="lineNum">     358 </span>            :   {
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 :     WriteLockScoped write_lock(*receive_crit_);</span>
+<span class="lineNum">     360 </span>            :     size_t num_deleted = audio_receive_ssrcs_.erase(
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 :         audio_receive_stream-&gt;config().rtp.remote_ssrc);</span>
+<span class="lineNum">     362 </span>            :     RTC_DCHECK(num_deleted == 1);
+<span class="lineNum">     363 </span><span class="lineNoCov">          0 :     const std::string&amp; sync_group = audio_receive_stream-&gt;config().sync_group;</span>
+<span class="lineNum">     364 </span><span class="lineNoCov">          0 :     const auto it = sync_stream_mapping_.find(sync_group);</span>
+<span class="lineNum">     365 </span><span class="lineNoCov">          0 :     if (it != sync_stream_mapping_.end() &amp;&amp;</span>
+<span class="lineNum">     366 </span><span class="lineNoCov">          0 :         it-&gt;second == audio_receive_stream) {</span>
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 :       sync_stream_mapping_.erase(it);</span>
+<span class="lineNum">     368 </span><span class="lineNoCov">          0 :       ConfigureSync(sync_group);</span>
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     370 </span>            :   }
+<span class="lineNum">     371 </span><span class="lineNoCov">          0 :   delete audio_receive_stream;</span>
+<a name="372"><span class="lineNum">     372 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     373 </span>            : 
+<span class="lineNum">     374 </span><span class="lineCov">          1 : webrtc::VideoSendStream* Call::CreateVideoSendStream(</span>
+<span class="lineNum">     375 </span>            :     const webrtc::VideoSendStream::Config&amp; config,
+<span class="lineNum">     376 </span>            :     const VideoEncoderConfig&amp; encoder_config) {
+<span class="lineNum">     377 </span><span class="lineCov">          1 :   TRACE_EVENT0(&quot;webrtc&quot;, &quot;Call::CreateVideoSendStream&quot;);</span>
+<span class="lineNum">     378 </span>            :   RTC_DCHECK(configuration_thread_checker_.CalledOnValidThread());
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span>            :   // TODO(mflodman): Base the start bitrate on a current bandwidth estimate, if
+<span class="lineNum">     381 </span>            :   // the call has already started.
+<span class="lineNum">     382 </span>            :   VideoSendStream* send_stream = new VideoSendStream(
+<span class="lineNum">     383 </span><span class="lineCov">          1 :       num_cpu_cores_, module_process_thread_.get(), call_stats_.get(),</span>
+<span class="lineNum">     384 </span><span class="lineCov">          1 :       congestion_controller_.get(), bitrate_allocator_.get(), config,</span>
+<span class="lineNum">     385 </span><span class="lineCov">          1 :       encoder_config, suspended_video_send_ssrcs_);</span>
+<span class="lineNum">     386 </span>            : 
+<span class="lineNum">     387 </span><span class="lineCov">          1 :   if (!network_enabled_)</span>
+<span class="lineNum">     388 </span><span class="lineNoCov">          0 :     send_stream-&gt;SignalNetworkState(kNetworkDown);</span>
+<span class="lineNum">     389 </span>            : 
+<span class="lineNum">     390 </span><span class="lineCov">          1 :   WriteLockScoped write_lock(*send_crit_);</span>
+<span class="lineNum">     391 </span><span class="lineCov">          1 :   for (uint32_t ssrc : config.rtp.ssrcs) {</span>
+<span class="lineNum">     392 </span>            :     RTC_DCHECK(video_send_ssrcs_.find(ssrc) == video_send_ssrcs_.end());
+<span class="lineNum">     393 </span><span class="lineCov">          1 :     video_send_ssrcs_[ssrc] = send_stream;</span>
+<span class="lineNum">     394 </span>            :   }
+<span class="lineNum">     395 </span><span class="lineCov">          1 :   video_send_streams_.insert(send_stream);</span>
+<span class="lineNum">     396 </span>            : 
+<span class="lineNum">     397 </span><span class="lineCov">          1 :   if (event_log_)</span>
+<span class="lineNum">     398 </span><span class="lineNoCov">          0 :     event_log_-&gt;LogVideoSendStreamConfig(config);</span>
+<span class="lineNum">     399 </span>            : 
+<span class="lineNum">     400 </span><span class="lineCov">          1 :   return send_stream;</span>
+<a name="401"><span class="lineNum">     401 </span>            : }</a>
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span><span class="lineCov">          1 : void Call::DestroyVideoSendStream(webrtc::VideoSendStream* send_stream) {</span>
+<span class="lineNum">     404 </span><span class="lineCov">          1 :   TRACE_EVENT0(&quot;webrtc&quot;, &quot;Call::DestroyVideoSendStream&quot;);</span>
+<span class="lineNum">     405 </span>            :   RTC_DCHECK(send_stream != nullptr);
+<span class="lineNum">     406 </span>            :   RTC_DCHECK(configuration_thread_checker_.CalledOnValidThread());
+<span class="lineNum">     407 </span>            : 
+<span class="lineNum">     408 </span><span class="lineCov">          1 :   send_stream-&gt;Stop();</span>
+<span class="lineNum">     409 </span>            : 
+<span class="lineNum">     410 </span><span class="lineCov">          1 :   VideoSendStream* send_stream_impl = nullptr;</span>
+<span class="lineNum">     411 </span>            :   {
+<span class="lineNum">     412 </span><span class="lineCov">          1 :     WriteLockScoped write_lock(*send_crit_);</span>
+<span class="lineNum">     413 </span><span class="lineCov">          1 :     auto it = video_send_ssrcs_.begin();</span>
+<span class="lineNum">     414 </span><span class="lineCov">          1 :     while (it != video_send_ssrcs_.end()) {</span>
+<span class="lineNum">     415 </span><span class="lineCov">          1 :       if (it-&gt;second == static_cast&lt;VideoSendStream*&gt;(send_stream)) {</span>
+<span class="lineNum">     416 </span><span class="lineCov">          1 :         send_stream_impl = it-&gt;second;</span>
+<span class="lineNum">     417 </span><span class="lineCov">          1 :         video_send_ssrcs_.erase(it++);</span>
+<span class="lineNum">     418 </span>            :       } else {
+<span class="lineNum">     419 </span><span class="lineCov">          1 :         ++it;</span>
+<span class="lineNum">     420 </span>            :       }
+<span class="lineNum">     421 </span>            :     }
+<span class="lineNum">     422 </span><span class="lineCov">          1 :     video_send_streams_.erase(send_stream_impl);</span>
+<span class="lineNum">     423 </span>            :   }
+<span class="lineNum">     424 </span><span class="lineCov">          1 :   RTC_CHECK(send_stream_impl != nullptr);</span>
+<span class="lineNum">     425 </span>            : 
+<span class="lineNum">     426 </span><span class="lineCov">          1 :   VideoSendStream::RtpStateMap rtp_state = send_stream_impl-&gt;GetRtpStates();</span>
+<span class="lineNum">     427 </span>            : 
+<span class="lineNum">     428 </span><span class="lineCov">          1 :   for (VideoSendStream::RtpStateMap::iterator it = rtp_state.begin();</span>
+<span class="lineNum">     429 </span><span class="lineCov">          1 :        it != rtp_state.end();</span>
+<span class="lineNum">     430 </span>            :        ++it) {
+<span class="lineNum">     431 </span><span class="lineCov">          1 :     suspended_video_send_ssrcs_[it-&gt;first] = it-&gt;second;</span>
+<span class="lineNum">     432 </span>            :   }
+<span class="lineNum">     433 </span>            : 
+<span class="lineNum">     434 </span><span class="lineCov">          1 :   delete send_stream_impl;</span>
+<a name="435"><span class="lineNum">     435 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     436 </span>            : 
+<span class="lineNum">     437 </span><span class="lineCov">          1 : webrtc::VideoReceiveStream* Call::CreateVideoReceiveStream(</span>
+<span class="lineNum">     438 </span>            :     const webrtc::VideoReceiveStream::Config&amp; config) {
+<span class="lineNum">     439 </span><span class="lineCov">          1 :   TRACE_EVENT0(&quot;webrtc&quot;, &quot;Call::CreateVideoReceiveStream&quot;);</span>
+<span class="lineNum">     440 </span>            :   RTC_DCHECK(configuration_thread_checker_.CalledOnValidThread());
+<span class="lineNum">     441 </span>            :   VideoReceiveStream* receive_stream = new VideoReceiveStream(
+<span class="lineNum">     442 </span><span class="lineCov">          1 :       num_cpu_cores_, congestion_controller_.get(), config,</span>
+<span class="lineNum">     443 </span><span class="lineCov">          1 :       voice_engine(), module_process_thread_.get(), call_stats_.get());</span>
+<span class="lineNum">     444 </span>            : 
+<span class="lineNum">     445 </span><span class="lineCov">          1 :   WriteLockScoped write_lock(*receive_crit_);</span>
+<span class="lineNum">     446 </span>            :   RTC_DCHECK(video_receive_ssrcs_.find(config.rtp.remote_ssrc) ==
+<span class="lineNum">     447 </span>            :              video_receive_ssrcs_.end());
+<span class="lineNum">     448 </span><span class="lineCov">          1 :   video_receive_ssrcs_[config.rtp.remote_ssrc] = receive_stream;</span>
+<span class="lineNum">     449 </span>            :   // TODO(pbos): Configure different RTX payloads per receive payload.
+<span class="lineNum">     450 </span>            :   VideoReceiveStream::Config::Rtp::RtxMap::const_iterator it =
+<span class="lineNum">     451 </span><span class="lineCov">          1 :       config.rtp.rtx.begin();</span>
+<span class="lineNum">     452 </span><span class="lineCov">          1 :   if (it != config.rtp.rtx.end())</span>
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :     video_receive_ssrcs_[it-&gt;second.ssrc] = receive_stream;</span>
+<span class="lineNum">     454 </span><span class="lineCov">          1 :   video_receive_streams_.insert(receive_stream);</span>
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span><span class="lineCov">          1 :   ConfigureSync(config.sync_group);</span>
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span><span class="lineCov">          1 :   if (!network_enabled_)</span>
+<span class="lineNum">     459 </span><span class="lineNoCov">          0 :     receive_stream-&gt;SignalNetworkState(kNetworkDown);</span>
+<span class="lineNum">     460 </span>            : 
+<span class="lineNum">     461 </span><span class="lineCov">          1 :   if (event_log_)</span>
+<span class="lineNum">     462 </span><span class="lineNoCov">          0 :     event_log_-&gt;LogVideoReceiveStreamConfig(config);</span>
+<span class="lineNum">     463 </span>            : 
+<span class="lineNum">     464 </span><span class="lineCov">          1 :   return receive_stream;</span>
+<a name="465"><span class="lineNum">     465 </span>            : }</a>
+<span class="lineNum">     466 </span>            : 
+<span class="lineNum">     467 </span><span class="lineCov">          1 : void Call::DestroyVideoReceiveStream(</span>
+<span class="lineNum">     468 </span>            :     webrtc::VideoReceiveStream* receive_stream) {
+<span class="lineNum">     469 </span><span class="lineCov">          1 :   TRACE_EVENT0(&quot;webrtc&quot;, &quot;Call::DestroyVideoReceiveStream&quot;);</span>
+<span class="lineNum">     470 </span>            :   RTC_DCHECK(configuration_thread_checker_.CalledOnValidThread());
+<span class="lineNum">     471 </span>            :   RTC_DCHECK(receive_stream != nullptr);
+<span class="lineNum">     472 </span><span class="lineCov">          1 :   VideoReceiveStream* receive_stream_impl = nullptr;</span>
+<span class="lineNum">     473 </span>            :   {
+<span class="lineNum">     474 </span><span class="lineCov">          1 :     WriteLockScoped write_lock(*receive_crit_);</span>
+<span class="lineNum">     475 </span>            :     // Remove all ssrcs pointing to a receive stream. As RTX retransmits on a
+<span class="lineNum">     476 </span>            :     // separate SSRC there can be either one or two.
+<span class="lineNum">     477 </span><span class="lineCov">          1 :     auto it = video_receive_ssrcs_.begin();</span>
+<span class="lineNum">     478 </span><span class="lineCov">          1 :     while (it != video_receive_ssrcs_.end()) {</span>
+<span class="lineNum">     479 </span><span class="lineCov">          1 :       if (it-&gt;second == static_cast&lt;VideoReceiveStream*&gt;(receive_stream)) {</span>
+<span class="lineNum">     480 </span><span class="lineCov">          1 :         if (receive_stream_impl != nullptr)</span>
+<span class="lineNum">     481 </span>            :           RTC_DCHECK(receive_stream_impl == it-&gt;second);
+<span class="lineNum">     482 </span><span class="lineCov">          1 :         receive_stream_impl = it-&gt;second;</span>
+<span class="lineNum">     483 </span><span class="lineCov">          1 :         video_receive_ssrcs_.erase(it++);</span>
+<span class="lineNum">     484 </span>            :       } else {
+<span class="lineNum">     485 </span><span class="lineCov">          1 :         ++it;</span>
+<span class="lineNum">     486 </span>            :       }
+<span class="lineNum">     487 </span>            :     }
+<span class="lineNum">     488 </span><span class="lineCov">          1 :     video_receive_streams_.erase(receive_stream_impl);</span>
+<span class="lineNum">     489 </span><span class="lineCov">          1 :     RTC_CHECK(receive_stream_impl != nullptr);</span>
+<span class="lineNum">     490 </span><span class="lineCov">          1 :     ConfigureSync(receive_stream_impl-&gt;config().sync_group);</span>
+<span class="lineNum">     491 </span>            :   }
+<span class="lineNum">     492 </span><span class="lineCov">          1 :   delete receive_stream_impl;</span>
+<a name="493"><span class="lineNum">     493 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     494 </span>            : 
+<span class="lineNum">     495 </span><span class="lineNoCov">          0 : Call::Stats Call::GetStats() const {</span>
+<span class="lineNum">     496 </span>            :   // TODO(solenberg): Some test cases in EndToEndTest use this from a different
+<span class="lineNum">     497 </span>            :   // thread. Re-enable once that is fixed.
+<span class="lineNum">     498 </span>            :   // RTC_DCHECK(configuration_thread_checker_.CalledOnValidThread());
+<span class="lineNum">     499 </span><span class="lineNoCov">          0 :   Stats stats;</span>
+<span class="lineNum">     500 </span>            :   // Fetch available send/receive bitrates.
+<span class="lineNum">     501 </span><span class="lineNoCov">          0 :   uint32_t send_bandwidth = 0;</span>
+<span class="lineNum">     502 </span><span class="lineNoCov">          0 :   congestion_controller_-&gt;GetBitrateController()-&gt;AvailableBandwidth(</span>
+<span class="lineNum">     503 </span><span class="lineNoCov">          0 :       &amp;send_bandwidth);</span>
+<span class="lineNum">     504 </span>            :   std::vector&lt;unsigned int&gt; ssrcs;
+<span class="lineNum">     505 </span><span class="lineNoCov">          0 :   uint32_t recv_bandwidth = 0;</span>
+<span class="lineNum">     506 </span><span class="lineNoCov">          0 :   congestion_controller_-&gt;GetRemoteBitrateEstimator(false)-&gt;LatestEstimate(</span>
+<span class="lineNum">     507 </span><span class="lineNoCov">          0 :       &amp;ssrcs, &amp;recv_bandwidth);</span>
+<span class="lineNum">     508 </span><span class="lineNoCov">          0 :   stats.send_bandwidth_bps = send_bandwidth;</span>
+<span class="lineNum">     509 </span><span class="lineNoCov">          0 :   stats.recv_bandwidth_bps = recv_bandwidth;</span>
+<span class="lineNum">     510 </span><span class="lineNoCov">          0 :   stats.pacer_delay_ms = congestion_controller_-&gt;GetPacerQueuingDelayMs();</span>
+<span class="lineNum">     511 </span>            :   {
+<span class="lineNum">     512 </span><span class="lineNoCov">          0 :     ReadLockScoped read_lock(*send_crit_);</span>
+<span class="lineNum">     513 </span>            :     // TODO(solenberg): Add audio send streams.
+<span class="lineNum">     514 </span><span class="lineNoCov">          0 :     for (const auto&amp; kv : video_send_ssrcs_) {</span>
+<span class="lineNum">     515 </span><span class="lineNoCov">          0 :       int rtt_ms = kv.second-&gt;GetRtt();</span>
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :       if (rtt_ms &gt; 0)</span>
+<span class="lineNum">     517 </span><span class="lineNoCov">          0 :         stats.rtt_ms = rtt_ms;</span>
+<span class="lineNum">     518 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     519 </span>            :   }
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 :   return stats;</span>
+<a name="521"><span class="lineNum">     521 </span>            : }</a>
+<span class="lineNum">     522 </span>            : 
+<span class="lineNum">     523 </span><span class="lineNoCov">          0 : void Call::SetBitrateConfig(</span>
+<span class="lineNum">     524 </span>            :     const webrtc::Call::Config::BitrateConfig&amp; bitrate_config) {
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :   TRACE_EVENT0(&quot;webrtc&quot;, &quot;Call::SetBitrateConfig&quot;);</span>
+<span class="lineNum">     526 </span>            :   RTC_DCHECK(configuration_thread_checker_.CalledOnValidThread());
+<span class="lineNum">     527 </span>            :   RTC_DCHECK_GE(bitrate_config.min_bitrate_bps, 0);
+<span class="lineNum">     528 </span>            :   if (bitrate_config.max_bitrate_bps != -1)
+<span class="lineNum">     529 </span>            :     RTC_DCHECK_GT(bitrate_config.max_bitrate_bps, 0);
+<span class="lineNum">     530 </span><span class="lineNoCov">          0 :   if (config_.bitrate_config.min_bitrate_bps ==</span>
+<span class="lineNum">     531 </span><span class="lineNoCov">          0 :           bitrate_config.min_bitrate_bps &amp;&amp;</span>
+<span class="lineNum">     532 </span><span class="lineNoCov">          0 :       (bitrate_config.start_bitrate_bps &lt;= 0 ||</span>
+<span class="lineNum">     533 </span><span class="lineNoCov">          0 :        config_.bitrate_config.start_bitrate_bps ==</span>
+<span class="lineNum">     534 </span><span class="lineNoCov">          0 :            bitrate_config.start_bitrate_bps) &amp;&amp;</span>
+<span class="lineNum">     535 </span><span class="lineNoCov">          0 :       config_.bitrate_config.max_bitrate_bps ==</span>
+<span class="lineNum">     536 </span>            :           bitrate_config.max_bitrate_bps) {
+<span class="lineNum">     537 </span>            :     // Nothing new to set, early abort to avoid encoder reconfigurations.
+<span class="lineNum">     538 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     539 </span>            :   }
+<span class="lineNum">     540 </span><span class="lineNoCov">          0 :   config_.bitrate_config = bitrate_config;</span>
+<span class="lineNum">     541 </span><span class="lineNoCov">          0 :   congestion_controller_-&gt;SetBweBitrates(bitrate_config.min_bitrate_bps,</span>
+<span class="lineNum">     542 </span>            :                                          bitrate_config.start_bitrate_bps,
+<span class="lineNum">     543 </span><span class="lineNoCov">          0 :                                          bitrate_config.max_bitrate_bps);</span>
+<a name="544"><span class="lineNum">     544 </span>            : }</a>
+<span class="lineNum">     545 </span>            : 
+<span class="lineNum">     546 </span><span class="lineNoCov">          0 : void Call::SignalNetworkState(NetworkState state) {</span>
+<span class="lineNum">     547 </span>            :   RTC_DCHECK(configuration_thread_checker_.CalledOnValidThread());
+<span class="lineNum">     548 </span><span class="lineNoCov">          0 :   network_enabled_ = state == kNetworkUp;</span>
+<span class="lineNum">     549 </span><span class="lineNoCov">          0 :   congestion_controller_-&gt;SignalNetworkState(state);</span>
+<span class="lineNum">     550 </span>            :   {
+<span class="lineNum">     551 </span><span class="lineNoCov">          0 :     ReadLockScoped write_lock(*send_crit_);</span>
+<span class="lineNum">     552 </span><span class="lineNoCov">          0 :     for (auto&amp; kv : audio_send_ssrcs_) {</span>
+<span class="lineNum">     553 </span><span class="lineNoCov">          0 :       kv.second-&gt;SignalNetworkState(state);</span>
+<span class="lineNum">     554 </span>            :     }
+<span class="lineNum">     555 </span><span class="lineNoCov">          0 :     for (auto&amp; kv : video_send_ssrcs_) {</span>
+<span class="lineNum">     556 </span><span class="lineNoCov">          0 :       kv.second-&gt;SignalNetworkState(state);</span>
+<span class="lineNum">     557 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     558 </span>            :   }
+<span class="lineNum">     559 </span>            :   {
+<span class="lineNum">     560 </span><span class="lineNoCov">          0 :     ReadLockScoped write_lock(*receive_crit_);</span>
+<span class="lineNum">     561 </span><span class="lineNoCov">          0 :     for (auto&amp; kv : video_receive_ssrcs_) {</span>
+<span class="lineNum">     562 </span><span class="lineNoCov">          0 :       kv.second-&gt;SignalNetworkState(state);</span>
+<span class="lineNum">     563 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     564 </span>            :   }
+<a name="565"><span class="lineNum">     565 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     566 </span>            : 
+<span class="lineNum">     567 </span><span class="lineNoCov">          0 : void Call::OnSentPacket(const rtc::SentPacket&amp; sent_packet) {</span>
+<span class="lineNum">     568 </span><span class="lineNoCov">          0 :   if (first_packet_sent_ms_ == -1)</span>
+<span class="lineNum">     569 </span><span class="lineNoCov">          0 :     first_packet_sent_ms_ = clock_-&gt;TimeInMilliseconds();</span>
+<span class="lineNum">     570 </span><span class="lineNoCov">          0 :   congestion_controller_-&gt;OnSentPacket(sent_packet);</span>
+<a name="571"><span class="lineNum">     571 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     572 </span>            : 
+<span class="lineNum">     573 </span><span class="lineCov">          1 : void Call::OnNetworkChanged(uint32_t target_bitrate_bps, uint8_t fraction_loss,</span>
+<span class="lineNum">     574 </span>            :                             int64_t rtt_ms) {
+<span class="lineNum">     575 </span>            :   uint32_t allocated_bitrate_bps = bitrate_allocator_-&gt;OnNetworkChanged(
+<span class="lineNum">     576 </span><span class="lineCov">          1 :       target_bitrate_bps, fraction_loss, rtt_ms);</span>
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span><span class="lineCov">          1 :   int pad_up_to_bitrate_bps = 0;</span>
+<span class="lineNum">     579 </span>            :   {
+<span class="lineNum">     580 </span><span class="lineCov">          1 :     ReadLockScoped read_lock(*send_crit_);</span>
+<span class="lineNum">     581 </span>            :     // No need to update as long as we're not sending.
+<span class="lineNum">     582 </span><span class="lineCov">          1 :     if (video_send_streams_.empty())</span>
+<span class="lineNum">     583 </span><span class="lineCov">          1 :       return;</span>
+<span class="lineNum">     584 </span>            : 
+<span class="lineNum">     585 </span><span class="lineCov">          1 :     for (VideoSendStream* stream : video_send_streams_)</span>
+<span class="lineNum">     586 </span><span class="lineCov">          1 :       pad_up_to_bitrate_bps += stream-&gt;GetPaddingNeededBps();</span>
+<span class="lineNum">     587 </span>            :   }
+<span class="lineNum">     588 </span>            :   // Allocated bitrate might be higher than bitrate estimate if enforcing min
+<span class="lineNum">     589 </span>            :   // bitrate, or lower if estimate is higher than the sum of max bitrates, so
+<span class="lineNum">     590 </span>            :   // set the pacer bitrate to the maximum of the two.
+<span class="lineNum">     591 </span>            :   uint32_t pacer_bitrate_bps =
+<span class="lineNum">     592 </span><span class="lineCov">          1 :       std::max(target_bitrate_bps, allocated_bitrate_bps);</span>
+<span class="lineNum">     593 </span>            :   {
+<span class="lineNum">     594 </span><span class="lineCov">          1 :     rtc::CritScope lock(&amp;bitrate_crit_);</span>
+<span class="lineNum">     595 </span>            :     // We only update these stats if we have send streams, and assume that
+<span class="lineNum">     596 </span>            :     // OnNetworkChanged is called roughly with a fixed frequency.
+<span class="lineNum">     597 </span><span class="lineCov">          1 :     estimated_send_bitrate_sum_kbits_ += target_bitrate_bps / 1000;</span>
+<span class="lineNum">     598 </span><span class="lineCov">          1 :     pacer_bitrate_sum_kbits_ += pacer_bitrate_bps / 1000;</span>
+<span class="lineNum">     599 </span><span class="lineCov">          1 :     ++num_bitrate_updates_;</span>
+<span class="lineNum">     600 </span>            :   }
+<span class="lineNum">     601 </span><span class="lineCov">          1 :   congestion_controller_-&gt;UpdatePacerBitrate(</span>
+<span class="lineNum">     602 </span>            :       target_bitrate_bps / 1000,
+<span class="lineNum">     603 </span><span class="lineCov">          1 :       PacedSender::kDefaultPaceMultiplier * pacer_bitrate_bps / 1000,</span>
+<span class="lineNum">     604 </span><span class="lineCov">          1 :       pad_up_to_bitrate_bps / 1000);</span>
+<a name="605"><span class="lineNum">     605 </span>            : }</a>
+<span class="lineNum">     606 </span>            : 
+<span class="lineNum">     607 </span><span class="lineCov">          1 : void Call::ConfigureSync(const std::string&amp; sync_group) {</span>
+<span class="lineNum">     608 </span>            :   // Set sync only if there was no previous one.
+<span class="lineNum">     609 </span><span class="lineCov">          1 :   if (voice_engine() == nullptr || sync_group.empty())</span>
+<span class="lineNum">     610 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">     611 </span>            : 
+<span class="lineNum">     612 </span><span class="lineNoCov">          0 :   AudioReceiveStream* sync_audio_stream = nullptr;</span>
+<span class="lineNum">     613 </span>            :   // Find existing audio stream.
+<span class="lineNum">     614 </span><span class="lineNoCov">          0 :   const auto it = sync_stream_mapping_.find(sync_group);</span>
+<span class="lineNum">     615 </span><span class="lineNoCov">          0 :   if (it != sync_stream_mapping_.end()) {</span>
+<span class="lineNum">     616 </span><span class="lineNoCov">          0 :     sync_audio_stream = it-&gt;second;</span>
+<span class="lineNum">     617 </span>            :   } else {
+<span class="lineNum">     618 </span>            :     // No configured audio stream, see if we can find one.
+<span class="lineNum">     619 </span><span class="lineNoCov">          0 :     for (const auto&amp; kv : audio_receive_ssrcs_) {</span>
+<span class="lineNum">     620 </span><span class="lineNoCov">          0 :       if (kv.second-&gt;config().sync_group == sync_group) {</span>
+<span class="lineNum">     621 </span><span class="lineNoCov">          0 :         if (sync_audio_stream != nullptr) {</span>
+<span class="lineNum">     622 </span><span class="lineNoCov">          0 :           LOG(LS_WARNING) &lt;&lt; &quot;Attempting to sync more than one audio stream &quot;</span>
+<span class="lineNum">     623 </span>            :                              &quot;within the same sync group. This is not &quot;
+<span class="lineNum">     624 </span><span class="lineNoCov">          0 :                              &quot;supported in the current implementation.&quot;;</span>
+<span class="lineNum">     625 </span>            :           break;
+<span class="lineNum">     626 </span>            :         }
+<span class="lineNum">     627 </span>            :         sync_audio_stream = kv.second;
+<span class="lineNum">     628 </span>            :       }
+<span class="lineNum">     629 </span>            :     }
+<span class="lineNum">     630 </span>            :   }
+<span class="lineNum">     631 </span><span class="lineNoCov">          0 :   if (sync_audio_stream)</span>
+<span class="lineNum">     632 </span><span class="lineNoCov">          0 :     sync_stream_mapping_[sync_group] = sync_audio_stream;</span>
+<span class="lineNum">     633 </span><span class="lineNoCov">          0 :   size_t num_synced_streams = 0;</span>
+<span class="lineNum">     634 </span><span class="lineNoCov">          0 :   for (VideoReceiveStream* video_stream : video_receive_streams_) {</span>
+<span class="lineNum">     635 </span><span class="lineNoCov">          0 :     if (video_stream-&gt;config().sync_group != sync_group)</span>
+<span class="lineNum">     636 </span>            :       continue;
+<span class="lineNum">     637 </span><span class="lineNoCov">          0 :     ++num_synced_streams;</span>
+<span class="lineNum">     638 </span><span class="lineNoCov">          0 :     if (num_synced_streams &gt; 1) {</span>
+<span class="lineNum">     639 </span>            :       // TODO(pbos): Support synchronizing more than one A/V pair.
+<span class="lineNum">     640 </span>            :       // https://code.google.com/p/webrtc/issues/detail?id=4762
+<span class="lineNum">     641 </span><span class="lineNoCov">          0 :       LOG(LS_WARNING) &lt;&lt; &quot;Attempting to sync more than one audio/video pair &quot;</span>
+<span class="lineNum">     642 </span>            :                          &quot;within the same sync group. This is not supported in &quot;
+<span class="lineNum">     643 </span><span class="lineNoCov">          0 :                          &quot;the current implementation.&quot;;</span>
+<span class="lineNum">     644 </span>            :     }
+<span class="lineNum">     645 </span>            :     // Only sync the first A/V pair within this sync group.
+<span class="lineNum">     646 </span><span class="lineNoCov">          0 :     if (sync_audio_stream != nullptr &amp;&amp; num_synced_streams == 1) {</span>
+<span class="lineNum">     647 </span><span class="lineNoCov">          0 :       video_stream-&gt;SetSyncChannel(voice_engine(),</span>
+<span class="lineNum">     648 </span><span class="lineNoCov">          0 :                                    sync_audio_stream-&gt;config().voe_channel_id);</span>
+<span class="lineNum">     649 </span>            :     } else {
+<span class="lineNum">     650 </span><span class="lineNoCov">          0 :       video_stream-&gt;SetSyncChannel(voice_engine(), -1);</span>
+<span class="lineNum">     651 </span>            :     }
+<span class="lineNum">     652 </span>            :   }
+<a name="653"><span class="lineNum">     653 </span>            : }</a>
+<span class="lineNum">     654 </span>            : 
+<span class="lineNum">     655 </span><span class="lineCov">          1 : PacketReceiver::DeliveryStatus Call::DeliverRtcp(MediaType media_type,</span>
+<span class="lineNum">     656 </span>            :                                                  const uint8_t* packet,
+<span class="lineNum">     657 </span>            :                                                  size_t length) {
+<span class="lineNum">     658 </span><span class="lineCov">          1 :   TRACE_EVENT0(&quot;webrtc&quot;, &quot;Call::DeliverRtcp&quot;);</span>
+<span class="lineNum">     659 </span>            :   // TODO(pbos): Figure out what channel needs it actually.
+<span class="lineNum">     660 </span>            :   //             Do NOT broadcast! Also make sure it's a valid packet.
+<span class="lineNum">     661 </span>            :   //             Return DELIVERY_UNKNOWN_SSRC if it can be determined that
+<span class="lineNum">     662 </span>            :   //             there's no receiver of the packet.
+<span class="lineNum">     663 </span><span class="lineCov">          1 :   received_rtcp_bytes_ += length;</span>
+<span class="lineNum">     664 </span><span class="lineCov">          1 :   bool rtcp_delivered = false;</span>
+<span class="lineNum">     665 </span><span class="lineCov">          1 :   if (media_type == MediaType::ANY || media_type == MediaType::VIDEO) {</span>
+<span class="lineNum">     666 </span><span class="lineCov">          1 :     ReadLockScoped read_lock(*receive_crit_);</span>
+<span class="lineNum">     667 </span><span class="lineCov">          1 :     for (VideoReceiveStream* stream : video_receive_streams_) {</span>
+<span class="lineNum">     668 </span><span class="lineCov">          1 :       if (stream-&gt;DeliverRtcp(packet, length)) {</span>
+<span class="lineNum">     669 </span><span class="lineCov">          1 :         rtcp_delivered = true;</span>
+<span class="lineNum">     670 </span><span class="lineCov">          1 :         if (event_log_)</span>
+<span class="lineNum">     671 </span><span class="lineNoCov">          0 :           event_log_-&gt;LogRtcpPacket(true, media_type, packet, length);</span>
+<span class="lineNum">     672 </span>            :       }
+<span class="lineNum">     673 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     674 </span>            :   }
+<span class="lineNum">     675 </span><span class="lineCov">          1 :   if (media_type == MediaType::ANY || media_type == MediaType::VIDEO) {</span>
+<span class="lineNum">     676 </span><span class="lineCov">          1 :     ReadLockScoped read_lock(*send_crit_);</span>
+<span class="lineNum">     677 </span><span class="lineCov">          1 :     for (VideoSendStream* stream : video_send_streams_) {</span>
+<span class="lineNum">     678 </span><span class="lineCov">          1 :       if (stream-&gt;DeliverRtcp(packet, length)) {</span>
+<span class="lineNum">     679 </span><span class="lineCov">          1 :         rtcp_delivered = true;</span>
+<span class="lineNum">     680 </span><span class="lineCov">          1 :         if (event_log_)</span>
+<span class="lineNum">     681 </span><span class="lineNoCov">          0 :           event_log_-&gt;LogRtcpPacket(false, media_type, packet, length);</span>
+<span class="lineNum">     682 </span>            :       }
+<span class="lineNum">     683 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     684 </span>            :   }
+<span class="lineNum">     685 </span><span class="lineCov">          1 :   return rtcp_delivered ? DELIVERY_OK : DELIVERY_PACKET_ERROR;</span>
+<a name="686"><span class="lineNum">     686 </span>            : }</a>
+<span class="lineNum">     687 </span>            : 
+<span class="lineNum">     688 </span><span class="lineCov">          1 : PacketReceiver::DeliveryStatus Call::DeliverRtp(MediaType media_type,</span>
+<span class="lineNum">     689 </span>            :                                                 const uint8_t* packet,
+<span class="lineNum">     690 </span>            :                                                 size_t length,
+<span class="lineNum">     691 </span>            :                                                 const PacketTime&amp; packet_time) {
+<span class="lineNum">     692 </span><span class="lineCov">          1 :   TRACE_EVENT0(&quot;webrtc&quot;, &quot;Call::DeliverRtp&quot;);</span>
+<span class="lineNum">     693 </span>            :   // Minimum RTP header size.
+<span class="lineNum">     694 </span><span class="lineCov">          1 :   if (length &lt; 12)</span>
+<span class="lineNum">     695 </span>            :     return DELIVERY_PACKET_ERROR;
+<span class="lineNum">     696 </span>            : 
+<span class="lineNum">     697 </span><span class="lineCov">          1 :   last_rtp_packet_received_ms_ = clock_-&gt;TimeInMilliseconds();</span>
+<span class="lineNum">     698 </span><span class="lineCov">          1 :   if (first_rtp_packet_received_ms_ == -1)</span>
+<span class="lineNum">     699 </span><span class="lineCov">          1 :     first_rtp_packet_received_ms_ = last_rtp_packet_received_ms_;</span>
+<span class="lineNum">     700 </span>            : 
+<span class="lineNum">     701 </span><span class="lineCov">          1 :   uint32_t ssrc = ByteReader&lt;uint32_t&gt;::ReadBigEndian(&amp;packet[8]);</span>
+<span class="lineNum">     702 </span><span class="lineCov">          1 :   ReadLockScoped read_lock(*receive_crit_);</span>
+<span class="lineNum">     703 </span><span class="lineCov">          1 :   if (media_type == MediaType::ANY || media_type == MediaType::AUDIO) {</span>
+<span class="lineNum">     704 </span><span class="lineNoCov">          0 :     auto it = audio_receive_ssrcs_.find(ssrc);</span>
+<span class="lineNum">     705 </span><span class="lineNoCov">          0 :     if (it != audio_receive_ssrcs_.end()) {</span>
+<span class="lineNum">     706 </span><span class="lineNoCov">          0 :       received_audio_bytes_ += length;</span>
+<span class="lineNum">     707 </span><span class="lineNoCov">          0 :       auto status = it-&gt;second-&gt;DeliverRtp(packet, length, packet_time)</span>
+<span class="lineNum">     708 </span>            :                         ? DELIVERY_OK
+<span class="lineNum">     709 </span><span class="lineNoCov">          0 :                         : DELIVERY_PACKET_ERROR;</span>
+<span class="lineNum">     710 </span><span class="lineNoCov">          0 :       if (status == DELIVERY_OK &amp;&amp; event_log_)</span>
+<span class="lineNum">     711 </span><span class="lineNoCov">          0 :         event_log_-&gt;LogRtpHeader(true, media_type, packet, length);</span>
+<span class="lineNum">     712 </span>            :       return status;
+<span class="lineNum">     713 </span>            :     }
+<span class="lineNum">     714 </span>            :   }
+<span class="lineNum">     715 </span><span class="lineCov">          1 :   if (media_type == MediaType::ANY || media_type == MediaType::VIDEO) {</span>
+<span class="lineNum">     716 </span><span class="lineCov">          1 :     auto it = video_receive_ssrcs_.find(ssrc);</span>
+<span class="lineNum">     717 </span><span class="lineCov">          1 :     if (it != video_receive_ssrcs_.end()) {</span>
+<span class="lineNum">     718 </span><span class="lineCov">          1 :       received_video_bytes_ += length;</span>
+<span class="lineNum">     719 </span><span class="lineCov">          1 :       auto status = it-&gt;second-&gt;DeliverRtp(packet, length, packet_time)</span>
+<span class="lineNum">     720 </span>            :                         ? DELIVERY_OK
+<span class="lineNum">     721 </span><span class="lineCov">          1 :                         : DELIVERY_PACKET_ERROR;</span>
+<span class="lineNum">     722 </span><span class="lineCov">          1 :       if (status == DELIVERY_OK &amp;&amp; event_log_)</span>
+<span class="lineNum">     723 </span><span class="lineNoCov">          0 :         event_log_-&gt;LogRtpHeader(true, media_type, packet, length);</span>
+<span class="lineNum">     724 </span>            :       return status;
+<span class="lineNum">     725 </span>            :     }
+<span class="lineNum">     726 </span>            :   }
+<span class="lineNum">     727 </span><span class="lineNoCov">          0 :   LOG(LS_WARNING) &lt;&lt; __FUNCTION__ &lt;&lt;&quot;: found unknown SSRC: &quot; &lt;&lt; ssrc;</span>
+<span class="lineNum">     728 </span><span class="lineCov">          1 :   return DELIVERY_UNKNOWN_SSRC;</span>
+<a name="729"><span class="lineNum">     729 </span>            : }</a>
+<span class="lineNum">     730 </span>            : 
+<span class="lineNum">     731 </span><span class="lineCov">          1 : PacketReceiver::DeliveryStatus Call::DeliverPacket(</span>
+<span class="lineNum">     732 </span>            :     MediaType media_type,
+<span class="lineNum">     733 </span>            :     const uint8_t* packet,
+<span class="lineNum">     734 </span>            :     size_t length,
+<span class="lineNum">     735 </span>            :     const PacketTime&amp; packet_time) {
+<span class="lineNum">     736 </span>            :   // TODO(solenberg): Tests call this function on a network thread, libjingle
+<span class="lineNum">     737 </span>            :   // calls on the worker thread. We should move towards always using a network
+<span class="lineNum">     738 </span>            :   // thread. Then this check can be enabled.
+<span class="lineNum">     739 </span>            :   // RTC_DCHECK(!configuration_thread_checker_.CalledOnValidThread());
+<span class="lineNum">     740 </span><span class="lineCov">          1 :   if (RtpHeaderParser::IsRtcp(packet, length))</span>
+<span class="lineNum">     741 </span><span class="lineCov">          1 :     return DeliverRtcp(media_type, packet, length);</span>
+<span class="lineNum">     742 </span>            : 
+<span class="lineNum">     743 </span><span class="lineCov">          1 :   return DeliverRtp(media_type, packet, length, packet_time);</span>
+<span class="lineNum">     744 </span>            : }
+<span class="lineNum">     745 </span>            : 
+<span class="lineNum">     746 </span>            : }  // namespace internal
+<span class="lineNum">     747 </span>            : }  // namespace webrtc
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

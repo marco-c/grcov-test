@@ -1,0 +1,1384 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/nss/lib/pkcs7/p7create.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">security/nss/lib/pkcs7</a> - p7create.c<span style="font-size: 80%;"> (source / <a href="p7create.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">412</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">22</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public</a>
+<span class="lineNum">       2 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       3 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : /*
+<span class="lineNum">       6 </span>            :  * PKCS7 creation.
+<span class="lineNum">       7 </span>            :  */
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &quot;p7local.h&quot;
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;cert.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;secasn1.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;secitem.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;secoid.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;pk11func.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;prtime.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;secerr.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;secder.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;secpkcs5.h&quot;
+<span class="lineNum">      20 </span>            : 
+<span class="lineNum">      21 </span>            : const int NSS_PBE_DEFAULT_ITERATION_COUNT = 2000; /* used in p12e.c too */
+<a name="22"><span class="lineNum">      22 </span>            : </a>
+<span class="lineNum">      23 </span>            : static SECStatus
+<span class="lineNum">      24 </span><span class="lineNoCov">          0 : sec_pkcs7_init_content_info(SEC_PKCS7ContentInfo *cinfo, PLArenaPool *poolp,</span>
+<span class="lineNum">      25 </span>            :                             SECOidTag kind, PRBool detached)
+<span class="lineNum">      26 </span>            : {
+<span class="lineNum">      27 </span>            :     void *thing;
+<span class="lineNum">      28 </span>            :     int version;
+<span class="lineNum">      29 </span>            :     SECItem *versionp;
+<span class="lineNum">      30 </span>            :     SECStatus rv;
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            :     PORT_Assert(cinfo != NULL &amp;&amp; poolp != NULL);
+<span class="lineNum">      33 </span><span class="lineNoCov">          0 :     if (cinfo == NULL || poolp == NULL)</span>
+<span class="lineNum">      34 </span>            :         return SECFailure;
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span><span class="lineNoCov">          0 :     cinfo-&gt;contentTypeTag = SECOID_FindOIDByTag(kind);</span>
+<span class="lineNum">      37 </span>            :     PORT_Assert(cinfo-&gt;contentTypeTag &amp;&amp; cinfo-&gt;contentTypeTag-&gt;offset == kind);
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span><span class="lineNoCov">          0 :     rv = SECITEM_CopyItem(poolp, &amp;(cinfo-&gt;contentType),</span>
+<span class="lineNum">      40 </span><span class="lineNoCov">          0 :                           &amp;(cinfo-&gt;contentTypeTag-&gt;oid));</span>
+<span class="lineNum">      41 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess)</span>
+<span class="lineNum">      42 </span>            :         return rv;
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span><span class="lineNoCov">          0 :     if (detached)</span>
+<span class="lineNum">      45 </span>            :         return SECSuccess;
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span><span class="lineNoCov">          0 :     switch (kind) {</span>
+<span class="lineNum">      48 </span>            :         default:
+<span class="lineNum">      49 </span>            :         case SEC_OID_PKCS7_DATA:
+<span class="lineNum">      50 </span><span class="lineNoCov">          0 :             thing = PORT_ArenaZAlloc(poolp, sizeof(SECItem));</span>
+<span class="lineNum">      51 </span><span class="lineNoCov">          0 :             cinfo-&gt;content.data = (SECItem *)thing;</span>
+<span class="lineNum">      52 </span><span class="lineNoCov">          0 :             versionp = NULL;</span>
+<span class="lineNum">      53 </span><span class="lineNoCov">          0 :             version = -1;</span>
+<span class="lineNum">      54 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">      55 </span>            :         case SEC_OID_PKCS7_DIGESTED_DATA:
+<span class="lineNum">      56 </span><span class="lineNoCov">          0 :             thing = PORT_ArenaZAlloc(poolp, sizeof(SEC_PKCS7DigestedData));</span>
+<span class="lineNum">      57 </span><span class="lineNoCov">          0 :             cinfo-&gt;content.digestedData = (SEC_PKCS7DigestedData *)thing;</span>
+<span class="lineNum">      58 </span><span class="lineNoCov">          0 :             versionp = &amp;(cinfo-&gt;content.digestedData-&gt;version);</span>
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 :             version = SEC_PKCS7_DIGESTED_DATA_VERSION;</span>
+<span class="lineNum">      60 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">      61 </span>            :         case SEC_OID_PKCS7_ENCRYPTED_DATA:
+<span class="lineNum">      62 </span><span class="lineNoCov">          0 :             thing = PORT_ArenaZAlloc(poolp, sizeof(SEC_PKCS7EncryptedData));</span>
+<span class="lineNum">      63 </span><span class="lineNoCov">          0 :             cinfo-&gt;content.encryptedData = (SEC_PKCS7EncryptedData *)thing;</span>
+<span class="lineNum">      64 </span><span class="lineNoCov">          0 :             versionp = &amp;(cinfo-&gt;content.encryptedData-&gt;version);</span>
+<span class="lineNum">      65 </span><span class="lineNoCov">          0 :             version = SEC_PKCS7_ENCRYPTED_DATA_VERSION;</span>
+<span class="lineNum">      66 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">      67 </span>            :         case SEC_OID_PKCS7_ENVELOPED_DATA:
+<span class="lineNum">      68 </span><span class="lineNoCov">          0 :             thing = PORT_ArenaZAlloc(poolp, sizeof(SEC_PKCS7EnvelopedData));</span>
+<span class="lineNum">      69 </span><span class="lineNoCov">          0 :             cinfo-&gt;content.envelopedData =</span>
+<span class="lineNum">      70 </span>            :                 (SEC_PKCS7EnvelopedData *)thing;
+<span class="lineNum">      71 </span><span class="lineNoCov">          0 :             versionp = &amp;(cinfo-&gt;content.envelopedData-&gt;version);</span>
+<span class="lineNum">      72 </span><span class="lineNoCov">          0 :             version = SEC_PKCS7_ENVELOPED_DATA_VERSION;</span>
+<span class="lineNum">      73 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">      74 </span>            :         case SEC_OID_PKCS7_SIGNED_DATA:
+<span class="lineNum">      75 </span><span class="lineNoCov">          0 :             thing = PORT_ArenaZAlloc(poolp, sizeof(SEC_PKCS7SignedData));</span>
+<span class="lineNum">      76 </span><span class="lineNoCov">          0 :             cinfo-&gt;content.signedData =</span>
+<span class="lineNum">      77 </span>            :                 (SEC_PKCS7SignedData *)thing;
+<span class="lineNum">      78 </span><span class="lineNoCov">          0 :             versionp = &amp;(cinfo-&gt;content.signedData-&gt;version);</span>
+<span class="lineNum">      79 </span><span class="lineNoCov">          0 :             version = SEC_PKCS7_SIGNED_DATA_VERSION;</span>
+<span class="lineNum">      80 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">      81 </span>            :         case SEC_OID_PKCS7_SIGNED_ENVELOPED_DATA:
+<span class="lineNum">      82 </span><span class="lineNoCov">          0 :             thing = PORT_ArenaZAlloc(poolp, sizeof(SEC_PKCS7SignedAndEnvelopedData));</span>
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :             cinfo-&gt;content.signedAndEnvelopedData =</span>
+<span class="lineNum">      84 </span>            :                 (SEC_PKCS7SignedAndEnvelopedData *)thing;
+<span class="lineNum">      85 </span><span class="lineNoCov">          0 :             versionp = &amp;(cinfo-&gt;content.signedAndEnvelopedData-&gt;version);</span>
+<span class="lineNum">      86 </span><span class="lineNoCov">          0 :             version = SEC_PKCS7_SIGNED_AND_ENVELOPED_DATA_VERSION;</span>
+<span class="lineNum">      87 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">      88 </span>            :     }
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span><span class="lineNoCov">          0 :     if (thing == NULL)</span>
+<span class="lineNum">      91 </span>            :         return SECFailure;
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span><span class="lineNoCov">          0 :     if (versionp != NULL) {</span>
+<span class="lineNum">      94 </span>            :         SECItem *dummy;
+<span class="lineNum">      95 </span>            : 
+<span class="lineNum">      96 </span>            :         PORT_Assert(version &gt;= 0);
+<span class="lineNum">      97 </span><span class="lineNoCov">          0 :         dummy = SEC_ASN1EncodeInteger(poolp, versionp, version);</span>
+<span class="lineNum">      98 </span><span class="lineNoCov">          0 :         if (dummy == NULL)</span>
+<span class="lineNum">      99 </span>            :             return SECFailure;
+<span class="lineNum">     100 </span>            :         PORT_Assert(dummy == versionp);
+<span class="lineNum">     101 </span>            :     }
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span>            :     return SECSuccess;
+<span class="lineNum">     104 </span>            : }
+<a name="105"><span class="lineNum">     105 </span>            : </a>
+<span class="lineNum">     106 </span>            : static SEC_PKCS7ContentInfo *
+<span class="lineNum">     107 </span><span class="lineNoCov">          0 : sec_pkcs7_create_content_info(SECOidTag kind, PRBool detached,</span>
+<span class="lineNum">     108 </span>            :                               SECKEYGetPasswordKey pwfn, void *pwfn_arg)
+<span class="lineNum">     109 </span>            : {
+<span class="lineNum">     110 </span>            :     SEC_PKCS7ContentInfo *cinfo;
+<span class="lineNum">     111 </span>            :     PLArenaPool *poolp;
+<span class="lineNum">     112 </span>            :     SECStatus rv;
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span><span class="lineNoCov">          0 :     poolp = PORT_NewArena(1024); /* XXX what is right value? */</span>
+<span class="lineNum">     115 </span><span class="lineNoCov">          0 :     if (poolp == NULL)</span>
+<span class="lineNum">     116 </span>            :         return NULL;
+<span class="lineNum">     117 </span>            : 
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :     cinfo = (SEC_PKCS7ContentInfo *)PORT_ArenaZAlloc(poolp, sizeof(*cinfo));</span>
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 :     if (cinfo == NULL) {</span>
+<span class="lineNum">     120 </span><span class="lineNoCov">          0 :         PORT_FreeArena(poolp, PR_FALSE);</span>
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     122 </span>            :     }
+<span class="lineNum">     123 </span>            : 
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :     cinfo-&gt;poolp = poolp;</span>
+<span class="lineNum">     125 </span><span class="lineNoCov">          0 :     cinfo-&gt;pwfn = pwfn;</span>
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :     cinfo-&gt;pwfn_arg = pwfn_arg;</span>
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 :     cinfo-&gt;created = PR_TRUE;</span>
+<span class="lineNum">     128 </span><span class="lineNoCov">          0 :     cinfo-&gt;refCount = 1;</span>
+<span class="lineNum">     129 </span>            : 
+<span class="lineNum">     130 </span><span class="lineNoCov">          0 :     rv = sec_pkcs7_init_content_info(cinfo, poolp, kind, detached);</span>
+<span class="lineNum">     131 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :         PORT_FreeArena(poolp, PR_FALSE);</span>
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     134 </span>            :     }
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span>            :     return cinfo;
+<span class="lineNum">     137 </span>            : }
+<span class="lineNum">     138 </span>            : 
+<span class="lineNum">     139 </span>            : /*
+<span class="lineNum">     140 </span>            :  * Add a signer to a PKCS7 thing, verifying the signature cert first.
+<span class="lineNum">     141 </span>            :  * Any error returns SECFailure.
+<span class="lineNum">     142 </span>            :  *
+<span class="lineNum">     143 </span>            :  * XXX Right now this only adds the *first* signer.  It fails if you try
+<span class="lineNum">     144 </span>            :  * to add a second one -- this needs to be fixed.
+<a name="145"><span class="lineNum">     145 </span>            :  */</a>
+<span class="lineNum">     146 </span>            : static SECStatus
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 : sec_pkcs7_add_signer(SEC_PKCS7ContentInfo *cinfo,</span>
+<span class="lineNum">     148 </span>            :                      CERTCertificate *cert,
+<span class="lineNum">     149 </span>            :                      SECCertUsage certusage,
+<span class="lineNum">     150 </span>            :                      CERTCertDBHandle *certdb,
+<span class="lineNum">     151 </span>            :                      SECOidTag digestalgtag,
+<span class="lineNum">     152 </span>            :                      SECItem *digestdata)
+<span class="lineNum">     153 </span>            : {
+<span class="lineNum">     154 </span>            :     SEC_PKCS7SignerInfo *signerinfo, **signerinfos, ***signerinfosp;
+<span class="lineNum">     155 </span>            :     SECAlgorithmID *digestalg, **digestalgs, ***digestalgsp;
+<span class="lineNum">     156 </span>            :     SECItem *digest, **digests, ***digestsp;
+<span class="lineNum">     157 </span>            :     SECItem *dummy;
+<span class="lineNum">     158 </span>            :     void *mark;
+<span class="lineNum">     159 </span>            :     SECStatus rv;
+<span class="lineNum">     160 </span>            :     SECOidTag kind;
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :     kind = SEC_PKCS7ContentType(cinfo);</span>
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :     switch (kind) {</span>
+<span class="lineNum">     164 </span>            :         case SEC_OID_PKCS7_SIGNED_DATA: {
+<span class="lineNum">     165 </span>            :             SEC_PKCS7SignedData *sdp;
+<span class="lineNum">     166 </span>            : 
+<span class="lineNum">     167 </span><span class="lineNoCov">          0 :             sdp = cinfo-&gt;content.signedData;</span>
+<span class="lineNum">     168 </span><span class="lineNoCov">          0 :             digestalgsp = &amp;(sdp-&gt;digestAlgorithms);</span>
+<span class="lineNum">     169 </span><span class="lineNoCov">          0 :             digestsp = &amp;(sdp-&gt;digests);</span>
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :             signerinfosp = &amp;(sdp-&gt;signerInfos);</span>
+<span class="lineNum">     171 </span><span class="lineNoCov">          0 :         } break;</span>
+<span class="lineNum">     172 </span>            :         case SEC_OID_PKCS7_SIGNED_ENVELOPED_DATA: {
+<span class="lineNum">     173 </span>            :             SEC_PKCS7SignedAndEnvelopedData *saedp;
+<span class="lineNum">     174 </span>            : 
+<span class="lineNum">     175 </span><span class="lineNoCov">          0 :             saedp = cinfo-&gt;content.signedAndEnvelopedData;</span>
+<span class="lineNum">     176 </span><span class="lineNoCov">          0 :             digestalgsp = &amp;(saedp-&gt;digestAlgorithms);</span>
+<span class="lineNum">     177 </span><span class="lineNoCov">          0 :             digestsp = &amp;(saedp-&gt;digests);</span>
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :             signerinfosp = &amp;(saedp-&gt;signerInfos);</span>
+<span class="lineNum">     179 </span><span class="lineNoCov">          0 :         } break;</span>
+<span class="lineNum">     180 </span>            :         default:
+<span class="lineNum">     181 </span>            :             return SECFailure; /* XXX set an error? */
+<span class="lineNum">     182 </span>            :     }
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span>            :     /*
+<span class="lineNum">     185 </span>            :      * XXX I think that CERT_VerifyCert should do this if *it* is passed
+<span class="lineNum">     186 </span>            :      * a NULL database.
+<span class="lineNum">     187 </span>            :      */
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :     if (certdb == NULL) {</span>
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 :         certdb = CERT_GetDefaultCertDB();</span>
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :         if (certdb == NULL)</span>
+<span class="lineNum">     191 </span>            :             return SECFailure; /* XXX set an error? */
+<span class="lineNum">     192 </span>            :     }
+<span class="lineNum">     193 </span>            : 
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 :     if (CERT_VerifyCert(certdb, cert, PR_TRUE, certusage, PR_Now(),</span>
+<span class="lineNum">     195 </span>            :                         cinfo-&gt;pwfn_arg, NULL) != SECSuccess) {
+<span class="lineNum">     196 </span>            :         /* XXX Did CERT_VerifyCert set an error? */
+<span class="lineNum">     197 </span>            :         return SECFailure;
+<span class="lineNum">     198 </span>            :     }
+<span class="lineNum">     199 </span>            : 
+<span class="lineNum">     200 </span>            :     /*
+<span class="lineNum">     201 </span>            :      * XXX This is the check that we do not already have a signer.
+<span class="lineNum">     202 </span>            :      * This is not what we really want -- we want to allow this
+<span class="lineNum">     203 </span>            :      * and *add* the new signer.
+<span class="lineNum">     204 </span>            :      */
+<span class="lineNum">     205 </span>            :     PORT_Assert(*signerinfosp == NULL &amp;&amp; *digestalgsp == NULL &amp;&amp; *digestsp == NULL);
+<span class="lineNum">     206 </span><span class="lineNoCov">          0 :     if (*signerinfosp != NULL || *digestalgsp != NULL || *digestsp != NULL)</span>
+<span class="lineNum">     207 </span>            :         return SECFailure;
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 :     mark = PORT_ArenaMark(cinfo-&gt;poolp);</span>
+<span class="lineNum">     210 </span>            : 
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 :     signerinfo = (SEC_PKCS7SignerInfo *)PORT_ArenaZAlloc(cinfo-&gt;poolp,</span>
+<span class="lineNum">     212 </span>            :                                                          sizeof(SEC_PKCS7SignerInfo));
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :     if (signerinfo == NULL) {</span>
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 :         PORT_ArenaRelease(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     216 </span>            :     }
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span><span class="lineNoCov">          0 :     dummy = SEC_ASN1EncodeInteger(cinfo-&gt;poolp, &amp;signerinfo-&gt;version,</span>
+<span class="lineNum">     219 </span>            :                                   SEC_PKCS7_SIGNER_INFO_VERSION);
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 :     if (dummy == NULL) {</span>
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :         PORT_ArenaRelease(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">     222 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     223 </span>            :     }
+<span class="lineNum">     224 </span>            :     PORT_Assert(dummy == &amp;signerinfo-&gt;version);
+<span class="lineNum">     225 </span>            : 
+<span class="lineNum">     226 </span><span class="lineNoCov">          0 :     signerinfo-&gt;cert = CERT_DupCertificate(cert);</span>
+<span class="lineNum">     227 </span><span class="lineNoCov">          0 :     if (signerinfo-&gt;cert == NULL) {</span>
+<span class="lineNum">     228 </span><span class="lineNoCov">          0 :         PORT_ArenaRelease(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">     229 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     230 </span>            :     }
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :     signerinfo-&gt;issuerAndSN = CERT_GetCertIssuerAndSN(cinfo-&gt;poolp, cert);</span>
+<span class="lineNum">     233 </span><span class="lineNoCov">          0 :     if (signerinfo-&gt;issuerAndSN == NULL) {</span>
+<span class="lineNum">     234 </span><span class="lineNoCov">          0 :         PORT_ArenaRelease(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     236 </span>            :     }
+<span class="lineNum">     237 </span>            : 
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :     rv = SECOID_SetAlgorithmID(cinfo-&gt;poolp, &amp;signerinfo-&gt;digestAlg,</span>
+<span class="lineNum">     239 </span>            :                                digestalgtag, NULL);
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :         PORT_ArenaRelease(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">     242 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     243 </span>            :     }
+<span class="lineNum">     244 </span>            : 
+<span class="lineNum">     245 </span>            :     /*
+<span class="lineNum">     246 </span>            :      * Okay, now signerinfo is all set.  We just need to put it and its
+<span class="lineNum">     247 </span>            :      * companions (another copy of the digest algorithm, and the digest
+<span class="lineNum">     248 </span>            :      * itself if given) into the main structure.
+<span class="lineNum">     249 </span>            :      *
+<span class="lineNum">     250 </span>            :      * XXX If we are handling more than one signer, the following code
+<span class="lineNum">     251 </span>            :      * needs to look through the digest algorithms already specified
+<span class="lineNum">     252 </span>            :      * and see if the same one is there already.  If it is, it does not
+<span class="lineNum">     253 </span>            :      * need to be added again.  Also, if it is there *and* the digest
+<span class="lineNum">     254 </span>            :      * is not null, then the digest given should match the digest already
+<span class="lineNum">     255 </span>            :      * specified -- if not, that is an error.  Finally, the new signerinfo
+<span class="lineNum">     256 </span>            :      * should be *added* to the set already found.
+<span class="lineNum">     257 </span>            :      */
+<span class="lineNum">     258 </span>            : 
+<span class="lineNum">     259 </span><span class="lineNoCov">          0 :     signerinfos = (SEC_PKCS7SignerInfo **)PORT_ArenaAlloc(cinfo-&gt;poolp,</span>
+<span class="lineNum">     260 </span>            :                                                           2 * sizeof(SEC_PKCS7SignerInfo *));
+<span class="lineNum">     261 </span><span class="lineNoCov">          0 :     if (signerinfos == NULL) {</span>
+<span class="lineNum">     262 </span><span class="lineNoCov">          0 :         PORT_ArenaRelease(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">     263 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     264 </span>            :     }
+<span class="lineNum">     265 </span><span class="lineNoCov">          0 :     signerinfos[0] = signerinfo;</span>
+<span class="lineNum">     266 </span><span class="lineNoCov">          0 :     signerinfos[1] = NULL;</span>
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span><span class="lineNoCov">          0 :     digestalg = PORT_ArenaZAlloc(cinfo-&gt;poolp, sizeof(SECAlgorithmID));</span>
+<span class="lineNum">     269 </span><span class="lineNoCov">          0 :     digestalgs = PORT_ArenaAlloc(cinfo-&gt;poolp, 2 * sizeof(SECAlgorithmID *));</span>
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 :     if (digestalg == NULL || digestalgs == NULL) {</span>
+<span class="lineNum">     271 </span><span class="lineNoCov">          0 :         PORT_ArenaRelease(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">     272 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     273 </span>            :     }
+<span class="lineNum">     274 </span><span class="lineNoCov">          0 :     rv = SECOID_SetAlgorithmID(cinfo-&gt;poolp, digestalg, digestalgtag, NULL);</span>
+<span class="lineNum">     275 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     276 </span><span class="lineNoCov">          0 :         PORT_ArenaRelease(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">     277 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     278 </span>            :     }
+<span class="lineNum">     279 </span><span class="lineNoCov">          0 :     digestalgs[0] = digestalg;</span>
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 :     digestalgs[1] = NULL;</span>
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 :     if (digestdata != NULL) {</span>
+<span class="lineNum">     283 </span><span class="lineNoCov">          0 :         digest = (SECItem *)PORT_ArenaAlloc(cinfo-&gt;poolp, sizeof(SECItem));</span>
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 :         digests = (SECItem **)PORT_ArenaAlloc(cinfo-&gt;poolp,</span>
+<span class="lineNum">     285 </span>            :                                               2 * sizeof(SECItem *));
+<span class="lineNum">     286 </span><span class="lineNoCov">          0 :         if (digest == NULL || digests == NULL) {</span>
+<span class="lineNum">     287 </span><span class="lineNoCov">          0 :             PORT_ArenaRelease(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">     289 </span>            :         }
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :         rv = SECITEM_CopyItem(cinfo-&gt;poolp, digest, digestdata);</span>
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     292 </span><span class="lineNoCov">          0 :             PORT_ArenaRelease(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">     293 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">     294 </span>            :         }
+<span class="lineNum">     295 </span><span class="lineNoCov">          0 :         digests[0] = digest;</span>
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :         digests[1] = NULL;</span>
+<span class="lineNum">     297 </span>            :     } else {
+<span class="lineNum">     298 </span>            :         digests = NULL;
+<span class="lineNum">     299 </span>            :     }
+<span class="lineNum">     300 </span>            : 
+<span class="lineNum">     301 </span><span class="lineNoCov">          0 :     *signerinfosp = signerinfos;</span>
+<span class="lineNum">     302 </span><span class="lineNoCov">          0 :     *digestalgsp = digestalgs;</span>
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 :     *digestsp = digests;</span>
+<span class="lineNum">     304 </span>            : 
+<span class="lineNum">     305 </span><span class="lineNoCov">          0 :     PORT_ArenaUnmark(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">     306 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     307 </span>            : }
+<span class="lineNum">     308 </span>            : 
+<span class="lineNum">     309 </span>            : /*
+<span class="lineNum">     310 </span>            :  * Helper function for creating an empty signedData.
+<a name="311"><span class="lineNum">     311 </span>            :  */</a>
+<span class="lineNum">     312 </span>            : static SEC_PKCS7ContentInfo *
+<span class="lineNum">     313 </span><span class="lineNoCov">          0 : sec_pkcs7_create_signed_data(SECKEYGetPasswordKey pwfn, void *pwfn_arg)</span>
+<span class="lineNum">     314 </span>            : {
+<span class="lineNum">     315 </span>            :     SEC_PKCS7ContentInfo *cinfo;
+<span class="lineNum">     316 </span>            :     SEC_PKCS7SignedData *sigd;
+<span class="lineNum">     317 </span>            :     SECStatus rv;
+<span class="lineNum">     318 </span>            : 
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :     cinfo = sec_pkcs7_create_content_info(SEC_OID_PKCS7_SIGNED_DATA, PR_FALSE,</span>
+<span class="lineNum">     320 </span>            :                                           pwfn, pwfn_arg);
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :     if (cinfo == NULL)</span>
+<span class="lineNum">     322 </span>            :         return NULL;
+<span class="lineNum">     323 </span>            : 
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 :     sigd = cinfo-&gt;content.signedData;</span>
+<span class="lineNum">     325 </span>            :     PORT_Assert(sigd != NULL);
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span>            :     /*
+<span class="lineNum">     328 </span>            :      * XXX Might we want to allow content types other than data?
+<span class="lineNum">     329 </span>            :      * If so, via what interface?
+<span class="lineNum">     330 </span>            :      */
+<span class="lineNum">     331 </span><span class="lineNoCov">          0 :     rv = sec_pkcs7_init_content_info(&amp;(sigd-&gt;contentInfo), cinfo-&gt;poolp,</span>
+<span class="lineNum">     332 </span>            :                                      SEC_OID_PKCS7_DATA, PR_TRUE);
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :         SEC_PKCS7DestroyContentInfo(cinfo);</span>
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     336 </span>            :     }
+<span class="lineNum">     337 </span>            : 
+<span class="lineNum">     338 </span>            :     return cinfo;
+<span class="lineNum">     339 </span>            : }
+<span class="lineNum">     340 </span>            : 
+<span class="lineNum">     341 </span>            : /*
+<span class="lineNum">     342 </span>            :  * Start a PKCS7 signing context.
+<span class="lineNum">     343 </span>            :  *
+<span class="lineNum">     344 </span>            :  * &quot;cert&quot; is the cert that will be used to sign the data.  It will be
+<span class="lineNum">     345 </span>            :  * checked for validity.
+<span class="lineNum">     346 </span>            :  *
+<span class="lineNum">     347 </span>            :  * &quot;certusage&quot; describes the signing usage (e.g. certUsageEmailSigner)
+<span class="lineNum">     348 </span>            :  * XXX Maybe SECCertUsage should be split so that our caller just says
+<span class="lineNum">     349 </span>            :  * &quot;email&quot; and *we* add the &quot;signing&quot; part -- otherwise our caller
+<span class="lineNum">     350 </span>            :  * could be lying about the usage; we do not want to allow encryption
+<span class="lineNum">     351 </span>            :  * certs for signing or vice versa.
+<span class="lineNum">     352 </span>            :  *
+<span class="lineNum">     353 </span>            :  * &quot;certdb&quot; is the cert database to use for verifying the cert.
+<span class="lineNum">     354 </span>            :  * It can be NULL if a default database is available (like in the client).
+<span class="lineNum">     355 </span>            :  * 
+<span class="lineNum">     356 </span>            :  * &quot;digestalg&quot; names the digest algorithm (e.g. SEC_OID_SHA1).
+<span class="lineNum">     357 </span>            :  *
+<span class="lineNum">     358 </span>            :  * &quot;digest&quot; is the actual digest of the data.  It must be provided in
+<span class="lineNum">     359 </span>            :  * the case of detached data or NULL if the content will be included.
+<span class="lineNum">     360 </span>            :  *
+<span class="lineNum">     361 </span>            :  * The return value can be passed to functions which add things to
+<span class="lineNum">     362 </span>            :  * it like attributes, then eventually to SEC_PKCS7Encode() or to
+<span class="lineNum">     363 </span>            :  * SEC_PKCS7EncoderStart() to create the encoded data, and finally to
+<span class="lineNum">     364 </span>            :  * SEC_PKCS7DestroyContentInfo().
+<span class="lineNum">     365 </span>            :  *
+<span class="lineNum">     366 </span>            :  * An error results in a return value of NULL and an error set.
+<span class="lineNum">     367 </span>            :  * (Retrieve specific errors via PORT_GetError()/XP_GetError().)
+<a name="368"><span class="lineNum">     368 </span>            :  */</a>
+<span class="lineNum">     369 </span>            : SEC_PKCS7ContentInfo *
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 : SEC_PKCS7CreateSignedData(CERTCertificate *cert,</span>
+<span class="lineNum">     371 </span>            :                           SECCertUsage certusage,
+<span class="lineNum">     372 </span>            :                           CERTCertDBHandle *certdb,
+<span class="lineNum">     373 </span>            :                           SECOidTag digestalg,
+<span class="lineNum">     374 </span>            :                           SECItem *digest,
+<span class="lineNum">     375 </span>            :                           SECKEYGetPasswordKey pwfn, void *pwfn_arg)
+<span class="lineNum">     376 </span>            : {
+<span class="lineNum">     377 </span>            :     SEC_PKCS7ContentInfo *cinfo;
+<span class="lineNum">     378 </span>            :     SECStatus rv;
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span><span class="lineNoCov">          0 :     cinfo = sec_pkcs7_create_signed_data(pwfn, pwfn_arg);</span>
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 :     if (cinfo == NULL)</span>
+<span class="lineNum">     382 </span>            :         return NULL;
+<span class="lineNum">     383 </span>            : 
+<span class="lineNum">     384 </span><span class="lineNoCov">          0 :     rv = sec_pkcs7_add_signer(cinfo, cert, certusage, certdb,</span>
+<span class="lineNum">     385 </span>            :                               digestalg, digest);
+<span class="lineNum">     386 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     387 </span><span class="lineNoCov">          0 :         SEC_PKCS7DestroyContentInfo(cinfo);</span>
+<span class="lineNum">     388 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     389 </span>            :     }
+<span class="lineNum">     390 </span>            : 
+<span class="lineNum">     391 </span>            :     return cinfo;
+<span class="lineNum">     392 </span>            : }
+<a name="393"><span class="lineNum">     393 </span>            : </a>
+<span class="lineNum">     394 </span>            : static SEC_PKCS7Attribute *
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 : sec_pkcs7_create_attribute(PLArenaPool *poolp, SECOidTag oidtag,</span>
+<span class="lineNum">     396 </span>            :                            SECItem *value, PRBool encoded)
+<span class="lineNum">     397 </span>            : {
+<span class="lineNum">     398 </span>            :     SEC_PKCS7Attribute *attr;
+<span class="lineNum">     399 </span>            :     SECItem **values;
+<span class="lineNum">     400 </span>            :     void *mark;
+<span class="lineNum">     401 </span>            : 
+<span class="lineNum">     402 </span>            :     PORT_Assert(poolp != NULL);
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :     mark = PORT_ArenaMark(poolp);</span>
+<span class="lineNum">     404 </span>            : 
+<span class="lineNum">     405 </span><span class="lineNoCov">          0 :     attr = (SEC_PKCS7Attribute *)PORT_ArenaAlloc(poolp,</span>
+<span class="lineNum">     406 </span>            :                                                  sizeof(SEC_PKCS7Attribute));
+<span class="lineNum">     407 </span><span class="lineNoCov">          0 :     if (attr == NULL)</span>
+<span class="lineNum">     408 </span>            :         goto loser;
+<span class="lineNum">     409 </span>            : 
+<span class="lineNum">     410 </span><span class="lineNoCov">          0 :     attr-&gt;typeTag = SECOID_FindOIDByTag(oidtag);</span>
+<span class="lineNum">     411 </span><span class="lineNoCov">          0 :     if (attr-&gt;typeTag == NULL)</span>
+<span class="lineNum">     412 </span>            :         goto loser;
+<span class="lineNum">     413 </span>            : 
+<span class="lineNum">     414 </span><span class="lineNoCov">          0 :     if (SECITEM_CopyItem(poolp, &amp;(attr-&gt;type),</span>
+<span class="lineNum">     415 </span><span class="lineNoCov">          0 :                          &amp;(attr-&gt;typeTag-&gt;oid)) != SECSuccess)</span>
+<span class="lineNum">     416 </span>            :         goto loser;
+<span class="lineNum">     417 </span>            : 
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 :     values = (SECItem **)PORT_ArenaAlloc(poolp, 2 * sizeof(SECItem *));</span>
+<span class="lineNum">     419 </span><span class="lineNoCov">          0 :     if (values == NULL)</span>
+<span class="lineNum">     420 </span>            :         goto loser;
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span><span class="lineNoCov">          0 :     if (value != NULL) {</span>
+<span class="lineNum">     423 </span>            :         SECItem *copy;
+<span class="lineNum">     424 </span>            : 
+<span class="lineNum">     425 </span><span class="lineNoCov">          0 :         copy = (SECItem *)PORT_ArenaAlloc(poolp, sizeof(SECItem));</span>
+<span class="lineNum">     426 </span><span class="lineNoCov">          0 :         if (copy == NULL)</span>
+<span class="lineNum">     427 </span>            :             goto loser;
+<span class="lineNum">     428 </span>            : 
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 :         if (SECITEM_CopyItem(poolp, copy, value) != SECSuccess)</span>
+<span class="lineNum">     430 </span>            :             goto loser;
+<span class="lineNum">     431 </span>            : 
+<span class="lineNum">     432 </span>            :         value = copy;
+<span class="lineNum">     433 </span>            :     }
+<span class="lineNum">     434 </span>            : 
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :     values[0] = value;</span>
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :     values[1] = NULL;</span>
+<span class="lineNum">     437 </span><span class="lineNoCov">          0 :     attr-&gt;values = values;</span>
+<span class="lineNum">     438 </span><span class="lineNoCov">          0 :     attr-&gt;encoded = encoded;</span>
+<span class="lineNum">     439 </span>            : 
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :     PORT_ArenaUnmark(poolp, mark);</span>
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :     return attr;</span>
+<span class="lineNum">     442 </span>            : 
+<span class="lineNum">     443 </span>            : loser:
+<span class="lineNum">     444 </span>            :     PORT_Assert(mark != NULL);
+<span class="lineNum">     445 </span><span class="lineNoCov">          0 :     PORT_ArenaRelease(poolp, mark);</span>
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :     return NULL;</span>
+<span class="lineNum">     447 </span>            : }
+<a name="448"><span class="lineNum">     448 </span>            : </a>
+<span class="lineNum">     449 </span>            : static SECStatus
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 : sec_pkcs7_add_attribute(SEC_PKCS7ContentInfo *cinfo,</span>
+<span class="lineNum">     451 </span>            :                         SEC_PKCS7Attribute ***attrsp,
+<span class="lineNum">     452 </span>            :                         SEC_PKCS7Attribute *attr)
+<span class="lineNum">     453 </span>            : {
+<span class="lineNum">     454 </span>            :     SEC_PKCS7Attribute **attrs;
+<span class="lineNum">     455 </span>            :     SECItem *ct_value;
+<span class="lineNum">     456 </span>            :     void *mark;
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span>            :     PORT_Assert(SEC_PKCS7ContentType(cinfo) == SEC_OID_PKCS7_SIGNED_DATA);
+<span class="lineNum">     459 </span><span class="lineNoCov">          0 :     if (SEC_PKCS7ContentType(cinfo) != SEC_OID_PKCS7_SIGNED_DATA)</span>
+<span class="lineNum">     460 </span>            :         return SECFailure;
+<span class="lineNum">     461 </span>            : 
+<span class="lineNum">     462 </span><span class="lineNoCov">          0 :     attrs = *attrsp;</span>
+<span class="lineNum">     463 </span><span class="lineNoCov">          0 :     if (attrs != NULL) {</span>
+<span class="lineNum">     464 </span>            :         int count;
+<span class="lineNum">     465 </span>            : 
+<span class="lineNum">     466 </span>            :         /*
+<span class="lineNum">     467 </span>            :          * We already have some attributes, and just need to add this
+<span class="lineNum">     468 </span>            :          * new one.
+<span class="lineNum">     469 </span>            :          */
+<span class="lineNum">     470 </span>            : 
+<span class="lineNum">     471 </span>            :         /*
+<span class="lineNum">     472 </span>            :          * We should already have the *required* attributes, which were
+<span class="lineNum">     473 </span>            :          * created/added at the same time the first attribute was added.
+<span class="lineNum">     474 </span>            :          */
+<span class="lineNum">     475 </span>            :         PORT_Assert(sec_PKCS7FindAttribute(attrs,
+<span class="lineNum">     476 </span>            :                                            SEC_OID_PKCS9_CONTENT_TYPE,
+<span class="lineNum">     477 </span>            :                                            PR_FALSE) != NULL);
+<span class="lineNum">     478 </span>            :         PORT_Assert(sec_PKCS7FindAttribute(attrs,
+<span class="lineNum">     479 </span>            :                                            SEC_OID_PKCS9_MESSAGE_DIGEST,
+<span class="lineNum">     480 </span>            :                                            PR_FALSE) != NULL);
+<span class="lineNum">     481 </span>            : 
+<span class="lineNum">     482 </span><span class="lineNoCov">          0 :         for (count = 0; attrs[count] != NULL; count++)</span>
+<span class="lineNum">     483 </span>            :             ;
+<span class="lineNum">     484 </span><span class="lineNoCov">          0 :         attrs = (SEC_PKCS7Attribute **)PORT_ArenaGrow(cinfo-&gt;poolp, attrs,</span>
+<span class="lineNum">     485 </span><span class="lineNoCov">          0 :                                                       (count + 1) * sizeof(SEC_PKCS7Attribute *),</span>
+<span class="lineNum">     486 </span><span class="lineNoCov">          0 :                                                       (count + 2) * sizeof(SEC_PKCS7Attribute *));</span>
+<span class="lineNum">     487 </span><span class="lineNoCov">          0 :         if (attrs == NULL)</span>
+<span class="lineNum">     488 </span>            :             return SECFailure;
+<span class="lineNum">     489 </span>            : 
+<span class="lineNum">     490 </span><span class="lineNoCov">          0 :         attrs[count] = attr;</span>
+<span class="lineNum">     491 </span><span class="lineNoCov">          0 :         attrs[count + 1] = NULL;</span>
+<span class="lineNum">     492 </span><span class="lineNoCov">          0 :         *attrsp = attrs;</span>
+<span class="lineNum">     493 </span>            : 
+<span class="lineNum">     494 </span><span class="lineNoCov">          0 :         return SECSuccess;</span>
+<span class="lineNum">     495 </span>            :     }
+<span class="lineNum">     496 </span>            : 
+<span class="lineNum">     497 </span>            :     /*
+<span class="lineNum">     498 </span>            :      * This is the first time an attribute is going in.
+<span class="lineNum">     499 </span>            :      * We need to create and add the required attributes, and then
+<span class="lineNum">     500 </span>            :      * we will also add in the one our caller gave us.
+<span class="lineNum">     501 </span>            :      */
+<span class="lineNum">     502 </span>            : 
+<span class="lineNum">     503 </span>            :     /*
+<span class="lineNum">     504 </span>            :      * There are 2 required attributes, plus the one our caller wants
+<span class="lineNum">     505 </span>            :      * to add, plus we always end with a NULL one.  Thus, four slots.
+<span class="lineNum">     506 </span>            :      */
+<span class="lineNum">     507 </span><span class="lineNoCov">          0 :     attrs = (SEC_PKCS7Attribute **)PORT_ArenaAlloc(cinfo-&gt;poolp,</span>
+<span class="lineNum">     508 </span>            :                                                    4 * sizeof(SEC_PKCS7Attribute *));
+<span class="lineNum">     509 </span><span class="lineNoCov">          0 :     if (attrs == NULL)</span>
+<span class="lineNum">     510 </span>            :         return SECFailure;
+<span class="lineNum">     511 </span>            : 
+<span class="lineNum">     512 </span><span class="lineNoCov">          0 :     mark = PORT_ArenaMark(cinfo-&gt;poolp);</span>
+<span class="lineNum">     513 </span>            : 
+<span class="lineNum">     514 </span>            :     /*
+<span class="lineNum">     515 </span>            :      * First required attribute is the content type of the data
+<span class="lineNum">     516 </span>            :      * being signed.
+<span class="lineNum">     517 </span>            :      */
+<span class="lineNum">     518 </span><span class="lineNoCov">          0 :     ct_value = &amp;(cinfo-&gt;content.signedData-&gt;contentInfo.contentType);</span>
+<span class="lineNum">     519 </span><span class="lineNoCov">          0 :     attrs[0] = sec_pkcs7_create_attribute(cinfo-&gt;poolp,</span>
+<span class="lineNum">     520 </span>            :                                           SEC_OID_PKCS9_CONTENT_TYPE,
+<span class="lineNum">     521 </span>            :                                           ct_value, PR_FALSE);
+<span class="lineNum">     522 </span>            :     /*
+<span class="lineNum">     523 </span>            :      * Second required attribute is the message digest of the data
+<span class="lineNum">     524 </span>            :      * being signed; we leave the value NULL for now (just create
+<span class="lineNum">     525 </span>            :      * the place for it to go), and the encoder will fill it in later.
+<span class="lineNum">     526 </span>            :      */
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :     attrs[1] = sec_pkcs7_create_attribute(cinfo-&gt;poolp,</span>
+<span class="lineNum">     528 </span>            :                                           SEC_OID_PKCS9_MESSAGE_DIGEST,
+<span class="lineNum">     529 </span>            :                                           NULL, PR_FALSE);
+<span class="lineNum">     530 </span><span class="lineNoCov">          0 :     if (attrs[0] == NULL || attrs[1] == NULL) {</span>
+<span class="lineNum">     531 </span><span class="lineNoCov">          0 :         PORT_ArenaRelease(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">     532 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     533 </span>            :     }
+<span class="lineNum">     534 </span>            : 
+<span class="lineNum">     535 </span><span class="lineNoCov">          0 :     attrs[2] = attr;</span>
+<span class="lineNum">     536 </span><span class="lineNoCov">          0 :     attrs[3] = NULL;</span>
+<span class="lineNum">     537 </span><span class="lineNoCov">          0 :     *attrsp = attrs;</span>
+<span class="lineNum">     538 </span>            : 
+<span class="lineNum">     539 </span><span class="lineNoCov">          0 :     PORT_ArenaUnmark(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">     540 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     541 </span>            : }
+<span class="lineNum">     542 </span>            : 
+<span class="lineNum">     543 </span>            : /*
+<span class="lineNum">     544 </span>            :  * Add the signing time to the authenticated (i.e. signed) attributes
+<span class="lineNum">     545 </span>            :  * of &quot;cinfo&quot;.  This is expected to be included in outgoing signed
+<span class="lineNum">     546 </span>            :  * messages for email (S/MIME) but is likely useful in other situations.
+<span class="lineNum">     547 </span>            :  *
+<span class="lineNum">     548 </span>            :  * This should only be added once; a second call will either do
+<span class="lineNum">     549 </span>            :  * nothing or replace an old signing time with a newer one.
+<span class="lineNum">     550 </span>            :  *
+<span class="lineNum">     551 </span>            :  * XXX This will probably just shove the current time into &quot;cinfo&quot;
+<span class="lineNum">     552 </span>            :  * but it will not actually get signed until the entire item is
+<span class="lineNum">     553 </span>            :  * processed for encoding.  Is this (expected to be small) delay okay?
+<span class="lineNum">     554 </span>            :  *
+<span class="lineNum">     555 </span>            :  * &quot;cinfo&quot; should be of type signedData (the only kind of pkcs7 data
+<span class="lineNum">     556 </span>            :  * that is allowed authenticated attributes); SECFailure will be returned
+<span class="lineNum">     557 </span>            :  * if it is not.
+<a name="558"><span class="lineNum">     558 </span>            :  */</a>
+<span class="lineNum">     559 </span>            : SECStatus
+<span class="lineNum">     560 </span><span class="lineNoCov">          0 : SEC_PKCS7AddSigningTime(SEC_PKCS7ContentInfo *cinfo)</span>
+<span class="lineNum">     561 </span>            : {
+<span class="lineNum">     562 </span>            :     SEC_PKCS7SignerInfo **signerinfos;
+<span class="lineNum">     563 </span>            :     SEC_PKCS7Attribute *attr;
+<span class="lineNum">     564 </span>            :     SECItem stime;
+<span class="lineNum">     565 </span>            :     SECStatus rv;
+<span class="lineNum">     566 </span>            :     int si;
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span>            :     PORT_Assert(SEC_PKCS7ContentType(cinfo) == SEC_OID_PKCS7_SIGNED_DATA);
+<span class="lineNum">     569 </span><span class="lineNoCov">          0 :     if (SEC_PKCS7ContentType(cinfo) != SEC_OID_PKCS7_SIGNED_DATA)</span>
+<span class="lineNum">     570 </span>            :         return SECFailure;
+<span class="lineNum">     571 </span>            : 
+<span class="lineNum">     572 </span><span class="lineNoCov">          0 :     signerinfos = cinfo-&gt;content.signedData-&gt;signerInfos;</span>
+<span class="lineNum">     573 </span>            : 
+<span class="lineNum">     574 </span>            :     /* There has to be a signer, or it makes no sense. */
+<span class="lineNum">     575 </span><span class="lineNoCov">          0 :     if (signerinfos == NULL || signerinfos[0] == NULL)</span>
+<span class="lineNum">     576 </span>            :         return SECFailure;
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span><span class="lineNoCov">          0 :     rv = DER_EncodeTimeChoice(NULL, &amp;stime, PR_Now());</span>
+<span class="lineNum">     579 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess)</span>
+<span class="lineNum">     580 </span>            :         return rv;
+<span class="lineNum">     581 </span>            : 
+<span class="lineNum">     582 </span><span class="lineNoCov">          0 :     attr = sec_pkcs7_create_attribute(cinfo-&gt;poolp,</span>
+<span class="lineNum">     583 </span>            :                                       SEC_OID_PKCS9_SIGNING_TIME,
+<span class="lineNum">     584 </span>            :                                       &amp;stime, PR_FALSE);
+<span class="lineNum">     585 </span><span class="lineNoCov">          0 :     SECITEM_FreeItem(&amp;stime, PR_FALSE);</span>
+<span class="lineNum">     586 </span>            : 
+<span class="lineNum">     587 </span><span class="lineNoCov">          0 :     if (attr == NULL)</span>
+<span class="lineNum">     588 </span>            :         return SECFailure;
+<span class="lineNum">     589 </span>            : 
+<span class="lineNum">     590 </span>            :     rv = SECSuccess;
+<span class="lineNum">     591 </span><span class="lineNoCov">          0 :     for (si = 0; signerinfos[si] != NULL; si++) {</span>
+<span class="lineNum">     592 </span>            :         SEC_PKCS7Attribute *oattr;
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span><span class="lineNoCov">          0 :         oattr = sec_PKCS7FindAttribute(signerinfos[si]-&gt;authAttr,</span>
+<span class="lineNum">     595 </span>            :                                        SEC_OID_PKCS9_SIGNING_TIME, PR_FALSE);
+<span class="lineNum">     596 </span>            :         PORT_Assert(oattr == NULL);
+<span class="lineNum">     597 </span><span class="lineNoCov">          0 :         if (oattr != NULL)</span>
+<span class="lineNum">     598 </span><span class="lineNoCov">          0 :             continue; /* XXX or would it be better to replace it? */</span>
+<span class="lineNum">     599 </span>            : 
+<span class="lineNum">     600 </span><span class="lineNoCov">          0 :         rv = sec_pkcs7_add_attribute(cinfo, &amp;(signerinfos[si]-&gt;authAttr),</span>
+<span class="lineNum">     601 </span>            :                                      attr);
+<span class="lineNum">     602 </span><span class="lineNoCov">          0 :         if (rv != SECSuccess)</span>
+<span class="lineNum">     603 </span>            :             break; /* could try to continue, but may as well give up now */
+<span class="lineNum">     604 </span>            :     }
+<span class="lineNum">     605 </span>            : 
+<span class="lineNum">     606 </span><span class="lineNoCov">          0 :     return rv;</span>
+<span class="lineNum">     607 </span>            : }
+<span class="lineNum">     608 </span>            : 
+<span class="lineNum">     609 </span>            : /*
+<span class="lineNum">     610 </span>            :  * Add the specified attribute to the authenticated (i.e. signed) attributes
+<span class="lineNum">     611 </span>            :  * of &quot;cinfo&quot; -- &quot;oidtag&quot; describes the attribute and &quot;value&quot; is the
+<span class="lineNum">     612 </span>            :  * value to be associated with it.  NOTE! &quot;value&quot; must already be encoded;
+<span class="lineNum">     613 </span>            :  * no interpretation of &quot;oidtag&quot; is done.  Also, it is assumed that this
+<span class="lineNum">     614 </span>            :  * signedData has only one signer -- if we ever need to add attributes
+<span class="lineNum">     615 </span>            :  * when there is more than one signature, we need a way to specify *which*
+<span class="lineNum">     616 </span>            :  * signature should get the attribute.
+<span class="lineNum">     617 </span>            :  *
+<span class="lineNum">     618 </span>            :  * XXX Technically, a signed attribute can have multiple values; if/when
+<span class="lineNum">     619 </span>            :  * we ever need to support an attribute which takes multiple values, we
+<span class="lineNum">     620 </span>            :  * either need to change this interface or create an AddSignedAttributeValue
+<span class="lineNum">     621 </span>            :  * which can be called subsequently, and would then append a value.
+<span class="lineNum">     622 </span>            :  *
+<span class="lineNum">     623 </span>            :  * &quot;cinfo&quot; should be of type signedData (the only kind of pkcs7 data
+<span class="lineNum">     624 </span>            :  * that is allowed authenticated attributes); SECFailure will be returned
+<span class="lineNum">     625 </span>            :  * if it is not.
+<a name="626"><span class="lineNum">     626 </span>            :  */</a>
+<span class="lineNum">     627 </span>            : SECStatus
+<span class="lineNum">     628 </span><span class="lineNoCov">          0 : SEC_PKCS7AddSignedAttribute(SEC_PKCS7ContentInfo *cinfo,</span>
+<span class="lineNum">     629 </span>            :                             SECOidTag oidtag,
+<span class="lineNum">     630 </span>            :                             SECItem *value)
+<span class="lineNum">     631 </span>            : {
+<span class="lineNum">     632 </span>            :     SEC_PKCS7SignerInfo **signerinfos;
+<span class="lineNum">     633 </span>            :     SEC_PKCS7Attribute *attr;
+<span class="lineNum">     634 </span>            : 
+<span class="lineNum">     635 </span>            :     PORT_Assert(SEC_PKCS7ContentType(cinfo) == SEC_OID_PKCS7_SIGNED_DATA);
+<span class="lineNum">     636 </span><span class="lineNoCov">          0 :     if (SEC_PKCS7ContentType(cinfo) != SEC_OID_PKCS7_SIGNED_DATA)</span>
+<span class="lineNum">     637 </span>            :         return SECFailure;
+<span class="lineNum">     638 </span>            : 
+<span class="lineNum">     639 </span><span class="lineNoCov">          0 :     signerinfos = cinfo-&gt;content.signedData-&gt;signerInfos;</span>
+<span class="lineNum">     640 </span>            : 
+<span class="lineNum">     641 </span>            :     /*
+<span class="lineNum">     642 </span>            :      * No signature or more than one means no deal.
+<span class="lineNum">     643 </span>            :      */
+<span class="lineNum">     644 </span><span class="lineNoCov">          0 :     if (signerinfos == NULL || signerinfos[0] == NULL || signerinfos[1] != NULL)</span>
+<span class="lineNum">     645 </span>            :         return SECFailure;
+<span class="lineNum">     646 </span>            : 
+<span class="lineNum">     647 </span><span class="lineNoCov">          0 :     attr = sec_pkcs7_create_attribute(cinfo-&gt;poolp, oidtag, value, PR_TRUE);</span>
+<span class="lineNum">     648 </span><span class="lineNoCov">          0 :     if (attr == NULL)</span>
+<span class="lineNum">     649 </span>            :         return SECFailure;
+<span class="lineNum">     650 </span>            : 
+<span class="lineNum">     651 </span><span class="lineNoCov">          0 :     return sec_pkcs7_add_attribute(cinfo, &amp;(signerinfos[0]-&gt;authAttr), attr);</span>
+<span class="lineNum">     652 </span>            : }
+<span class="lineNum">     653 </span>            : 
+<span class="lineNum">     654 </span>            : /*
+<span class="lineNum">     655 </span>            :  * Mark that the signer certificates and their issuing chain should
+<span class="lineNum">     656 </span>            :  * be included in the encoded data.  This is expected to be used
+<span class="lineNum">     657 </span>            :  * in outgoing signed messages for email (S/MIME).
+<span class="lineNum">     658 </span>            :  *
+<span class="lineNum">     659 </span>            :  * &quot;certdb&quot; is the cert database to use for finding the chain.
+<span class="lineNum">     660 </span>            :  * It can be NULL, meaning use the default database.
+<span class="lineNum">     661 </span>            :  *
+<span class="lineNum">     662 </span>            :  * &quot;cinfo&quot; should be of type signedData or signedAndEnvelopedData;
+<span class="lineNum">     663 </span>            :  * SECFailure will be returned if it is not.
+<a name="664"><span class="lineNum">     664 </span>            :  */</a>
+<span class="lineNum">     665 </span>            : SECStatus
+<span class="lineNum">     666 </span><span class="lineNoCov">          0 : SEC_PKCS7IncludeCertChain(SEC_PKCS7ContentInfo *cinfo,</span>
+<span class="lineNum">     667 </span>            :                           CERTCertDBHandle *certdb)
+<span class="lineNum">     668 </span>            : {
+<span class="lineNum">     669 </span>            :     SECOidTag kind;
+<span class="lineNum">     670 </span>            :     SEC_PKCS7SignerInfo *signerinfo, **signerinfos;
+<span class="lineNum">     671 </span>            : 
+<span class="lineNum">     672 </span><span class="lineNoCov">          0 :     kind = SEC_PKCS7ContentType(cinfo);</span>
+<span class="lineNum">     673 </span><span class="lineNoCov">          0 :     switch (kind) {</span>
+<span class="lineNum">     674 </span>            :         case SEC_OID_PKCS7_SIGNED_DATA:
+<span class="lineNum">     675 </span><span class="lineNoCov">          0 :             signerinfos = cinfo-&gt;content.signedData-&gt;signerInfos;</span>
+<span class="lineNum">     676 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     677 </span>            :         case SEC_OID_PKCS7_SIGNED_ENVELOPED_DATA:
+<span class="lineNum">     678 </span><span class="lineNoCov">          0 :             signerinfos = cinfo-&gt;content.signedAndEnvelopedData-&gt;signerInfos;</span>
+<span class="lineNum">     679 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     680 </span>            :         default:
+<span class="lineNum">     681 </span>            :             return SECFailure; /* XXX set an error? */
+<span class="lineNum">     682 </span>            :     }
+<span class="lineNum">     683 </span>            : 
+<span class="lineNum">     684 </span><span class="lineNoCov">          0 :     if (signerinfos == NULL) /* no signer, no certs? */</span>
+<span class="lineNum">     685 </span>            :         return SECFailure;   /* XXX set an error? */
+<span class="lineNum">     686 </span>            : 
+<span class="lineNum">     687 </span><span class="lineNoCov">          0 :     if (certdb == NULL) {</span>
+<span class="lineNum">     688 </span><span class="lineNoCov">          0 :         certdb = CERT_GetDefaultCertDB();</span>
+<span class="lineNum">     689 </span><span class="lineNoCov">          0 :         if (certdb == NULL) {</span>
+<span class="lineNum">     690 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_BAD_DATABASE);</span>
+<span class="lineNum">     691 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">     692 </span>            :         }
+<span class="lineNum">     693 </span>            :     }
+<span class="lineNum">     694 </span>            : 
+<span class="lineNum">     695 </span>            :     /* XXX Should it be an error if we find no signerinfo or no certs? */
+<span class="lineNum">     696 </span><span class="lineNoCov">          0 :     while ((signerinfo = *signerinfos++) != NULL) {</span>
+<span class="lineNum">     697 </span><span class="lineNoCov">          0 :         if (signerinfo-&gt;cert != NULL)</span>
+<span class="lineNum">     698 </span>            :             /* get the cert chain.  don't send the root to avoid contamination
+<span class="lineNum">     699 </span>            :              * of old clients with a new root that they don't trust
+<span class="lineNum">     700 </span>            :              */
+<span class="lineNum">     701 </span><span class="lineNoCov">          0 :             signerinfo-&gt;certList = CERT_CertChainFromCert(signerinfo-&gt;cert,</span>
+<span class="lineNum">     702 </span>            :                                                           certUsageEmailSigner,
+<span class="lineNum">     703 </span>            :                                                           PR_FALSE);
+<span class="lineNum">     704 </span>            :     }
+<span class="lineNum">     705 </span>            : 
+<span class="lineNum">     706 </span>            :     return SECSuccess;
+<span class="lineNum">     707 </span>            : }
+<span class="lineNum">     708 </span>            : 
+<span class="lineNum">     709 </span>            : /*
+<span class="lineNum">     710 </span>            :  * Helper function to add a certificate chain for inclusion in the
+<span class="lineNum">     711 </span>            :  * bag of certificates in a signedData.
+<a name="712"><span class="lineNum">     712 </span>            :  */</a>
+<span class="lineNum">     713 </span>            : static SECStatus
+<span class="lineNum">     714 </span><span class="lineNoCov">          0 : sec_pkcs7_add_cert_chain(SEC_PKCS7ContentInfo *cinfo,</span>
+<span class="lineNum">     715 </span>            :                          CERTCertificate *cert,
+<span class="lineNum">     716 </span>            :                          CERTCertDBHandle *certdb)
+<span class="lineNum">     717 </span>            : {
+<span class="lineNum">     718 </span>            :     SECOidTag kind;
+<span class="lineNum">     719 </span>            :     CERTCertificateList *certlist, **certlists, ***certlistsp;
+<span class="lineNum">     720 </span>            :     int count;
+<span class="lineNum">     721 </span>            : 
+<span class="lineNum">     722 </span><span class="lineNoCov">          0 :     kind = SEC_PKCS7ContentType(cinfo);</span>
+<span class="lineNum">     723 </span><span class="lineNoCov">          0 :     switch (kind) {</span>
+<span class="lineNum">     724 </span>            :         case SEC_OID_PKCS7_SIGNED_DATA: {
+<span class="lineNum">     725 </span>            :             SEC_PKCS7SignedData *sdp;
+<span class="lineNum">     726 </span>            : 
+<span class="lineNum">     727 </span><span class="lineNoCov">          0 :             sdp = cinfo-&gt;content.signedData;</span>
+<span class="lineNum">     728 </span><span class="lineNoCov">          0 :             certlistsp = &amp;(sdp-&gt;certLists);</span>
+<span class="lineNum">     729 </span><span class="lineNoCov">          0 :         } break;</span>
+<span class="lineNum">     730 </span>            :         case SEC_OID_PKCS7_SIGNED_ENVELOPED_DATA: {
+<span class="lineNum">     731 </span>            :             SEC_PKCS7SignedAndEnvelopedData *saedp;
+<span class="lineNum">     732 </span>            : 
+<span class="lineNum">     733 </span><span class="lineNoCov">          0 :             saedp = cinfo-&gt;content.signedAndEnvelopedData;</span>
+<span class="lineNum">     734 </span><span class="lineNoCov">          0 :             certlistsp = &amp;(saedp-&gt;certLists);</span>
+<span class="lineNum">     735 </span><span class="lineNoCov">          0 :         } break;</span>
+<span class="lineNum">     736 </span>            :         default:
+<span class="lineNum">     737 </span>            :             return SECFailure; /* XXX set an error? */
+<span class="lineNum">     738 </span>            :     }
+<span class="lineNum">     739 </span>            : 
+<span class="lineNum">     740 </span><span class="lineNoCov">          0 :     if (certdb == NULL) {</span>
+<span class="lineNum">     741 </span><span class="lineNoCov">          0 :         certdb = CERT_GetDefaultCertDB();</span>
+<span class="lineNum">     742 </span><span class="lineNoCov">          0 :         if (certdb == NULL) {</span>
+<span class="lineNum">     743 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_BAD_DATABASE);</span>
+<span class="lineNum">     744 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">     745 </span>            :         }
+<span class="lineNum">     746 </span>            :     }
+<span class="lineNum">     747 </span>            : 
+<span class="lineNum">     748 </span><span class="lineNoCov">          0 :     certlist = CERT_CertChainFromCert(cert, certUsageEmailSigner, PR_FALSE);</span>
+<span class="lineNum">     749 </span><span class="lineNoCov">          0 :     if (certlist == NULL)</span>
+<span class="lineNum">     750 </span>            :         return SECFailure;
+<span class="lineNum">     751 </span>            : 
+<span class="lineNum">     752 </span><span class="lineNoCov">          0 :     certlists = *certlistsp;</span>
+<span class="lineNum">     753 </span><span class="lineNoCov">          0 :     if (certlists == NULL) {</span>
+<span class="lineNum">     754 </span><span class="lineNoCov">          0 :         count = 0;</span>
+<span class="lineNum">     755 </span><span class="lineNoCov">          0 :         certlists = (CERTCertificateList **)PORT_ArenaAlloc(cinfo-&gt;poolp,</span>
+<span class="lineNum">     756 </span>            :                                                             2 * sizeof(CERTCertificateList *));
+<span class="lineNum">     757 </span>            :     } else {
+<span class="lineNum">     758 </span><span class="lineNoCov">          0 :         for (count = 0; certlists[count] != NULL; count++)</span>
+<span class="lineNum">     759 </span>            :             ;
+<span class="lineNum">     760 </span>            :         PORT_Assert(count); /* should be at least one already */
+<span class="lineNum">     761 </span><span class="lineNoCov">          0 :         certlists = (CERTCertificateList **)PORT_ArenaGrow(cinfo-&gt;poolp,</span>
+<span class="lineNum">     762 </span>            :                                                            certlists,
+<span class="lineNum">     763 </span><span class="lineNoCov">          0 :                                                            (count + 1) * sizeof(CERTCertificateList *),</span>
+<span class="lineNum">     764 </span><span class="lineNoCov">          0 :                                                            (count + 2) * sizeof(CERTCertificateList *));</span>
+<span class="lineNum">     765 </span>            :     }
+<span class="lineNum">     766 </span>            : 
+<span class="lineNum">     767 </span><span class="lineNoCov">          0 :     if (certlists == NULL) {</span>
+<span class="lineNum">     768 </span><span class="lineNoCov">          0 :         CERT_DestroyCertificateList(certlist);</span>
+<span class="lineNum">     769 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     770 </span>            :     }
+<span class="lineNum">     771 </span>            : 
+<span class="lineNum">     772 </span><span class="lineNoCov">          0 :     certlists[count] = certlist;</span>
+<span class="lineNum">     773 </span><span class="lineNoCov">          0 :     certlists[count + 1] = NULL;</span>
+<span class="lineNum">     774 </span>            : 
+<span class="lineNum">     775 </span><span class="lineNoCov">          0 :     *certlistsp = certlists;</span>
+<span class="lineNum">     776 </span>            : 
+<span class="lineNum">     777 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     778 </span>            : }
+<span class="lineNum">     779 </span>            : 
+<span class="lineNum">     780 </span>            : /*
+<span class="lineNum">     781 </span>            :  * Helper function to add a certificate for inclusion in the bag of
+<span class="lineNum">     782 </span>            :  * certificates in a signedData.
+<a name="783"><span class="lineNum">     783 </span>            :  */</a>
+<span class="lineNum">     784 </span>            : static SECStatus
+<span class="lineNum">     785 </span><span class="lineNoCov">          0 : sec_pkcs7_add_certificate(SEC_PKCS7ContentInfo *cinfo,</span>
+<span class="lineNum">     786 </span>            :                           CERTCertificate *cert)
+<span class="lineNum">     787 </span>            : {
+<span class="lineNum">     788 </span>            :     SECOidTag kind;
+<span class="lineNum">     789 </span>            :     CERTCertificate **certs, ***certsp;
+<span class="lineNum">     790 </span>            :     int count;
+<span class="lineNum">     791 </span>            : 
+<span class="lineNum">     792 </span><span class="lineNoCov">          0 :     kind = SEC_PKCS7ContentType(cinfo);</span>
+<span class="lineNum">     793 </span><span class="lineNoCov">          0 :     switch (kind) {</span>
+<span class="lineNum">     794 </span>            :         case SEC_OID_PKCS7_SIGNED_DATA: {
+<span class="lineNum">     795 </span>            :             SEC_PKCS7SignedData *sdp;
+<span class="lineNum">     796 </span>            : 
+<span class="lineNum">     797 </span><span class="lineNoCov">          0 :             sdp = cinfo-&gt;content.signedData;</span>
+<span class="lineNum">     798 </span><span class="lineNoCov">          0 :             certsp = &amp;(sdp-&gt;certs);</span>
+<span class="lineNum">     799 </span><span class="lineNoCov">          0 :         } break;</span>
+<span class="lineNum">     800 </span>            :         case SEC_OID_PKCS7_SIGNED_ENVELOPED_DATA: {
+<span class="lineNum">     801 </span>            :             SEC_PKCS7SignedAndEnvelopedData *saedp;
+<span class="lineNum">     802 </span>            : 
+<span class="lineNum">     803 </span><span class="lineNoCov">          0 :             saedp = cinfo-&gt;content.signedAndEnvelopedData;</span>
+<span class="lineNum">     804 </span><span class="lineNoCov">          0 :             certsp = &amp;(saedp-&gt;certs);</span>
+<span class="lineNum">     805 </span><span class="lineNoCov">          0 :         } break;</span>
+<span class="lineNum">     806 </span>            :         default:
+<span class="lineNum">     807 </span>            :             return SECFailure; /* XXX set an error? */
+<span class="lineNum">     808 </span>            :     }
+<span class="lineNum">     809 </span>            : 
+<span class="lineNum">     810 </span><span class="lineNoCov">          0 :     cert = CERT_DupCertificate(cert);</span>
+<span class="lineNum">     811 </span><span class="lineNoCov">          0 :     if (cert == NULL)</span>
+<span class="lineNum">     812 </span>            :         return SECFailure;
+<span class="lineNum">     813 </span>            : 
+<span class="lineNum">     814 </span><span class="lineNoCov">          0 :     certs = *certsp;</span>
+<span class="lineNum">     815 </span><span class="lineNoCov">          0 :     if (certs == NULL) {</span>
+<span class="lineNum">     816 </span><span class="lineNoCov">          0 :         count = 0;</span>
+<span class="lineNum">     817 </span><span class="lineNoCov">          0 :         certs = (CERTCertificate **)PORT_ArenaAlloc(cinfo-&gt;poolp,</span>
+<span class="lineNum">     818 </span>            :                                                     2 * sizeof(CERTCertificate *));
+<span class="lineNum">     819 </span>            :     } else {
+<span class="lineNum">     820 </span><span class="lineNoCov">          0 :         for (count = 0; certs[count] != NULL; count++)</span>
+<span class="lineNum">     821 </span>            :             ;
+<span class="lineNum">     822 </span>            :         PORT_Assert(count); /* should be at least one already */
+<span class="lineNum">     823 </span><span class="lineNoCov">          0 :         certs = (CERTCertificate **)PORT_ArenaGrow(cinfo-&gt;poolp, certs,</span>
+<span class="lineNum">     824 </span><span class="lineNoCov">          0 :                                                    (count + 1) * sizeof(CERTCertificate *),</span>
+<span class="lineNum">     825 </span><span class="lineNoCov">          0 :                                                    (count + 2) * sizeof(CERTCertificate *));</span>
+<span class="lineNum">     826 </span>            :     }
+<span class="lineNum">     827 </span>            : 
+<span class="lineNum">     828 </span><span class="lineNoCov">          0 :     if (certs == NULL) {</span>
+<span class="lineNum">     829 </span><span class="lineNoCov">          0 :         CERT_DestroyCertificate(cert);</span>
+<span class="lineNum">     830 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     831 </span>            :     }
+<span class="lineNum">     832 </span>            : 
+<span class="lineNum">     833 </span><span class="lineNoCov">          0 :     certs[count] = cert;</span>
+<span class="lineNum">     834 </span><span class="lineNoCov">          0 :     certs[count + 1] = NULL;</span>
+<span class="lineNum">     835 </span>            : 
+<span class="lineNum">     836 </span><span class="lineNoCov">          0 :     *certsp = certs;</span>
+<span class="lineNum">     837 </span>            : 
+<span class="lineNum">     838 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     839 </span>            : }
+<span class="lineNum">     840 </span>            : 
+<span class="lineNum">     841 </span>            : /*
+<span class="lineNum">     842 </span>            :  * Create a PKCS7 certs-only container.
+<span class="lineNum">     843 </span>            :  *
+<span class="lineNum">     844 </span>            :  * &quot;cert&quot; is the (first) cert that will be included.
+<span class="lineNum">     845 </span>            :  *
+<span class="lineNum">     846 </span>            :  * &quot;include_chain&quot; specifies whether the entire chain for &quot;cert&quot; should
+<span class="lineNum">     847 </span>            :  * be included.
+<span class="lineNum">     848 </span>            :  *
+<span class="lineNum">     849 </span>            :  * &quot;certdb&quot; is the cert database to use for finding the chain.
+<span class="lineNum">     850 </span>            :  * It can be NULL in when &quot;include_chain&quot; is false, or when meaning
+<span class="lineNum">     851 </span>            :  * use the default database.
+<span class="lineNum">     852 </span>            :  *
+<span class="lineNum">     853 </span>            :  * More certs and chains can be added via AddCertificate and AddCertChain.
+<span class="lineNum">     854 </span>            :  *
+<span class="lineNum">     855 </span>            :  * An error results in a return value of NULL and an error set.
+<span class="lineNum">     856 </span>            :  * (Retrieve specific errors via PORT_GetError()/XP_GetError().)
+<a name="857"><span class="lineNum">     857 </span>            :  */</a>
+<span class="lineNum">     858 </span>            : SEC_PKCS7ContentInfo *
+<span class="lineNum">     859 </span><span class="lineNoCov">          0 : SEC_PKCS7CreateCertsOnly(CERTCertificate *cert,</span>
+<span class="lineNum">     860 </span>            :                          PRBool include_chain,
+<span class="lineNum">     861 </span>            :                          CERTCertDBHandle *certdb)
+<span class="lineNum">     862 </span>            : {
+<span class="lineNum">     863 </span>            :     SEC_PKCS7ContentInfo *cinfo;
+<span class="lineNum">     864 </span>            :     SECStatus rv;
+<span class="lineNum">     865 </span>            : 
+<span class="lineNum">     866 </span><span class="lineNoCov">          0 :     cinfo = sec_pkcs7_create_signed_data(NULL, NULL);</span>
+<span class="lineNum">     867 </span><span class="lineNoCov">          0 :     if (cinfo == NULL)</span>
+<span class="lineNum">     868 </span>            :         return NULL;
+<span class="lineNum">     869 </span>            : 
+<span class="lineNum">     870 </span><span class="lineNoCov">          0 :     if (include_chain)</span>
+<span class="lineNum">     871 </span><span class="lineNoCov">          0 :         rv = sec_pkcs7_add_cert_chain(cinfo, cert, certdb);</span>
+<span class="lineNum">     872 </span>            :     else
+<span class="lineNum">     873 </span><span class="lineNoCov">          0 :         rv = sec_pkcs7_add_certificate(cinfo, cert);</span>
+<span class="lineNum">     874 </span>            : 
+<span class="lineNum">     875 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     876 </span><span class="lineNoCov">          0 :         SEC_PKCS7DestroyContentInfo(cinfo);</span>
+<span class="lineNum">     877 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     878 </span>            :     }
+<span class="lineNum">     879 </span>            : 
+<span class="lineNum">     880 </span>            :     return cinfo;
+<span class="lineNum">     881 </span>            : }
+<span class="lineNum">     882 </span>            : 
+<span class="lineNum">     883 </span>            : /*
+<span class="lineNum">     884 </span>            :  * Add &quot;cert&quot; and its entire chain to the set of certs included in &quot;cinfo&quot;.
+<span class="lineNum">     885 </span>            :  *
+<span class="lineNum">     886 </span>            :  * &quot;certdb&quot; is the cert database to use for finding the chain.
+<span class="lineNum">     887 </span>            :  * It can be NULL, meaning use the default database.
+<span class="lineNum">     888 </span>            :  *
+<span class="lineNum">     889 </span>            :  * &quot;cinfo&quot; should be of type signedData or signedAndEnvelopedData;
+<span class="lineNum">     890 </span>            :  * SECFailure will be returned if it is not.
+<a name="891"><span class="lineNum">     891 </span>            :  */</a>
+<span class="lineNum">     892 </span>            : SECStatus
+<span class="lineNum">     893 </span><span class="lineNoCov">          0 : SEC_PKCS7AddCertChain(SEC_PKCS7ContentInfo *cinfo,</span>
+<span class="lineNum">     894 </span>            :                       CERTCertificate *cert,
+<span class="lineNum">     895 </span>            :                       CERTCertDBHandle *certdb)
+<span class="lineNum">     896 </span>            : {
+<span class="lineNum">     897 </span>            :     SECOidTag kind;
+<span class="lineNum">     898 </span>            : 
+<span class="lineNum">     899 </span><span class="lineNoCov">          0 :     kind = SEC_PKCS7ContentType(cinfo);</span>
+<span class="lineNum">     900 </span><span class="lineNoCov">          0 :     if (kind != SEC_OID_PKCS7_SIGNED_DATA &amp;&amp; kind != SEC_OID_PKCS7_SIGNED_ENVELOPED_DATA)</span>
+<span class="lineNum">     901 </span>            :         return SECFailure; /* XXX set an error? */
+<span class="lineNum">     902 </span>            : 
+<span class="lineNum">     903 </span><span class="lineNoCov">          0 :     return sec_pkcs7_add_cert_chain(cinfo, cert, certdb);</span>
+<span class="lineNum">     904 </span>            : }
+<span class="lineNum">     905 </span>            : 
+<span class="lineNum">     906 </span>            : /*
+<span class="lineNum">     907 </span>            :  * Add &quot;cert&quot; to the set of certs included in &quot;cinfo&quot;.
+<span class="lineNum">     908 </span>            :  *
+<span class="lineNum">     909 </span>            :  * &quot;cinfo&quot; should be of type signedData or signedAndEnvelopedData;
+<span class="lineNum">     910 </span>            :  * SECFailure will be returned if it is not.
+<a name="911"><span class="lineNum">     911 </span>            :  */</a>
+<span class="lineNum">     912 </span>            : SECStatus
+<span class="lineNum">     913 </span><span class="lineNoCov">          0 : SEC_PKCS7AddCertificate(SEC_PKCS7ContentInfo *cinfo, CERTCertificate *cert)</span>
+<span class="lineNum">     914 </span>            : {
+<span class="lineNum">     915 </span>            :     SECOidTag kind;
+<span class="lineNum">     916 </span>            : 
+<span class="lineNum">     917 </span><span class="lineNoCov">          0 :     kind = SEC_PKCS7ContentType(cinfo);</span>
+<span class="lineNum">     918 </span><span class="lineNoCov">          0 :     if (kind != SEC_OID_PKCS7_SIGNED_DATA &amp;&amp; kind != SEC_OID_PKCS7_SIGNED_ENVELOPED_DATA)</span>
+<span class="lineNum">     919 </span>            :         return SECFailure; /* XXX set an error? */
+<span class="lineNum">     920 </span>            : 
+<span class="lineNum">     921 </span><span class="lineNoCov">          0 :     return sec_pkcs7_add_certificate(cinfo, cert);</span>
+<span class="lineNum">     922 </span>            : }
+<a name="923"><span class="lineNum">     923 </span>            : </a>
+<span class="lineNum">     924 </span>            : static SECStatus
+<span class="lineNum">     925 </span><span class="lineNoCov">          0 : sec_pkcs7_init_encrypted_content_info(SEC_PKCS7EncryptedContentInfo *enccinfo,</span>
+<span class="lineNum">     926 </span>            :                                       PLArenaPool *poolp,
+<span class="lineNum">     927 </span>            :                                       SECOidTag kind, PRBool detached,
+<span class="lineNum">     928 </span>            :                                       SECOidTag encalg, int keysize)
+<span class="lineNum">     929 </span>            : {
+<span class="lineNum">     930 </span>            :     SECStatus rv;
+<span class="lineNum">     931 </span>            : 
+<span class="lineNum">     932 </span>            :     PORT_Assert(enccinfo != NULL &amp;&amp; poolp != NULL);
+<span class="lineNum">     933 </span><span class="lineNoCov">          0 :     if (enccinfo == NULL || poolp == NULL)</span>
+<span class="lineNum">     934 </span>            :         return SECFailure;
+<span class="lineNum">     935 </span>            : 
+<span class="lineNum">     936 </span>            :     /*
+<span class="lineNum">     937 </span>            :      * XXX Some day we may want to allow for other kinds.  That needs
+<span class="lineNum">     938 </span>            :      * more work and modifications to the creation interface, etc.
+<span class="lineNum">     939 </span>            :      * For now, allow but notice callers who pass in other kinds.
+<span class="lineNum">     940 </span>            :      * They are responsible for creating the inner type and encoding,
+<span class="lineNum">     941 </span>            :      * if it is other than DATA.
+<span class="lineNum">     942 </span>            :      */
+<span class="lineNum">     943 </span>            :     PORT_Assert(kind == SEC_OID_PKCS7_DATA);
+<span class="lineNum">     944 </span>            : 
+<span class="lineNum">     945 </span><span class="lineNoCov">          0 :     enccinfo-&gt;contentTypeTag = SECOID_FindOIDByTag(kind);</span>
+<span class="lineNum">     946 </span>            :     PORT_Assert(enccinfo-&gt;contentTypeTag &amp;&amp; enccinfo-&gt;contentTypeTag-&gt;offset == kind);
+<span class="lineNum">     947 </span>            : 
+<span class="lineNum">     948 </span><span class="lineNoCov">          0 :     rv = SECITEM_CopyItem(poolp, &amp;(enccinfo-&gt;contentType),</span>
+<span class="lineNum">     949 </span><span class="lineNoCov">          0 :                           &amp;(enccinfo-&gt;contentTypeTag-&gt;oid));</span>
+<span class="lineNum">     950 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess)</span>
+<span class="lineNum">     951 </span>            :         return rv;
+<span class="lineNum">     952 </span>            : 
+<span class="lineNum">     953 </span>            :     /* Save keysize and algorithm for later. */
+<span class="lineNum">     954 </span><span class="lineNoCov">          0 :     enccinfo-&gt;keysize = keysize;</span>
+<span class="lineNum">     955 </span><span class="lineNoCov">          0 :     enccinfo-&gt;encalg = encalg;</span>
+<span class="lineNum">     956 </span>            : 
+<span class="lineNum">     957 </span>            :     return SECSuccess;
+<span class="lineNum">     958 </span>            : }
+<span class="lineNum">     959 </span>            : 
+<span class="lineNum">     960 </span>            : /*
+<span class="lineNum">     961 </span>            :  * Add a recipient to a PKCS7 thing, verifying their cert first.
+<span class="lineNum">     962 </span>            :  * Any error returns SECFailure.
+<a name="963"><span class="lineNum">     963 </span>            :  */</a>
+<span class="lineNum">     964 </span>            : static SECStatus
+<span class="lineNum">     965 </span><span class="lineNoCov">          0 : sec_pkcs7_add_recipient(SEC_PKCS7ContentInfo *cinfo,</span>
+<span class="lineNum">     966 </span>            :                         CERTCertificate *cert,
+<span class="lineNum">     967 </span>            :                         SECCertUsage certusage,
+<span class="lineNum">     968 </span>            :                         CERTCertDBHandle *certdb)
+<span class="lineNum">     969 </span>            : {
+<span class="lineNum">     970 </span>            :     SECOidTag kind;
+<span class="lineNum">     971 </span>            :     SEC_PKCS7RecipientInfo *recipientinfo, **recipientinfos, ***recipientinfosp;
+<span class="lineNum">     972 </span>            :     SECItem *dummy;
+<span class="lineNum">     973 </span>            :     void *mark;
+<span class="lineNum">     974 </span>            :     int count;
+<span class="lineNum">     975 </span>            : 
+<span class="lineNum">     976 </span><span class="lineNoCov">          0 :     kind = SEC_PKCS7ContentType(cinfo);</span>
+<span class="lineNum">     977 </span><span class="lineNoCov">          0 :     switch (kind) {</span>
+<span class="lineNum">     978 </span>            :         case SEC_OID_PKCS7_ENVELOPED_DATA: {
+<span class="lineNum">     979 </span>            :             SEC_PKCS7EnvelopedData *edp;
+<span class="lineNum">     980 </span>            : 
+<span class="lineNum">     981 </span><span class="lineNoCov">          0 :             edp = cinfo-&gt;content.envelopedData;</span>
+<span class="lineNum">     982 </span><span class="lineNoCov">          0 :             recipientinfosp = &amp;(edp-&gt;recipientInfos);</span>
+<span class="lineNum">     983 </span><span class="lineNoCov">          0 :         } break;</span>
+<span class="lineNum">     984 </span>            :         case SEC_OID_PKCS7_SIGNED_ENVELOPED_DATA: {
+<span class="lineNum">     985 </span>            :             SEC_PKCS7SignedAndEnvelopedData *saedp;
+<span class="lineNum">     986 </span>            : 
+<span class="lineNum">     987 </span><span class="lineNoCov">          0 :             saedp = cinfo-&gt;content.signedAndEnvelopedData;</span>
+<span class="lineNum">     988 </span><span class="lineNoCov">          0 :             recipientinfosp = &amp;(saedp-&gt;recipientInfos);</span>
+<span class="lineNum">     989 </span><span class="lineNoCov">          0 :         } break;</span>
+<span class="lineNum">     990 </span>            :         default:
+<span class="lineNum">     991 </span>            :             return SECFailure; /* XXX set an error? */
+<span class="lineNum">     992 </span>            :     }
+<span class="lineNum">     993 </span>            : 
+<span class="lineNum">     994 </span>            :     /*
+<span class="lineNum">     995 </span>            :      * XXX I think that CERT_VerifyCert should do this if *it* is passed
+<span class="lineNum">     996 </span>            :      * a NULL database.
+<span class="lineNum">     997 </span>            :      */
+<span class="lineNum">     998 </span><span class="lineNoCov">          0 :     if (certdb == NULL) {</span>
+<span class="lineNum">     999 </span><span class="lineNoCov">          0 :         certdb = CERT_GetDefaultCertDB();</span>
+<span class="lineNum">    1000 </span><span class="lineNoCov">          0 :         if (certdb == NULL)</span>
+<span class="lineNum">    1001 </span>            :             return SECFailure; /* XXX set an error? */
+<span class="lineNum">    1002 </span>            :     }
+<span class="lineNum">    1003 </span>            : 
+<span class="lineNum">    1004 </span><span class="lineNoCov">          0 :     if (CERT_VerifyCert(certdb, cert, PR_TRUE, certusage, PR_Now(),</span>
+<span class="lineNum">    1005 </span>            :                         cinfo-&gt;pwfn_arg, NULL) != SECSuccess) {
+<span class="lineNum">    1006 </span>            :         /* XXX Did CERT_VerifyCert set an error? */
+<span class="lineNum">    1007 </span>            :         return SECFailure;
+<span class="lineNum">    1008 </span>            :     }
+<span class="lineNum">    1009 </span>            : 
+<span class="lineNum">    1010 </span><span class="lineNoCov">          0 :     mark = PORT_ArenaMark(cinfo-&gt;poolp);</span>
+<span class="lineNum">    1011 </span>            : 
+<span class="lineNum">    1012 </span><span class="lineNoCov">          0 :     recipientinfo = (SEC_PKCS7RecipientInfo *)PORT_ArenaZAlloc(cinfo-&gt;poolp,</span>
+<span class="lineNum">    1013 </span>            :                                                                sizeof(SEC_PKCS7RecipientInfo));
+<span class="lineNum">    1014 </span><span class="lineNoCov">          0 :     if (recipientinfo == NULL) {</span>
+<span class="lineNum">    1015 </span><span class="lineNoCov">          0 :         PORT_ArenaRelease(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">    1016 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">    1017 </span>            :     }
+<span class="lineNum">    1018 </span>            : 
+<span class="lineNum">    1019 </span><span class="lineNoCov">          0 :     dummy = SEC_ASN1EncodeInteger(cinfo-&gt;poolp, &amp;recipientinfo-&gt;version,</span>
+<span class="lineNum">    1020 </span>            :                                   SEC_PKCS7_RECIPIENT_INFO_VERSION);
+<span class="lineNum">    1021 </span><span class="lineNoCov">          0 :     if (dummy == NULL) {</span>
+<span class="lineNum">    1022 </span><span class="lineNoCov">          0 :         PORT_ArenaRelease(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">    1023 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">    1024 </span>            :     }
+<span class="lineNum">    1025 </span>            :     PORT_Assert(dummy == &amp;recipientinfo-&gt;version);
+<span class="lineNum">    1026 </span>            : 
+<span class="lineNum">    1027 </span><span class="lineNoCov">          0 :     recipientinfo-&gt;cert = CERT_DupCertificate(cert);</span>
+<span class="lineNum">    1028 </span><span class="lineNoCov">          0 :     if (recipientinfo-&gt;cert == NULL) {</span>
+<span class="lineNum">    1029 </span><span class="lineNoCov">          0 :         PORT_ArenaRelease(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">    1030 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">    1031 </span>            :     }
+<span class="lineNum">    1032 </span>            : 
+<span class="lineNum">    1033 </span><span class="lineNoCov">          0 :     recipientinfo-&gt;issuerAndSN = CERT_GetCertIssuerAndSN(cinfo-&gt;poolp, cert);</span>
+<span class="lineNum">    1034 </span><span class="lineNoCov">          0 :     if (recipientinfo-&gt;issuerAndSN == NULL) {</span>
+<span class="lineNum">    1035 </span><span class="lineNoCov">          0 :         PORT_ArenaRelease(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">    1036 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">    1037 </span>            :     }
+<span class="lineNum">    1038 </span>            : 
+<span class="lineNum">    1039 </span>            :     /*
+<span class="lineNum">    1040 </span>            :      * Okay, now recipientinfo is all set.  We just need to put it into
+<span class="lineNum">    1041 </span>            :      * the main structure.
+<span class="lineNum">    1042 </span>            :      *
+<span class="lineNum">    1043 </span>            :      * If this is the first recipient, allocate a new recipientinfos array;
+<span class="lineNum">    1044 </span>            :      * otherwise, reallocate the array, making room for the new entry.
+<span class="lineNum">    1045 </span>            :      */
+<span class="lineNum">    1046 </span><span class="lineNoCov">          0 :     recipientinfos = *recipientinfosp;</span>
+<span class="lineNum">    1047 </span><span class="lineNoCov">          0 :     if (recipientinfos == NULL) {</span>
+<span class="lineNum">    1048 </span><span class="lineNoCov">          0 :         count = 0;</span>
+<span class="lineNum">    1049 </span><span class="lineNoCov">          0 :         recipientinfos = (SEC_PKCS7RecipientInfo **)PORT_ArenaAlloc(</span>
+<span class="lineNum">    1050 </span>            :             cinfo-&gt;poolp,
+<span class="lineNum">    1051 </span>            :             2 * sizeof(SEC_PKCS7RecipientInfo *));
+<span class="lineNum">    1052 </span>            :     } else {
+<span class="lineNum">    1053 </span><span class="lineNoCov">          0 :         for (count = 0; recipientinfos[count] != NULL; count++)</span>
+<span class="lineNum">    1054 </span>            :             ;
+<span class="lineNum">    1055 </span>            :         PORT_Assert(count); /* should be at least one already */
+<span class="lineNum">    1056 </span><span class="lineNoCov">          0 :         recipientinfos = (SEC_PKCS7RecipientInfo **)PORT_ArenaGrow(</span>
+<span class="lineNum">    1057 </span>            :             cinfo-&gt;poolp, recipientinfos,
+<span class="lineNum">    1058 </span><span class="lineNoCov">          0 :             (count + 1) * sizeof(SEC_PKCS7RecipientInfo *),</span>
+<span class="lineNum">    1059 </span><span class="lineNoCov">          0 :             (count + 2) * sizeof(SEC_PKCS7RecipientInfo *));</span>
+<span class="lineNum">    1060 </span>            :     }
+<span class="lineNum">    1061 </span>            : 
+<span class="lineNum">    1062 </span><span class="lineNoCov">          0 :     if (recipientinfos == NULL) {</span>
+<span class="lineNum">    1063 </span><span class="lineNoCov">          0 :         PORT_ArenaRelease(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">    1064 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">    1065 </span>            :     }
+<span class="lineNum">    1066 </span>            : 
+<span class="lineNum">    1067 </span><span class="lineNoCov">          0 :     recipientinfos[count] = recipientinfo;</span>
+<span class="lineNum">    1068 </span><span class="lineNoCov">          0 :     recipientinfos[count + 1] = NULL;</span>
+<span class="lineNum">    1069 </span>            : 
+<span class="lineNum">    1070 </span><span class="lineNoCov">          0 :     *recipientinfosp = recipientinfos;</span>
+<span class="lineNum">    1071 </span>            : 
+<span class="lineNum">    1072 </span><span class="lineNoCov">          0 :     PORT_ArenaUnmark(cinfo-&gt;poolp, mark);</span>
+<span class="lineNum">    1073 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">    1074 </span>            : }
+<span class="lineNum">    1075 </span>            : 
+<span class="lineNum">    1076 </span>            : /*
+<span class="lineNum">    1077 </span>            :  * Start a PKCS7 enveloping context.
+<span class="lineNum">    1078 </span>            :  *
+<span class="lineNum">    1079 </span>            :  * &quot;cert&quot; is the cert for the recipient.  It will be checked for validity.
+<span class="lineNum">    1080 </span>            :  *
+<span class="lineNum">    1081 </span>            :  * &quot;certusage&quot; describes the encryption usage (e.g. certUsageEmailRecipient)
+<span class="lineNum">    1082 </span>            :  * XXX Maybe SECCertUsage should be split so that our caller just says
+<span class="lineNum">    1083 </span>            :  * &quot;email&quot; and *we* add the &quot;recipient&quot; part -- otherwise our caller
+<span class="lineNum">    1084 </span>            :  * could be lying about the usage; we do not want to allow encryption
+<span class="lineNum">    1085 </span>            :  * certs for signing or vice versa.
+<span class="lineNum">    1086 </span>            :  *
+<span class="lineNum">    1087 </span>            :  * &quot;certdb&quot; is the cert database to use for verifying the cert.
+<span class="lineNum">    1088 </span>            :  * It can be NULL if a default database is available (like in the client).
+<span class="lineNum">    1089 </span>            :  *
+<span class="lineNum">    1090 </span>            :  * &quot;encalg&quot; specifies the bulk encryption algorithm to use (e.g. SEC_OID_RC2).
+<span class="lineNum">    1091 </span>            :  *
+<span class="lineNum">    1092 </span>            :  * &quot;keysize&quot; specifies the bulk encryption key size, in bits.
+<span class="lineNum">    1093 </span>            :  *
+<span class="lineNum">    1094 </span>            :  * The return value can be passed to functions which add things to
+<span class="lineNum">    1095 </span>            :  * it like more recipients, then eventually to SEC_PKCS7Encode() or to
+<span class="lineNum">    1096 </span>            :  * SEC_PKCS7EncoderStart() to create the encoded data, and finally to
+<span class="lineNum">    1097 </span>            :  * SEC_PKCS7DestroyContentInfo().
+<span class="lineNum">    1098 </span>            :  *
+<span class="lineNum">    1099 </span>            :  * An error results in a return value of NULL and an error set.
+<span class="lineNum">    1100 </span>            :  * (Retrieve specific errors via PORT_GetError()/XP_GetError().)
+<a name="1101"><span class="lineNum">    1101 </span>            :  */</a>
+<span class="lineNum">    1102 </span>            : extern SEC_PKCS7ContentInfo *
+<span class="lineNum">    1103 </span><span class="lineNoCov">          0 : SEC_PKCS7CreateEnvelopedData(CERTCertificate *cert,</span>
+<span class="lineNum">    1104 </span>            :                              SECCertUsage certusage,
+<span class="lineNum">    1105 </span>            :                              CERTCertDBHandle *certdb,
+<span class="lineNum">    1106 </span>            :                              SECOidTag encalg,
+<span class="lineNum">    1107 </span>            :                              int keysize,
+<span class="lineNum">    1108 </span>            :                              SECKEYGetPasswordKey pwfn, void *pwfn_arg)
+<span class="lineNum">    1109 </span>            : {
+<span class="lineNum">    1110 </span>            :     SEC_PKCS7ContentInfo *cinfo;
+<span class="lineNum">    1111 </span>            :     SEC_PKCS7EnvelopedData *envd;
+<span class="lineNum">    1112 </span>            :     SECStatus rv;
+<span class="lineNum">    1113 </span>            : 
+<span class="lineNum">    1114 </span><span class="lineNoCov">          0 :     cinfo = sec_pkcs7_create_content_info(SEC_OID_PKCS7_ENVELOPED_DATA,</span>
+<span class="lineNum">    1115 </span>            :                                           PR_FALSE, pwfn, pwfn_arg);
+<span class="lineNum">    1116 </span><span class="lineNoCov">          0 :     if (cinfo == NULL)</span>
+<span class="lineNum">    1117 </span>            :         return NULL;
+<span class="lineNum">    1118 </span>            : 
+<span class="lineNum">    1119 </span><span class="lineNoCov">          0 :     rv = sec_pkcs7_add_recipient(cinfo, cert, certusage, certdb);</span>
+<span class="lineNum">    1120 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">    1121 </span><span class="lineNoCov">          0 :         SEC_PKCS7DestroyContentInfo(cinfo);</span>
+<span class="lineNum">    1122 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">    1123 </span>            :     }
+<span class="lineNum">    1124 </span>            : 
+<span class="lineNum">    1125 </span><span class="lineNoCov">          0 :     envd = cinfo-&gt;content.envelopedData;</span>
+<span class="lineNum">    1126 </span>            :     PORT_Assert(envd != NULL);
+<span class="lineNum">    1127 </span>            : 
+<span class="lineNum">    1128 </span>            :     /*
+<span class="lineNum">    1129 </span>            :      * XXX Might we want to allow content types other than data?
+<span class="lineNum">    1130 </span>            :      * If so, via what interface?
+<span class="lineNum">    1131 </span>            :      */
+<span class="lineNum">    1132 </span><span class="lineNoCov">          0 :     rv = sec_pkcs7_init_encrypted_content_info(&amp;(envd-&gt;encContentInfo),</span>
+<span class="lineNum">    1133 </span>            :                                                cinfo-&gt;poolp,
+<span class="lineNum">    1134 </span>            :                                                SEC_OID_PKCS7_DATA, PR_FALSE,
+<span class="lineNum">    1135 </span>            :                                                encalg, keysize);
+<span class="lineNum">    1136 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">    1137 </span><span class="lineNoCov">          0 :         SEC_PKCS7DestroyContentInfo(cinfo);</span>
+<span class="lineNum">    1138 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">    1139 </span>            :     }
+<span class="lineNum">    1140 </span>            : 
+<span class="lineNum">    1141 </span>            :     /* XXX Anything more to do here? */
+<span class="lineNum">    1142 </span>            : 
+<span class="lineNum">    1143 </span>            :     return cinfo;
+<span class="lineNum">    1144 </span>            : }
+<span class="lineNum">    1145 </span>            : 
+<span class="lineNum">    1146 </span>            : /*
+<span class="lineNum">    1147 </span>            :  * Add another recipient to an encrypted message.
+<span class="lineNum">    1148 </span>            :  *
+<span class="lineNum">    1149 </span>            :  * &quot;cinfo&quot; should be of type envelopedData or signedAndEnvelopedData;
+<span class="lineNum">    1150 </span>            :  * SECFailure will be returned if it is not.
+<span class="lineNum">    1151 </span>            :  *
+<span class="lineNum">    1152 </span>            :  * &quot;cert&quot; is the cert for the recipient.  It will be checked for validity.
+<span class="lineNum">    1153 </span>            :  *
+<span class="lineNum">    1154 </span>            :  * &quot;certusage&quot; describes the encryption usage (e.g. certUsageEmailRecipient)
+<span class="lineNum">    1155 </span>            :  * XXX Maybe SECCertUsage should be split so that our caller just says
+<span class="lineNum">    1156 </span>            :  * &quot;email&quot; and *we* add the &quot;recipient&quot; part -- otherwise our caller
+<span class="lineNum">    1157 </span>            :  * could be lying about the usage; we do not want to allow encryption
+<span class="lineNum">    1158 </span>            :  * certs for signing or vice versa.
+<span class="lineNum">    1159 </span>            :  *
+<span class="lineNum">    1160 </span>            :  * &quot;certdb&quot; is the cert database to use for verifying the cert.
+<span class="lineNum">    1161 </span>            :  * It can be NULL if a default database is available (like in the client).
+<a name="1162"><span class="lineNum">    1162 </span>            :  */</a>
+<span class="lineNum">    1163 </span>            : SECStatus
+<span class="lineNum">    1164 </span><span class="lineNoCov">          0 : SEC_PKCS7AddRecipient(SEC_PKCS7ContentInfo *cinfo,</span>
+<span class="lineNum">    1165 </span>            :                       CERTCertificate *cert,
+<span class="lineNum">    1166 </span>            :                       SECCertUsage certusage,
+<span class="lineNum">    1167 </span>            :                       CERTCertDBHandle *certdb)
+<span class="lineNum">    1168 </span>            : {
+<span class="lineNum">    1169 </span><span class="lineNoCov">          0 :     return sec_pkcs7_add_recipient(cinfo, cert, certusage, certdb);</span>
+<span class="lineNum">    1170 </span>            : }
+<span class="lineNum">    1171 </span>            : 
+<span class="lineNum">    1172 </span>            : /*
+<span class="lineNum">    1173 </span>            :  * Create an empty PKCS7 data content info.
+<span class="lineNum">    1174 </span>            :  *
+<span class="lineNum">    1175 </span>            :  * An error results in a return value of NULL and an error set.
+<span class="lineNum">    1176 </span>            :  * (Retrieve specific errors via PORT_GetError()/XP_GetError().)
+<a name="1177"><span class="lineNum">    1177 </span>            :  */</a>
+<span class="lineNum">    1178 </span>            : SEC_PKCS7ContentInfo *
+<span class="lineNum">    1179 </span><span class="lineNoCov">          0 : SEC_PKCS7CreateData(void)</span>
+<span class="lineNum">    1180 </span>            : {
+<span class="lineNum">    1181 </span><span class="lineNoCov">          0 :     return sec_pkcs7_create_content_info(SEC_OID_PKCS7_DATA, PR_FALSE,</span>
+<span class="lineNum">    1182 </span>            :                                          NULL, NULL);
+<span class="lineNum">    1183 </span>            : }
+<span class="lineNum">    1184 </span>            : 
+<span class="lineNum">    1185 </span>            : /*
+<span class="lineNum">    1186 </span>            :  * Create an empty PKCS7 encrypted content info.
+<span class="lineNum">    1187 </span>            :  *
+<span class="lineNum">    1188 </span>            :  * &quot;algorithm&quot; specifies the bulk encryption algorithm to use.
+<span class="lineNum">    1189 </span>            :  * 
+<span class="lineNum">    1190 </span>            :  * An error results in a return value of NULL and an error set.
+<span class="lineNum">    1191 </span>            :  * (Retrieve specific errors via PORT_GetError()/XP_GetError().)
+<a name="1192"><span class="lineNum">    1192 </span>            :  */</a>
+<span class="lineNum">    1193 </span>            : SEC_PKCS7ContentInfo *
+<span class="lineNum">    1194 </span><span class="lineNoCov">          0 : SEC_PKCS7CreateEncryptedData(SECOidTag algorithm, int keysize,</span>
+<span class="lineNum">    1195 </span>            :                              SECKEYGetPasswordKey pwfn, void *pwfn_arg)
+<span class="lineNum">    1196 </span>            : {
+<span class="lineNum">    1197 </span>            :     SEC_PKCS7ContentInfo *cinfo;
+<span class="lineNum">    1198 </span>            :     SECAlgorithmID *algid;
+<span class="lineNum">    1199 </span>            :     SEC_PKCS7EncryptedData *enc_data;
+<span class="lineNum">    1200 </span>            :     SECStatus rv;
+<span class="lineNum">    1201 </span>            : 
+<span class="lineNum">    1202 </span><span class="lineNoCov">          0 :     cinfo = sec_pkcs7_create_content_info(SEC_OID_PKCS7_ENCRYPTED_DATA,</span>
+<span class="lineNum">    1203 </span>            :                                           PR_FALSE, pwfn, pwfn_arg);
+<span class="lineNum">    1204 </span><span class="lineNoCov">          0 :     if (cinfo == NULL)</span>
+<span class="lineNum">    1205 </span>            :         return NULL;
+<span class="lineNum">    1206 </span>            : 
+<span class="lineNum">    1207 </span><span class="lineNoCov">          0 :     enc_data = cinfo-&gt;content.encryptedData;</span>
+<span class="lineNum">    1208 </span><span class="lineNoCov">          0 :     algid = &amp;(enc_data-&gt;encContentInfo.contentEncAlg);</span>
+<span class="lineNum">    1209 </span>            : 
+<span class="lineNum">    1210 </span><span class="lineNoCov">          0 :     if (!SEC_PKCS5IsAlgorithmPBEAlgTag(algorithm)) {</span>
+<span class="lineNum">    1211 </span><span class="lineNoCov">          0 :         rv = SECOID_SetAlgorithmID(cinfo-&gt;poolp, algid, algorithm, NULL);</span>
+<span class="lineNum">    1212 </span>            :     } else {
+<span class="lineNum">    1213 </span>            :         /* Assume password-based-encryption.  
+<span class="lineNum">    1214 </span>            :          * Note: we can't generate pkcs5v2 from this interface.
+<span class="lineNum">    1215 </span>            :          * PK11_CreateBPEAlgorithmID generates pkcs5v2 by accepting
+<span class="lineNum">    1216 </span>            :          * non-PBE oids and assuming that they are pkcs5v2 oids, but
+<span class="lineNum">    1217 </span>            :          * NSS_CMSEncryptedData_Create accepts non-PBE oids as regular
+<span class="lineNum">    1218 </span>            :          * CMS encrypted data, so we can't tell SEC_PKCS7CreateEncryptedtedData
+<span class="lineNum">    1219 </span>            :          * to create pkcs5v2 PBEs */
+<span class="lineNum">    1220 </span>            :         SECAlgorithmID *pbe_algid;
+<span class="lineNum">    1221 </span><span class="lineNoCov">          0 :         pbe_algid = PK11_CreatePBEAlgorithmID(algorithm,</span>
+<span class="lineNum">    1222 </span>            :                                               NSS_PBE_DEFAULT_ITERATION_COUNT,
+<span class="lineNum">    1223 </span>            :                                               NULL);
+<span class="lineNum">    1224 </span><span class="lineNoCov">          0 :         if (pbe_algid == NULL) {</span>
+<span class="lineNum">    1225 </span>            :             rv = SECFailure;
+<span class="lineNum">    1226 </span>            :         } else {
+<span class="lineNum">    1227 </span><span class="lineNoCov">          0 :             rv = SECOID_CopyAlgorithmID(cinfo-&gt;poolp, algid, pbe_algid);</span>
+<span class="lineNum">    1228 </span><span class="lineNoCov">          0 :             SECOID_DestroyAlgorithmID(pbe_algid, PR_TRUE);</span>
+<span class="lineNum">    1229 </span>            :         }
+<span class="lineNum">    1230 </span>            :     }
+<span class="lineNum">    1231 </span>            : 
+<span class="lineNum">    1232 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">    1233 </span><span class="lineNoCov">          0 :         SEC_PKCS7DestroyContentInfo(cinfo);</span>
+<span class="lineNum">    1234 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">    1235 </span>            :     }
+<span class="lineNum">    1236 </span>            : 
+<span class="lineNum">    1237 </span><span class="lineNoCov">          0 :     rv = sec_pkcs7_init_encrypted_content_info(&amp;(enc_data-&gt;encContentInfo),</span>
+<span class="lineNum">    1238 </span>            :                                                cinfo-&gt;poolp,
+<span class="lineNum">    1239 </span>            :                                                SEC_OID_PKCS7_DATA, PR_FALSE,
+<span class="lineNum">    1240 </span>            :                                                algorithm, keysize);
+<span class="lineNum">    1241 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">    1242 </span><span class="lineNoCov">          0 :         SEC_PKCS7DestroyContentInfo(cinfo);</span>
+<span class="lineNum">    1243 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">    1244 </span>            :     }
+<span class="lineNum">    1245 </span>            : 
+<span class="lineNum">    1246 </span>            :     return cinfo;
+<span class="lineNum">    1247 </span>            : }
+<a name="1248"><span class="lineNum">    1248 </span>            : </a>
+<span class="lineNum">    1249 </span>            : SEC_PKCS7ContentInfo *
+<span class="lineNum">    1250 </span><span class="lineNoCov">          0 : SEC_PKCS7CreateEncryptedDataWithPBEV2(SECOidTag pbe_algorithm,</span>
+<span class="lineNum">    1251 </span>            :                                       SECOidTag cipher_algorithm,
+<span class="lineNum">    1252 </span>            :                                       SECOidTag prf_algorithm,
+<span class="lineNum">    1253 </span>            :                                       int keysize,
+<span class="lineNum">    1254 </span>            :                                       SECKEYGetPasswordKey pwfn, void *pwfn_arg)
+<span class="lineNum">    1255 </span>            : {
+<span class="lineNum">    1256 </span>            :     SEC_PKCS7ContentInfo *cinfo;
+<span class="lineNum">    1257 </span>            :     SECAlgorithmID *algid;
+<span class="lineNum">    1258 </span>            :     SEC_PKCS7EncryptedData *enc_data;
+<span class="lineNum">    1259 </span>            :     SECStatus rv;
+<span class="lineNum">    1260 </span>            : 
+<span class="lineNum">    1261 </span>            :     PORT_Assert(SEC_PKCS5IsAlgorithmPBEAlgTag(pbe_algorithm));
+<span class="lineNum">    1262 </span>            : 
+<span class="lineNum">    1263 </span><span class="lineNoCov">          0 :     cinfo = sec_pkcs7_create_content_info(SEC_OID_PKCS7_ENCRYPTED_DATA,</span>
+<span class="lineNum">    1264 </span>            :                                           PR_FALSE, pwfn, pwfn_arg);
+<span class="lineNum">    1265 </span><span class="lineNoCov">          0 :     if (cinfo == NULL)</span>
+<span class="lineNum">    1266 </span>            :         return NULL;
+<span class="lineNum">    1267 </span>            : 
+<span class="lineNum">    1268 </span><span class="lineNoCov">          0 :     enc_data = cinfo-&gt;content.encryptedData;</span>
+<span class="lineNum">    1269 </span><span class="lineNoCov">          0 :     algid = &amp;(enc_data-&gt;encContentInfo.contentEncAlg);</span>
+<span class="lineNum">    1270 </span>            : 
+<span class="lineNum">    1271 </span>            :     SECAlgorithmID *pbe_algid;
+<span class="lineNum">    1272 </span><span class="lineNoCov">          0 :     pbe_algid = PK11_CreatePBEV2AlgorithmID(pbe_algorithm,</span>
+<span class="lineNum">    1273 </span>            :                                             cipher_algorithm,
+<span class="lineNum">    1274 </span>            :                                             prf_algorithm,
+<span class="lineNum">    1275 </span>            :                                             keysize,
+<span class="lineNum">    1276 </span>            :                                             NSS_PBE_DEFAULT_ITERATION_COUNT,
+<span class="lineNum">    1277 </span>            :                                             NULL);
+<span class="lineNum">    1278 </span><span class="lineNoCov">          0 :     if (pbe_algid == NULL) {</span>
+<span class="lineNum">    1279 </span>            :         rv = SECFailure;
+<span class="lineNum">    1280 </span>            :     } else {
+<span class="lineNum">    1281 </span><span class="lineNoCov">          0 :         rv = SECOID_CopyAlgorithmID(cinfo-&gt;poolp, algid, pbe_algid);</span>
+<span class="lineNum">    1282 </span><span class="lineNoCov">          0 :         SECOID_DestroyAlgorithmID(pbe_algid, PR_TRUE);</span>
+<span class="lineNum">    1283 </span>            :     }
+<span class="lineNum">    1284 </span>            : 
+<span class="lineNum">    1285 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">    1286 </span><span class="lineNoCov">          0 :         SEC_PKCS7DestroyContentInfo(cinfo);</span>
+<span class="lineNum">    1287 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">    1288 </span>            :     }
+<span class="lineNum">    1289 </span>            : 
+<span class="lineNum">    1290 </span><span class="lineNoCov">          0 :     rv = sec_pkcs7_init_encrypted_content_info(&amp;(enc_data-&gt;encContentInfo),</span>
+<span class="lineNum">    1291 </span>            :                                                cinfo-&gt;poolp,
+<span class="lineNum">    1292 </span>            :                                                SEC_OID_PKCS7_DATA, PR_FALSE,
+<span class="lineNum">    1293 </span>            :                                                cipher_algorithm, keysize);
+<span class="lineNum">    1294 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">    1295 </span><span class="lineNoCov">          0 :         SEC_PKCS7DestroyContentInfo(cinfo);</span>
+<span class="lineNum">    1296 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">    1297 </span>            :     }
+<span class="lineNum">    1298 </span>            : 
+<span class="lineNum">    1299 </span>            :     return cinfo;
+<span class="lineNum">    1300 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

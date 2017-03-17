@@ -1,0 +1,1607 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - dom/audiochannel/AudioChannelService.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">dom/audiochannel</a> - AudioChannelService.cpp<span style="font-size: 80%;"> (source / <a href="AudioChannelService.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">313</td>
+            <td class="headerCovTableEntry">563</td>
+            <td class="headerCovTableEntryLo">55.6 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">52</td>
+            <td class="headerCovTableEntry">90</td>
+            <td class="headerCovTableEntryLo">57.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* vim: set ts=8 sts=2 et sw=2 tw=80: */
+<span class="lineNum">       3 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+<span class="lineNum">       5 </span>            :  * You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #include &quot;AudioChannelService.h&quot;
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &quot;base/basictypes.h&quot;
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;mozilla/Services.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;mozilla/StaticPtr.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;mozilla/Unused.h&quot;
+<span class="lineNum">      14 </span>            : 
+<span class="lineNum">      15 </span>            : #include &quot;mozilla/dom/ContentChild.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;mozilla/dom/ContentParent.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;mozilla/dom/TabParent.h&quot;
+<span class="lineNum">      18 </span>            : 
+<span class="lineNum">      19 </span>            : #include &quot;nsContentUtils.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;nsIScriptSecurityManager.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;nsISupportsPrimitives.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;nsThreadUtils.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;nsHashPropertyBag.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;nsComponentManagerUtils.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;nsGlobalWindow.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;nsPIDOMWindow.h&quot;
+<span class="lineNum">      27 </span>            : #include &quot;nsServiceManagerUtils.h&quot;
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #ifdef MOZ_WIDGET_GONK
+<span class="lineNum">      30 </span>            : #include &quot;nsJSUtils.h&quot;
+<span class="lineNum">      31 </span>            : #endif
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : #include &quot;mozilla/Preferences.h&quot;
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : using namespace mozilla;
+<span class="lineNum">      36 </span>            : using namespace mozilla::dom;
+<span class="lineNum">      37 </span>            : using namespace mozilla::hal;
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span>            : namespace {
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span>            : // If true, any new AudioChannelAgent will be muted when created.
+<span class="lineNum">      42 </span>            : bool sAudioChannelMutedByDefault = false;
+<span class="lineNum">      43 </span>            : bool sAudioChannelCompeting = false;
+<span class="lineNum">      44 </span>            : bool sAudioChannelCompetingAllAgents = false;
+<a name="45"><span class="lineNum">      45 </span>            : bool sXPCOMShuttingDown = false;</a>
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span><span class="lineCov">          1 : class NotifyChannelActiveRunnable final : public Runnable</span>
+<a name="48"><span class="lineNum">      48 </span>            : {</a>
+<span class="lineNum">      49 </span>            : public:
+<span class="lineNum">      50 </span><span class="lineCov">          1 :   NotifyChannelActiveRunnable(uint64_t aWindowID, AudioChannel aAudioChannel,</span>
+<span class="lineNum">      51 </span>            :                               bool aActive)
+<span class="lineNum">      52 </span>            :     : Runnable(&quot;NotifyChannelActiveRunnable&quot;)
+<span class="lineNum">      53 </span>            :     , mWindowID(aWindowID)
+<span class="lineNum">      54 </span>            :     , mAudioChannel(aAudioChannel)
+<span class="lineNum">      55 </span><span class="lineCov">          1 :     , mActive(aActive)</span>
+<a name="56"><span class="lineNum">      56 </span><span class="lineCov">          1 :   {}</span></a>
+<span class="lineNum">      57 </span>            : 
+<span class="lineNum">      58 </span><span class="lineCov">          1 :   NS_IMETHOD Run() override</span>
+<span class="lineNum">      59 </span>            :   {
+<span class="lineNum">      60 </span>            :     nsCOMPtr&lt;nsIObserverService&gt; observerService =
+<span class="lineNum">      61 </span><span class="lineCov">          1 :       services::GetObserverService();</span>
+<span class="lineNum">      62 </span><span class="lineCov">          1 :     if (NS_WARN_IF(!observerService)) {</span>
+<span class="lineNum">      63 </span>            :       return NS_ERROR_FAILURE;
+<span class="lineNum">      64 </span>            :     }
+<span class="lineNum">      65 </span>            : 
+<span class="lineNum">      66 </span>            :     nsCOMPtr&lt;nsISupportsPRUint64&gt; wrapper =
+<span class="lineNum">      67 </span><span class="lineCov">          1 :       do_CreateInstance(NS_SUPPORTS_PRUINT64_CONTRACTID);</span>
+<span class="lineNum">      68 </span><span class="lineCov">          1 :     if (NS_WARN_IF(!wrapper)) {</span>
+<span class="lineNum">      69 </span>            :        return NS_ERROR_FAILURE;
+<span class="lineNum">      70 </span>            :     }
+<span class="lineNum">      71 </span>            : 
+<span class="lineNum">      72 </span><span class="lineCov">          1 :     wrapper-&gt;SetData(mWindowID);</span>
+<span class="lineNum">      73 </span>            : 
+<span class="lineNum">      74 </span><span class="lineCov">          1 :     nsAutoString name;</span>
+<span class="lineNum">      75 </span><span class="lineCov">          1 :     AudioChannelService::GetAudioChannelString(mAudioChannel, name);</span>
+<span class="lineNum">      76 </span>            : 
+<span class="lineNum">      77 </span><span class="lineCov">          1 :     nsAutoCString topic;</span>
+<span class="lineNum">      78 </span><span class="lineCov">          1 :     topic.Assign(&quot;audiochannel-activity-&quot;);</span>
+<span class="lineNum">      79 </span><span class="lineCov">          1 :     topic.Append(NS_ConvertUTF16toUTF8(name));</span>
+<span class="lineNum">      80 </span>            : 
+<span class="lineNum">      81 </span>            :     observerService-&gt;NotifyObservers(wrapper, topic.get(),
+<span class="lineNum">      82 </span>            :                                      mActive
+<span class="lineNum">      83 </span>            :                                        ? u&quot;active&quot;
+<span class="lineNum">      84 </span><span class="lineCov">          1 :                                        : u&quot;inactive&quot;);</span>
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span>            :     // TODO : remove b2g related event in bug1299390.
+<span class="lineNum">      87 </span>            :     observerService-&gt;NotifyObservers(wrapper,
+<span class="lineNum">      88 </span>            :                                      &quot;media-playback&quot;,
+<span class="lineNum">      89 </span>            :                                      mActive
+<span class="lineNum">      90 </span>            :                                        ? u&quot;active&quot;
+<span class="lineNum">      91 </span><span class="lineCov">          1 :                                        : u&quot;inactive&quot;);</span>
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span><span class="lineCov">          1 :     MOZ_LOG(AudioChannelService::GetAudioChannelLog(), LogLevel::Debug,</span>
+<span class="lineNum">      94 </span>            :            (&quot;NotifyChannelActiveRunnable, type = %&quot; PRIu32 &quot;, active = %d\n&quot;,
+<span class="lineNum">      95 </span>            :             static_cast&lt;uint32_t&gt;(mAudioChannel), mActive));
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span><span class="lineCov">          1 :     return NS_OK;</span>
+<span class="lineNum">      98 </span>            :   }
+<span class="lineNum">      99 </span>            : 
+<span class="lineNum">     100 </span>            : private:
+<span class="lineNum">     101 </span>            :   const uint64_t mWindowID;
+<span class="lineNum">     102 </span>            :   const AudioChannel mAudioChannel;
+<span class="lineNum">     103 </span>            :   const bool mActive;
+<span class="lineNum">     104 </span>            : };
+<a name="105"><span class="lineNum">     105 </span>            : </a>
+<span class="lineNum">     106 </span>            : bool
+<span class="lineNum">     107 </span><span class="lineCov">          1 : IsParentProcess()</span>
+<span class="lineNum">     108 </span>            : {
+<span class="lineNum">     109 </span><span class="lineCov">          1 :   return XRE_GetProcessType() == GeckoProcessType_Default;</span>
+<a name="110"><span class="lineNum">     110 </span>            : }</a>
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span><span class="lineCov">          1 : class AudioPlaybackRunnable final : public Runnable</span>
+<a name="113"><span class="lineNum">     113 </span>            : {</a>
+<span class="lineNum">     114 </span>            : public:
+<span class="lineNum">     115 </span><span class="lineCov">          1 :   AudioPlaybackRunnable(nsPIDOMWindowOuter* aWindow, bool aActive,</span>
+<span class="lineNum">     116 </span>            :                         AudioChannelService::AudibleChangedReasons aReason)
+<span class="lineNum">     117 </span>            :     : mWindow(aWindow)
+<span class="lineNum">     118 </span>            :     , mActive(aActive)
+<span class="lineNum">     119 </span><span class="lineCov">          1 :     , mReason(aReason)</span>
+<a name="120"><span class="lineNum">     120 </span><span class="lineCov">          1 :   {}</span></a>
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span><span class="lineCov">          1 :  NS_IMETHOD Run() override</span>
+<span class="lineNum">     123 </span>            :  {
+<span class="lineNum">     124 </span>            :     nsCOMPtr&lt;nsIObserverService&gt; observerService =
+<span class="lineNum">     125 </span><span class="lineCov">          1 :       services::GetObserverService();</span>
+<span class="lineNum">     126 </span><span class="lineCov">          1 :     if (NS_WARN_IF(!observerService)) {</span>
+<span class="lineNum">     127 </span>            :       return NS_ERROR_FAILURE;
+<span class="lineNum">     128 </span>            :     }
+<span class="lineNum">     129 </span>            : 
+<span class="lineNum">     130 </span><span class="lineCov">          1 :     nsAutoString state;</span>
+<span class="lineNum">     131 </span><span class="lineCov">          1 :     GetActiveState(state);</span>
+<span class="lineNum">     132 </span>            : 
+<span class="lineNum">     133 </span><span class="lineCov">          1 :     observerService-&gt;NotifyObservers(ToSupports(mWindow),</span>
+<span class="lineNum">     134 </span>            :                                      &quot;audio-playback&quot;,
+<span class="lineNum">     135 </span><span class="lineCov">          1 :                                      state.get());</span>
+<span class="lineNum">     136 </span>            : 
+<span class="lineNum">     137 </span><span class="lineCov">          1 :     MOZ_LOG(AudioChannelService::GetAudioChannelLog(), LogLevel::Debug,</span>
+<span class="lineNum">     138 </span>            :            (&quot;AudioPlaybackRunnable, active = %d, reason = %d\n&quot;,
+<span class="lineNum">     139 </span>            :             mActive, mReason));
+<span class="lineNum">     140 </span>            : 
+<span class="lineNum">     141 </span><span class="lineCov">          1 :     return NS_OK;</span>
+<span class="lineNum">     142 </span>            :   }
+<a name="143"><span class="lineNum">     143 </span>            : </a>
+<span class="lineNum">     144 </span>            : private:
+<span class="lineNum">     145 </span><span class="lineCov">          1 :   void GetActiveState(nsAString&amp; astate)</span>
+<span class="lineNum">     146 </span>            :   {
+<span class="lineNum">     147 </span><span class="lineCov">          1 :     if (mActive) {</span>
+<span class="lineNum">     148 </span><span class="lineCov">          1 :       CopyASCIItoUTF16(&quot;active&quot;, astate);</span>
+<span class="lineNum">     149 </span>            :     } else {
+<span class="lineNum">     150 </span><span class="lineCov">          1 :       if(mReason == AudioChannelService::AudibleChangedReasons::ePauseStateChanged) {</span>
+<span class="lineNum">     151 </span><span class="lineCov">          1 :         CopyASCIItoUTF16(&quot;inactive-pause&quot;, astate);</span>
+<span class="lineNum">     152 </span>            :       } else {
+<span class="lineNum">     153 </span><span class="lineNoCov">          0 :         CopyASCIItoUTF16(&quot;inactive-nonaudible&quot;, astate);</span>
+<span class="lineNum">     154 </span>            :       }
+<span class="lineNum">     155 </span>            :     }
+<span class="lineNum">     156 </span><span class="lineCov">          1 :   }</span>
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span>            :   nsCOMPtr&lt;nsPIDOMWindowOuter&gt; mWindow;
+<span class="lineNum">     159 </span>            :   bool mActive;
+<span class="lineNum">     160 </span>            :   AudioChannelService::AudibleChangedReasons mReason;
+<span class="lineNum">     161 </span>            : };
+<span class="lineNum">     162 </span>            : 
+<span class="lineNum">     163 </span>            : bool
+<span class="lineNum">     164 </span>            : IsEnableAudioCompetingForAllAgents()
+<span class="lineNum">     165 </span>            : {
+<span class="lineNum">     166 </span>            :   // In general, the audio competing should only be for audible media and it
+<span class="lineNum">     167 </span>            :   // helps user can focus on one media at the same time. However, we hope to
+<span class="lineNum">     168 </span>            :   // treat all media as the same in the mobile device. First reason is we have
+<span class="lineNum">     169 </span>            :   // media control on fennec and we just want to control one media at once time.
+<span class="lineNum">     170 </span>            :   // Second reason is to reduce the bandwidth, avoiding to play any non-audible
+<span class="lineNum">     171 </span>            :   // media in background which user doesn't notice about.
+<span class="lineNum">     172 </span>            : #ifdef MOZ_WIDGET_ANDROID
+<span class="lineNum">     173 </span>            :   return true;
+<span class="lineNum">     174 </span>            : #else
+<span class="lineNum">     175 </span><span class="lineCov">          1 :   return sAudioChannelCompetingAllAgents;</span>
+<span class="lineNum">     176 </span>            : #endif
+<span class="lineNum">     177 </span>            : }
+<span class="lineNum">     178 </span>            : 
+<span class="lineNum">     179 </span>            : } // anonymous namespace
+<span class="lineNum">     180 </span>            : 
+<span class="lineNum">     181 </span>            : StaticRefPtr&lt;AudioChannelService&gt; gAudioChannelService;
+<span class="lineNum">     182 </span>            : 
+<span class="lineNum">     183 </span>            : // Mappings from 'mozaudiochannel' attribute strings to an enumeration.
+<span class="lineNum">     184 </span>            : static const nsAttrValue::EnumTable kMozAudioChannelAttributeTable[] = {
+<span class="lineNum">     185 </span>            :   { &quot;normal&quot;,             (int16_t)AudioChannel::Normal },
+<span class="lineNum">     186 </span>            :   { &quot;content&quot;,            (int16_t)AudioChannel::Content },
+<span class="lineNum">     187 </span>            :   { &quot;notification&quot;,       (int16_t)AudioChannel::Notification },
+<span class="lineNum">     188 </span>            :   { &quot;alarm&quot;,              (int16_t)AudioChannel::Alarm },
+<span class="lineNum">     189 </span>            :   { &quot;telephony&quot;,          (int16_t)AudioChannel::Telephony },
+<span class="lineNum">     190 </span>            :   { &quot;ringer&quot;,             (int16_t)AudioChannel::Ringer },
+<span class="lineNum">     191 </span>            :   { &quot;publicnotification&quot;, (int16_t)AudioChannel::Publicnotification },
+<span class="lineNum">     192 </span>            :   { &quot;system&quot;,             (int16_t)AudioChannel::System },
+<span class="lineNum">     193 </span>            :   { nullptr,              0 }
+<span class="lineNum">     194 </span>            : };
+<a name="195"><span class="lineNum">     195 </span>            : </a>
+<span class="lineNum">     196 </span>            : /* static */ void
+<span class="lineNum">     197 </span><span class="lineCov">          1 : AudioChannelService::CreateServiceIfNeeded()</span>
+<span class="lineNum">     198 </span>            : {
+<span class="lineNum">     199 </span>            :   MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     200 </span>            : 
+<span class="lineNum">     201 </span><span class="lineCov">          1 :   if (!gAudioChannelService) {</span>
+<span class="lineNum">     202 </span><span class="lineCov">          1 :     gAudioChannelService = new AudioChannelService();</span>
+<span class="lineNum">     203 </span>            :   }
+<span class="lineNum">     204 </span><span class="lineCov">          1 : }</span>
+<a name="205"><span class="lineNum">     205 </span>            : </a>
+<span class="lineNum">     206 </span>            : /* static */ already_AddRefed&lt;AudioChannelService&gt;
+<span class="lineNum">     207 </span><span class="lineCov">          1 : AudioChannelService::GetOrCreate()</span>
+<span class="lineNum">     208 </span>            : {
+<span class="lineNum">     209 </span><span class="lineCov">          1 :   if (sXPCOMShuttingDown) {</span>
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :     return nullptr;</span>
+<span class="lineNum">     211 </span>            :   }
+<span class="lineNum">     212 </span>            : 
+<span class="lineNum">     213 </span><span class="lineCov">          1 :   CreateServiceIfNeeded();</span>
+<span class="lineNum">     214 </span><span class="lineCov">          1 :   RefPtr&lt;AudioChannelService&gt; service = gAudioChannelService.get();</span>
+<span class="lineNum">     215 </span><span class="lineCov">          1 :   return service.forget();</span>
+<span class="lineNum">     216 </span>            : }
+<a name="217"><span class="lineNum">     217 </span>            : </a>
+<span class="lineNum">     218 </span>            : /* static */ already_AddRefed&lt;AudioChannelService&gt;
+<span class="lineNum">     219 </span><span class="lineCov">          1 : AudioChannelService::Get()</span>
+<span class="lineNum">     220 </span>            : {
+<span class="lineNum">     221 </span><span class="lineCov">          1 :   if (sXPCOMShuttingDown) {</span>
+<span class="lineNum">     222 </span><span class="lineNoCov">          0 :     return nullptr;</span>
+<span class="lineNum">     223 </span>            :   }
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span><span class="lineCov">          1 :   RefPtr&lt;AudioChannelService&gt; service = gAudioChannelService.get();</span>
+<span class="lineNum">     226 </span><span class="lineCov">          1 :   return service.forget();</span>
+<span class="lineNum">     227 </span>            : }
+<a name="228"><span class="lineNum">     228 </span>            : </a>
+<span class="lineNum">     229 </span>            : /* static */ PRLogModuleInfo*
+<span class="lineNum">     230 </span><span class="lineCov">          1 : AudioChannelService::GetAudioChannelLog()</span>
+<span class="lineNum">     231 </span>            : {
+<span class="lineNum">     232 </span>            :   static PRLogModuleInfo *gAudioChannelLog;
+<span class="lineNum">     233 </span><span class="lineCov">          1 :   if (!gAudioChannelLog) {</span>
+<span class="lineNum">     234 </span><span class="lineCov">          1 :     gAudioChannelLog = PR_NewLogModule(&quot;AudioChannel&quot;);</span>
+<span class="lineNum">     235 </span>            :   }
+<span class="lineNum">     236 </span><span class="lineCov">          1 :   return gAudioChannelLog;</span>
+<span class="lineNum">     237 </span>            : }
+<a name="238"><span class="lineNum">     238 </span>            : </a>
+<span class="lineNum">     239 </span>            : /* static */ void
+<span class="lineNum">     240 </span><span class="lineCov">          1 : AudioChannelService::Shutdown()</span>
+<span class="lineNum">     241 </span>            : {
+<span class="lineNum">     242 </span><span class="lineCov">          1 :   if (gAudioChannelService) {</span>
+<span class="lineNum">     243 </span><span class="lineCov">          1 :     nsCOMPtr&lt;nsIObserverService&gt; obs = mozilla::services::GetObserverService();</span>
+<span class="lineNum">     244 </span><span class="lineCov">          1 :     if (obs) {</span>
+<span class="lineNum">     245 </span><span class="lineCov">          1 :       obs-&gt;RemoveObserver(gAudioChannelService, &quot;xpcom-shutdown&quot;);</span>
+<span class="lineNum">     246 </span><span class="lineCov">          1 :       obs-&gt;RemoveObserver(gAudioChannelService, &quot;outer-window-destroyed&quot;);</span>
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span><span class="lineCov">          1 :       if (IsParentProcess()) {</span>
+<span class="lineNum">     249 </span><span class="lineCov">          1 :         obs-&gt;RemoveObserver(gAudioChannelService, &quot;ipc:content-shutdown&quot;);</span>
+<span class="lineNum">     250 </span>            :       }
+<span class="lineNum">     251 </span>            :     }
+<span class="lineNum">     252 </span>            : 
+<span class="lineNum">     253 </span><span class="lineCov">          1 :     gAudioChannelService-&gt;mWindows.Clear();</span>
+<span class="lineNum">     254 </span><span class="lineCov">          1 :     gAudioChannelService-&gt;mPlayingChildren.Clear();</span>
+<span class="lineNum">     255 </span><span class="lineCov">          1 :     gAudioChannelService-&gt;mTabParents.Clear();</span>
+<span class="lineNum">     256 </span>            : 
+<span class="lineNum">     257 </span>            :     gAudioChannelService = nullptr;
+<span class="lineNum">     258 </span>            :   }
+<span class="lineNum">     259 </span><span class="lineCov">          1 : }</span>
+<a name="260"><span class="lineNum">     260 </span>            : </a>
+<span class="lineNum">     261 </span>            : /* static */ bool
+<span class="lineNum">     262 </span><span class="lineNoCov">          0 : AudioChannelService::IsEnableAudioCompeting()</span>
+<span class="lineNum">     263 </span>            : {
+<span class="lineNum">     264 </span><span class="lineCov">          1 :   CreateServiceIfNeeded();</span>
+<span class="lineNum">     265 </span><span class="lineCov">          1 :   return sAudioChannelCompeting;</span>
+<a name="266"><span class="lineNum">     266 </span>            : }</a>
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span><span class="lineCov">          1 : NS_INTERFACE_MAP_BEGIN(AudioChannelService)</span>
+<span class="lineNum">     269 </span><span class="lineCov">          1 :   NS_INTERFACE_MAP_ENTRY_AMBIGUOUS(nsISupports, nsIAudioChannelService)</span>
+<span class="lineNum">     270 </span><span class="lineCov">          1 :   NS_INTERFACE_MAP_ENTRY(nsIAudioChannelService)</span>
+<span class="lineNum">     271 </span><span class="lineCov">          1 :   NS_INTERFACE_MAP_ENTRY(nsIObserver)</span>
+<a name="272"><span class="lineNum">     272 </span><span class="lineCov">          1 : NS_INTERFACE_MAP_END</span></a>
+<a name="273"><span class="lineNum">     273 </span>            : </a>
+<span class="lineNum">     274 </span><span class="lineCov">          1 : NS_IMPL_ADDREF(AudioChannelService)</span>
+<a name="275"><span class="lineNum">     275 </span><span class="lineCov">          1 : NS_IMPL_RELEASE(AudioChannelService)</span></a>
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span><span class="lineCov">          1 : AudioChannelService::AudioChannelService()</span>
+<span class="lineNum">     278 </span>            :   : mDefChannelChildID(CONTENT_PROCESS_ID_UNKNOWN)
+<span class="lineNum">     279 </span>            :   , mTelephonyChannel(false)
+<span class="lineNum">     280 </span>            :   , mContentOrNormalChannel(false)
+<span class="lineNum">     281 </span><span class="lineCov">          1 :   , mAnyChannel(false)</span>
+<span class="lineNum">     282 </span>            : {
+<span class="lineNum">     283 </span><span class="lineCov">          1 :   nsCOMPtr&lt;nsIObserverService&gt; obs = mozilla::services::GetObserverService();</span>
+<span class="lineNum">     284 </span><span class="lineCov">          1 :   if (obs) {</span>
+<span class="lineNum">     285 </span><span class="lineCov">          1 :     obs-&gt;AddObserver(this, &quot;xpcom-shutdown&quot;, false);</span>
+<span class="lineNum">     286 </span><span class="lineCov">          1 :     obs-&gt;AddObserver(this, &quot;outer-window-destroyed&quot;, false);</span>
+<span class="lineNum">     287 </span><span class="lineCov">          1 :     if (IsParentProcess()) {</span>
+<span class="lineNum">     288 </span><span class="lineCov">          1 :       obs-&gt;AddObserver(this, &quot;ipc:content-shutdown&quot;, false);</span>
+<span class="lineNum">     289 </span>            :     }
+<span class="lineNum">     290 </span>            :   }
+<span class="lineNum">     291 </span>            : 
+<span class="lineNum">     292 </span>            :   Preferences::AddBoolVarCache(&amp;sAudioChannelMutedByDefault,
+<span class="lineNum">     293 </span><span class="lineCov">          1 :                                &quot;dom.audiochannel.mutedByDefault&quot;);</span>
+<span class="lineNum">     294 </span>            :   Preferences::AddBoolVarCache(&amp;sAudioChannelCompeting,
+<span class="lineNum">     295 </span><span class="lineCov">          1 :                                &quot;dom.audiochannel.audioCompeting&quot;);</span>
+<span class="lineNum">     296 </span>            :   Preferences::AddBoolVarCache(&amp;sAudioChannelCompetingAllAgents,
+<span class="lineNum">     297 </span><span class="lineCov">          1 :                                &quot;dom.audiochannel.audioCompeting.allAgents&quot;);</span>
+<a name="298"><span class="lineNum">     298 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span><span class="lineCov">          1 : AudioChannelService::~AudioChannelService()</span>
+<span class="lineNum">     301 </span>            : {
+<span class="lineNum">     302 </span><span class="lineCov">          1 : }</span>
+<a name="303"><span class="lineNum">     303 </span>            : </a>
+<span class="lineNum">     304 </span>            : void
+<span class="lineNum">     305 </span><span class="lineCov">          1 : AudioChannelService::NotifyCreatedNewAgent(AudioChannelAgent* aAgent)</span>
+<span class="lineNum">     306 </span>            : {
+<span class="lineNum">     307 </span>            :   MOZ_ASSERT(aAgent);
+<span class="lineNum">     308 </span>            : 
+<span class="lineNum">     309 </span><span class="lineCov">          1 :   nsCOMPtr&lt;nsPIDOMWindowOuter&gt; window = aAgent-&gt;Window();</span>
+<span class="lineNum">     310 </span><span class="lineCov">          1 :   if (!window) {</span>
+<span class="lineNum">     311 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">     312 </span>            :   }
+<span class="lineNum">     313 </span>            : 
+<span class="lineNum">     314 </span><span class="lineCov">          1 :   window-&gt;NotifyCreatedNewMediaComponent();</span>
+<span class="lineNum">     315 </span>            : }
+<a name="316"><span class="lineNum">     316 </span>            : </a>
+<span class="lineNum">     317 </span>            : void
+<span class="lineNum">     318 </span><span class="lineCov">          1 : AudioChannelService::RegisterAudioChannelAgent(AudioChannelAgent* aAgent,</span>
+<span class="lineNum">     319 </span>            :                                                AudibleState aAudible)
+<span class="lineNum">     320 </span>            : {
+<span class="lineNum">     321 </span>            :   MOZ_ASSERT(aAgent);
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span><span class="lineCov">          1 :   uint64_t windowID = aAgent-&gt;WindowID();</span>
+<span class="lineNum">     324 </span><span class="lineCov">          1 :   AudioChannelWindow* winData = GetWindowData(windowID);</span>
+<span class="lineNum">     325 </span><span class="lineCov">          1 :   if (!winData) {</span>
+<span class="lineNum">     326 </span><span class="lineCov">          1 :     winData = new AudioChannelWindow(windowID);</span>
+<span class="lineNum">     327 </span><span class="lineCov">          1 :     mWindows.AppendElement(winData);</span>
+<span class="lineNum">     328 </span>            :   }
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span>            :   // To make sure agent would be alive because AppendAgent() would trigger the
+<span class="lineNum">     331 </span>            :   // callback function of AudioChannelAgentOwner that means the agent might be
+<span class="lineNum">     332 </span>            :   // released in their callback.
+<span class="lineNum">     333 </span><span class="lineCov">          1 :   RefPtr&lt;AudioChannelAgent&gt; kungFuDeathGrip(aAgent);</span>
+<span class="lineNum">     334 </span><span class="lineCov">          1 :   winData-&gt;AppendAgent(aAgent, aAudible);</span>
+<span class="lineNum">     335 </span>            : 
+<span class="lineNum">     336 </span><span class="lineCov">          1 :   MaybeSendStatusUpdate();</span>
+<span class="lineNum">     337 </span><span class="lineCov">          1 : }</span>
+<a name="338"><span class="lineNum">     338 </span>            : </a>
+<span class="lineNum">     339 </span>            : void
+<span class="lineNum">     340 </span><span class="lineCov">          1 : AudioChannelService::UnregisterAudioChannelAgent(AudioChannelAgent* aAgent)</span>
+<span class="lineNum">     341 </span>            : {
+<span class="lineNum">     342 </span>            :   MOZ_ASSERT(aAgent);
+<span class="lineNum">     343 </span>            : 
+<span class="lineNum">     344 </span><span class="lineCov">          1 :   AudioChannelWindow* winData = GetWindowData(aAgent-&gt;WindowID());</span>
+<span class="lineNum">     345 </span><span class="lineCov">          1 :   if (!winData) {</span>
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     347 </span>            :   }
+<span class="lineNum">     348 </span>            : 
+<span class="lineNum">     349 </span>            :   // To make sure agent would be alive because AppendAgent() would trigger the
+<span class="lineNum">     350 </span>            :   // callback function of AudioChannelAgentOwner that means the agent might be
+<span class="lineNum">     351 </span>            :   // released in their callback.
+<span class="lineNum">     352 </span><span class="lineCov">          1 :   RefPtr&lt;AudioChannelAgent&gt; kungFuDeathGrip(aAgent);</span>
+<span class="lineNum">     353 </span><span class="lineCov">          1 :   winData-&gt;RemoveAgent(aAgent);</span>
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span><span class="lineCov">          1 :   MaybeSendStatusUpdate();</span>
+<span class="lineNum">     356 </span>            : }
+<a name="357"><span class="lineNum">     357 </span>            : </a>
+<span class="lineNum">     358 </span>            : void
+<span class="lineNum">     359 </span><span class="lineCov">          1 : AudioChannelService::RegisterTabParent(TabParent* aTabParent)</span>
+<span class="lineNum">     360 </span>            : {
+<span class="lineNum">     361 </span>            :   MOZ_ASSERT(aTabParent);
+<span class="lineNum">     362 </span>            :   MOZ_ASSERT(!mTabParents.Contains(aTabParent));
+<span class="lineNum">     363 </span><span class="lineCov">          1 :   mTabParents.AppendElement(aTabParent);</span>
+<span class="lineNum">     364 </span><span class="lineCov">          1 : }</span>
+<a name="365"><span class="lineNum">     365 </span>            : </a>
+<span class="lineNum">     366 </span>            : void
+<span class="lineNum">     367 </span><span class="lineCov">          1 : AudioChannelService::UnregisterTabParent(TabParent* aTabParent)</span>
+<span class="lineNum">     368 </span>            : {
+<span class="lineNum">     369 </span>            :   MOZ_ASSERT(aTabParent);
+<span class="lineNum">     370 </span><span class="lineCov">          1 :   mTabParents.RemoveElement(aTabParent);</span>
+<span class="lineNum">     371 </span><span class="lineCov">          1 : }</span>
+<a name="372"><span class="lineNum">     372 </span>            : </a>
+<span class="lineNum">     373 </span>            : AudioPlaybackConfig
+<span class="lineNum">     374 </span><span class="lineCov">          1 : AudioChannelService::GetMediaConfig(nsPIDOMWindowOuter* aWindow,</span>
+<span class="lineNum">     375 </span>            :                                     uint32_t aAudioChannel) const
+<span class="lineNum">     376 </span>            : {
+<span class="lineNum">     377 </span>            :   MOZ_ASSERT(!aWindow || aWindow-&gt;IsOuterWindow());
+<span class="lineNum">     378 </span>            :   MOZ_ASSERT(aAudioChannel &lt; NUMBER_OF_AUDIO_CHANNELS);
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span>            :   AudioPlaybackConfig config(1.0, false,
+<span class="lineNum">     381 </span>            :                              nsISuspendedTypes::NONE_SUSPENDED);
+<span class="lineNum">     382 </span>            : 
+<span class="lineNum">     383 </span><span class="lineCov">          1 :   if (!aWindow || !aWindow-&gt;IsOuterWindow()) {</span>
+<span class="lineNum">     384 </span>            :     config.SetConfig(0.0, true,
+<span class="lineNum">     385 </span>            :                      nsISuspendedTypes::SUSPENDED_BLOCK);
+<span class="lineNum">     386 </span><span class="lineNoCov">          0 :     return config;</span>
+<span class="lineNum">     387 </span>            :   }
+<span class="lineNum">     388 </span>            : 
+<span class="lineNum">     389 </span><span class="lineCov">          1 :   AudioChannelWindow* winData = nullptr;</span>
+<span class="lineNum">     390 </span><span class="lineCov">          1 :   nsCOMPtr&lt;nsPIDOMWindowOuter&gt; window = aWindow;</span>
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span>            :   // The volume must be calculated based on the window hierarchy. Here we go up
+<span class="lineNum">     393 </span>            :   // to the top window and we calculate the volume and the muted flag.
+<span class="lineNum">     394 </span><span class="lineCov">          1 :   do {</span>
+<span class="lineNum">     395 </span><span class="lineCov">          1 :     winData = GetWindowData(window-&gt;WindowID());</span>
+<span class="lineNum">     396 </span><span class="lineCov">          1 :     if (winData) {</span>
+<span class="lineNum">     397 </span><span class="lineCov">          1 :       config.mVolume *= winData-&gt;mChannels[aAudioChannel].mVolume;</span>
+<span class="lineNum">     398 </span><span class="lineCov">          1 :       config.mMuted = config.mMuted || winData-&gt;mChannels[aAudioChannel].mMuted;</span>
+<span class="lineNum">     399 </span>            :       config.mSuspend = winData-&gt;mOwningAudioFocus ?
+<span class="lineNum">     400 </span><span class="lineCov">          1 :         config.mSuspend : nsISuspendedTypes::SUSPENDED_STOP_DISPOSABLE;</span>
+<span class="lineNum">     401 </span>            :     }
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span><span class="lineCov">          1 :     config.mVolume *= window-&gt;GetAudioVolume();</span>
+<span class="lineNum">     404 </span><span class="lineCov">          1 :     config.mMuted = config.mMuted || window-&gt;GetAudioMuted();</span>
+<span class="lineNum">     405 </span><span class="lineCov">          1 :     if (window-&gt;GetMediaSuspend() != nsISuspendedTypes::NONE_SUSPENDED) {</span>
+<span class="lineNum">     406 </span><span class="lineCov">          1 :       config.mSuspend = window-&gt;GetMediaSuspend();</span>
+<span class="lineNum">     407 </span>            :     }
+<span class="lineNum">     408 </span>            : 
+<span class="lineNum">     409 </span><span class="lineCov">          1 :     nsCOMPtr&lt;nsPIDOMWindowOuter&gt; win = window-&gt;GetScriptableParentOrNull();</span>
+<span class="lineNum">     410 </span><span class="lineCov">          1 :     if (!win) {</span>
+<span class="lineNum">     411 </span>            :       break;
+<span class="lineNum">     412 </span>            :     }
+<span class="lineNum">     413 </span>            : 
+<span class="lineNum">     414 </span><span class="lineCov">          1 :     window = do_QueryInterface(win);</span>
+<span class="lineNum">     415 </span>            : 
+<span class="lineNum">     416 </span>            :     // If there is no parent, or we are the toplevel we don't continue.
+<span class="lineNum">     417 </span><span class="lineCov">          1 :   } while (window &amp;&amp; window != aWindow);</span>
+<span class="lineNum">     418 </span>            : 
+<span class="lineNum">     419 </span><span class="lineCov">          1 :   return config;</span>
+<span class="lineNum">     420 </span>            : }
+<a name="421"><span class="lineNum">     421 </span>            : </a>
+<span class="lineNum">     422 </span>            : void
+<span class="lineNum">     423 </span><span class="lineCov">          1 : AudioChannelService::AudioAudibleChanged(AudioChannelAgent* aAgent,</span>
+<span class="lineNum">     424 </span>            :                                          AudibleState aAudible,
+<span class="lineNum">     425 </span>            :                                          AudibleChangedReasons aReason)
+<span class="lineNum">     426 </span>            : {
+<span class="lineNum">     427 </span>            :   MOZ_ASSERT(aAgent);
+<span class="lineNum">     428 </span>            : 
+<span class="lineNum">     429 </span><span class="lineCov">          1 :   uint64_t windowID = aAgent-&gt;WindowID();</span>
+<span class="lineNum">     430 </span><span class="lineCov">          1 :   AudioChannelWindow* winData = GetWindowData(windowID);</span>
+<span class="lineNum">     431 </span><span class="lineCov">          1 :   if (winData) {</span>
+<span class="lineNum">     432 </span><span class="lineCov">          1 :     winData-&gt;AudioAudibleChanged(aAgent, aAudible, aReason);</span>
+<span class="lineNum">     433 </span>            :   }
+<span class="lineNum">     434 </span><span class="lineCov">          1 : }</span>
+<a name="435"><span class="lineNum">     435 </span>            : </a>
+<span class="lineNum">     436 </span>            : bool
+<span class="lineNum">     437 </span><span class="lineNoCov">          0 : AudioChannelService::TelephonyChannelIsActive()</span>
+<span class="lineNum">     438 </span>            : {
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :   nsTObserverArray&lt;nsAutoPtr&lt;AudioChannelWindow&gt;&gt;::ForwardIterator windowsIter(mWindows);</span>
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :   while (windowsIter.HasMore()) {</span>
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :     AudioChannelWindow* next = windowsIter.GetNext();</span>
+<span class="lineNum">     442 </span><span class="lineNoCov">          0 :     if (next-&gt;mChannels[(uint32_t)AudioChannel::Telephony].mNumberOfAgents != 0 &amp;&amp;</span>
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :         !next-&gt;mChannels[(uint32_t)AudioChannel::Telephony].mMuted) {</span>
+<span class="lineNum">     444 </span>            :       return true;
+<span class="lineNum">     445 </span>            :     }
+<span class="lineNum">     446 </span>            :   }
+<span class="lineNum">     447 </span>            : 
+<span class="lineNum">     448 </span><span class="lineNoCov">          0 :   if (IsParentProcess()) {</span>
+<span class="lineNum">     449 </span>            :     nsTObserverArray&lt;nsAutoPtr&lt;AudioChannelChildStatus&gt;&gt;::ForwardIterator
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 :       childrenIter(mPlayingChildren);</span>
+<span class="lineNum">     451 </span><span class="lineNoCov">          0 :     while (childrenIter.HasMore()) {</span>
+<span class="lineNum">     452 </span><span class="lineNoCov">          0 :       AudioChannelChildStatus* child = childrenIter.GetNext();</span>
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :       if (child-&gt;mActiveTelephonyChannel) {</span>
+<span class="lineNum">     454 </span><span class="lineNoCov">          0 :         return true;</span>
+<span class="lineNum">     455 </span>            :       }
+<span class="lineNum">     456 </span>            :     }
+<span class="lineNum">     457 </span>            :   }
+<span class="lineNum">     458 </span>            : 
+<span class="lineNum">     459 </span>            :   return false;
+<span class="lineNum">     460 </span>            : }
+<a name="461"><span class="lineNum">     461 </span>            : </a>
+<span class="lineNum">     462 </span>            : bool
+<span class="lineNum">     463 </span><span class="lineNoCov">          0 : AudioChannelService::ContentOrNormalChannelIsActive()</span>
+<span class="lineNum">     464 </span>            : {
+<span class="lineNum">     465 </span>            :   // This method is meant to be used just by the child to send status update.
+<span class="lineNum">     466 </span>            :   MOZ_ASSERT(!IsParentProcess());
+<span class="lineNum">     467 </span>            : 
+<span class="lineNum">     468 </span><span class="lineNoCov">          0 :   nsTObserverArray&lt;nsAutoPtr&lt;AudioChannelWindow&gt;&gt;::ForwardIterator iter(mWindows);</span>
+<span class="lineNum">     469 </span><span class="lineNoCov">          0 :   while (iter.HasMore()) {</span>
+<span class="lineNum">     470 </span><span class="lineNoCov">          0 :     AudioChannelWindow* next = iter.GetNext();</span>
+<span class="lineNum">     471 </span><span class="lineNoCov">          0 :     if (next-&gt;mChannels[(uint32_t)AudioChannel::Content].mNumberOfAgents &gt; 0 ||</span>
+<span class="lineNum">     472 </span><span class="lineNoCov">          0 :         next-&gt;mChannels[(uint32_t)AudioChannel::Normal].mNumberOfAgents &gt; 0) {</span>
+<span class="lineNum">     473 </span>            :       return true;
+<span class="lineNum">     474 </span>            :     }
+<span class="lineNum">     475 </span>            :   }
+<span class="lineNum">     476 </span>            :   return false;
+<span class="lineNum">     477 </span>            : }
+<a name="478"><span class="lineNum">     478 </span>            : </a>
+<span class="lineNum">     479 </span>            : AudioChannelService::AudioChannelChildStatus*
+<span class="lineNum">     480 </span><span class="lineNoCov">          0 : AudioChannelService::GetChildStatus(uint64_t aChildID) const</span>
+<span class="lineNum">     481 </span>            : {
+<span class="lineNum">     482 </span>            :   nsTObserverArray&lt;nsAutoPtr&lt;AudioChannelChildStatus&gt;&gt;::ForwardIterator
+<span class="lineNum">     483 </span><span class="lineNoCov">          0 :     iter(mPlayingChildren);</span>
+<span class="lineNum">     484 </span><span class="lineNoCov">          0 :   while (iter.HasMore()) {</span>
+<span class="lineNum">     485 </span><span class="lineNoCov">          0 :     AudioChannelChildStatus* child = iter.GetNext();</span>
+<span class="lineNum">     486 </span><span class="lineNoCov">          0 :     if (child-&gt;mChildID == aChildID) {</span>
+<span class="lineNum">     487 </span><span class="lineNoCov">          0 :       return child;</span>
+<span class="lineNum">     488 </span>            :     }
+<span class="lineNum">     489 </span>            :   }
+<span class="lineNum">     490 </span>            : 
+<span class="lineNum">     491 </span>            :   return nullptr;
+<span class="lineNum">     492 </span>            : }
+<a name="493"><span class="lineNum">     493 </span>            : </a>
+<span class="lineNum">     494 </span>            : void
+<span class="lineNum">     495 </span><span class="lineCov">          1 : AudioChannelService::RemoveChildStatus(uint64_t aChildID)</span>
+<span class="lineNum">     496 </span>            : {
+<span class="lineNum">     497 </span>            :   nsTObserverArray&lt;nsAutoPtr&lt;AudioChannelChildStatus&gt;&gt;::ForwardIterator
+<span class="lineNum">     498 </span><span class="lineCov">          1 :     iter(mPlayingChildren);</span>
+<span class="lineNum">     499 </span><span class="lineCov">          1 :   while (iter.HasMore()) {</span>
+<span class="lineNum">     500 </span><span class="lineNoCov">          0 :     nsAutoPtr&lt;AudioChannelChildStatus&gt;&amp; child = iter.GetNext();</span>
+<span class="lineNum">     501 </span><span class="lineNoCov">          0 :     if (child-&gt;mChildID == aChildID) {</span>
+<span class="lineNum">     502 </span><span class="lineNoCov">          0 :       mPlayingChildren.RemoveElement(child);</span>
+<span class="lineNum">     503 </span><span class="lineNoCov">          0 :       break;</span>
+<span class="lineNum">     504 </span>            :     }
+<span class="lineNum">     505 </span>            :   }
+<span class="lineNum">     506 </span><span class="lineCov">          1 : }</span>
+<a name="507"><span class="lineNum">     507 </span>            : </a>
+<span class="lineNum">     508 </span>            : bool
+<span class="lineNum">     509 </span><span class="lineNoCov">          0 : AudioChannelService::ProcessContentOrNormalChannelIsActive(uint64_t aChildID)</span>
+<span class="lineNum">     510 </span>            : {
+<span class="lineNum">     511 </span><span class="lineNoCov">          0 :   AudioChannelChildStatus* child = GetChildStatus(aChildID);</span>
+<span class="lineNum">     512 </span><span class="lineNoCov">          0 :   if (!child) {</span>
+<span class="lineNum">     513 </span>            :     return false;
+<span class="lineNum">     514 </span>            :   }
+<span class="lineNum">     515 </span>            : 
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :   return child-&gt;mActiveContentOrNormalChannel;</span>
+<span class="lineNum">     517 </span>            : }
+<a name="518"><span class="lineNum">     518 </span>            : </a>
+<span class="lineNum">     519 </span>            : bool
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 : AudioChannelService::AnyAudioChannelIsActive()</span>
+<span class="lineNum">     521 </span>            : {
+<span class="lineNum">     522 </span><span class="lineNoCov">          0 :   nsTObserverArray&lt;nsAutoPtr&lt;AudioChannelWindow&gt;&gt;::ForwardIterator iter(mWindows);</span>
+<span class="lineNum">     523 </span><span class="lineNoCov">          0 :   while (iter.HasMore()) {</span>
+<span class="lineNum">     524 </span><span class="lineNoCov">          0 :     AudioChannelWindow* next = iter.GetNext();</span>
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :     for (uint32_t i = 0; kMozAudioChannelAttributeTable[i].tag; ++i) {</span>
+<span class="lineNum">     526 </span><span class="lineNoCov">          0 :       if (next-&gt;mChannels[kMozAudioChannelAttributeTable[i].value].mNumberOfAgents</span>
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :           != 0) {</span>
+<span class="lineNum">     528 </span>            :         return true;
+<span class="lineNum">     529 </span>            :       }
+<span class="lineNum">     530 </span>            :     }
+<span class="lineNum">     531 </span>            :   }
+<span class="lineNum">     532 </span>            : 
+<span class="lineNum">     533 </span><span class="lineNoCov">          0 :   if (IsParentProcess()) {</span>
+<span class="lineNum">     534 </span><span class="lineNoCov">          0 :     return !mPlayingChildren.IsEmpty();</span>
+<span class="lineNum">     535 </span>            :   }
+<span class="lineNum">     536 </span>            : 
+<span class="lineNum">     537 </span>            :   return false;
+<span class="lineNum">     538 </span>            : }
+<a name="539"><span class="lineNum">     539 </span>            : </a>
+<span class="lineNum">     540 </span>            : NS_IMETHODIMP
+<span class="lineNum">     541 </span><span class="lineCov">          1 : AudioChannelService::Observe(nsISupports* aSubject, const char* aTopic,</span>
+<span class="lineNum">     542 </span>            :                              const char16_t* aData)
+<span class="lineNum">     543 </span>            : {
+<span class="lineNum">     544 </span><span class="lineCov">          1 :   if (!strcmp(aTopic, &quot;xpcom-shutdown&quot;)) {</span>
+<span class="lineNum">     545 </span><span class="lineCov">          1 :     sXPCOMShuttingDown = true;</span>
+<span class="lineNum">     546 </span><span class="lineCov">          1 :     Shutdown();</span>
+<span class="lineNum">     547 </span><span class="lineCov">          1 :   } else if (!strcmp(aTopic, &quot;outer-window-destroyed&quot;)) {</span>
+<span class="lineNum">     548 </span><span class="lineCov">          1 :     nsCOMPtr&lt;nsISupportsPRUint64&gt; wrapper = do_QueryInterface(aSubject);</span>
+<span class="lineNum">     549 </span><span class="lineCov">          1 :     NS_ENSURE_TRUE(wrapper, NS_ERROR_FAILURE);</span>
+<span class="lineNum">     550 </span>            : 
+<span class="lineNum">     551 </span>            :     uint64_t outerID;
+<span class="lineNum">     552 </span><span class="lineCov">          1 :     nsresult rv = wrapper-&gt;GetData(&amp;outerID);</span>
+<span class="lineNum">     553 </span><span class="lineCov">          1 :     if (NS_WARN_IF(NS_FAILED(rv))) {</span>
+<span class="lineNum">     554 </span>            :       return rv;
+<span class="lineNum">     555 </span>            :     }
+<span class="lineNum">     556 </span>            : 
+<span class="lineNum">     557 </span><span class="lineCov">          1 :     nsAutoPtr&lt;AudioChannelWindow&gt; winData;</span>
+<span class="lineNum">     558 </span>            :     {
+<span class="lineNum">     559 </span>            :       nsTObserverArray&lt;nsAutoPtr&lt;AudioChannelWindow&gt;&gt;::ForwardIterator
+<span class="lineNum">     560 </span><span class="lineCov">          1 :         iter(mWindows);</span>
+<span class="lineNum">     561 </span><span class="lineCov">          1 :       while (iter.HasMore()) {</span>
+<span class="lineNum">     562 </span><span class="lineCov">          1 :         nsAutoPtr&lt;AudioChannelWindow&gt;&amp; next = iter.GetNext();</span>
+<span class="lineNum">     563 </span><span class="lineCov">          1 :         if (next-&gt;mWindowID == outerID) {</span>
+<span class="lineNum">     564 </span><span class="lineCov">          1 :           uint32_t pos = mWindows.IndexOf(next);</span>
+<span class="lineNum">     565 </span><span class="lineCov">          1 :           winData = next.forget();</span>
+<span class="lineNum">     566 </span><span class="lineCov">          1 :           mWindows.RemoveElementAt(pos);</span>
+<span class="lineNum">     567 </span><span class="lineCov">          1 :           break;</span>
+<span class="lineNum">     568 </span>            :         }
+<span class="lineNum">     569 </span>            :       }
+<span class="lineNum">     570 </span>            :     }
+<span class="lineNum">     571 </span>            : 
+<span class="lineNum">     572 </span><span class="lineCov">          1 :     if (winData) {</span>
+<span class="lineNum">     573 </span>            :       nsTObserverArray&lt;AudioChannelAgent*&gt;::ForwardIterator
+<span class="lineNum">     574 </span><span class="lineCov">          1 :         iter(winData-&gt;mAgents);</span>
+<span class="lineNum">     575 </span><span class="lineCov">          1 :       while (iter.HasMore()) {</span>
+<span class="lineNum">     576 </span><span class="lineCov">          1 :         iter.GetNext()-&gt;WindowVolumeChanged();</span>
+<span class="lineNum">     577 </span>            :       }
+<span class="lineNum">     578 </span>            :     }
+<span class="lineNum">     579 </span>            : 
+<span class="lineNum">     580 </span><span class="lineCov">          1 :   } else if (!strcmp(aTopic, &quot;ipc:content-shutdown&quot;)) {</span>
+<span class="lineNum">     581 </span><span class="lineCov">          1 :     nsCOMPtr&lt;nsIPropertyBag2&gt; props = do_QueryInterface(aSubject);</span>
+<span class="lineNum">     582 </span><span class="lineCov">          1 :     if (!props) {</span>
+<span class="lineNum">     583 </span>            :       NS_WARNING(&quot;ipc:content-shutdown message without property bag as subject&quot;);
+<span class="lineNum">     584 </span>            :       return NS_OK;
+<span class="lineNum">     585 </span>            :     }
+<span class="lineNum">     586 </span>            : 
+<span class="lineNum">     587 </span><span class="lineCov">          1 :     uint64_t childID = 0;</span>
+<span class="lineNum">     588 </span>            :     nsresult rv = props-&gt;GetPropertyAsUint64(NS_LITERAL_STRING(&quot;childID&quot;),
+<span class="lineNum">     589 </span><span class="lineCov">          1 :                                              &amp;childID);</span>
+<span class="lineNum">     590 </span><span class="lineCov">          1 :     if (NS_WARN_IF(NS_FAILED(rv))) {</span>
+<span class="lineNum">     591 </span>            :       return rv;
+<span class="lineNum">     592 </span>            :     }
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span><span class="lineCov">          1 :     if (mDefChannelChildID == childID) {</span>
+<span class="lineNum">     595 </span><span class="lineNoCov">          0 :       SetDefaultVolumeControlChannelInternal(-1, false, childID);</span>
+<span class="lineNum">     596 </span><span class="lineNoCov">          0 :       mDefChannelChildID = CONTENT_PROCESS_ID_UNKNOWN;</span>
+<span class="lineNum">     597 </span>            :     }
+<span class="lineNum">     598 </span>            : 
+<span class="lineNum">     599 </span><span class="lineCov">          1 :     RemoveChildStatus(childID);</span>
+<span class="lineNum">     600 </span>            :   }
+<span class="lineNum">     601 </span>            : 
+<span class="lineNum">     602 </span>            :   return NS_OK;
+<span class="lineNum">     603 </span>            : }
+<a name="604"><span class="lineNum">     604 </span>            : </a>
+<span class="lineNum">     605 </span>            : void
+<span class="lineNum">     606 </span><span class="lineNoCov">          0 : AudioChannelService::RefreshAgentsVolumeAndPropagate(AudioChannel aAudioChannel,</span>
+<span class="lineNum">     607 </span>            :                                                      nsPIDOMWindowOuter* aWindow)
+<span class="lineNum">     608 </span>            : {
+<span class="lineNum">     609 </span>            :   MOZ_ASSERT(aWindow);
+<span class="lineNum">     610 </span>            :   MOZ_ASSERT(aWindow-&gt;IsOuterWindow());
+<span class="lineNum">     611 </span>            : 
+<span class="lineNum">     612 </span><span class="lineNoCov">          0 :   nsCOMPtr&lt;nsPIDOMWindowOuter&gt; topWindow = aWindow-&gt;GetScriptableTop();</span>
+<span class="lineNum">     613 </span><span class="lineNoCov">          0 :   if (!topWindow) {</span>
+<span class="lineNum">     614 </span>            :     return;
+<span class="lineNum">     615 </span>            :   }
+<span class="lineNum">     616 </span>            : 
+<span class="lineNum">     617 </span><span class="lineNoCov">          0 :   AudioChannelWindow* winData = GetWindowData(topWindow-&gt;WindowID());</span>
+<span class="lineNum">     618 </span><span class="lineNoCov">          0 :   if (!winData) {</span>
+<span class="lineNum">     619 </span>            :     return;
+<span class="lineNum">     620 </span>            :   }
+<span class="lineNum">     621 </span>            : 
+<span class="lineNum">     622 </span><span class="lineNoCov">          0 :   for (uint32_t i = 0; i &lt; mTabParents.Length(); ++i) {</span>
+<span class="lineNum">     623 </span><span class="lineNoCov">          0 :     mTabParents[i]-&gt;AudioChannelChangeNotification(aWindow, aAudioChannel,</span>
+<span class="lineNum">     624 </span>            :                                                    winData-&gt;mChannels[(uint32_t)aAudioChannel].mVolume,
+<span class="lineNum">     625 </span><span class="lineNoCov">          0 :                                                    winData-&gt;mChannels[(uint32_t)aAudioChannel].mMuted);</span>
+<span class="lineNum">     626 </span>            :   }
+<span class="lineNum">     627 </span>            : 
+<span class="lineNum">     628 </span><span class="lineNoCov">          0 :   RefreshAgentsVolume(aWindow);</span>
+<span class="lineNum">     629 </span>            : }
+<a name="630"><span class="lineNum">     630 </span>            : </a>
+<span class="lineNum">     631 </span>            : void
+<span class="lineNum">     632 </span><span class="lineCov">          1 : AudioChannelService::RefreshAgents(nsPIDOMWindowOuter* aWindow,</span>
+<span class="lineNum">     633 </span>            :                                    std::function&lt;void(AudioChannelAgent*)&gt; aFunc)
+<span class="lineNum">     634 </span>            : {
+<span class="lineNum">     635 </span>            :   MOZ_ASSERT(aWindow);
+<span class="lineNum">     636 </span>            :   MOZ_ASSERT(aWindow-&gt;IsOuterWindow());
+<span class="lineNum">     637 </span>            : 
+<span class="lineNum">     638 </span><span class="lineCov">          1 :   nsCOMPtr&lt;nsPIDOMWindowOuter&gt; topWindow = aWindow-&gt;GetScriptableTop();</span>
+<span class="lineNum">     639 </span><span class="lineCov">          1 :   if (!topWindow) {</span>
+<span class="lineNum">     640 </span>            :     return;
+<span class="lineNum">     641 </span>            :   }
+<span class="lineNum">     642 </span>            : 
+<span class="lineNum">     643 </span><span class="lineCov">          1 :   AudioChannelWindow* winData = GetWindowData(topWindow-&gt;WindowID());</span>
+<span class="lineNum">     644 </span><span class="lineCov">          1 :   if (!winData) {</span>
+<span class="lineNum">     645 </span>            :     return;
+<span class="lineNum">     646 </span>            :   }
+<span class="lineNum">     647 </span>            : 
+<span class="lineNum">     648 </span>            :   nsTObserverArray&lt;AudioChannelAgent*&gt;::ForwardIterator
+<span class="lineNum">     649 </span><span class="lineCov">          1 :     iter(winData-&gt;mAgents);</span>
+<span class="lineNum">     650 </span><span class="lineCov">          1 :   while (iter.HasMore()) {</span>
+<span class="lineNum">     651 </span><span class="lineCov">          1 :     aFunc(iter.GetNext());</span>
+<span class="lineNum">     652 </span>            :   }
+<span class="lineNum">     653 </span>            : }
+<a name="654"><span class="lineNum">     654 </span>            : </a>
+<span class="lineNum">     655 </span>            : void
+<span class="lineNum">     656 </span><span class="lineNoCov">          0 : AudioChannelService::RefreshAgentsVolume(nsPIDOMWindowOuter* aWindow)</span>
+<span class="lineNum">     657 </span>            : {
+<span class="lineNum">     658 </span>            :   RefreshAgents(aWindow, [] (AudioChannelAgent* agent) {
+<span class="lineNum">     659 </span><span class="lineNoCov">          0 :     agent-&gt;WindowVolumeChanged();</span>
+<span class="lineNum">     660 </span><span class="lineNoCov">          0 :   });</span>
+<span class="lineNum">     661 </span><span class="lineNoCov">          0 : }</span>
+<a name="662"><span class="lineNum">     662 </span>            : </a>
+<span class="lineNum">     663 </span>            : void
+<span class="lineNum">     664 </span><span class="lineCov">          1 : AudioChannelService::RefreshAgentsSuspend(nsPIDOMWindowOuter* aWindow,</span>
+<a name="665"><span class="lineNum">     665 </span>            :                                           nsSuspendedTypes aSuspend)</a>
+<span class="lineNum">     666 </span>            : {
+<span class="lineNum">     667 </span><span class="lineCov">          1 :   RefreshAgents(aWindow, [aSuspend] (AudioChannelAgent* agent) {</span>
+<span class="lineNum">     668 </span><span class="lineCov">          1 :     agent-&gt;WindowSuspendChanged(aSuspend);</span>
+<span class="lineNum">     669 </span><span class="lineCov">          1 :   });</span>
+<span class="lineNum">     670 </span><span class="lineCov">          1 : }</span>
+<a name="671"><span class="lineNum">     671 </span>            : </a>
+<span class="lineNum">     672 </span>            : void
+<span class="lineNum">     673 </span><span class="lineNoCov">          0 : AudioChannelService::SetWindowAudioCaptured(nsPIDOMWindowOuter* aWindow,</span>
+<span class="lineNum">     674 </span>            :                                             uint64_t aInnerWindowID,
+<span class="lineNum">     675 </span>            :                                             bool aCapture)
+<span class="lineNum">     676 </span>            : {
+<span class="lineNum">     677 </span>            :   MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     678 </span>            :   MOZ_ASSERT(aWindow);
+<span class="lineNum">     679 </span>            :   MOZ_ASSERT(aWindow-&gt;IsOuterWindow());
+<span class="lineNum">     680 </span>            : 
+<span class="lineNum">     681 </span><span class="lineNoCov">          0 :   MOZ_LOG(GetAudioChannelLog(), LogLevel::Debug,</span>
+<span class="lineNum">     682 </span>            :          (&quot;AudioChannelService, SetWindowAudioCaptured, window = %p, &quot;
+<span class="lineNum">     683 </span>            :           &quot;aCapture = %d\n&quot;, aWindow, aCapture));
+<span class="lineNum">     684 </span>            : 
+<span class="lineNum">     685 </span><span class="lineNoCov">          0 :   nsCOMPtr&lt;nsPIDOMWindowOuter&gt; topWindow = aWindow-&gt;GetScriptableTop();</span>
+<span class="lineNum">     686 </span><span class="lineNoCov">          0 :   if (!topWindow) {</span>
+<span class="lineNum">     687 </span>            :     return;
+<span class="lineNum">     688 </span>            :   }
+<span class="lineNum">     689 </span>            : 
+<span class="lineNum">     690 </span><span class="lineNoCov">          0 :   AudioChannelWindow* winData = GetWindowData(topWindow-&gt;WindowID());</span>
+<span class="lineNum">     691 </span>            : 
+<span class="lineNum">     692 </span>            :   // This can happen, but only during shutdown, because the the outer window
+<span class="lineNum">     693 </span>            :   // changes ScriptableTop, so that its ID is different.
+<span class="lineNum">     694 </span>            :   // In this case either we are capturing, and it's too late because the window
+<span class="lineNum">     695 </span>            :   // has been closed anyways, or we are un-capturing, and everything has already
+<span class="lineNum">     696 </span>            :   // been cleaned up by the HTMLMediaElements or the AudioContexts.
+<span class="lineNum">     697 </span><span class="lineNoCov">          0 :   if (!winData) {</span>
+<span class="lineNum">     698 </span>            :     return;
+<span class="lineNum">     699 </span>            :   }
+<span class="lineNum">     700 </span>            : 
+<span class="lineNum">     701 </span><span class="lineNoCov">          0 :   if (aCapture != winData-&gt;mIsAudioCaptured) {</span>
+<span class="lineNum">     702 </span><span class="lineNoCov">          0 :     winData-&gt;mIsAudioCaptured = aCapture;</span>
+<span class="lineNum">     703 </span>            :     nsTObserverArray&lt;AudioChannelAgent*&gt;::ForwardIterator
+<span class="lineNum">     704 </span><span class="lineNoCov">          0 :       iter(winData-&gt;mAgents);</span>
+<span class="lineNum">     705 </span><span class="lineNoCov">          0 :     while (iter.HasMore()) {</span>
+<span class="lineNum">     706 </span><span class="lineNoCov">          0 :       iter.GetNext()-&gt;WindowAudioCaptureChanged(aInnerWindowID, aCapture);</span>
+<span class="lineNum">     707 </span>            :     }
+<span class="lineNum">     708 </span>            :   }
+<span class="lineNum">     709 </span>            : }
+<a name="710"><span class="lineNum">     710 </span>            : </a>
+<span class="lineNum">     711 </span>            : /* static */ const nsAttrValue::EnumTable*
+<span class="lineNum">     712 </span><span class="lineCov">          1 : AudioChannelService::GetAudioChannelTable()</span>
+<span class="lineNum">     713 </span>            : {
+<span class="lineNum">     714 </span><span class="lineCov">          1 :   return kMozAudioChannelAttributeTable;</span>
+<span class="lineNum">     715 </span>            : }
+<a name="716"><span class="lineNum">     716 </span>            : </a>
+<span class="lineNum">     717 </span>            : /* static */ AudioChannel
+<span class="lineNum">     718 </span><span class="lineNoCov">          0 : AudioChannelService::GetAudioChannel(const nsAString&amp; aChannel)</span>
+<span class="lineNum">     719 </span>            : {
+<span class="lineNum">     720 </span><span class="lineNoCov">          0 :   for (uint32_t i = 0; kMozAudioChannelAttributeTable[i].tag; ++i) {</span>
+<span class="lineNum">     721 </span><span class="lineNoCov">          0 :     if (aChannel.EqualsASCII(kMozAudioChannelAttributeTable[i].tag)) {</span>
+<span class="lineNum">     722 </span><span class="lineNoCov">          0 :       return static_cast&lt;AudioChannel&gt;(kMozAudioChannelAttributeTable[i].value);</span>
+<span class="lineNum">     723 </span>            :     }
+<span class="lineNum">     724 </span>            :   }
+<span class="lineNum">     725 </span>            : 
+<span class="lineNum">     726 </span>            :   return AudioChannel::Normal;
+<span class="lineNum">     727 </span>            : }
+<a name="728"><span class="lineNum">     728 </span>            : </a>
+<span class="lineNum">     729 </span>            : /* static */ AudioChannel
+<span class="lineNum">     730 </span><span class="lineCov">          1 : AudioChannelService::GetDefaultAudioChannel()</span>
+<span class="lineNum">     731 </span>            : {
+<span class="lineNum">     732 </span><span class="lineCov">          1 :   nsAutoString audioChannel(Preferences::GetString(&quot;media.defaultAudioChannel&quot;));</span>
+<span class="lineNum">     733 </span><span class="lineCov">          1 :   if (audioChannel.IsEmpty()) {</span>
+<span class="lineNum">     734 </span>            :     return AudioChannel::Normal;
+<span class="lineNum">     735 </span>            :   }
+<span class="lineNum">     736 </span>            : 
+<span class="lineNum">     737 </span><span class="lineCov">          1 :   for (uint32_t i = 0; kMozAudioChannelAttributeTable[i].tag; ++i) {</span>
+<span class="lineNum">     738 </span><span class="lineCov">          1 :     if (audioChannel.EqualsASCII(kMozAudioChannelAttributeTable[i].tag)) {</span>
+<span class="lineNum">     739 </span><span class="lineCov">          1 :       return static_cast&lt;AudioChannel&gt;(kMozAudioChannelAttributeTable[i].value);</span>
+<span class="lineNum">     740 </span>            :     }
+<span class="lineNum">     741 </span>            :   }
+<span class="lineNum">     742 </span>            : 
+<span class="lineNum">     743 </span>            :   return AudioChannel::Normal;
+<span class="lineNum">     744 </span>            : }
+<a name="745"><span class="lineNum">     745 </span>            : </a>
+<span class="lineNum">     746 </span>            : /* static */ void
+<span class="lineNum">     747 </span><span class="lineCov">          1 : AudioChannelService::GetAudioChannelString(AudioChannel aChannel,</span>
+<span class="lineNum">     748 </span>            :                                            nsAString&amp; aString)
+<span class="lineNum">     749 </span>            : {
+<span class="lineNum">     750 </span><span class="lineCov">          1 :   aString.AssignASCII(&quot;normal&quot;);</span>
+<span class="lineNum">     751 </span>            : 
+<span class="lineNum">     752 </span><span class="lineCov">          1 :   for (uint32_t i = 0; kMozAudioChannelAttributeTable[i].tag; ++i) {</span>
+<span class="lineNum">     753 </span><span class="lineCov">          1 :     if (aChannel ==</span>
+<span class="lineNum">     754 </span>            :         static_cast&lt;AudioChannel&gt;(kMozAudioChannelAttributeTable[i].value)) {
+<span class="lineNum">     755 </span><span class="lineCov">          1 :       aString.AssignASCII(kMozAudioChannelAttributeTable[i].tag);</span>
+<span class="lineNum">     756 </span><span class="lineCov">          1 :       break;</span>
+<span class="lineNum">     757 </span>            :     }
+<span class="lineNum">     758 </span>            :   }
+<span class="lineNum">     759 </span><span class="lineCov">          1 : }</span>
+<a name="760"><span class="lineNum">     760 </span>            : </a>
+<span class="lineNum">     761 </span>            : /* static */ void
+<span class="lineNum">     762 </span><span class="lineNoCov">          0 : AudioChannelService::GetDefaultAudioChannelString(nsAString&amp; aString)</span>
+<span class="lineNum">     763 </span>            : {
+<span class="lineNum">     764 </span><span class="lineNoCov">          0 :   aString.AssignASCII(&quot;normal&quot;);</span>
+<span class="lineNum">     765 </span>            : 
+<span class="lineNum">     766 </span><span class="lineNoCov">          0 :   nsAutoString audioChannel(Preferences::GetString(&quot;media.defaultAudioChannel&quot;));</span>
+<span class="lineNum">     767 </span><span class="lineNoCov">          0 :   if (!audioChannel.IsEmpty()) {</span>
+<span class="lineNum">     768 </span><span class="lineNoCov">          0 :     for (uint32_t i = 0; kMozAudioChannelAttributeTable[i].tag; ++i) {</span>
+<span class="lineNum">     769 </span><span class="lineNoCov">          0 :       if (audioChannel.EqualsASCII(kMozAudioChannelAttributeTable[i].tag)) {</span>
+<span class="lineNum">     770 </span>            :         aString = audioChannel;
+<span class="lineNum">     771 </span>            :         break;
+<span class="lineNum">     772 </span>            :       }
+<span class="lineNum">     773 </span>            :     }
+<span class="lineNum">     774 </span>            :   }
+<span class="lineNum">     775 </span><span class="lineNoCov">          0 : }</span>
+<a name="776"><span class="lineNum">     776 </span>            : </a>
+<span class="lineNum">     777 </span>            : AudioChannelService::AudioChannelWindow*
+<span class="lineNum">     778 </span><span class="lineCov">          1 : AudioChannelService::GetOrCreateWindowData(nsPIDOMWindowOuter* aWindow)</span>
+<span class="lineNum">     779 </span>            : {
+<span class="lineNum">     780 </span>            :   MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     781 </span>            :   MOZ_ASSERT(aWindow);
+<span class="lineNum">     782 </span>            :   MOZ_ASSERT(aWindow-&gt;IsOuterWindow());
+<span class="lineNum">     783 </span>            : 
+<span class="lineNum">     784 </span><span class="lineCov">          1 :   AudioChannelWindow* winData = GetWindowData(aWindow-&gt;WindowID());</span>
+<span class="lineNum">     785 </span><span class="lineCov">          1 :   if (!winData) {</span>
+<span class="lineNum">     786 </span><span class="lineCov">          1 :     winData = new AudioChannelWindow(aWindow-&gt;WindowID());</span>
+<span class="lineNum">     787 </span><span class="lineCov">          1 :     mWindows.AppendElement(winData);</span>
+<span class="lineNum">     788 </span>            :   }
+<span class="lineNum">     789 </span>            : 
+<span class="lineNum">     790 </span><span class="lineCov">          1 :   return winData;</span>
+<span class="lineNum">     791 </span>            : }
+<a name="792"><span class="lineNum">     792 </span>            : </a>
+<span class="lineNum">     793 </span>            : AudioChannelService::AudioChannelWindow*
+<span class="lineNum">     794 </span><span class="lineCov">          1 : AudioChannelService::GetWindowData(uint64_t aWindowID) const</span>
+<span class="lineNum">     795 </span>            : {
+<span class="lineNum">     796 </span>            :   nsTObserverArray&lt;nsAutoPtr&lt;AudioChannelWindow&gt;&gt;::ForwardIterator
+<span class="lineNum">     797 </span><span class="lineCov">          1 :     iter(mWindows);</span>
+<span class="lineNum">     798 </span><span class="lineCov">          1 :   while (iter.HasMore()) {</span>
+<span class="lineNum">     799 </span><span class="lineCov">          1 :     AudioChannelWindow* next = iter.GetNext();</span>
+<span class="lineNum">     800 </span><span class="lineCov">          1 :     if (next-&gt;mWindowID == aWindowID) {</span>
+<span class="lineNum">     801 </span><span class="lineCov">          1 :       return next;</span>
+<span class="lineNum">     802 </span>            :     }
+<span class="lineNum">     803 </span>            :   }
+<span class="lineNum">     804 </span>            : 
+<span class="lineNum">     805 </span>            :   return nullptr;
+<span class="lineNum">     806 </span>            : }
+<a name="807"><span class="lineNum">     807 </span>            : </a>
+<span class="lineNum">     808 </span>            : float
+<span class="lineNum">     809 </span><span class="lineNoCov">          0 : AudioChannelService::GetAudioChannelVolume(nsPIDOMWindowOuter* aWindow,</span>
+<span class="lineNum">     810 </span>            :                                            AudioChannel aAudioChannel)
+<span class="lineNum">     811 </span>            : {
+<span class="lineNum">     812 </span>            :   MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     813 </span>            :   MOZ_ASSERT(aWindow);
+<span class="lineNum">     814 </span>            :   MOZ_ASSERT(aWindow-&gt;IsOuterWindow());
+<span class="lineNum">     815 </span>            : 
+<span class="lineNum">     816 </span><span class="lineNoCov">          0 :   AudioChannelWindow* winData = GetOrCreateWindowData(aWindow);</span>
+<span class="lineNum">     817 </span><span class="lineNoCov">          0 :   return winData-&gt;mChannels[(uint32_t)aAudioChannel].mVolume;</span>
+<span class="lineNum">     818 </span>            : }
+<a name="819"><span class="lineNum">     819 </span>            : </a>
+<span class="lineNum">     820 </span>            : NS_IMETHODIMP
+<span class="lineNum">     821 </span><span class="lineNoCov">          0 : AudioChannelService::GetAudioChannelVolume(mozIDOMWindowProxy* aWindow,</span>
+<span class="lineNum">     822 </span>            :                                            unsigned short aAudioChannel,
+<span class="lineNum">     823 </span>            :                                            float* aVolume)
+<span class="lineNum">     824 </span>            : {
+<span class="lineNum">     825 </span>            :   MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     826 </span>            : 
+<span class="lineNum">     827 </span><span class="lineNoCov">          0 :   auto* window = nsPIDOMWindowOuter::From(aWindow)-&gt;GetScriptableTop();</span>
+<span class="lineNum">     828 </span><span class="lineNoCov">          0 :   if (!window) {</span>
+<span class="lineNum">     829 </span><span class="lineNoCov">          0 :     *aVolume = 0.f;</span>
+<span class="lineNum">     830 </span><span class="lineNoCov">          0 :     return NS_ERROR_FAILURE;</span>
+<span class="lineNum">     831 </span>            :   }
+<span class="lineNum">     832 </span><span class="lineNoCov">          0 :   *aVolume = GetAudioChannelVolume(window, (AudioChannel)aAudioChannel);</span>
+<span class="lineNum">     833 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     834 </span>            : }
+<a name="835"><span class="lineNum">     835 </span>            : </a>
+<span class="lineNum">     836 </span>            : void
+<span class="lineNum">     837 </span><span class="lineNoCov">          0 : AudioChannelService::SetAudioChannelVolume(nsPIDOMWindowOuter* aWindow,</span>
+<span class="lineNum">     838 </span>            :                                            AudioChannel aAudioChannel,
+<span class="lineNum">     839 </span>            :                                            float aVolume)
+<span class="lineNum">     840 </span>            : {
+<span class="lineNum">     841 </span>            :   MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     842 </span>            :   MOZ_ASSERT(aWindow);
+<span class="lineNum">     843 </span>            :   MOZ_ASSERT(aWindow-&gt;IsOuterWindow());
+<span class="lineNum">     844 </span>            : 
+<span class="lineNum">     845 </span><span class="lineNoCov">          0 :   MOZ_LOG(GetAudioChannelLog(), LogLevel::Debug,</span>
+<span class="lineNum">     846 </span>            :          (&quot;AudioChannelService, SetAudioChannelVolume, window = %p, type = %&quot; PRIu32 &quot;, &quot;
+<span class="lineNum">     847 </span>            :           &quot;volume = %f\n&quot;, aWindow, static_cast&lt;uint32_t&gt;(aAudioChannel), aVolume));
+<span class="lineNum">     848 </span>            : 
+<span class="lineNum">     849 </span><span class="lineNoCov">          0 :   AudioChannelWindow* winData = GetOrCreateWindowData(aWindow);</span>
+<span class="lineNum">     850 </span><span class="lineNoCov">          0 :   winData-&gt;mChannels[(uint32_t)aAudioChannel].mVolume = aVolume;</span>
+<span class="lineNum">     851 </span><span class="lineNoCov">          0 :   RefreshAgentsVolumeAndPropagate(aAudioChannel, aWindow);</span>
+<span class="lineNum">     852 </span><span class="lineNoCov">          0 : }</span>
+<a name="853"><span class="lineNum">     853 </span>            : </a>
+<span class="lineNum">     854 </span>            : NS_IMETHODIMP
+<span class="lineNum">     855 </span><span class="lineNoCov">          0 : AudioChannelService::SetAudioChannelVolume(mozIDOMWindowProxy* aWindow,</span>
+<span class="lineNum">     856 </span>            :                                            unsigned short aAudioChannel,
+<span class="lineNum">     857 </span>            :                                            float aVolume)
+<span class="lineNum">     858 </span>            : {
+<span class="lineNum">     859 </span>            :   MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     860 </span>            : 
+<span class="lineNum">     861 </span><span class="lineNoCov">          0 :   auto* window = nsPIDOMWindowOuter::From(aWindow)-&gt;GetScriptableTop();</span>
+<span class="lineNum">     862 </span><span class="lineNoCov">          0 :   if (!window) {</span>
+<span class="lineNum">     863 </span>            :     return NS_ERROR_FAILURE;
+<span class="lineNum">     864 </span>            :   }
+<span class="lineNum">     865 </span><span class="lineNoCov">          0 :   SetAudioChannelVolume(window, (AudioChannel)aAudioChannel, aVolume);</span>
+<span class="lineNum">     866 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     867 </span>            : }
+<a name="868"><span class="lineNum">     868 </span>            : </a>
+<span class="lineNum">     869 </span>            : bool
+<span class="lineNum">     870 </span><span class="lineNoCov">          0 : AudioChannelService::GetAudioChannelMuted(nsPIDOMWindowOuter* aWindow,</span>
+<span class="lineNum">     871 </span>            :                                           AudioChannel aAudioChannel)
+<span class="lineNum">     872 </span>            : {
+<span class="lineNum">     873 </span>            :   MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     874 </span>            :   MOZ_ASSERT(aWindow);
+<span class="lineNum">     875 </span>            :   MOZ_ASSERT(aWindow-&gt;IsOuterWindow());
+<span class="lineNum">     876 </span>            : 
+<span class="lineNum">     877 </span><span class="lineNoCov">          0 :   AudioChannelWindow* winData = GetOrCreateWindowData(aWindow);</span>
+<span class="lineNum">     878 </span><span class="lineNoCov">          0 :   return winData-&gt;mChannels[(uint32_t)aAudioChannel].mMuted;</span>
+<span class="lineNum">     879 </span>            : }
+<a name="880"><span class="lineNum">     880 </span>            : </a>
+<span class="lineNum">     881 </span>            : NS_IMETHODIMP
+<span class="lineNum">     882 </span><span class="lineNoCov">          0 : AudioChannelService::GetAudioChannelMuted(mozIDOMWindowProxy* aWindow,</span>
+<span class="lineNum">     883 </span>            :                                           unsigned short aAudioChannel,
+<span class="lineNum">     884 </span>            :                                           bool* aMuted)
+<span class="lineNum">     885 </span>            : {
+<span class="lineNum">     886 </span>            :   MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     887 </span>            : 
+<span class="lineNum">     888 </span><span class="lineNoCov">          0 :   auto* window = nsPIDOMWindowOuter::From(aWindow)-&gt;GetScriptableTop();</span>
+<span class="lineNum">     889 </span><span class="lineNoCov">          0 :   if (!window) {</span>
+<span class="lineNum">     890 </span><span class="lineNoCov">          0 :     *aMuted = false;</span>
+<span class="lineNum">     891 </span><span class="lineNoCov">          0 :     return NS_ERROR_FAILURE;</span>
+<span class="lineNum">     892 </span>            :   }
+<span class="lineNum">     893 </span><span class="lineNoCov">          0 :   *aMuted = GetAudioChannelMuted(window, (AudioChannel)aAudioChannel);</span>
+<span class="lineNum">     894 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     895 </span>            : }
+<a name="896"><span class="lineNum">     896 </span>            : </a>
+<span class="lineNum">     897 </span>            : void
+<span class="lineNum">     898 </span><span class="lineNoCov">          0 : AudioChannelService::SetAudioChannelMuted(nsPIDOMWindowOuter* aWindow,</span>
+<span class="lineNum">     899 </span>            :                                           AudioChannel aAudioChannel,
+<span class="lineNum">     900 </span>            :                                           bool aMuted)
+<span class="lineNum">     901 </span>            : {
+<span class="lineNum">     902 </span>            :   MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     903 </span>            :   MOZ_ASSERT(aWindow);
+<span class="lineNum">     904 </span>            :   MOZ_ASSERT(aWindow-&gt;IsOuterWindow());
+<span class="lineNum">     905 </span>            : 
+<span class="lineNum">     906 </span><span class="lineNoCov">          0 :   MOZ_LOG(GetAudioChannelLog(), LogLevel::Debug,</span>
+<span class="lineNum">     907 </span>            :          (&quot;AudioChannelService, SetAudioChannelMuted, window = %p, type = %&quot; PRIu32 &quot;, &quot;
+<span class="lineNum">     908 </span>            :           &quot;mute = %d\n&quot;, aWindow, static_cast&lt;uint32_t&gt;(aAudioChannel), aMuted));
+<span class="lineNum">     909 </span>            : 
+<span class="lineNum">     910 </span><span class="lineNoCov">          0 :   if (aAudioChannel == AudioChannel::System) {</span>
+<span class="lineNum">     911 </span>            :     // Workaround for bug1183033, system channel type can always playback.
+<span class="lineNum">     912 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     913 </span>            :   }
+<span class="lineNum">     914 </span>            : 
+<span class="lineNum">     915 </span><span class="lineNoCov">          0 :   AudioChannelWindow* winData = GetOrCreateWindowData(aWindow);</span>
+<span class="lineNum">     916 </span><span class="lineNoCov">          0 :   winData-&gt;mChannels[(uint32_t)aAudioChannel].mMuted = aMuted;</span>
+<span class="lineNum">     917 </span><span class="lineNoCov">          0 :   RefreshAgentsVolumeAndPropagate(aAudioChannel, aWindow);</span>
+<span class="lineNum">     918 </span>            : }
+<a name="919"><span class="lineNum">     919 </span>            : </a>
+<span class="lineNum">     920 </span>            : NS_IMETHODIMP
+<span class="lineNum">     921 </span><span class="lineNoCov">          0 : AudioChannelService::SetAudioChannelMuted(mozIDOMWindowProxy* aWindow,</span>
+<span class="lineNum">     922 </span>            :                                           unsigned short aAudioChannel,
+<span class="lineNum">     923 </span>            :                                           bool aMuted)
+<span class="lineNum">     924 </span>            : {
+<span class="lineNum">     925 </span>            :   MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     926 </span>            : 
+<span class="lineNum">     927 </span><span class="lineNoCov">          0 :   auto* window = nsPIDOMWindowOuter::From(aWindow)-&gt;GetScriptableTop();</span>
+<span class="lineNum">     928 </span><span class="lineNoCov">          0 :   if (!window) {</span>
+<span class="lineNum">     929 </span>            :     return NS_ERROR_FAILURE;
+<span class="lineNum">     930 </span>            :   }
+<span class="lineNum">     931 </span><span class="lineNoCov">          0 :   SetAudioChannelMuted(window, (AudioChannel)aAudioChannel, aMuted);</span>
+<span class="lineNum">     932 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     933 </span>            : }
+<a name="934"><span class="lineNum">     934 </span>            : </a>
+<span class="lineNum">     935 </span>            : bool
+<span class="lineNum">     936 </span><span class="lineNoCov">          0 : AudioChannelService::IsAudioChannelActive(nsPIDOMWindowOuter* aWindow,</span>
+<span class="lineNum">     937 </span>            :                                           AudioChannel aAudioChannel)
+<span class="lineNum">     938 </span>            : {
+<span class="lineNum">     939 </span>            :   MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     940 </span>            :   MOZ_ASSERT(aWindow);
+<span class="lineNum">     941 </span>            :   MOZ_ASSERT(aWindow-&gt;IsOuterWindow());
+<span class="lineNum">     942 </span>            : 
+<span class="lineNum">     943 </span><span class="lineNoCov">          0 :   AudioChannelWindow* winData = GetOrCreateWindowData(aWindow);</span>
+<span class="lineNum">     944 </span><span class="lineNoCov">          0 :   return !!winData-&gt;mChannels[(uint32_t)aAudioChannel].mNumberOfAgents;</span>
+<span class="lineNum">     945 </span>            : }
+<a name="946"><span class="lineNum">     946 </span>            : </a>
+<span class="lineNum">     947 </span>            : NS_IMETHODIMP
+<span class="lineNum">     948 </span><span class="lineNoCov">          0 : AudioChannelService::IsAudioChannelActive(mozIDOMWindowProxy* aWindow,</span>
+<span class="lineNum">     949 </span>            :                                           unsigned short aAudioChannel,
+<span class="lineNum">     950 </span>            :                                           bool* aActive)
+<span class="lineNum">     951 </span>            : {
+<span class="lineNum">     952 </span>            :   MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     953 </span>            : 
+<span class="lineNum">     954 </span><span class="lineNoCov">          0 :   auto* window = nsPIDOMWindowOuter::From(aWindow)-&gt;GetScriptableTop();</span>
+<span class="lineNum">     955 </span><span class="lineNoCov">          0 :   if (!window) {</span>
+<span class="lineNum">     956 </span><span class="lineNoCov">          0 :     *aActive = false;</span>
+<span class="lineNum">     957 </span><span class="lineNoCov">          0 :     return NS_ERROR_FAILURE;</span>
+<span class="lineNum">     958 </span>            :   }
+<span class="lineNum">     959 </span><span class="lineNoCov">          0 :   *aActive = IsAudioChannelActive(window, (AudioChannel)aAudioChannel);</span>
+<span class="lineNum">     960 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     961 </span>            : }
+<a name="962"><span class="lineNum">     962 </span>            : </a>
+<span class="lineNum">     963 </span>            : bool
+<span class="lineNum">     964 </span><span class="lineCov">          1 : AudioChannelService::IsWindowActive(nsPIDOMWindowOuter* aWindow)</span>
+<span class="lineNum">     965 </span>            : {
+<span class="lineNum">     966 </span>            :   MOZ_ASSERT(NS_IsMainThread());
+<span class="lineNum">     967 </span>            : 
+<span class="lineNum">     968 </span><span class="lineCov">          1 :   auto* window = nsPIDOMWindowOuter::From(aWindow)-&gt;GetScriptableTop();</span>
+<span class="lineNum">     969 </span><span class="lineCov">          1 :   if (!window) {</span>
+<span class="lineNum">     970 </span>            :     return false;
+<span class="lineNum">     971 </span>            :   }
+<span class="lineNum">     972 </span><span class="lineCov">          1 :   AudioChannelWindow* winData = GetOrCreateWindowData(window);</span>
+<span class="lineNum">     973 </span><span class="lineCov">          1 :   return !winData-&gt;mAudibleAgents.IsEmpty();</span>
+<span class="lineNum">     974 </span>            : }
+<a name="975"><span class="lineNum">     975 </span>            : </a>
+<span class="lineNum">     976 </span>            : void
+<span class="lineNum">     977 </span><span class="lineNoCov">          0 : AudioChannelService::SetDefaultVolumeControlChannel(int32_t aChannel,</span>
+<span class="lineNum">     978 </span>            :                                                     bool aVisible)
+<span class="lineNum">     979 </span>            : {
+<span class="lineNum">     980 </span>            :   SetDefaultVolumeControlChannelInternal(aChannel, aVisible,
+<span class="lineNum">     981 </span><span class="lineNoCov">          0 :                                          CONTENT_PROCESS_ID_MAIN);</span>
+<span class="lineNum">     982 </span><span class="lineNoCov">          0 : }</span>
+<a name="983"><span class="lineNum">     983 </span>            : </a>
+<span class="lineNum">     984 </span>            : void
+<span class="lineNum">     985 </span><span class="lineNoCov">          0 : AudioChannelService::SetDefaultVolumeControlChannelInternal(int32_t aChannel,</span>
+<span class="lineNum">     986 </span>            :                                                             bool aVisible,
+<span class="lineNum">     987 </span>            :                                                             uint64_t aChildID)
+<span class="lineNum">     988 </span>            : {
+<span class="lineNum">     989 </span><span class="lineNoCov">          0 :   if (!IsParentProcess()) {</span>
+<span class="lineNum">     990 </span><span class="lineNoCov">          0 :     ContentChild* cc = ContentChild::GetSingleton();</span>
+<span class="lineNum">     991 </span><span class="lineNoCov">          0 :     if (cc) {</span>
+<span class="lineNum">     992 </span><span class="lineNoCov">          0 :       cc-&gt;SendAudioChannelChangeDefVolChannel(aChannel, aVisible);</span>
+<span class="lineNum">     993 </span>            :     }
+<span class="lineNum">     994 </span>            : 
+<span class="lineNum">     995 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     996 </span>            :   }
+<span class="lineNum">     997 </span>            : 
+<span class="lineNum">     998 </span>            :   // If this child is in the background and mDefChannelChildID is set to
+<span class="lineNum">     999 </span>            :   // others then it means other child in the foreground already set it's
+<span class="lineNum">    1000 </span>            :   // own default channel.
+<span class="lineNum">    1001 </span><span class="lineNoCov">          0 :   if (!aVisible &amp;&amp; mDefChannelChildID != aChildID) {</span>
+<span class="lineNum">    1002 </span>            :     return;
+<span class="lineNum">    1003 </span>            :   }
+<span class="lineNum">    1004 </span>            : 
+<span class="lineNum">    1005 </span>            :   // Workaround for the call screen app. The call screen app is running on the
+<span class="lineNum">    1006 </span>            :   // main process, that will results in wrong visible state. Because we use the
+<span class="lineNum">    1007 </span>            :   // docshell's active state as visible state, the main process is always
+<span class="lineNum">    1008 </span>            :   // active. Therefore, we will see the strange situation that the visible
+<span class="lineNum">    1009 </span>            :   // state of the call screen is always true. If the mDefChannelChildID is set
+<span class="lineNum">    1010 </span>            :   // to others then it means other child in the foreground already set it's
+<span class="lineNum">    1011 </span>            :   // own default channel already.
+<span class="lineNum">    1012 </span>            :   // Summary :
+<span class="lineNum">    1013 </span>            :   //   Child process : foreground app always can set type.
+<span class="lineNum">    1014 </span>            :   //   Parent process : check the mDefChannelChildID.
+<span class="lineNum">    1015 </span><span class="lineNoCov">          0 :   else if (aChildID == CONTENT_PROCESS_ID_MAIN &amp;&amp;</span>
+<span class="lineNum">    1016 </span><span class="lineNoCov">          0 :            mDefChannelChildID != CONTENT_PROCESS_ID_UNKNOWN) {</span>
+<span class="lineNum">    1017 </span>            :     return;
+<span class="lineNum">    1018 </span>            :   }
+<span class="lineNum">    1019 </span>            : 
+<span class="lineNum">    1020 </span><span class="lineNoCov">          0 :   mDefChannelChildID = aVisible ? aChildID : CONTENT_PROCESS_ID_UNKNOWN;</span>
+<span class="lineNum">    1021 </span><span class="lineNoCov">          0 :   nsAutoString channelName;</span>
+<span class="lineNum">    1022 </span>            : 
+<span class="lineNum">    1023 </span><span class="lineNoCov">          0 :   if (aChannel == -1) {</span>
+<span class="lineNum">    1024 </span><span class="lineNoCov">          0 :     channelName.AssignASCII(&quot;unknown&quot;);</span>
+<span class="lineNum">    1025 </span>            :   } else {
+<span class="lineNum">    1026 </span><span class="lineNoCov">          0 :     GetAudioChannelString(static_cast&lt;AudioChannel&gt;(aChannel), channelName);</span>
+<span class="lineNum">    1027 </span>            :   }
+<span class="lineNum">    1028 </span>            : 
+<span class="lineNum">    1029 </span><span class="lineNoCov">          0 :   nsCOMPtr&lt;nsIObserverService&gt; obs = mozilla::services::GetObserverService();</span>
+<span class="lineNum">    1030 </span><span class="lineNoCov">          0 :   if (obs) {</span>
+<span class="lineNum">    1031 </span>            :     obs-&gt;NotifyObservers(nullptr, &quot;default-volume-channel-changed&quot;,
+<span class="lineNum">    1032 </span><span class="lineNoCov">          0 :                          channelName.get());</span>
+<span class="lineNum">    1033 </span>            :   }
+<span class="lineNum">    1034 </span>            : }
+<a name="1035"><span class="lineNum">    1035 </span>            : </a>
+<span class="lineNum">    1036 </span>            : void
+<span class="lineNum">    1037 </span><span class="lineCov">          1 : AudioChannelService::MaybeSendStatusUpdate()</span>
+<span class="lineNum">    1038 </span>            : {
+<span class="lineNum">    1039 </span><span class="lineCov">          1 :   if (IsParentProcess()) {</span>
+<span class="lineNum">    1040 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">    1041 </span>            :   }
+<span class="lineNum">    1042 </span>            : 
+<span class="lineNum">    1043 </span><span class="lineNoCov">          0 :   bool telephonyChannel = TelephonyChannelIsActive();</span>
+<span class="lineNum">    1044 </span><span class="lineNoCov">          0 :   bool contentOrNormalChannel = ContentOrNormalChannelIsActive();</span>
+<span class="lineNum">    1045 </span><span class="lineNoCov">          0 :   bool anyChannel = AnyAudioChannelIsActive();</span>
+<span class="lineNum">    1046 </span>            : 
+<span class="lineNum">    1047 </span><span class="lineNoCov">          0 :   if (telephonyChannel == mTelephonyChannel &amp;&amp;</span>
+<span class="lineNum">    1048 </span><span class="lineNoCov">          0 :       contentOrNormalChannel == mContentOrNormalChannel &amp;&amp;</span>
+<span class="lineNum">    1049 </span><span class="lineNoCov">          0 :       anyChannel == mAnyChannel) {</span>
+<span class="lineNum">    1050 </span>            :     return;
+<span class="lineNum">    1051 </span>            :   }
+<span class="lineNum">    1052 </span>            : 
+<span class="lineNum">    1053 </span><span class="lineNoCov">          0 :   mTelephonyChannel = telephonyChannel;</span>
+<span class="lineNum">    1054 </span><span class="lineNoCov">          0 :   mContentOrNormalChannel = contentOrNormalChannel;</span>
+<span class="lineNum">    1055 </span><span class="lineNoCov">          0 :   mAnyChannel = anyChannel;</span>
+<span class="lineNum">    1056 </span>            : 
+<span class="lineNum">    1057 </span><span class="lineNoCov">          0 :   ContentChild* cc = ContentChild::GetSingleton();</span>
+<span class="lineNum">    1058 </span><span class="lineNoCov">          0 :   if (cc) {</span>
+<span class="lineNum">    1059 </span>            :     cc-&gt;SendAudioChannelServiceStatus(telephonyChannel, contentOrNormalChannel,
+<span class="lineNum">    1060 </span><span class="lineNoCov">          0 :                                       anyChannel);</span>
+<span class="lineNum">    1061 </span>            :   }
+<span class="lineNum">    1062 </span>            : }
+<a name="1063"><span class="lineNum">    1063 </span>            : </a>
+<span class="lineNum">    1064 </span>            : void
+<span class="lineNum">    1065 </span><span class="lineNoCov">          0 : AudioChannelService::ChildStatusReceived(uint64_t aChildID,</span>
+<span class="lineNum">    1066 </span>            :                                          bool aTelephonyChannel,
+<span class="lineNum">    1067 </span>            :                                          bool aContentOrNormalChannel,
+<span class="lineNum">    1068 </span>            :                                          bool aAnyChannel)
+<span class="lineNum">    1069 </span>            : {
+<span class="lineNum">    1070 </span><span class="lineNoCov">          0 :   if (!aAnyChannel) {</span>
+<span class="lineNum">    1071 </span><span class="lineNoCov">          0 :     RemoveChildStatus(aChildID);</span>
+<span class="lineNum">    1072 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">    1073 </span>            :   }
+<span class="lineNum">    1074 </span>            : 
+<span class="lineNum">    1075 </span><span class="lineNoCov">          0 :   AudioChannelChildStatus* data = GetChildStatus(aChildID);</span>
+<span class="lineNum">    1076 </span><span class="lineNoCov">          0 :   if (!data) {</span>
+<span class="lineNum">    1077 </span><span class="lineNoCov">          0 :     data = new AudioChannelChildStatus(aChildID);</span>
+<span class="lineNum">    1078 </span><span class="lineNoCov">          0 :     mPlayingChildren.AppendElement(data);</span>
+<span class="lineNum">    1079 </span>            :   }
+<span class="lineNum">    1080 </span>            : 
+<span class="lineNum">    1081 </span><span class="lineNoCov">          0 :   data-&gt;mActiveTelephonyChannel = aTelephonyChannel;</span>
+<span class="lineNum">    1082 </span><span class="lineNoCov">          0 :   data-&gt;mActiveContentOrNormalChannel = aContentOrNormalChannel;</span>
+<span class="lineNum">    1083 </span>            : }
+<a name="1084"><span class="lineNum">    1084 </span>            : </a>
+<span class="lineNum">    1085 </span>            : void
+<span class="lineNum">    1086 </span><span class="lineNoCov">          0 : AudioChannelService::RefreshAgentsAudioFocusChanged(AudioChannelAgent* aAgent)</span>
+<span class="lineNum">    1087 </span>            : {
+<span class="lineNum">    1088 </span>            :   MOZ_ASSERT(aAgent);
+<span class="lineNum">    1089 </span>            : 
+<span class="lineNum">    1090 </span>            :   nsTObserverArray&lt;nsAutoPtr&lt;AudioChannelWindow&gt;&gt;::ForwardIterator
+<span class="lineNum">    1091 </span><span class="lineNoCov">          0 :     iter(mWindows);</span>
+<span class="lineNum">    1092 </span><span class="lineNoCov">          0 :   while (iter.HasMore()) {</span>
+<span class="lineNum">    1093 </span><span class="lineNoCov">          0 :     AudioChannelWindow* winData = iter.GetNext();</span>
+<span class="lineNum">    1094 </span><span class="lineNoCov">          0 :     if (winData-&gt;mOwningAudioFocus) {</span>
+<span class="lineNum">    1095 </span><span class="lineNoCov">          0 :       winData-&gt;AudioFocusChanged(aAgent);</span>
+<span class="lineNum">    1096 </span>            :     }
+<span class="lineNum">    1097 </span>            :   }
+<span class="lineNum">    1098 </span><span class="lineNoCov">          0 : }</span>
+<a name="1099"><span class="lineNum">    1099 </span>            : </a>
+<span class="lineNum">    1100 </span>            : void
+<span class="lineNum">    1101 </span><span class="lineCov">          1 : AudioChannelService::NotifyMediaResumedFromBlock(nsPIDOMWindowOuter* aWindow)</span>
+<span class="lineNum">    1102 </span>            : {
+<span class="lineNum">    1103 </span>            :   MOZ_ASSERT(aWindow);
+<span class="lineNum">    1104 </span>            :   MOZ_ASSERT(aWindow-&gt;IsOuterWindow());
+<span class="lineNum">    1105 </span>            : 
+<span class="lineNum">    1106 </span><span class="lineCov">          1 :   nsCOMPtr&lt;nsPIDOMWindowOuter&gt; topWindow = aWindow-&gt;GetScriptableTop();</span>
+<span class="lineNum">    1107 </span><span class="lineCov">          1 :   if (!topWindow) {</span>
+<span class="lineNum">    1108 </span>            :     return;
+<span class="lineNum">    1109 </span>            :   }
+<span class="lineNum">    1110 </span>            : 
+<span class="lineNum">    1111 </span><span class="lineCov">          1 :   AudioChannelWindow* winData = GetWindowData(topWindow-&gt;WindowID());</span>
+<span class="lineNum">    1112 </span><span class="lineCov">          1 :   if (!winData) {</span>
+<span class="lineNum">    1113 </span>            :     return;
+<span class="lineNum">    1114 </span>            :   }
+<span class="lineNum">    1115 </span>            : 
+<span class="lineNum">    1116 </span><span class="lineCov">          1 :   if (!winData-&gt;mShouldSendBlockStopEvent) {</span>
+<span class="lineNum">    1117 </span>            :     return;
+<span class="lineNum">    1118 </span>            :   }
+<span class="lineNum">    1119 </span>            : 
+<span class="lineNum">    1120 </span><span class="lineNoCov">          0 :   winData-&gt;NotifyMediaBlockStop(aWindow);</span>
+<span class="lineNum">    1121 </span>            : }
+<a name="1122"><span class="lineNum">    1122 </span>            : </a>
+<span class="lineNum">    1123 </span>            : void
+<span class="lineNum">    1124 </span><span class="lineCov">          1 : AudioChannelService::AudioChannelWindow::RequestAudioFocus(AudioChannelAgent* aAgent)</span>
+<span class="lineNum">    1125 </span>            : {
+<span class="lineNum">    1126 </span>            :   MOZ_ASSERT(aAgent);
+<span class="lineNum">    1127 </span>            : 
+<span class="lineNum">    1128 </span>            :   // Don't need to check audio focus for window-less agent.
+<span class="lineNum">    1129 </span><span class="lineCov">          1 :   if (!aAgent-&gt;Window()) {</span>
+<span class="lineNum">    1130 </span>            :     return;
+<span class="lineNum">    1131 </span>            :   }
+<span class="lineNum">    1132 </span>            : 
+<span class="lineNum">    1133 </span>            :   // We already have the audio focus. No operation is needed.
+<span class="lineNum">    1134 </span><span class="lineCov">          1 :   if (mOwningAudioFocus) {</span>
+<span class="lineNum">    1135 </span>            :     return;
+<span class="lineNum">    1136 </span>            :   }
+<span class="lineNum">    1137 </span>            : 
+<span class="lineNum">    1138 </span>            :   // Only foreground window can request audio focus, but it would still own the
+<span class="lineNum">    1139 </span>            :   // audio focus even it goes to background. Audio focus would be abandoned
+<span class="lineNum">    1140 </span>            :   // only when other foreground window starts audio competing.
+<span class="lineNum">    1141 </span>            :   // One exception is if the pref &quot;media.block-autoplay-until-in-foreground&quot;
+<span class="lineNum">    1142 </span>            :   // is on and the background page is the non-visited before. Because the media
+<span class="lineNum">    1143 </span>            :   // in that page would be blocked until the page is going to foreground.
+<span class="lineNum">    1144 </span><span class="lineNoCov">          0 :   mOwningAudioFocus = (!(aAgent-&gt;Window()-&gt;IsBackground()) ||</span>
+<span class="lineNum">    1145 </span><span class="lineNoCov">          0 :                        aAgent-&gt;Window()-&gt;GetMediaSuspend() == nsISuspendedTypes::SUSPENDED_BLOCK) ;</span>
+<span class="lineNum">    1146 </span>            : 
+<span class="lineNum">    1147 </span><span class="lineNoCov">          0 :   MOZ_LOG(AudioChannelService::GetAudioChannelLog(), LogLevel::Debug,</span>
+<span class="lineNum">    1148 </span>            :          (&quot;AudioChannelWindow, RequestAudioFocus, this = %p, &quot;
+<span class="lineNum">    1149 </span>            :           &quot;agent = %p, owning audio focus = %d\n&quot;,
+<span class="lineNum">    1150 </span>            :           this, aAgent, mOwningAudioFocus));
+<span class="lineNum">    1151 </span>            : }
+<a name="1152"><span class="lineNum">    1152 </span>            : </a>
+<span class="lineNum">    1153 </span>            : void
+<span class="lineNum">    1154 </span><span class="lineCov">          1 : AudioChannelService::AudioChannelWindow::NotifyAudioCompetingChanged(AudioChannelAgent* aAgent)</span>
+<span class="lineNum">    1155 </span>            : {
+<span class="lineNum">    1156 </span>            :   // This function may be called after RemoveAgentAndReduceAgentsNum(), so the
+<span class="lineNum">    1157 </span>            :   // agent may be not contained in mAgent. In addition, the agent would still
+<span class="lineNum">    1158 </span>            :   // be alive because we have kungFuDeathGrip in UnregisterAudioChannelAgent().
+<span class="lineNum">    1159 </span>            :   MOZ_ASSERT(aAgent);
+<span class="lineNum">    1160 </span>            : 
+<span class="lineNum">    1161 </span><span class="lineCov">          1 :   RefPtr&lt;AudioChannelService&gt; service = AudioChannelService::GetOrCreate();</span>
+<span class="lineNum">    1162 </span>            :   MOZ_ASSERT(service);
+<span class="lineNum">    1163 </span>            : 
+<span class="lineNum">    1164 </span><span class="lineCov">          1 :   if (!service-&gt;IsEnableAudioCompeting()) {</span>
+<span class="lineNum">    1165 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">    1166 </span>            :   }
+<span class="lineNum">    1167 </span>            : 
+<span class="lineNum">    1168 </span><span class="lineNoCov">          0 :   if (!IsAgentInvolvingInAudioCompeting(aAgent)) {</span>
+<span class="lineNum">    1169 </span>            :     return;
+<span class="lineNum">    1170 </span>            :   }
+<span class="lineNum">    1171 </span>            : 
+<span class="lineNum">    1172 </span><span class="lineNoCov">          0 :   MOZ_LOG(AudioChannelService::GetAudioChannelLog(), LogLevel::Debug,</span>
+<span class="lineNum">    1173 </span>            :          (&quot;AudioChannelWindow, NotifyAudioCompetingChanged, this = %p, &quot;
+<span class="lineNum">    1174 </span>            :           &quot;agent = %p\n&quot;,
+<span class="lineNum">    1175 </span>            :           this, aAgent));
+<span class="lineNum">    1176 </span>            : 
+<span class="lineNum">    1177 </span><span class="lineNoCov">          0 :   service-&gt;RefreshAgentsAudioFocusChanged(aAgent);</span>
+<span class="lineNum">    1178 </span>            : }
+<a name="1179"><span class="lineNum">    1179 </span>            : </a>
+<span class="lineNum">    1180 </span>            : bool
+<span class="lineNum">    1181 </span><span class="lineNoCov">          0 : AudioChannelService::AudioChannelWindow::IsAgentInvolvingInAudioCompeting(AudioChannelAgent* aAgent) const</span>
+<span class="lineNum">    1182 </span>            : {
+<span class="lineNum">    1183 </span>            :   MOZ_ASSERT(aAgent);
+<span class="lineNum">    1184 </span>            : 
+<span class="lineNum">    1185 </span><span class="lineNoCov">          0 :   if(!mOwningAudioFocus) {</span>
+<span class="lineNum">    1186 </span>            :     return false;
+<span class="lineNum">    1187 </span>            :   }
+<span class="lineNum">    1188 </span>            : 
+<span class="lineNum">    1189 </span><span class="lineNoCov">          0 :   if (IsAudioCompetingInSameTab()) {</span>
+<span class="lineNum">    1190 </span>            :     return false;
+<span class="lineNum">    1191 </span>            :   }
+<span class="lineNum">    1192 </span>            : 
+<span class="lineNum">    1193 </span>            :   // TODO : add MediaSession::ambient kind, because it doens't interact with
+<span class="lineNum">    1194 </span>            :   // other kinds.
+<span class="lineNum">    1195 </span><span class="lineNoCov">          0 :   return true;</span>
+<span class="lineNum">    1196 </span>            : }
+<a name="1197"><span class="lineNum">    1197 </span>            : </a>
+<span class="lineNum">    1198 </span>            : bool
+<span class="lineNum">    1199 </span><span class="lineNoCov">          0 : AudioChannelService::AudioChannelWindow::IsAudioCompetingInSameTab() const</span>
+<span class="lineNum">    1200 </span>            : {
+<span class="lineNum">    1201 </span>            :   bool hasMultipleActiveAgents = IsEnableAudioCompetingForAllAgents() ?
+<span class="lineNum">    1202 </span><span class="lineNoCov">          0 :     mAgents.Length() &gt; 1 : mAudibleAgents.Length() &gt; 1;</span>
+<span class="lineNum">    1203 </span><span class="lineNoCov">          0 :   return mOwningAudioFocus &amp;&amp; hasMultipleActiveAgents;</span>
+<span class="lineNum">    1204 </span>            : }
+<a name="1205"><span class="lineNum">    1205 </span>            : </a>
+<span class="lineNum">    1206 </span>            : void
+<span class="lineNum">    1207 </span><span class="lineNoCov">          0 : AudioChannelService::AudioChannelWindow::AudioFocusChanged(AudioChannelAgent* aNewPlayingAgent)</span>
+<span class="lineNum">    1208 </span>            : {
+<span class="lineNum">    1209 </span>            :   // This agent isn't always known for the current window, because it can comes
+<span class="lineNum">    1210 </span>            :   // from other window.
+<span class="lineNum">    1211 </span>            :   MOZ_ASSERT(aNewPlayingAgent);
+<span class="lineNum">    1212 </span>            : 
+<span class="lineNum">    1213 </span><span class="lineNoCov">          0 :   if (IsInactiveWindow()) {</span>
+<span class="lineNum">    1214 </span>            :     // These would happen in two situations,
+<span class="lineNum">    1215 </span>            :     // (1) Audio in page A was ended, and another page B want to play audio.
+<span class="lineNum">    1216 </span>            :     //     Page A should abandon its focus.
+<span class="lineNum">    1217 </span>            :     // (2) Audio was paused by remote-control, page should still own the focus.
+<span class="lineNum">    1218 </span><span class="lineNoCov">          0 :     mOwningAudioFocus = IsContainingPlayingAgent(aNewPlayingAgent);</span>
+<span class="lineNum">    1219 </span>            :   } else {
+<span class="lineNum">    1220 </span>            :     nsTObserverArray&lt;AudioChannelAgent*&gt;::ForwardIterator
+<span class="lineNum">    1221 </span><span class="lineNoCov">          0 :       iter(IsEnableAudioCompetingForAllAgents() ? mAgents : mAudibleAgents);</span>
+<span class="lineNum">    1222 </span><span class="lineNoCov">          0 :     while (iter.HasMore()) {</span>
+<span class="lineNum">    1223 </span><span class="lineNoCov">          0 :       AudioChannelAgent* agent = iter.GetNext();</span>
+<span class="lineNum">    1224 </span>            :       MOZ_ASSERT(agent);
+<span class="lineNum">    1225 </span>            : 
+<span class="lineNum">    1226 </span>            :       // Don't need to update the playing state of new playing agent.
+<span class="lineNum">    1227 </span><span class="lineNoCov">          0 :       if (agent == aNewPlayingAgent) {</span>
+<span class="lineNum">    1228 </span>            :         continue;
+<span class="lineNum">    1229 </span>            :       }
+<span class="lineNum">    1230 </span>            : 
+<span class="lineNum">    1231 </span>            :       uint32_t type = GetCompetingBehavior(agent,
+<span class="lineNum">    1232 </span><span class="lineNoCov">          0 :                                            aNewPlayingAgent-&gt;AudioChannelType());</span>
+<span class="lineNum">    1233 </span>            : 
+<span class="lineNum">    1234 </span>            :       // If window will be suspended, it needs to abandon the audio focus
+<span class="lineNum">    1235 </span>            :       // because only one window can own audio focus at a time. However, we
+<span class="lineNum">    1236 </span>            :       // would support multiple audio focus at the same time in the future.
+<span class="lineNum">    1237 </span><span class="lineNoCov">          0 :       mOwningAudioFocus = (type == nsISuspendedTypes::NONE_SUSPENDED);</span>
+<span class="lineNum">    1238 </span>            : 
+<span class="lineNum">    1239 </span>            :       // TODO : support other behaviors which are definded in MediaSession API.
+<span class="lineNum">    1240 </span><span class="lineNoCov">          0 :       switch (type) {</span>
+<span class="lineNum">    1241 </span>            :         case nsISuspendedTypes::NONE_SUSPENDED:
+<span class="lineNum">    1242 </span>            :         case nsISuspendedTypes::SUSPENDED_STOP_DISPOSABLE:
+<span class="lineNum">    1243 </span><span class="lineNoCov">          0 :           agent-&gt;WindowSuspendChanged(type);</span>
+<span class="lineNum">    1244 </span><span class="lineNoCov">          0 :           break;</span>
+<span class="lineNum">    1245 </span>            :       }
+<span class="lineNum">    1246 </span>            :     }
+<span class="lineNum">    1247 </span>            :   }
+<span class="lineNum">    1248 </span>            : 
+<span class="lineNum">    1249 </span><span class="lineNoCov">          0 :   MOZ_LOG(AudioChannelService::GetAudioChannelLog(), LogLevel::Debug,</span>
+<span class="lineNum">    1250 </span>            :          (&quot;AudioChannelWindow, AudioFocusChanged, this = %p, &quot;
+<span class="lineNum">    1251 </span>            :           &quot;OwningAudioFocus = %d\n&quot;, this, mOwningAudioFocus));
+<span class="lineNum">    1252 </span><span class="lineNoCov">          0 : }</span>
+<a name="1253"><span class="lineNum">    1253 </span>            : </a>
+<span class="lineNum">    1254 </span>            : bool
+<span class="lineNum">    1255 </span><span class="lineNoCov">          0 : AudioChannelService::AudioChannelWindow::IsContainingPlayingAgent(AudioChannelAgent* aAgent) const</span>
+<span class="lineNum">    1256 </span>            : {
+<span class="lineNum">    1257 </span><span class="lineNoCov">          0 :   return (aAgent-&gt;WindowID() == mWindowID);</span>
+<span class="lineNum">    1258 </span>            : }
+<a name="1259"><span class="lineNum">    1259 </span>            : </a>
+<span class="lineNum">    1260 </span>            : uint32_t
+<span class="lineNum">    1261 </span><span class="lineNoCov">          0 : AudioChannelService::AudioChannelWindow::GetCompetingBehavior(AudioChannelAgent* aAgent,</span>
+<span class="lineNum">    1262 </span>            :                                                               int32_t aIncomingChannelType) const
+<span class="lineNum">    1263 </span>            : {
+<span class="lineNum">    1264 </span>            :   MOZ_ASSERT(aAgent);
+<span class="lineNum">    1265 </span>            :   MOZ_ASSERT(IsEnableAudioCompetingForAllAgents() ?
+<span class="lineNum">    1266 </span>            :     mAgents.Contains(aAgent) : mAudibleAgents.Contains(aAgent));
+<span class="lineNum">    1267 </span>            : 
+<span class="lineNum">    1268 </span><span class="lineNoCov">          0 :   uint32_t competingBehavior = nsISuspendedTypes::NONE_SUSPENDED;</span>
+<span class="lineNum">    1269 </span><span class="lineNoCov">          0 :   int32_t presentChannelType = aAgent-&gt;AudioChannelType();</span>
+<span class="lineNum">    1270 </span>            : 
+<span class="lineNum">    1271 </span>            :   // TODO : add other competing cases for MediaSession API
+<span class="lineNum">    1272 </span><span class="lineNoCov">          0 :   if (presentChannelType == int32_t(AudioChannel::Normal) &amp;&amp;</span>
+<span class="lineNum">    1273 </span>            :       aIncomingChannelType == int32_t(AudioChannel::Normal)) {
+<span class="lineNum">    1274 </span><span class="lineNoCov">          0 :     competingBehavior = nsISuspendedTypes::SUSPENDED_STOP_DISPOSABLE;</span>
+<span class="lineNum">    1275 </span>            :   }
+<span class="lineNum">    1276 </span>            : 
+<span class="lineNum">    1277 </span><span class="lineNoCov">          0 :   MOZ_LOG(AudioChannelService::GetAudioChannelLog(), LogLevel::Debug,</span>
+<span class="lineNum">    1278 </span>            :          (&quot;AudioChannelWindow, GetCompetingBehavior, this = %p, &quot;
+<span class="lineNum">    1279 </span>            :           &quot;present type = %d, incoming channel = %d, behavior = %d\n&quot;,
+<span class="lineNum">    1280 </span>            :           this, presentChannelType, aIncomingChannelType, competingBehavior));
+<span class="lineNum">    1281 </span>            : 
+<span class="lineNum">    1282 </span><span class="lineNoCov">          0 :   return competingBehavior;</span>
+<span class="lineNum">    1283 </span>            : }
+<a name="1284"><span class="lineNum">    1284 </span>            : </a>
+<span class="lineNum">    1285 </span>            : /* static */ bool
+<span class="lineNum">    1286 </span><span class="lineNoCov">          0 : AudioChannelService::IsAudioChannelMutedByDefault()</span>
+<span class="lineNum">    1287 </span>            : {
+<span class="lineNum">    1288 </span><span class="lineCov">          1 :   CreateServiceIfNeeded();</span>
+<span class="lineNum">    1289 </span><span class="lineCov">          1 :   return sAudioChannelMutedByDefault;</span>
+<span class="lineNum">    1290 </span>            : }
+<a name="1291"><span class="lineNum">    1291 </span>            : </a>
+<span class="lineNum">    1292 </span>            : void
+<span class="lineNum">    1293 </span><span class="lineCov">          1 : AudioChannelService::AudioChannelWindow::AppendAgent(AudioChannelAgent* aAgent,</span>
+<span class="lineNum">    1294 </span>            :                                                      AudibleState aAudible)
+<span class="lineNum">    1295 </span>            : {
+<span class="lineNum">    1296 </span>            :   MOZ_ASSERT(aAgent);
+<span class="lineNum">    1297 </span>            : 
+<span class="lineNum">    1298 </span><span class="lineCov">          1 :   RequestAudioFocus(aAgent);</span>
+<span class="lineNum">    1299 </span><span class="lineCov">          1 :   AppendAgentAndIncreaseAgentsNum(aAgent);</span>
+<span class="lineNum">    1300 </span><span class="lineCov">          1 :   AudioCapturedChanged(aAgent, AudioCaptureState::eCapturing);</span>
+<span class="lineNum">    1301 </span><span class="lineCov">          1 :   if (aAudible == AudibleState::eAudible) {</span>
+<span class="lineNum">    1302 </span>            :     AudioAudibleChanged(aAgent,
+<span class="lineNum">    1303 </span>            :                         AudibleState::eAudible,
+<span class="lineNum">    1304 </span><span class="lineCov">          1 :                         AudibleChangedReasons::eDataAudibleChanged);</span>
+<span class="lineNum">    1305 </span><span class="lineCov">          1 :   } else if (IsEnableAudioCompetingForAllAgents() &amp;&amp;</span>
+<span class="lineNum">    1306 </span>            :              aAudible != AudibleState::eAudible) {
+<span class="lineNum">    1307 </span><span class="lineNoCov">          0 :     NotifyAudioCompetingChanged(aAgent);</span>
+<span class="lineNum">    1308 </span>            :   }
+<span class="lineNum">    1309 </span><span class="lineCov">          1 : }</span>
+<a name="1310"><span class="lineNum">    1310 </span>            : </a>
+<span class="lineNum">    1311 </span>            : void
+<span class="lineNum">    1312 </span><span class="lineCov">          1 : AudioChannelService::AudioChannelWindow::RemoveAgent(AudioChannelAgent* aAgent)</span>
+<span class="lineNum">    1313 </span>            : {
+<span class="lineNum">    1314 </span>            :   MOZ_ASSERT(aAgent);
+<span class="lineNum">    1315 </span>            : 
+<span class="lineNum">    1316 </span><span class="lineCov">          1 :   RemoveAgentAndReduceAgentsNum(aAgent);</span>
+<span class="lineNum">    1317 </span><span class="lineCov">          1 :   AudioCapturedChanged(aAgent, AudioCaptureState::eNotCapturing);</span>
+<span class="lineNum">    1318 </span>            :   AudioAudibleChanged(aAgent,
+<span class="lineNum">    1319 </span>            :                       AudibleState::eNotAudible,
+<span class="lineNum">    1320 </span><span class="lineCov">          1 :                       AudibleChangedReasons::ePauseStateChanged);</span>
+<span class="lineNum">    1321 </span><span class="lineCov">          1 : }</span>
+<a name="1322"><span class="lineNum">    1322 </span>            : </a>
+<span class="lineNum">    1323 </span>            : void
+<span class="lineNum">    1324 </span><span class="lineNoCov">          0 : AudioChannelService::AudioChannelWindow::NotifyMediaBlockStop(nsPIDOMWindowOuter* aWindow)</span>
+<span class="lineNum">    1325 </span>            : {
+<span class="lineNum">    1326 </span><span class="lineNoCov">          0 :   mShouldSendBlockStopEvent = false;</span>
+<a name="1327"><span class="lineNum">    1327 </span>            :   // Can't use raw pointer for lamba variable capturing, use smart ptr.</a>
+<span class="lineNum">    1328 </span><span class="lineNoCov">          0 :   nsCOMPtr&lt;nsPIDOMWindowOuter&gt; window = aWindow;</span>
+<span class="lineNum">    1329 </span><span class="lineNoCov">          0 :   NS_DispatchToCurrentThread(NS_NewRunnableFunction([window] () -&gt; void {</span>
+<span class="lineNum">    1330 </span>            :       nsCOMPtr&lt;nsIObserverService&gt; observerService =
+<span class="lineNum">    1331 </span><span class="lineNoCov">          0 :         services::GetObserverService();</span>
+<span class="lineNum">    1332 </span><span class="lineNoCov">          0 :       if (NS_WARN_IF(!observerService)) {</span>
+<span class="lineNum">    1333 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1334 </span>            :       }
+<span class="lineNum">    1335 </span>            : 
+<span class="lineNum">    1336 </span><span class="lineNoCov">          0 :       observerService-&gt;NotifyObservers(ToSupports(window),</span>
+<span class="lineNum">    1337 </span>            :                                        &quot;audio-playback&quot;,
+<span class="lineNum">    1338 </span><span class="lineNoCov">          0 :                                        u&quot;blockStop&quot;);</span>
+<span class="lineNum">    1339 </span>            :     })
+<span class="lineNum">    1340 </span><span class="lineNoCov">          0 :   );</span>
+<span class="lineNum">    1341 </span><span class="lineNoCov">          0 : }</span>
+<a name="1342"><span class="lineNum">    1342 </span>            : </a>
+<span class="lineNum">    1343 </span>            : void
+<span class="lineNum">    1344 </span><span class="lineCov">          1 : AudioChannelService::AudioChannelWindow::AppendAgentAndIncreaseAgentsNum(AudioChannelAgent* aAgent)</span>
+<span class="lineNum">    1345 </span>            : {
+<span class="lineNum">    1346 </span>            :   MOZ_ASSERT(aAgent);
+<span class="lineNum">    1347 </span>            :   MOZ_ASSERT(!mAgents.Contains(aAgent));
+<span class="lineNum">    1348 </span>            : 
+<span class="lineNum">    1349 </span><span class="lineCov">          1 :   int32_t channel = aAgent-&gt;AudioChannelType();</span>
+<span class="lineNum">    1350 </span><span class="lineCov">          1 :   mAgents.AppendElement(aAgent);</span>
+<span class="lineNum">    1351 </span>            : 
+<span class="lineNum">    1352 </span><span class="lineCov">          1 :   ++mChannels[channel].mNumberOfAgents;</span>
+<span class="lineNum">    1353 </span>            : 
+<span class="lineNum">    1354 </span>            :   // The first one, we must inform the BrowserElementAudioChannel.
+<span class="lineNum">    1355 </span><span class="lineCov">          1 :   if (mChannels[channel].mNumberOfAgents == 1) {</span>
+<span class="lineNum">    1356 </span>            :     NotifyChannelActive(aAgent-&gt;WindowID(),
+<span class="lineNum">    1357 </span>            :                         static_cast&lt;AudioChannel&gt;(channel),
+<span class="lineNum">    1358 </span><span class="lineCov">          1 :                         true);</span>
+<span class="lineNum">    1359 </span>            :   }
+<span class="lineNum">    1360 </span><span class="lineCov">          1 : }</span>
+<a name="1361"><span class="lineNum">    1361 </span>            : </a>
+<span class="lineNum">    1362 </span>            : void
+<span class="lineNum">    1363 </span><span class="lineCov">          1 : AudioChannelService::AudioChannelWindow::RemoveAgentAndReduceAgentsNum(AudioChannelAgent* aAgent)</span>
+<span class="lineNum">    1364 </span>            : {
+<span class="lineNum">    1365 </span>            :   MOZ_ASSERT(aAgent);
+<span class="lineNum">    1366 </span>            :   MOZ_ASSERT(mAgents.Contains(aAgent));
+<span class="lineNum">    1367 </span>            : 
+<span class="lineNum">    1368 </span><span class="lineCov">          1 :   int32_t channel = aAgent-&gt;AudioChannelType();</span>
+<span class="lineNum">    1369 </span><span class="lineCov">          1 :   mAgents.RemoveElement(aAgent);</span>
+<span class="lineNum">    1370 </span>            : 
+<span class="lineNum">    1371 </span>            :   MOZ_ASSERT(mChannels[channel].mNumberOfAgents &gt; 0);
+<span class="lineNum">    1372 </span><span class="lineCov">          1 :   --mChannels[channel].mNumberOfAgents;</span>
+<span class="lineNum">    1373 </span>            : 
+<span class="lineNum">    1374 </span><span class="lineCov">          1 :   if (mChannels[channel].mNumberOfAgents == 0) {</span>
+<span class="lineNum">    1375 </span>            :     NotifyChannelActive(aAgent-&gt;WindowID(),
+<span class="lineNum">    1376 </span>            :                         static_cast&lt;AudioChannel&gt;(channel),
+<span class="lineNum">    1377 </span><span class="lineCov">          1 :                         false);</span>
+<span class="lineNum">    1378 </span>            :   }
+<span class="lineNum">    1379 </span><span class="lineCov">          1 : }</span>
+<a name="1380"><span class="lineNum">    1380 </span>            : </a>
+<span class="lineNum">    1381 </span>            : void
+<span class="lineNum">    1382 </span><span class="lineCov">          1 : AudioChannelService::AudioChannelWindow::AudioCapturedChanged(AudioChannelAgent* aAgent,</span>
+<span class="lineNum">    1383 </span>            :                                                               AudioCaptureState aCapture)
+<span class="lineNum">    1384 </span>            : {
+<span class="lineNum">    1385 </span>            :   MOZ_ASSERT(aAgent);
+<span class="lineNum">    1386 </span>            : 
+<span class="lineNum">    1387 </span><span class="lineCov">          1 :   if (mIsAudioCaptured) {</span>
+<span class="lineNum">    1388 </span><span class="lineNoCov">          0 :     aAgent-&gt;WindowAudioCaptureChanged(aAgent-&gt;InnerWindowID(), aCapture);</span>
+<span class="lineNum">    1389 </span>            :   }
+<span class="lineNum">    1390 </span><span class="lineCov">          1 : }</span>
+<a name="1391"><span class="lineNum">    1391 </span>            : </a>
+<span class="lineNum">    1392 </span>            : void
+<span class="lineNum">    1393 </span><span class="lineCov">          1 : AudioChannelService::AudioChannelWindow::AudioAudibleChanged(AudioChannelAgent* aAgent,</span>
+<span class="lineNum">    1394 </span>            :                                                              AudibleState aAudible,
+<span class="lineNum">    1395 </span>            :                                                              AudibleChangedReasons aReason)
+<span class="lineNum">    1396 </span>            : {
+<span class="lineNum">    1397 </span>            :   MOZ_ASSERT(aAgent);
+<span class="lineNum">    1398 </span>            : 
+<span class="lineNum">    1399 </span><span class="lineCov">          1 :   if (aAudible == AudibleState::eAudible) {</span>
+<span class="lineNum">    1400 </span><span class="lineCov">          1 :     AppendAudibleAgentIfNotContained(aAgent, aReason);</span>
+<span class="lineNum">    1401 </span>            :   } else {
+<span class="lineNum">    1402 </span><span class="lineCov">          1 :     RemoveAudibleAgentIfContained(aAgent, aReason);</span>
+<span class="lineNum">    1403 </span>            :   }
+<span class="lineNum">    1404 </span>            : 
+<span class="lineNum">    1405 </span><span class="lineCov">          1 :   if (aAudible == AudibleState::eAudible) {</span>
+<span class="lineNum">    1406 </span><span class="lineCov">          1 :     NotifyAudioCompetingChanged(aAgent);</span>
+<span class="lineNum">    1407 </span><span class="lineCov">          1 :   } else if (aAudible != AudibleState::eNotAudible) {</span>
+<span class="lineNum">    1408 </span><span class="lineCov">          1 :     MaybeNotifyMediaBlockStart(aAgent);</span>
+<span class="lineNum">    1409 </span>            :   }
+<span class="lineNum">    1410 </span><span class="lineCov">          1 : }</span>
+<a name="1411"><span class="lineNum">    1411 </span>            : </a>
+<span class="lineNum">    1412 </span>            : void
+<span class="lineNum">    1413 </span><span class="lineCov">          1 : AudioChannelService::AudioChannelWindow::AppendAudibleAgentIfNotContained(AudioChannelAgent* aAgent,</span>
+<span class="lineNum">    1414 </span>            :                                                                           AudibleChangedReasons aReason)
+<span class="lineNum">    1415 </span>            : {
+<span class="lineNum">    1416 </span>            :   MOZ_ASSERT(aAgent);
+<span class="lineNum">    1417 </span>            :   MOZ_ASSERT(mAgents.Contains(aAgent));
+<span class="lineNum">    1418 </span>            : 
+<span class="lineNum">    1419 </span><span class="lineCov">          1 :   if (!mAudibleAgents.Contains(aAgent)) {</span>
+<span class="lineNum">    1420 </span><span class="lineCov">          1 :     mAudibleAgents.AppendElement(aAgent);</span>
+<span class="lineNum">    1421 </span><span class="lineCov">          1 :     if (IsFirstAudibleAgent()) {</span>
+<span class="lineNum">    1422 </span><span class="lineCov">          1 :       NotifyAudioAudibleChanged(aAgent-&gt;Window(), AudibleState::eAudible, aReason);</span>
+<span class="lineNum">    1423 </span>            :     }
+<span class="lineNum">    1424 </span>            :   }
+<span class="lineNum">    1425 </span><span class="lineCov">          1 : }</span>
+<a name="1426"><span class="lineNum">    1426 </span>            : </a>
+<span class="lineNum">    1427 </span>            : void
+<span class="lineNum">    1428 </span><span class="lineCov">          1 : AudioChannelService::AudioChannelWindow::RemoveAudibleAgentIfContained(AudioChannelAgent* aAgent,</span>
+<span class="lineNum">    1429 </span>            :                                                                        AudibleChangedReasons aReason)
+<span class="lineNum">    1430 </span>            : {
+<span class="lineNum">    1431 </span>            :   MOZ_ASSERT(aAgent);
+<span class="lineNum">    1432 </span>            : 
+<span class="lineNum">    1433 </span><span class="lineCov">          1 :   if (mAudibleAgents.Contains(aAgent)) {</span>
+<span class="lineNum">    1434 </span><span class="lineCov">          1 :     mAudibleAgents.RemoveElement(aAgent);</span>
+<span class="lineNum">    1435 </span><span class="lineCov">          1 :     if (IsLastAudibleAgent()) {</span>
+<span class="lineNum">    1436 </span><span class="lineCov">          1 :       NotifyAudioAudibleChanged(aAgent-&gt;Window(), AudibleState::eNotAudible, aReason);</span>
+<span class="lineNum">    1437 </span>            :     }
+<span class="lineNum">    1438 </span>            :   }
+<span class="lineNum">    1439 </span><span class="lineCov">          1 : }</span>
+<a name="1440"><span class="lineNum">    1440 </span>            : </a>
+<span class="lineNum">    1441 </span>            : bool
+<span class="lineNum">    1442 </span><span class="lineNoCov">          0 : AudioChannelService::AudioChannelWindow::IsFirstAudibleAgent() const</span>
+<span class="lineNum">    1443 </span>            : {
+<span class="lineNum">    1444 </span><span class="lineCov">          1 :   return (mAudibleAgents.Length() == 1);</span>
+<span class="lineNum">    1445 </span>            : }
+<a name="1446"><span class="lineNum">    1446 </span>            : </a>
+<span class="lineNum">    1447 </span>            : bool
+<span class="lineNum">    1448 </span><span class="lineNoCov">          0 : AudioChannelService::AudioChannelWindow::IsLastAudibleAgent() const</span>
+<span class="lineNum">    1449 </span>            : {
+<span class="lineNum">    1450 </span><span class="lineCov">          1 :   return mAudibleAgents.IsEmpty();</span>
+<span class="lineNum">    1451 </span>            : }
+<a name="1452"><span class="lineNum">    1452 </span>            : </a>
+<span class="lineNum">    1453 </span>            : bool
+<span class="lineNum">    1454 </span><span class="lineNoCov">          0 : AudioChannelService::AudioChannelWindow::IsInactiveWindow() const</span>
+<span class="lineNum">    1455 </span>            : {
+<span class="lineNum">    1456 </span>            :   return IsEnableAudioCompetingForAllAgents() ?
+<span class="lineNum">    1457 </span><span class="lineNoCov">          0 :     mAudibleAgents.IsEmpty() &amp;&amp; mAgents.IsEmpty() : mAudibleAgents.IsEmpty();</span>
+<span class="lineNum">    1458 </span>            : }
+<a name="1459"><span class="lineNum">    1459 </span>            : </a>
+<span class="lineNum">    1460 </span>            : void
+<span class="lineNum">    1461 </span><span class="lineCov">          1 : AudioChannelService::AudioChannelWindow::NotifyAudioAudibleChanged(nsPIDOMWindowOuter* aWindow,</span>
+<span class="lineNum">    1462 </span>            :                                                                    AudibleState aAudible,
+<span class="lineNum">    1463 </span>            :                                                                    AudibleChangedReasons aReason)
+<span class="lineNum">    1464 </span>            : {
+<span class="lineNum">    1465 </span>            :   RefPtr&lt;AudioPlaybackRunnable&gt; runnable =
+<span class="lineNum">    1466 </span>            :     new AudioPlaybackRunnable(aWindow,
+<span class="lineNum">    1467 </span>            :                               aAudible == AudibleState::eAudible,
+<span class="lineNum">    1468 </span><span class="lineCov">          1 :                               aReason);</span>
+<span class="lineNum">    1469 </span><span class="lineCov">          1 :   DebugOnly&lt;nsresult&gt; rv = NS_DispatchToCurrentThread(runnable);</span>
+<span class="lineNum">    1470 </span><span class="lineCov">          1 :   NS_WARNING_ASSERTION(NS_SUCCEEDED(rv), &quot;NS_DispatchToCurrentThread failed&quot;);</span>
+<span class="lineNum">    1471 </span><span class="lineCov">          1 : }</span>
+<a name="1472"><span class="lineNum">    1472 </span>            : </a>
+<span class="lineNum">    1473 </span>            : void
+<span class="lineNum">    1474 </span><span class="lineCov">          1 : AudioChannelService::AudioChannelWindow::NotifyChannelActive(uint64_t aWindowID,</span>
+<span class="lineNum">    1475 </span>            :                                                              AudioChannel aChannel,
+<span class="lineNum">    1476 </span>            :                                                              bool aActive)
+<span class="lineNum">    1477 </span>            : {
+<span class="lineNum">    1478 </span>            :   RefPtr&lt;NotifyChannelActiveRunnable&gt; runnable =
+<span class="lineNum">    1479 </span><span class="lineCov">          1 :     new NotifyChannelActiveRunnable(aWindowID, aChannel, aActive);</span>
+<span class="lineNum">    1480 </span><span class="lineCov">          1 :   DebugOnly&lt;nsresult&gt; rv = NS_DispatchToCurrentThread(runnable);</span>
+<span class="lineNum">    1481 </span><span class="lineCov">          1 :   NS_WARNING_ASSERTION(NS_SUCCEEDED(rv), &quot;NS_DispatchToCurrentThread failed&quot;);</span>
+<span class="lineNum">    1482 </span><span class="lineCov">          1 : }</span>
+<a name="1483"><span class="lineNum">    1483 </span>            : </a>
+<span class="lineNum">    1484 </span>            : void
+<span class="lineNum">    1485 </span><span class="lineCov">          1 : AudioChannelService::AudioChannelWindow::MaybeNotifyMediaBlockStart(AudioChannelAgent* aAgent)</span>
+<span class="lineNum">    1486 </span>            : {
+<span class="lineNum">    1487 </span><span class="lineCov">          1 :   nsCOMPtr&lt;nsPIDOMWindowOuter&gt; window = aAgent-&gt;Window();</span>
+<span class="lineNum">    1488 </span><span class="lineCov">          1 :   if (!window) {</span>
+<span class="lineNum">    1489 </span>            :     return;
+<span class="lineNum">    1490 </span>            :   }
+<span class="lineNum">    1491 </span>            : 
+<span class="lineNum">    1492 </span>            :   MOZ_ASSERT(window-&gt;IsOuterWindow());
+<span class="lineNum">    1493 </span><span class="lineCov">          1 :   nsCOMPtr&lt;nsPIDOMWindowInner&gt; inner = window-&gt;GetCurrentInnerWindow();</span>
+<span class="lineNum">    1494 </span><span class="lineCov">          1 :   if (!inner) {</span>
+<span class="lineNum">    1495 </span>            :     return;
+<span class="lineNum">    1496 </span>            :   }
+<span class="lineNum">    1497 </span>            : 
+<span class="lineNum">    1498 </span><span class="lineCov">          1 :   nsCOMPtr&lt;nsIDocument&gt; doc = inner-&gt;GetExtantDoc();</span>
+<span class="lineNum">    1499 </span><span class="lineCov">          1 :   if (!doc) {</span>
+<span class="lineNum">    1500 </span>            :     return;
+<span class="lineNum">    1501 </span>            :   }
+<span class="lineNum">    1502 </span>            : 
+<span class="lineNum">    1503 </span><span class="lineCov">          1 :   if (window-&gt;GetMediaSuspend() != nsISuspendedTypes::SUSPENDED_BLOCK ||</span>
+<span class="lineNum">    1504 </span>            :       !doc-&gt;Hidden()) {
+<span class="lineNum">    1505 </span>            :     return;
+<span class="lineNum">    1506 </span>            :   }
+<span class="lineNum">    1507 </span>            : 
+<a name="1508"><span class="lineNum">    1508 </span><span class="lineNoCov">          0 :   if (!mShouldSendBlockStopEvent) {</span></a>
+<span class="lineNum">    1509 </span><span class="lineNoCov">          0 :       mShouldSendBlockStopEvent = true;</span>
+<span class="lineNum">    1510 </span><span class="lineNoCov">          0 :       NS_DispatchToCurrentThread(NS_NewRunnableFunction([window] () -&gt; void {</span>
+<span class="lineNum">    1511 </span>            :         nsCOMPtr&lt;nsIObserverService&gt; observerService =
+<span class="lineNum">    1512 </span><span class="lineNoCov">          0 :           services::GetObserverService();</span>
+<span class="lineNum">    1513 </span><span class="lineNoCov">          0 :         if (NS_WARN_IF(!observerService)) {</span>
+<span class="lineNum">    1514 </span><span class="lineNoCov">          0 :           return;</span>
+<span class="lineNum">    1515 </span>            :         }
+<span class="lineNum">    1516 </span>            : 
+<span class="lineNum">    1517 </span><span class="lineNoCov">          0 :         observerService-&gt;NotifyObservers(ToSupports(window),</span>
+<span class="lineNum">    1518 </span>            :                                          &quot;audio-playback&quot;,
+<span class="lineNum">    1519 </span><span class="lineNoCov">          0 :                                          u&quot;blockStart&quot;);</span>
+<span class="lineNum">    1520 </span>            :       })
+<span class="lineNum">    1521 </span><span class="lineNoCov">          0 :     );</span>
+<span class="lineNum">    1522 </span>            :   }
+<span class="lineNum">    1523 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

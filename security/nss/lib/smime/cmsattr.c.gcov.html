@@ -1,0 +1,509 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/nss/lib/smime/cmsattr.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">security/nss/lib/smime</a> - cmsattr.c<span style="font-size: 80%;"> (source / <a href="cmsattr.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">50</td>
+            <td class="headerCovTableEntry">109</td>
+            <td class="headerCovTableEntryLo">45.9 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">5</td>
+            <td class="headerCovTableEntry">11</td>
+            <td class="headerCovTableEntryLo">45.5 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public</a>
+<span class="lineNum">       2 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       3 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : /*
+<span class="lineNum">       6 </span>            :  * CMS attributes.
+<span class="lineNum">       7 </span>            :  */
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &quot;cmslocal.h&quot;
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;secasn1.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;secitem.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;secoid.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;pk11func.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;prtime.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;secerr.h&quot;
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : /*
+<span class="lineNum">      19 </span>            :  * -------------------------------------------------------------------
+<span class="lineNum">      20 </span>            :  * XXX The following Attribute stuff really belongs elsewhere.
+<span class="lineNum">      21 </span>            :  * The Attribute type is *not* part of CMS but rather X.501.
+<span class="lineNum">      22 </span>            :  * But for now, since CMS is the only customer of attributes,
+<span class="lineNum">      23 </span>            :  * we define them here.  Once there is a use outside of CMS,
+<span class="lineNum">      24 </span>            :  * then change the attribute types and functions from internal
+<span class="lineNum">      25 </span>            :  * to external naming convention, and move them elsewhere!
+<span class="lineNum">      26 </span>            :  */
+<span class="lineNum">      27 </span>            : 
+<span class="lineNum">      28 </span>            : /*
+<span class="lineNum">      29 </span>            :  * NSS_CMSAttribute_Create - create an attribute
+<span class="lineNum">      30 </span>            :  *
+<span class="lineNum">      31 </span>            :  * if value is NULL, the attribute won't have a value. It can be added later
+<span class="lineNum">      32 </span>            :  * with NSS_CMSAttribute_AddValue.
+<a name="33"><span class="lineNum">      33 </span>            :  */</a>
+<span class="lineNum">      34 </span>            : NSSCMSAttribute *
+<span class="lineNum">      35 </span><span class="lineNoCov">          0 : NSS_CMSAttribute_Create(PLArenaPool *poolp, SECOidTag oidtag, SECItem *value,</span>
+<span class="lineNum">      36 </span>            :                         PRBool encoded)
+<span class="lineNum">      37 </span>            : {
+<span class="lineNum">      38 </span>            :     NSSCMSAttribute *attr;
+<span class="lineNum">      39 </span>            :     SECItem *copiedvalue;
+<span class="lineNum">      40 </span>            :     void *mark;
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            :     PORT_Assert(poolp != NULL);
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span><span class="lineNoCov">          0 :     mark = PORT_ArenaMark(poolp);</span>
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span><span class="lineNoCov">          0 :     attr = (NSSCMSAttribute *)PORT_ArenaZAlloc(poolp, sizeof(NSSCMSAttribute));</span>
+<span class="lineNum">      47 </span><span class="lineNoCov">          0 :     if (attr == NULL)</span>
+<span class="lineNum">      48 </span>            :         goto loser;
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span><span class="lineNoCov">          0 :     attr-&gt;typeTag = SECOID_FindOIDByTag(oidtag);</span>
+<span class="lineNum">      51 </span><span class="lineNoCov">          0 :     if (attr-&gt;typeTag == NULL)</span>
+<span class="lineNum">      52 </span>            :         goto loser;
+<span class="lineNum">      53 </span>            : 
+<span class="lineNum">      54 </span><span class="lineNoCov">          0 :     if (SECITEM_CopyItem(poolp, &amp;(attr-&gt;type), &amp;(attr-&gt;typeTag-&gt;oid)) != SECSuccess)</span>
+<span class="lineNum">      55 </span>            :         goto loser;
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span><span class="lineNoCov">          0 :     if (value != NULL) {</span>
+<span class="lineNum">      58 </span><span class="lineNoCov">          0 :         if ((copiedvalue = SECITEM_ArenaDupItem(poolp, value)) == NULL)</span>
+<span class="lineNum">      59 </span>            :             goto loser;
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span><span class="lineNoCov">          0 :         if (NSS_CMSArray_Add(poolp, (void ***)&amp;(attr-&gt;values), (void *)copiedvalue) != SECSuccess)</span>
+<span class="lineNum">      62 </span>            :             goto loser;
+<span class="lineNum">      63 </span>            :     }
+<span class="lineNum">      64 </span>            : 
+<span class="lineNum">      65 </span><span class="lineNoCov">          0 :     attr-&gt;encoded = encoded;</span>
+<span class="lineNum">      66 </span>            : 
+<span class="lineNum">      67 </span><span class="lineNoCov">          0 :     PORT_ArenaUnmark(poolp, mark);</span>
+<span class="lineNum">      68 </span>            : 
+<span class="lineNum">      69 </span><span class="lineNoCov">          0 :     return attr;</span>
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span>            : loser:
+<span class="lineNum">      72 </span>            :     PORT_Assert(mark != NULL);
+<span class="lineNum">      73 </span><span class="lineNoCov">          0 :     PORT_ArenaRelease(poolp, mark);</span>
+<span class="lineNum">      74 </span><span class="lineNoCov">          0 :     return NULL;</span>
+<span class="lineNum">      75 </span>            : }
+<span class="lineNum">      76 </span>            : 
+<span class="lineNum">      77 </span>            : /*
+<span class="lineNum">      78 </span>            :  * NSS_CMSAttribute_AddValue - add another value to an attribute
+<a name="79"><span class="lineNum">      79 </span>            :  */</a>
+<span class="lineNum">      80 </span>            : SECStatus
+<span class="lineNum">      81 </span><span class="lineNoCov">          0 : NSS_CMSAttribute_AddValue(PLArenaPool *poolp, NSSCMSAttribute *attr, SECItem *value)</span>
+<span class="lineNum">      82 </span>            : {
+<span class="lineNum">      83 </span>            :     SECItem *copiedvalue;
+<span class="lineNum">      84 </span>            :     void *mark;
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span>            :     PORT_Assert(poolp != NULL);
+<span class="lineNum">      87 </span>            : 
+<span class="lineNum">      88 </span><span class="lineNoCov">          0 :     mark = PORT_ArenaMark(poolp);</span>
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span><span class="lineNoCov">          0 :     if (value == NULL) {</span>
+<span class="lineNum">      91 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">      92 </span><span class="lineNoCov">          0 :         goto loser;</span>
+<span class="lineNum">      93 </span>            :     }
+<span class="lineNum">      94 </span>            : 
+<span class="lineNum">      95 </span><span class="lineNoCov">          0 :     if ((copiedvalue = SECITEM_ArenaDupItem(poolp, value)) == NULL)</span>
+<span class="lineNum">      96 </span>            :         goto loser;
+<span class="lineNum">      97 </span>            : 
+<span class="lineNum">      98 </span><span class="lineNoCov">          0 :     if (NSS_CMSArray_Add(poolp, (void ***)&amp;(attr-&gt;values), (void *)copiedvalue) != SECSuccess)</span>
+<span class="lineNum">      99 </span>            :         goto loser;
+<span class="lineNum">     100 </span>            : 
+<span class="lineNum">     101 </span><span class="lineNoCov">          0 :     PORT_ArenaUnmark(poolp, mark);</span>
+<span class="lineNum">     102 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span>            : loser:
+<span class="lineNum">     105 </span>            :     PORT_Assert(mark != NULL);
+<span class="lineNum">     106 </span><span class="lineNoCov">          0 :     PORT_ArenaRelease(poolp, mark);</span>
+<span class="lineNum">     107 </span><span class="lineNoCov">          0 :     return SECFailure;</span>
+<span class="lineNum">     108 </span>            : }
+<span class="lineNum">     109 </span>            : 
+<span class="lineNum">     110 </span>            : /*
+<span class="lineNum">     111 </span>            :  * NSS_CMSAttribute_GetType - return the OID tag
+<a name="112"><span class="lineNum">     112 </span>            :  */</a>
+<span class="lineNum">     113 </span>            : SECOidTag
+<span class="lineNum">     114 </span><span class="lineNoCov">          0 : NSS_CMSAttribute_GetType(NSSCMSAttribute *attr)</span>
+<span class="lineNum">     115 </span>            : {
+<span class="lineNum">     116 </span>            :     SECOidData *typetag;
+<span class="lineNum">     117 </span>            : 
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :     typetag = SECOID_FindOID(&amp;(attr-&gt;type));</span>
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 :     if (typetag == NULL)</span>
+<span class="lineNum">     120 </span>            :         return SEC_OID_UNKNOWN;
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :     return typetag-&gt;offset;</span>
+<span class="lineNum">     123 </span>            : }
+<span class="lineNum">     124 </span>            : 
+<span class="lineNum">     125 </span>            : /*
+<span class="lineNum">     126 </span>            :  * NSS_CMSAttribute_GetValue - return the first attribute value
+<span class="lineNum">     127 </span>            :  *
+<span class="lineNum">     128 </span>            :  * We do some sanity checking first:
+<span class="lineNum">     129 </span>            :  * - Multiple values are *not* expected.
+<span class="lineNum">     130 </span>            :  * - Empty values are *not* expected.
+<a name="131"><span class="lineNum">     131 </span>            :  */</a>
+<span class="lineNum">     132 </span>            : SECItem *
+<span class="lineNum">     133 </span><span class="lineCov">          1 : NSS_CMSAttribute_GetValue(NSSCMSAttribute *attr)</span>
+<span class="lineNum">     134 </span>            : {
+<span class="lineNum">     135 </span>            :     SECItem *value;
+<span class="lineNum">     136 </span>            : 
+<span class="lineNum">     137 </span><span class="lineCov">          1 :     if (attr == NULL)</span>
+<span class="lineNum">     138 </span>            :         return NULL;
+<span class="lineNum">     139 </span>            : 
+<span class="lineNum">     140 </span><span class="lineCov">          1 :     value = attr-&gt;values[0];</span>
+<span class="lineNum">     141 </span>            : 
+<span class="lineNum">     142 </span><span class="lineCov">          1 :     if (value == NULL || value-&gt;data == NULL || value-&gt;len == 0)</span>
+<span class="lineNum">     143 </span>            :         return NULL;
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span><span class="lineCov">          1 :     if (attr-&gt;values[1] != NULL)</span>
+<span class="lineNum">     146 </span>            :         return NULL;
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span><span class="lineCov">          1 :     return value;</span>
+<span class="lineNum">     149 </span>            : }
+<span class="lineNum">     150 </span>            : 
+<span class="lineNum">     151 </span>            : /*
+<span class="lineNum">     152 </span>            :  * NSS_CMSAttribute_CompareValue - compare the attribute's first value against data
+<a name="153"><span class="lineNum">     153 </span>            :  */</a>
+<span class="lineNum">     154 </span>            : PRBool
+<span class="lineNum">     155 </span><span class="lineCov">          1 : NSS_CMSAttribute_CompareValue(NSSCMSAttribute *attr, SECItem *av)</span>
+<span class="lineNum">     156 </span>            : {
+<span class="lineNum">     157 </span>            :     SECItem *value;
+<span class="lineNum">     158 </span>            : 
+<span class="lineNum">     159 </span><span class="lineCov">          1 :     if (attr == NULL)</span>
+<span class="lineNum">     160 </span>            :         return PR_FALSE;
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span><span class="lineCov">          1 :     value = NSS_CMSAttribute_GetValue(attr);</span>
+<span class="lineNum">     163 </span>            : 
+<span class="lineNum">     164 </span><span class="lineCov">          1 :     return (value != NULL &amp;&amp; value-&gt;len == av-&gt;len &amp;&amp;</span>
+<span class="lineNum">     165 </span><span class="lineCov">          1 :             PORT_Memcmp(value-&gt;data, av-&gt;data, value-&gt;len) == 0);</span>
+<span class="lineNum">     166 </span>            : }
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span>            : /*
+<span class="lineNum">     169 </span>            :  * templates and functions for separate ASN.1 encoding of attributes
+<span class="lineNum">     170 </span>            :  *
+<span class="lineNum">     171 </span>            :  * used in NSS_CMSAttributeArray_Reorder
+<span class="lineNum">     172 </span>            :  */
+<span class="lineNum">     173 </span>            : 
+<span class="lineNum">     174 </span>            : /*
+<span class="lineNum">     175 </span>            :  * helper function for dynamic template determination of the attribute value
+<a name="176"><span class="lineNum">     176 </span>            :  */</a>
+<span class="lineNum">     177 </span>            : static const SEC_ASN1Template *
+<span class="lineNum">     178 </span><span class="lineCov">          1 : cms_attr_choose_attr_value_template(void *src_or_dest, PRBool encoding)</span>
+<span class="lineNum">     179 </span>            : {
+<span class="lineNum">     180 </span>            :     const SEC_ASN1Template *theTemplate;
+<span class="lineNum">     181 </span>            :     NSSCMSAttribute *attribute;
+<span class="lineNum">     182 </span>            :     SECOidData *oiddata;
+<span class="lineNum">     183 </span>            :     PRBool encoded;
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span>            :     PORT_Assert(src_or_dest != NULL);
+<span class="lineNum">     186 </span><span class="lineCov">          1 :     if (src_or_dest == NULL)</span>
+<span class="lineNum">     187 </span>            :         return NULL;
+<span class="lineNum">     188 </span>            : 
+<span class="lineNum">     189 </span><span class="lineCov">          1 :     attribute = (NSSCMSAttribute *)src_or_dest;</span>
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span><span class="lineCov">          1 :     if (encoding &amp;&amp; (!attribute-&gt;values || !attribute-&gt;values[0] ||</span>
+<span class="lineNum">     192 </span><span class="lineCov">          1 :                      attribute-&gt;encoded)) {</span>
+<span class="lineNum">     193 </span>            :         /* we're encoding, and the attribute has no value or the attribute
+<span class="lineNum">     194 </span>            :          * value is already encoded. */
+<span class="lineNum">     195 </span>            :         return SEC_ASN1_GET(SEC_AnyTemplate);
+<span class="lineNum">     196 </span>            :     }
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span>            :     /* get attribute's typeTag */
+<span class="lineNum">     199 </span><span class="lineCov">          1 :     oiddata = attribute-&gt;typeTag;</span>
+<span class="lineNum">     200 </span><span class="lineCov">          1 :     if (oiddata == NULL) {</span>
+<span class="lineNum">     201 </span><span class="lineCov">          1 :         oiddata = SECOID_FindOID(&amp;attribute-&gt;type);</span>
+<span class="lineNum">     202 </span><span class="lineCov">          1 :         attribute-&gt;typeTag = oiddata;</span>
+<span class="lineNum">     203 </span>            :     }
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span><span class="lineCov">          1 :     if (oiddata == NULL) {</span>
+<span class="lineNum">     206 </span>            :         /* still no OID tag? OID is unknown then. en/decode value as ANY. */
+<span class="lineNum">     207 </span>            :         encoded = PR_TRUE;
+<span class="lineNum">     208 </span>            :         theTemplate = SEC_ASN1_GET(SEC_AnyTemplate);
+<span class="lineNum">     209 </span>            :     } else {
+<span class="lineNum">     210 </span><span class="lineCov">          1 :         switch (oiddata-&gt;offset) {</span>
+<span class="lineNum">     211 </span>            :             case SEC_OID_PKCS9_SMIME_CAPABILITIES:
+<span class="lineNum">     212 </span>            :             case SEC_OID_SMIME_ENCRYPTION_KEY_PREFERENCE:
+<span class="lineNum">     213 </span>            :             /* these guys need to stay DER-encoded */
+<span class="lineNum">     214 </span>            :             default:
+<span class="lineNum">     215 </span>            :                 /* same goes for OIDs that are not handled here */
+<span class="lineNum">     216 </span>            :                 encoded = PR_TRUE;
+<span class="lineNum">     217 </span>            :                 theTemplate = SEC_ASN1_GET(SEC_AnyTemplate);
+<span class="lineNum">     218 </span>            :                 break;
+<span class="lineNum">     219 </span>            :             /* otherwise choose proper template */
+<span class="lineNum">     220 </span>            :             case SEC_OID_PKCS9_EMAIL_ADDRESS:
+<span class="lineNum">     221 </span>            :             case SEC_OID_RFC1274_MAIL:
+<span class="lineNum">     222 </span>            :             case SEC_OID_PKCS9_UNSTRUCTURED_NAME:
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :                 encoded = PR_FALSE;</span>
+<span class="lineNum">     224 </span><span class="lineNoCov">          0 :                 theTemplate = SEC_ASN1_GET(SEC_IA5StringTemplate);</span>
+<span class="lineNum">     225 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     226 </span>            :             case SEC_OID_PKCS9_CONTENT_TYPE:
+<span class="lineNum">     227 </span><span class="lineCov">          1 :                 encoded = PR_FALSE;</span>
+<span class="lineNum">     228 </span><span class="lineCov">          1 :                 theTemplate = SEC_ASN1_GET(SEC_ObjectIDTemplate);</span>
+<span class="lineNum">     229 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">     230 </span>            :             case SEC_OID_PKCS9_MESSAGE_DIGEST:
+<span class="lineNum">     231 </span><span class="lineCov">          1 :                 encoded = PR_FALSE;</span>
+<span class="lineNum">     232 </span><span class="lineCov">          1 :                 theTemplate = SEC_ASN1_GET(SEC_OctetStringTemplate);</span>
+<span class="lineNum">     233 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">     234 </span>            :             case SEC_OID_PKCS9_SIGNING_TIME:
+<span class="lineNum">     235 </span><span class="lineCov">          1 :                 encoded = PR_FALSE;</span>
+<span class="lineNum">     236 </span><span class="lineCov">          1 :                 theTemplate = SEC_ASN1_GET(CERT_TimeChoiceTemplate);</span>
+<span class="lineNum">     237 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">     238 </span>            :                 /* XXX Want other types here, too */
+<span class="lineNum">     239 </span>            :         }
+<span class="lineNum">     240 </span>            :     }
+<span class="lineNum">     241 </span>            : 
+<span class="lineNum">     242 </span><span class="lineCov">          1 :     if (encoding) {</span>
+<span class="lineNum">     243 </span>            :         /*
+<span class="lineNum">     244 </span>            :          * If we are encoding and we think we have an already-encoded value,
+<span class="lineNum">     245 </span>            :          * then the code which initialized this attribute should have set
+<span class="lineNum">     246 </span>            :          * the &quot;encoded&quot; property to true (and we would have returned early,
+<span class="lineNum">     247 </span>            :          * up above).  No devastating error, but that code should be fixed.
+<span class="lineNum">     248 </span>            :          * (It could indicate that the resulting encoded bytes are wrong.)
+<span class="lineNum">     249 </span>            :          */
+<span class="lineNum">     250 </span>            :         PORT_Assert(!encoded);
+<span class="lineNum">     251 </span>            :     } else {
+<span class="lineNum">     252 </span>            :         /*
+<span class="lineNum">     253 </span>            :          * We are decoding; record whether the resulting value is
+<span class="lineNum">     254 </span>            :          * still encoded or not.
+<span class="lineNum">     255 </span>            :          */
+<span class="lineNum">     256 </span><span class="lineCov">          1 :         attribute-&gt;encoded = encoded;</span>
+<span class="lineNum">     257 </span>            :     }
+<span class="lineNum">     258 </span><span class="lineCov">          1 :     return theTemplate;</span>
+<span class="lineNum">     259 </span>            : }
+<span class="lineNum">     260 </span>            : 
+<span class="lineNum">     261 </span>            : static const SEC_ASN1TemplateChooserPtr cms_attr_chooser = cms_attr_choose_attr_value_template;
+<span class="lineNum">     262 </span>            : 
+<span class="lineNum">     263 </span>            : const SEC_ASN1Template nss_cms_attribute_template[] = {
+<span class="lineNum">     264 </span>            :     { SEC_ASN1_SEQUENCE,
+<span class="lineNum">     265 </span>            :       0, NULL, sizeof(NSSCMSAttribute) },
+<span class="lineNum">     266 </span>            :     { SEC_ASN1_OBJECT_ID,
+<span class="lineNum">     267 </span>            :       offsetof(NSSCMSAttribute, type) },
+<span class="lineNum">     268 </span>            :     { SEC_ASN1_DYNAMIC | SEC_ASN1_SET_OF,
+<span class="lineNum">     269 </span>            :       offsetof(NSSCMSAttribute, values),
+<span class="lineNum">     270 </span>            :       &amp;cms_attr_chooser },
+<span class="lineNum">     271 </span>            :     { 0 }
+<span class="lineNum">     272 </span>            : };
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span>            : const SEC_ASN1Template nss_cms_set_of_attribute_template[] = {
+<span class="lineNum">     275 </span>            :     { SEC_ASN1_SET_OF, 0, nss_cms_attribute_template },
+<span class="lineNum">     276 </span>            : };
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span>            : /* =============================================================================
+<span class="lineNum">     279 </span>            :  * Attribute Array methods
+<span class="lineNum">     280 </span>            :  */
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span>            : /*
+<span class="lineNum">     283 </span>            :  * NSS_CMSAttributeArray_Encode - encode an Attribute array as SET OF Attributes
+<span class="lineNum">     284 </span>            :  *
+<span class="lineNum">     285 </span>            :  * If you are wondering why this routine does not reorder the attributes
+<span class="lineNum">     286 </span>            :  * first, and might be tempted to make it do so, see the comment by the
+<span class="lineNum">     287 </span>            :  * call to ReorderAttributes in cmsencode.c.  (Or, see who else calls this
+<span class="lineNum">     288 </span>            :  * and think long and hard about the implications of making it always
+<span class="lineNum">     289 </span>            :  * do the reordering.)
+<a name="290"><span class="lineNum">     290 </span>            :  */</a>
+<span class="lineNum">     291 </span>            : SECItem *
+<span class="lineNum">     292 </span><span class="lineCov">          1 : NSS_CMSAttributeArray_Encode(PLArenaPool *poolp, NSSCMSAttribute ***attrs, SECItem *dest)</span>
+<span class="lineNum">     293 </span>            : {
+<span class="lineNum">     294 </span><span class="lineCov">          1 :     return SEC_ASN1EncodeItem(poolp, dest, (void *)attrs, nss_cms_set_of_attribute_template);</span>
+<span class="lineNum">     295 </span>            : }
+<span class="lineNum">     296 </span>            : 
+<span class="lineNum">     297 </span>            : /*
+<span class="lineNum">     298 </span>            :  * NSS_CMSAttributeArray_Reorder - sort attribute array by attribute's DER encoding
+<span class="lineNum">     299 </span>            :  *
+<span class="lineNum">     300 </span>            :  * make sure that the order of the attributes guarantees valid DER (which must be
+<span class="lineNum">     301 </span>            :  * in lexigraphically ascending order for a SET OF); if reordering is necessary it
+<span class="lineNum">     302 </span>            :  * will be done in place (in attrs).
+<a name="303"><span class="lineNum">     303 </span>            :  */</a>
+<span class="lineNum">     304 </span>            : SECStatus
+<span class="lineNum">     305 </span><span class="lineNoCov">          0 : NSS_CMSAttributeArray_Reorder(NSSCMSAttribute **attrs)</span>
+<span class="lineNum">     306 </span>            : {
+<span class="lineNum">     307 </span><span class="lineNoCov">          0 :     return NSS_CMSArray_SortByDER((void **)attrs, nss_cms_attribute_template, NULL);</span>
+<span class="lineNum">     308 </span>            : }
+<span class="lineNum">     309 </span>            : 
+<span class="lineNum">     310 </span>            : /*
+<span class="lineNum">     311 </span>            :  * NSS_CMSAttributeArray_FindAttrByOidTag - look through a set of attributes and
+<span class="lineNum">     312 </span>            :  * find one that matches the specified object ID.
+<span class="lineNum">     313 </span>            :  *
+<span class="lineNum">     314 </span>            :  * If &quot;only&quot; is true, then make sure that there is not more than one attribute
+<span class="lineNum">     315 </span>            :  * of the same type.  Otherwise, just return the first one found. (XXX Does
+<span class="lineNum">     316 </span>            :  * anybody really want that first-found behavior?  It was like that when I found it...)
+<a name="317"><span class="lineNum">     317 </span>            :  */</a>
+<span class="lineNum">     318 </span>            : NSSCMSAttribute *
+<span class="lineNum">     319 </span><span class="lineCov">          1 : NSS_CMSAttributeArray_FindAttrByOidTag(NSSCMSAttribute **attrs, SECOidTag oidtag, PRBool only)</span>
+<span class="lineNum">     320 </span>            : {
+<span class="lineNum">     321 </span>            :     SECOidData *oid;
+<span class="lineNum">     322 </span>            :     NSSCMSAttribute *attr1, *attr2;
+<span class="lineNum">     323 </span>            : 
+<span class="lineNum">     324 </span><span class="lineCov">          1 :     if (attrs == NULL)</span>
+<span class="lineNum">     325 </span>            :         return NULL;
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span><span class="lineCov">          1 :     oid = SECOID_FindOIDByTag(oidtag);</span>
+<span class="lineNum">     328 </span><span class="lineCov">          1 :     if (oid == NULL)</span>
+<span class="lineNum">     329 </span>            :         return NULL;
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span><span class="lineCov">          1 :     while ((attr1 = *attrs++) != NULL) {</span>
+<span class="lineNum">     332 </span><span class="lineCov">          1 :         if (attr1-&gt;type.len == oid-&gt;oid.len &amp;&amp;</span>
+<span class="lineNum">     333 </span><span class="lineCov">          1 :             PORT_Memcmp(attr1-&gt;type.data, oid-&gt;oid.data, oid-&gt;oid.len) == 0)</span>
+<span class="lineNum">     334 </span>            :             break;
+<span class="lineNum">     335 </span>            :     }
+<span class="lineNum">     336 </span>            : 
+<span class="lineNum">     337 </span><span class="lineCov">          1 :     if (attr1 == NULL)</span>
+<span class="lineNum">     338 </span>            :         return NULL;
+<span class="lineNum">     339 </span>            : 
+<span class="lineNum">     340 </span><span class="lineCov">          1 :     if (!only)</span>
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :         return attr1;</span>
+<span class="lineNum">     342 </span>            : 
+<span class="lineNum">     343 </span><span class="lineCov">          1 :     while ((attr2 = *attrs++) != NULL) {</span>
+<span class="lineNum">     344 </span><span class="lineCov">          1 :         if (attr2-&gt;type.len == oid-&gt;oid.len &amp;&amp;</span>
+<span class="lineNum">     345 </span><span class="lineCov">          1 :             PORT_Memcmp(attr2-&gt;type.data, oid-&gt;oid.data, oid-&gt;oid.len) == 0)</span>
+<span class="lineNum">     346 </span>            :             break;
+<span class="lineNum">     347 </span>            :     }
+<span class="lineNum">     348 </span>            : 
+<span class="lineNum">     349 </span><span class="lineCov">          1 :     if (attr2 != NULL)</span>
+<span class="lineNum">     350 </span>            :         return NULL;
+<span class="lineNum">     351 </span>            : 
+<span class="lineNum">     352 </span><span class="lineCov">          1 :     return attr1;</span>
+<span class="lineNum">     353 </span>            : }
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span>            : /*
+<span class="lineNum">     356 </span>            :  * NSS_CMSAttributeArray_AddAttr - add an attribute to an
+<span class="lineNum">     357 </span>            :  * array of attributes.
+<a name="358"><span class="lineNum">     358 </span>            :  */</a>
+<span class="lineNum">     359 </span>            : SECStatus
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 : NSS_CMSAttributeArray_AddAttr(PLArenaPool *poolp, NSSCMSAttribute ***attrs,</span>
+<span class="lineNum">     361 </span>            :                               NSSCMSAttribute *attr)
+<span class="lineNum">     362 </span>            : {
+<span class="lineNum">     363 </span>            :     NSSCMSAttribute *oattr;
+<span class="lineNum">     364 </span>            :     void *mark;
+<span class="lineNum">     365 </span>            :     SECOidTag type;
+<span class="lineNum">     366 </span>            : 
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 :     mark = PORT_ArenaMark(poolp);</span>
+<span class="lineNum">     368 </span>            : 
+<span class="lineNum">     369 </span>            :     /* find oidtag of attr */
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :     type = NSS_CMSAttribute_GetType(attr);</span>
+<span class="lineNum">     371 </span>            : 
+<span class="lineNum">     372 </span>            :     /* see if we have one already */
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :     oattr = NSS_CMSAttributeArray_FindAttrByOidTag(*attrs, type, PR_FALSE);</span>
+<span class="lineNum">     374 </span>            :     PORT_Assert(oattr == NULL);
+<span class="lineNum">     375 </span><span class="lineNoCov">          0 :     if (oattr != NULL)</span>
+<span class="lineNum">     376 </span>            :         goto loser; /* XXX or would it be better to replace it? */
+<span class="lineNum">     377 </span>            : 
+<span class="lineNum">     378 </span>            :     /* no, shove it in */
+<span class="lineNum">     379 </span><span class="lineNoCov">          0 :     if (NSS_CMSArray_Add(poolp, (void ***)attrs, (void *)attr) != SECSuccess)</span>
+<span class="lineNum">     380 </span>            :         goto loser;
+<span class="lineNum">     381 </span>            : 
+<span class="lineNum">     382 </span><span class="lineNoCov">          0 :     PORT_ArenaUnmark(poolp, mark);</span>
+<span class="lineNum">     383 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     384 </span>            : 
+<span class="lineNum">     385 </span>            : loser:
+<span class="lineNum">     386 </span><span class="lineNoCov">          0 :     PORT_ArenaRelease(poolp, mark);</span>
+<span class="lineNum">     387 </span><span class="lineNoCov">          0 :     return SECFailure;</span>
+<span class="lineNum">     388 </span>            : }
+<span class="lineNum">     389 </span>            : 
+<span class="lineNum">     390 </span>            : /*
+<span class="lineNum">     391 </span>            :  * NSS_CMSAttributeArray_SetAttr - set an attribute's value in a set of attributes
+<a name="392"><span class="lineNum">     392 </span>            :  */</a>
+<span class="lineNum">     393 </span>            : SECStatus
+<span class="lineNum">     394 </span><span class="lineNoCov">          0 : NSS_CMSAttributeArray_SetAttr(PLArenaPool *poolp, NSSCMSAttribute ***attrs,</span>
+<span class="lineNum">     395 </span>            :                               SECOidTag type, SECItem *value, PRBool encoded)
+<span class="lineNum">     396 </span>            : {
+<span class="lineNum">     397 </span>            :     NSSCMSAttribute *attr;
+<span class="lineNum">     398 </span>            :     void *mark;
+<span class="lineNum">     399 </span>            : 
+<span class="lineNum">     400 </span><span class="lineNoCov">          0 :     mark = PORT_ArenaMark(poolp);</span>
+<span class="lineNum">     401 </span>            : 
+<span class="lineNum">     402 </span>            :     /* see if we have one already */
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :     attr = NSS_CMSAttributeArray_FindAttrByOidTag(*attrs, type, PR_FALSE);</span>
+<span class="lineNum">     404 </span><span class="lineNoCov">          0 :     if (attr == NULL) {</span>
+<span class="lineNum">     405 </span>            :         /* not found? create one! */
+<span class="lineNum">     406 </span><span class="lineNoCov">          0 :         attr = NSS_CMSAttribute_Create(poolp, type, value, encoded);</span>
+<span class="lineNum">     407 </span><span class="lineNoCov">          0 :         if (attr == NULL)</span>
+<span class="lineNum">     408 </span>            :             goto loser;
+<span class="lineNum">     409 </span>            :         /* and add it to the list */
+<span class="lineNum">     410 </span><span class="lineNoCov">          0 :         if (NSS_CMSArray_Add(poolp, (void ***)attrs, (void *)attr) != SECSuccess)</span>
+<span class="lineNum">     411 </span>            :             goto loser;
+<span class="lineNum">     412 </span>            :     } else {
+<span class="lineNum">     413 </span>            :         /* found, shove it in */
+<span class="lineNum">     414 </span>            :         /* XXX we need a decent memory model @#$#$!#!!! */
+<span class="lineNum">     415 </span><span class="lineNoCov">          0 :         attr-&gt;values[0] = value;</span>
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :         attr-&gt;encoded = encoded;</span>
+<span class="lineNum">     417 </span>            :     }
+<span class="lineNum">     418 </span>            : 
+<span class="lineNum">     419 </span><span class="lineNoCov">          0 :     PORT_ArenaUnmark(poolp, mark);</span>
+<span class="lineNum">     420 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span>            : loser:
+<span class="lineNum">     423 </span><span class="lineNoCov">          0 :     PORT_ArenaRelease(poolp, mark);</span>
+<span class="lineNum">     424 </span><span class="lineNoCov">          0 :     return SECFailure;</span>
+<span class="lineNum">     425 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

@@ -1,0 +1,384 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - media/webrtc/trunk/webrtc/modules/audio_coding/neteq/packet_buffer.cc</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../../../index.html">top level</a> - <a href="index.html">media/webrtc/trunk/webrtc/modules/audio_coding/neteq</a> - packet_buffer.cc<span style="font-size: 80%;"> (source / <a href="packet_buffer.cc.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">85</td>
+            <td class="headerCovTableEntry">132</td>
+            <td class="headerCovTableEntryLo">64.4 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">16</td>
+            <td class="headerCovTableEntry">21</td>
+            <td class="headerCovTableEntryMed">76.2 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  *  Copyright (c) 2012 The WebRTC project authors. All Rights Reserved.
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  *  Use of this source code is governed by a BSD-style license
+<span class="lineNum">       5 </span>            :  *  that can be found in the LICENSE file in the root of the source
+<span class="lineNum">       6 </span>            :  *  tree. An additional intellectual property rights grant can be found
+<span class="lineNum">       7 </span>            :  *  in the file PATENTS.  All contributing project authors may
+<span class="lineNum">       8 </span>            :  *  be found in the AUTHORS file in the root of the source tree.
+<span class="lineNum">       9 </span>            :  */
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : // This is the implementation of the PacketBuffer class. It is mostly based on
+<span class="lineNum">      12 </span>            : // an STL list. The list is kept sorted at all times so that the next packet to
+<span class="lineNum">      13 </span>            : // decode is at the beginning of the list.
+<span class="lineNum">      14 </span>            : 
+<span class="lineNum">      15 </span>            : #include &quot;webrtc/modules/audio_coding/neteq/packet_buffer.h&quot;
+<span class="lineNum">      16 </span>            : 
+<span class="lineNum">      17 </span>            : #include &lt;algorithm&gt;  // find_if()
+<span class="lineNum">      18 </span>            : 
+<span class="lineNum">      19 </span>            : #include &quot;webrtc/base/logging.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;webrtc/modules/audio_coding/codecs/audio_decoder.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;webrtc/modules/audio_coding/neteq/decoder_database.h&quot;
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : namespace webrtc {
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : // Predicate used when inserting packets in the buffer list.
+<span class="lineNum">      26 </span>            : // Operator() returns true when |packet| goes before |new_packet|.
+<span class="lineNum">      27 </span>            : class NewTimestampIsLarger {
+<span class="lineNum">      28 </span>            :  public:
+<span class="lineNum">      29 </span>            :   explicit NewTimestampIsLarger(const Packet* new_packet)
+<a name="30"><span class="lineNum">      30 </span><span class="lineCov">          1 :       : new_packet_(new_packet) {</span></a>
+<span class="lineNum">      31 </span>            :   }
+<span class="lineNum">      32 </span><span class="lineCov">          1 :   bool operator()(Packet* packet) {</span>
+<span class="lineNum">      33 </span><span class="lineCov">          1 :     return (*new_packet_ &gt;= *packet);</span>
+<span class="lineNum">      34 </span>            :   }
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span>            :  private:
+<span class="lineNum">      37 </span>            :   const Packet* new_packet_;
+<a name="38"><span class="lineNum">      38 </span>            : };</a>
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span><span class="lineNoCov">          0 : PacketBuffer::PacketBuffer(size_t max_number_of_packets)</span>
+<span class="lineNum">      41 </span><span class="lineCov">          1 :     : max_number_of_packets_(max_number_of_packets) {}</span>
+<a name="42"><span class="lineNum">      42 </span>            : </a>
+<span class="lineNum">      43 </span>            : // Destructor. All packets in the buffer will be destroyed.
+<span class="lineNum">      44 </span><span class="lineCov">          1 : PacketBuffer::~PacketBuffer() {</span>
+<span class="lineNum">      45 </span>            :   Flush();
+<span class="lineNum">      46 </span><span class="lineCov">          1 : }</span>
+<a name="47"><span class="lineNum">      47 </span>            : </a>
+<span class="lineNum">      48 </span>            : // Flush the buffer. All packets in the buffer will be destroyed.
+<span class="lineNum">      49 </span><span class="lineCov">          1 : void PacketBuffer::Flush() {</span>
+<span class="lineNum">      50 </span><span class="lineCov">          1 :   DeleteAllPackets(&amp;buffer_);</span>
+<a name="51"><span class="lineNum">      51 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span><span class="lineCov">          1 : bool PacketBuffer::Empty() const {</span>
+<span class="lineNum">      54 </span><span class="lineCov">          1 :   return buffer_.empty();</span>
+<a name="55"><span class="lineNum">      55 </span>            : }</a>
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span><span class="lineCov">          1 : int PacketBuffer::InsertPacket(Packet* packet) {</span>
+<span class="lineNum">      58 </span><span class="lineCov">          1 :   if (!packet || !packet-&gt;payload) {</span>
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 :     if (packet) {</span>
+<span class="lineNum">      60 </span><span class="lineNoCov">          0 :       delete packet;</span>
+<span class="lineNum">      61 </span>            :     }
+<span class="lineNum">      62 </span><span class="lineNoCov">          0 :     LOG(LS_WARNING) &lt;&lt; &quot;InsertPacket invalid packet&quot;;</span>
+<span class="lineNum">      63 </span>            :     return kInvalidPacket;
+<span class="lineNum">      64 </span>            :   }
+<span class="lineNum">      65 </span>            : 
+<span class="lineNum">      66 </span><span class="lineCov">          1 :   int return_val = kOK;</span>
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span><span class="lineCov">          1 :   if (buffer_.size() &gt;= max_number_of_packets_) {</span>
+<span class="lineNum">      69 </span>            :     // Buffer is full. Flush it.
+<span class="lineNum">      70 </span><span class="lineNoCov">          0 :     Flush();</span>
+<span class="lineNum">      71 </span><span class="lineNoCov">          0 :     LOG(LS_WARNING) &lt;&lt; &quot;Packet buffer flushed&quot;;</span>
+<span class="lineNum">      72 </span>            :     return_val = kFlushed;
+<span class="lineNum">      73 </span>            :   }
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span>            :   // Get an iterator pointing to the place in the buffer where the new packet
+<span class="lineNum">      76 </span>            :   // should be inserted. The list is searched from the back, since the most
+<span class="lineNum">      77 </span>            :   // likely case is that the new packet should be near the end of the list.
+<span class="lineNum">      78 </span>            :   PacketList::reverse_iterator rit = std::find_if(
+<span class="lineNum">      79 </span>            :       buffer_.rbegin(), buffer_.rend(),
+<span class="lineNum">      80 </span><span class="lineCov">          1 :       NewTimestampIsLarger(packet));</span>
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            :   // The new packet is to be inserted to the right of |rit|. If it has the same
+<span class="lineNum">      83 </span>            :   // timestamp as |rit|, which has a higher priority, do not insert the new
+<span class="lineNum">      84 </span>            :   // packet to list.
+<span class="lineNum">      85 </span><span class="lineCov">          1 :   if (rit != buffer_.rend() &amp;&amp;</span>
+<span class="lineNum">      86 </span><span class="lineCov">          1 :       packet-&gt;header.timestamp == (*rit)-&gt;header.timestamp) {</span>
+<span class="lineNum">      87 </span><span class="lineNoCov">          0 :     delete [] packet-&gt;payload;</span>
+<span class="lineNum">      88 </span><span class="lineNoCov">          0 :     delete packet;</span>
+<span class="lineNum">      89 </span><span class="lineNoCov">          0 :     return return_val;</span>
+<span class="lineNum">      90 </span>            :   }
+<span class="lineNum">      91 </span>            : 
+<span class="lineNum">      92 </span>            :   // The new packet is to be inserted to the left of |it|. If it has the same
+<span class="lineNum">      93 </span>            :   // timestamp as |it|, which has a lower priority, replace |it| with the new
+<span class="lineNum">      94 </span>            :   // packet.
+<span class="lineNum">      95 </span><span class="lineCov">          1 :   PacketList::iterator it = rit.base();</span>
+<span class="lineNum">      96 </span><span class="lineCov">          1 :   if (it != buffer_.end() &amp;&amp;</span>
+<span class="lineNum">      97 </span><span class="lineNoCov">          0 :       packet-&gt;header.timestamp == (*it)-&gt;header.timestamp) {</span>
+<span class="lineNum">      98 </span><span class="lineNoCov">          0 :     delete [] (*it)-&gt;payload;</span>
+<span class="lineNum">      99 </span><span class="lineNoCov">          0 :     delete *it;</span>
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :     it = buffer_.erase(it);</span>
+<span class="lineNum">     101 </span>            :   }
+<span class="lineNum">     102 </span><span class="lineCov">          1 :   buffer_.insert(it, packet);  // Insert the packet at that position.</span>
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span><span class="lineCov">          1 :   return return_val;</span>
+<a name="105"><span class="lineNum">     105 </span>            : }</a>
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span><span class="lineCov">          1 : int PacketBuffer::InsertPacketList(PacketList* packet_list,</span>
+<span class="lineNum">     108 </span>            :                                    const DecoderDatabase&amp; decoder_database,
+<span class="lineNum">     109 </span>            :                                    uint8_t* current_rtp_payload_type,
+<span class="lineNum">     110 </span>            :                                    uint8_t* current_cng_rtp_payload_type) {
+<span class="lineNum">     111 </span><span class="lineCov">          1 :   bool flushed = false;</span>
+<span class="lineNum">     112 </span><span class="lineCov">          1 :   while (!packet_list-&gt;empty()) {</span>
+<span class="lineNum">     113 </span><span class="lineCov">          1 :     Packet* packet = packet_list-&gt;front();</span>
+<span class="lineNum">     114 </span><span class="lineCov">          1 :     if (decoder_database.IsComfortNoise(packet-&gt;header.payloadType)) {</span>
+<span class="lineNum">     115 </span><span class="lineNoCov">          0 :       if (*current_cng_rtp_payload_type != 0xFF &amp;&amp;</span>
+<span class="lineNum">     116 </span><span class="lineNoCov">          0 :           *current_cng_rtp_payload_type != packet-&gt;header.payloadType) {</span>
+<span class="lineNum">     117 </span>            :         // New CNG payload type implies new codec type.
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :         *current_rtp_payload_type = 0xFF;</span>
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 :         Flush();</span>
+<span class="lineNum">     120 </span><span class="lineNoCov">          0 :         flushed = true;</span>
+<span class="lineNum">     121 </span>            :       }
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :       *current_cng_rtp_payload_type = packet-&gt;header.payloadType;</span>
+<span class="lineNum">     123 </span><span class="lineCov">          1 :     } else if (!decoder_database.IsDtmf(packet-&gt;header.payloadType)) {</span>
+<span class="lineNum">     124 </span>            :       // This must be speech.
+<span class="lineNum">     125 </span><span class="lineCov">          1 :       if (*current_rtp_payload_type != 0xFF &amp;&amp;</span>
+<span class="lineNum">     126 </span><span class="lineCov">          1 :           *current_rtp_payload_type != packet-&gt;header.payloadType) {</span>
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 :         *current_cng_rtp_payload_type = 0xFF;</span>
+<span class="lineNum">     128 </span><span class="lineNoCov">          0 :         Flush();</span>
+<span class="lineNum">     129 </span><span class="lineNoCov">          0 :         flushed = true;</span>
+<span class="lineNum">     130 </span>            :       }
+<span class="lineNum">     131 </span><span class="lineCov">          1 :       *current_rtp_payload_type = packet-&gt;header.payloadType;</span>
+<span class="lineNum">     132 </span>            :     }
+<span class="lineNum">     133 </span><span class="lineCov">          1 :     int return_val = InsertPacket(packet);</span>
+<span class="lineNum">     134 </span><span class="lineCov">          1 :     packet_list-&gt;pop_front();</span>
+<span class="lineNum">     135 </span><span class="lineCov">          1 :     if (return_val == kFlushed) {</span>
+<span class="lineNum">     136 </span>            :       // The buffer flushed, but this is not an error. We can still continue.
+<span class="lineNum">     137 </span>            :       flushed = true;
+<span class="lineNum">     138 </span><span class="lineCov">          1 :     } else if (return_val != kOK) {</span>
+<span class="lineNum">     139 </span>            :       // An error occurred. Delete remaining packets in list and return.
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :       DeleteAllPackets(packet_list);</span>
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :       return return_val;</span>
+<span class="lineNum">     142 </span>            :     }
+<span class="lineNum">     143 </span>            :   }
+<span class="lineNum">     144 </span><span class="lineCov">          1 :   return flushed ? kFlushed : kOK;</span>
+<a name="145"><span class="lineNum">     145 </span>            : }</a>
+<span class="lineNum">     146 </span>            : 
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 : int PacketBuffer::NextTimestamp(uint32_t* next_timestamp) const {</span>
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 :   if (Empty()) {</span>
+<span class="lineNum">     149 </span>            :     return kBufferEmpty;
+<span class="lineNum">     150 </span>            :   }
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :   if (!next_timestamp) {</span>
+<span class="lineNum">     152 </span>            :     return kInvalidPointer;
+<span class="lineNum">     153 </span>            :   }
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :   *next_timestamp = buffer_.front()-&gt;header.timestamp;</span>
+<span class="lineNum">     155 </span><span class="lineNoCov">          0 :   return kOK;</span>
+<a name="156"><span class="lineNum">     156 </span>            : }</a>
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 : int PacketBuffer::NextHigherTimestamp(uint32_t timestamp,</span>
+<span class="lineNum">     159 </span>            :                                       uint32_t* next_timestamp) const {
+<span class="lineNum">     160 </span><span class="lineNoCov">          0 :   if (Empty()) {</span>
+<span class="lineNum">     161 </span>            :     return kBufferEmpty;
+<span class="lineNum">     162 </span>            :   }
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :   if (!next_timestamp) {</span>
+<span class="lineNum">     164 </span>            :     return kInvalidPointer;
+<span class="lineNum">     165 </span>            :   }
+<span class="lineNum">     166 </span>            :   PacketList::const_iterator it;
+<span class="lineNum">     167 </span><span class="lineNoCov">          0 :   for (it = buffer_.begin(); it != buffer_.end(); ++it) {</span>
+<span class="lineNum">     168 </span><span class="lineNoCov">          0 :     if ((*it)-&gt;header.timestamp &gt;= timestamp) {</span>
+<span class="lineNum">     169 </span>            :       // Found a packet matching the search.
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :       *next_timestamp = (*it)-&gt;header.timestamp;</span>
+<span class="lineNum">     171 </span><span class="lineNoCov">          0 :       return kOK;</span>
+<span class="lineNum">     172 </span>            :     }
+<span class="lineNum">     173 </span>            :   }
+<span class="lineNum">     174 </span>            :   return kNotFound;
+<a name="175"><span class="lineNum">     175 </span>            : }</a>
+<span class="lineNum">     176 </span>            : 
+<span class="lineNum">     177 </span><span class="lineCov">          1 : const RTPHeader* PacketBuffer::NextRtpHeader() const {</span>
+<span class="lineNum">     178 </span><span class="lineCov">          1 :   if (Empty()) {</span>
+<span class="lineNum">     179 </span>            :     return NULL;
+<span class="lineNum">     180 </span>            :   }
+<span class="lineNum">     181 </span><span class="lineCov">          1 :   return const_cast&lt;const RTPHeader*&gt;(&amp;(buffer_.front()-&gt;header));</span>
+<a name="182"><span class="lineNum">     182 </span>            : }</a>
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span><span class="lineCov">          1 : Packet* PacketBuffer::GetNextPacket(size_t* discard_count) {</span>
+<span class="lineNum">     185 </span><span class="lineCov">          1 :   if (Empty()) {</span>
+<span class="lineNum">     186 </span>            :     // Buffer is empty.
+<span class="lineNum">     187 </span>            :     return NULL;
+<span class="lineNum">     188 </span>            :   }
+<span class="lineNum">     189 </span>            : 
+<span class="lineNum">     190 </span><span class="lineCov">          1 :   Packet* packet = buffer_.front();</span>
+<span class="lineNum">     191 </span>            :   // Assert that the packet sanity checks in InsertPacket method works.
+<span class="lineNum">     192 </span>            :   assert(packet &amp;&amp; packet-&gt;payload);
+<span class="lineNum">     193 </span><span class="lineCov">          1 :   buffer_.pop_front();</span>
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span>            :   // Discard other packets with the same timestamp. These are duplicates or
+<span class="lineNum">     196 </span>            :   // redundant payloads that should not be used.
+<span class="lineNum">     197 </span><span class="lineCov">          1 :   size_t discards = 0;</span>
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span><span class="lineCov">          1 :   while (!Empty() &amp;&amp;</span>
+<span class="lineNum">     200 </span><span class="lineCov">          1 :       buffer_.front()-&gt;header.timestamp == packet-&gt;header.timestamp) {</span>
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :     if (DiscardNextPacket() != kOK) {</span>
+<span class="lineNum">     202 </span>            :       assert(false);  // Must be ok by design.
+<span class="lineNum">     203 </span>            :     }
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 :     ++discards;</span>
+<span class="lineNum">     205 </span>            :   }
+<span class="lineNum">     206 </span>            :   // The way of inserting packet should not cause any packet discarding here.
+<span class="lineNum">     207 </span>            :   // TODO(minyue): remove |discard_count|.
+<span class="lineNum">     208 </span>            :   assert(discards == 0);
+<span class="lineNum">     209 </span><span class="lineCov">          1 :   if (discard_count)</span>
+<span class="lineNum">     210 </span><span class="lineCov">          1 :     *discard_count = discards;</span>
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span><span class="lineCov">          1 :   return packet;</span>
+<a name="213"><span class="lineNum">     213 </span>            : }</a>
+<span class="lineNum">     214 </span>            : 
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 : int PacketBuffer::DiscardNextPacket() {</span>
+<span class="lineNum">     216 </span><span class="lineNoCov">          0 :   if (Empty()) {</span>
+<span class="lineNum">     217 </span>            :     return kBufferEmpty;
+<span class="lineNum">     218 </span>            :   }
+<span class="lineNum">     219 </span>            :   // Assert that the packet sanity checks in InsertPacket method works.
+<span class="lineNum">     220 </span>            :   assert(buffer_.front());
+<span class="lineNum">     221 </span>            :   assert(buffer_.front()-&gt;payload);
+<span class="lineNum">     222 </span><span class="lineNoCov">          0 :   DeleteFirstPacket(&amp;buffer_);</span>
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :   return kOK;</span>
+<a name="224"><span class="lineNum">     224 </span>            : }</a>
+<span class="lineNum">     225 </span>            : 
+<span class="lineNum">     226 </span><span class="lineCov">          1 : int PacketBuffer::DiscardOldPackets(uint32_t timestamp_limit,</span>
+<span class="lineNum">     227 </span>            :                                     uint32_t horizon_samples) {
+<span class="lineNum">     228 </span><span class="lineCov">          1 :   while (!Empty() &amp;&amp; timestamp_limit != buffer_.front()-&gt;header.timestamp &amp;&amp;</span>
+<span class="lineNum">     229 </span><span class="lineCov">          1 :          IsObsoleteTimestamp(buffer_.front()-&gt;header.timestamp,</span>
+<span class="lineNum">     230 </span>            :                              timestamp_limit,
+<span class="lineNum">     231 </span><span class="lineCov">          1 :                              horizon_samples)) {</span>
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :     if (DiscardNextPacket() != kOK) {</span>
+<span class="lineNum">     233 </span>            :       assert(false);  // Must be ok by design.
+<span class="lineNum">     234 </span>            :     }
+<span class="lineNum">     235 </span>            :   }
+<span class="lineNum">     236 </span><span class="lineCov">          1 :   return 0;</span>
+<a name="237"><span class="lineNum">     237 </span>            : }</a>
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span><span class="lineCov">          1 : int PacketBuffer::DiscardAllOldPackets(uint32_t timestamp_limit) {</span>
+<span class="lineNum">     240 </span><span class="lineCov">          1 :   return DiscardOldPackets(timestamp_limit, 0);</span>
+<a name="241"><span class="lineNum">     241 </span>            : }</a>
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span><span class="lineCov">          1 : size_t PacketBuffer::NumPacketsInBuffer() const {</span>
+<span class="lineNum">     244 </span><span class="lineCov">          1 :   return buffer_.size();</span>
+<a name="245"><span class="lineNum">     245 </span>            : }</a>
+<span class="lineNum">     246 </span>            : 
+<span class="lineNum">     247 </span><span class="lineCov">          1 : size_t PacketBuffer::NumSamplesInBuffer(DecoderDatabase* decoder_database,</span>
+<span class="lineNum">     248 </span>            :                                         size_t last_decoded_length) const {
+<span class="lineNum">     249 </span>            :   PacketList::const_iterator it;
+<span class="lineNum">     250 </span><span class="lineCov">          1 :   size_t num_samples = 0;</span>
+<span class="lineNum">     251 </span><span class="lineCov">          1 :   size_t last_duration = last_decoded_length;</span>
+<span class="lineNum">     252 </span><span class="lineCov">          1 :   for (it = buffer_.begin(); it != buffer_.end(); ++it) {</span>
+<span class="lineNum">     253 </span><span class="lineCov">          1 :     Packet* packet = (*it);</span>
+<span class="lineNum">     254 </span>            :     AudioDecoder* decoder =
+<span class="lineNum">     255 </span><span class="lineCov">          1 :         decoder_database-&gt;GetDecoder(packet-&gt;header.payloadType);</span>
+<span class="lineNum">     256 </span><span class="lineCov">          1 :     if (decoder &amp;&amp; !packet-&gt;sync_packet) {</span>
+<span class="lineNum">     257 </span><span class="lineCov">          1 :       if (!packet-&gt;primary) {</span>
+<span class="lineNum">     258 </span>            :         continue;
+<span class="lineNum">     259 </span>            :       }
+<span class="lineNum">     260 </span>            :       int duration =
+<span class="lineNum">     261 </span><span class="lineCov">          1 :           decoder-&gt;PacketDuration(packet-&gt;payload, packet-&gt;payload_length);</span>
+<span class="lineNum">     262 </span><span class="lineCov">          1 :       if (duration &gt;= 0) {</span>
+<span class="lineNum">     263 </span><span class="lineCov">          1 :         last_duration = duration;  // Save the most up-to-date (valid) duration.</span>
+<span class="lineNum">     264 </span>            :       }
+<span class="lineNum">     265 </span>            :     }
+<span class="lineNum">     266 </span><span class="lineCov">          1 :     num_samples += last_duration;</span>
+<span class="lineNum">     267 </span>            :   }
+<span class="lineNum">     268 </span><span class="lineCov">          1 :   return num_samples;</span>
+<a name="269"><span class="lineNum">     269 </span>            : }</a>
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span><span class="lineCov">          1 : void PacketBuffer::IncrementWaitingTimes(int inc) {</span>
+<span class="lineNum">     272 </span>            :   PacketList::iterator it;
+<span class="lineNum">     273 </span><span class="lineCov">          1 :   for (it = buffer_.begin(); it != buffer_.end(); ++it) {</span>
+<span class="lineNum">     274 </span><span class="lineCov">          1 :     (*it)-&gt;waiting_time += inc;</span>
+<span class="lineNum">     275 </span>            :   }
+<a name="276"><span class="lineNum">     276 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span><span class="lineCov">          1 : bool PacketBuffer::DeleteFirstPacket(PacketList* packet_list) {</span>
+<span class="lineNum">     279 </span><span class="lineCov">          1 :   if (packet_list-&gt;empty()) {</span>
+<span class="lineNum">     280 </span>            :     return false;
+<span class="lineNum">     281 </span>            :   }
+<span class="lineNum">     282 </span><span class="lineCov">          1 :   Packet* first_packet = packet_list-&gt;front();</span>
+<span class="lineNum">     283 </span><span class="lineCov">          1 :   delete [] first_packet-&gt;payload;</span>
+<span class="lineNum">     284 </span><span class="lineCov">          1 :   delete first_packet;</span>
+<span class="lineNum">     285 </span><span class="lineCov">          1 :   packet_list-&gt;pop_front();</span>
+<span class="lineNum">     286 </span><span class="lineCov">          1 :   return true;</span>
+<a name="287"><span class="lineNum">     287 </span>            : }</a>
+<span class="lineNum">     288 </span>            : 
+<span class="lineNum">     289 </span><span class="lineCov">          1 : void PacketBuffer::DeleteAllPackets(PacketList* packet_list) {</span>
+<span class="lineNum">     290 </span><span class="lineCov">          1 :   while (DeleteFirstPacket(packet_list)) {</span>
+<span class="lineNum">     291 </span>            :     // Continue while the list is not empty.
+<span class="lineNum">     292 </span>            :   }
+<a name="293"><span class="lineNum">     293 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     294 </span>            : 
+<span class="lineNum">     295 </span><span class="lineNoCov">          0 : void PacketBuffer::BufferStat(int* num_packets, int* max_num_packets) const {</span>
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :   *num_packets = static_cast&lt;int&gt;(buffer_.size());</span>
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :   *max_num_packets = static_cast&lt;int&gt;(max_number_of_packets_);</span>
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span>            : }  // namespace webrtc
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

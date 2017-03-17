@@ -1,0 +1,940 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/nss/lib/softoken/legacydb/lowcert.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">security/nss/lib/softoken/legacydb</a> - lowcert.c<span style="font-size: 80%;"> (source / <a href="lowcert.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">201</td>
+            <td class="headerCovTableEntry">309</td>
+            <td class="headerCovTableEntryLo">65.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">11</td>
+            <td class="headerCovTableEntry">15</td>
+            <td class="headerCovTableEntryLo">73.3 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public</a>
+<span class="lineNum">       2 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       3 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : /*
+<span class="lineNum">       6 </span>            :  * Certificate handling code
+<span class="lineNum">       7 </span>            :  */
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &quot;seccomon.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;secder.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;nssilock.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;lowkeyi.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;secasn1.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;secoid.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;secerr.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;pcert.h&quot;
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : SEC_ASN1_MKSUB(SECOID_AlgorithmIDTemplate)
+<span class="lineNum">      19 </span>            : 
+<span class="lineNum">      20 </span>            : static const SEC_ASN1Template nsslowcert_SubjectPublicKeyInfoTemplate[] = {
+<span class="lineNum">      21 </span>            :     { SEC_ASN1_SEQUENCE, 0, NULL, sizeof(NSSLOWCERTSubjectPublicKeyInfo) },
+<span class="lineNum">      22 </span>            :     { SEC_ASN1_INLINE | SEC_ASN1_XTRN,
+<span class="lineNum">      23 </span>            :       offsetof(NSSLOWCERTSubjectPublicKeyInfo, algorithm),
+<span class="lineNum">      24 </span>            :       SEC_ASN1_SUB(SECOID_AlgorithmIDTemplate) },
+<span class="lineNum">      25 </span>            :     { SEC_ASN1_BIT_STRING,
+<span class="lineNum">      26 </span>            :       offsetof(NSSLOWCERTSubjectPublicKeyInfo, subjectPublicKey) },
+<span class="lineNum">      27 </span>            :     { 0 }
+<span class="lineNum">      28 </span>            : };
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : static const SEC_ASN1Template nsslowcert_RSAPublicKeyTemplate[] = {
+<span class="lineNum">      31 </span>            :     { SEC_ASN1_SEQUENCE, 0, NULL, sizeof(NSSLOWKEYPublicKey) },
+<span class="lineNum">      32 </span>            :     { SEC_ASN1_INTEGER, offsetof(NSSLOWKEYPublicKey, u.rsa.modulus) },
+<span class="lineNum">      33 </span>            :     { SEC_ASN1_INTEGER, offsetof(NSSLOWKEYPublicKey, u.rsa.publicExponent) },
+<span class="lineNum">      34 </span>            :     { 0 }
+<span class="lineNum">      35 </span>            : };
+<span class="lineNum">      36 </span>            : static const SEC_ASN1Template nsslowcert_DSAPublicKeyTemplate[] = {
+<span class="lineNum">      37 </span>            :     { SEC_ASN1_INTEGER, offsetof(NSSLOWKEYPublicKey, u.dsa.publicValue) },
+<span class="lineNum">      38 </span>            :     { 0 }
+<span class="lineNum">      39 </span>            : };
+<span class="lineNum">      40 </span>            : static const SEC_ASN1Template nsslowcert_DHPublicKeyTemplate[] = {
+<span class="lineNum">      41 </span>            :     { SEC_ASN1_INTEGER, offsetof(NSSLOWKEYPublicKey, u.dh.publicValue) },
+<span class="lineNum">      42 </span>            :     { 0 }
+<span class="lineNum">      43 </span>            : };
+<span class="lineNum">      44 </span>            : 
+<span class="lineNum">      45 </span>            : /*
+<span class="lineNum">      46 </span>            :  * See bugzilla bug 125359
+<span class="lineNum">      47 </span>            :  * Since NSS (via PKCS#11) wants to handle big integers as unsigned ints,
+<span class="lineNum">      48 </span>            :  * all of the templates above that en/decode into integers must be converted
+<span class="lineNum">      49 </span>            :  * from ASN.1's signed integer type.  This is done by marking either the
+<span class="lineNum">      50 </span>            :  * source or destination (encoding or decoding, respectively) type as
+<span class="lineNum">      51 </span>            :  * siUnsignedInteger.
+<span class="lineNum">      52 </span>            :  */
+<span class="lineNum">      53 </span>            : 
+<span class="lineNum">      54 </span>            : static void
+<span class="lineNum">      55 </span>            : prepare_low_rsa_pub_key_for_asn1(NSSLOWKEYPublicKey *pubk)
+<span class="lineNum">      56 </span>            : {
+<span class="lineNum">      57 </span><span class="lineCov">          1 :     pubk-&gt;u.rsa.modulus.type = siUnsignedInteger;</span>
+<span class="lineNum">      58 </span><span class="lineCov">          1 :     pubk-&gt;u.rsa.publicExponent.type = siUnsignedInteger;</span>
+<span class="lineNum">      59 </span>            : }
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span>            : static void
+<span class="lineNum">      62 </span>            : prepare_low_dsa_pub_key_for_asn1(NSSLOWKEYPublicKey *pubk)
+<span class="lineNum">      63 </span>            : {
+<span class="lineNum">      64 </span><span class="lineNoCov">          0 :     pubk-&gt;u.dsa.publicValue.type = siUnsignedInteger;</span>
+<span class="lineNum">      65 </span><span class="lineNoCov">          0 :     pubk-&gt;u.dsa.params.prime.type = siUnsignedInteger;</span>
+<span class="lineNum">      66 </span><span class="lineNoCov">          0 :     pubk-&gt;u.dsa.params.subPrime.type = siUnsignedInteger;</span>
+<span class="lineNum">      67 </span><span class="lineNoCov">          0 :     pubk-&gt;u.dsa.params.base.type = siUnsignedInteger;</span>
+<span class="lineNum">      68 </span>            : }
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            : static void
+<span class="lineNum">      71 </span>            : prepare_low_dh_pub_key_for_asn1(NSSLOWKEYPublicKey *pubk)
+<span class="lineNum">      72 </span>            : {
+<span class="lineNum">      73 </span><span class="lineNoCov">          0 :     pubk-&gt;u.dh.prime.type = siUnsignedInteger;</span>
+<span class="lineNum">      74 </span><span class="lineNoCov">          0 :     pubk-&gt;u.dh.base.type = siUnsignedInteger;</span>
+<span class="lineNum">      75 </span><span class="lineNoCov">          0 :     pubk-&gt;u.dh.publicValue.type = siUnsignedInteger;</span>
+<span class="lineNum">      76 </span>            : }
+<span class="lineNum">      77 </span>            : 
+<span class="lineNum">      78 </span>            : /*
+<span class="lineNum">      79 </span>            :  * simple cert decoder to avoid the cost of asn1 engine
+<a name="80"><span class="lineNum">      80 </span>            :  */</a>
+<span class="lineNum">      81 </span>            : static unsigned char *
+<span class="lineNum">      82 </span><span class="lineCov">          1 : nsslowcert_dataStart(unsigned char *buf, unsigned int length,</span>
+<span class="lineNum">      83 </span>            :                      unsigned int *data_length, PRBool includeTag,
+<span class="lineNum">      84 </span>            :                      unsigned char *rettag)
+<span class="lineNum">      85 </span>            : {
+<span class="lineNum">      86 </span>            :     unsigned char tag;
+<span class="lineNum">      87 </span><span class="lineCov">          1 :     unsigned int used_length = 0;</span>
+<span class="lineNum">      88 </span>            : 
+<span class="lineNum">      89 </span>            :     /* need at least a tag and a 1 byte length */
+<span class="lineNum">      90 </span><span class="lineCov">          1 :     if (length &lt; 2) {</span>
+<span class="lineNum">      91 </span>            :         return NULL;
+<span class="lineNum">      92 </span>            :     }
+<span class="lineNum">      93 </span>            : 
+<span class="lineNum">      94 </span><span class="lineCov">          1 :     tag = buf[used_length++];</span>
+<span class="lineNum">      95 </span>            : 
+<span class="lineNum">      96 </span><span class="lineCov">          1 :     if (rettag) {</span>
+<span class="lineNum">      97 </span><span class="lineNoCov">          0 :         *rettag = tag;</span>
+<span class="lineNum">      98 </span>            :     }
+<span class="lineNum">      99 </span>            : 
+<span class="lineNum">     100 </span>            :     /* blow out when we come to the end */
+<span class="lineNum">     101 </span><span class="lineCov">          1 :     if (tag == 0) {</span>
+<span class="lineNum">     102 </span>            :         return NULL;
+<span class="lineNum">     103 </span>            :     }
+<span class="lineNum">     104 </span>            : 
+<span class="lineNum">     105 </span><span class="lineCov">          1 :     *data_length = buf[used_length++];</span>
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span><span class="lineCov">          1 :     if (*data_length &amp; 0x80) {</span>
+<span class="lineNum">     108 </span><span class="lineCov">          1 :         int len_count = *data_length &amp; 0x7f;</span>
+<span class="lineNum">     109 </span>            : 
+<span class="lineNum">     110 </span><span class="lineCov">          1 :         if (len_count + used_length &gt; length) {</span>
+<span class="lineNum">     111 </span>            :             return NULL;
+<span class="lineNum">     112 </span>            :         }
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span><span class="lineCov">          1 :         *data_length = 0;</span>
+<span class="lineNum">     115 </span>            : 
+<span class="lineNum">     116 </span><span class="lineCov">          1 :         while (len_count-- &gt; 0) {</span>
+<span class="lineNum">     117 </span><span class="lineCov">          1 :             *data_length = (*data_length &lt;&lt; 8) | buf[used_length++];</span>
+<span class="lineNum">     118 </span>            :         }
+<span class="lineNum">     119 </span>            :     }
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span><span class="lineCov">          1 :     if (*data_length &gt; (length - used_length)) {</span>
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :         *data_length = length - used_length;</span>
+<span class="lineNum">     123 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     124 </span>            :     }
+<span class="lineNum">     125 </span><span class="lineCov">          1 :     if (includeTag)</span>
+<span class="lineNum">     126 </span><span class="lineCov">          1 :         *data_length += used_length;</span>
+<span class="lineNum">     127 </span>            : 
+<span class="lineNum">     128 </span><span class="lineCov">          1 :     return (buf + (includeTag ? 0 : used_length));</span>
+<span class="lineNum">     129 </span>            : }
+<a name="130"><span class="lineNum">     130 </span>            : </a>
+<span class="lineNum">     131 </span>            : static void
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 : SetTimeType(SECItem *item, unsigned char tagtype)</span>
+<span class="lineNum">     133 </span>            : {
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :     switch (tagtype) {</span>
+<span class="lineNum">     135 </span>            :         case SEC_ASN1_UTC_TIME:
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 :             item-&gt;type = siUTCTime;</span>
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     138 </span>            : 
+<span class="lineNum">     139 </span>            :         case SEC_ASN1_GENERALIZED_TIME:
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :             item-&gt;type = siGeneralizedTime;</span>
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span>            :         default:
+<span class="lineNum">     144 </span>            :             PORT_Assert(0);
+<span class="lineNum">     145 </span>            :             break;
+<span class="lineNum">     146 </span>            :     }
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 : }</span>
+<a name="148"><span class="lineNum">     148 </span>            : </a>
+<span class="lineNum">     149 </span>            : static int
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 : nsslowcert_GetValidityFields(unsigned char *buf, int buf_length,</span>
+<span class="lineNum">     151 </span>            :                              SECItem *notBefore, SECItem *notAfter)
+<span class="lineNum">     152 </span>            : {
+<span class="lineNum">     153 </span>            :     unsigned char tagtype;
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :     notBefore-&gt;data = nsslowcert_dataStart(buf, buf_length,</span>
+<span class="lineNum">     155 </span>            :                                            &amp;notBefore-&gt;len, PR_FALSE, &amp;tagtype);
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :     if (notBefore-&gt;data == NULL)</span>
+<span class="lineNum">     157 </span>            :         return SECFailure;
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :     SetTimeType(notBefore, tagtype);</span>
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :     buf_length -= (notBefore-&gt;data - buf) + notBefore-&gt;len;</span>
+<span class="lineNum">     160 </span><span class="lineNoCov">          0 :     buf = notBefore-&gt;data + notBefore-&gt;len;</span>
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :     notAfter-&gt;data = nsslowcert_dataStart(buf, buf_length,</span>
+<span class="lineNum">     162 </span>            :                                           &amp;notAfter-&gt;len, PR_FALSE, &amp;tagtype);
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :     if (notAfter-&gt;data == NULL)</span>
+<span class="lineNum">     164 </span>            :         return SECFailure;
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 :     SetTimeType(notAfter, tagtype);</span>
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     167 </span>            : }
+<a name="168"><span class="lineNum">     168 </span>            : </a>
+<span class="lineNum">     169 </span>            : static int
+<span class="lineNum">     170 </span><span class="lineCov">          1 : nsslowcert_GetCertFields(unsigned char *cert, int cert_length,</span>
+<span class="lineNum">     171 </span>            :                          SECItem *issuer, SECItem *serial, SECItem *derSN, SECItem *subject,
+<span class="lineNum">     172 </span>            :                          SECItem *valid, SECItem *subjkey, SECItem *extensions)
+<span class="lineNum">     173 </span>            : {
+<span class="lineNum">     174 </span>            :     unsigned char *buf;
+<span class="lineNum">     175 </span>            :     unsigned int buf_length;
+<span class="lineNum">     176 </span>            :     unsigned char *dummy;
+<span class="lineNum">     177 </span>            :     unsigned int dummylen;
+<span class="lineNum">     178 </span>            : 
+<span class="lineNum">     179 </span>            :     /* get past the signature wrap */
+<span class="lineNum">     180 </span><span class="lineCov">          1 :     buf = nsslowcert_dataStart(cert, cert_length, &amp;buf_length, PR_FALSE, NULL);</span>
+<span class="lineNum">     181 </span><span class="lineCov">          1 :     if (buf == NULL)</span>
+<span class="lineNum">     182 </span>            :         return SECFailure;
+<span class="lineNum">     183 </span>            :     /* get into the raw cert data */
+<span class="lineNum">     184 </span><span class="lineCov">          1 :     buf = nsslowcert_dataStart(buf, buf_length, &amp;buf_length, PR_FALSE, NULL);</span>
+<span class="lineNum">     185 </span><span class="lineCov">          1 :     if (buf == NULL)</span>
+<span class="lineNum">     186 </span>            :         return SECFailure;
+<span class="lineNum">     187 </span>            :     /* skip past any optional version number */
+<span class="lineNum">     188 </span><span class="lineCov">          1 :     if ((buf[0] &amp; 0xa0) == 0xa0) {</span>
+<span class="lineNum">     189 </span><span class="lineCov">          1 :         dummy = nsslowcert_dataStart(buf, buf_length, &amp;dummylen, PR_FALSE, NULL);</span>
+<span class="lineNum">     190 </span><span class="lineCov">          1 :         if (dummy == NULL)</span>
+<span class="lineNum">     191 </span>            :             return SECFailure;
+<span class="lineNum">     192 </span><span class="lineCov">          1 :         buf_length -= (dummy - buf) + dummylen;</span>
+<span class="lineNum">     193 </span><span class="lineCov">          1 :         buf = dummy + dummylen;</span>
+<span class="lineNum">     194 </span>            :     }
+<span class="lineNum">     195 </span>            :     /* serial number */
+<span class="lineNum">     196 </span><span class="lineCov">          1 :     if (derSN) {</span>
+<span class="lineNum">     197 </span><span class="lineCov">          1 :         derSN-&gt;data = nsslowcert_dataStart(buf, buf_length, &amp;derSN-&gt;len, PR_TRUE, NULL);</span>
+<span class="lineNum">     198 </span>            :         /* derSN-&gt;data  doesn't need to be checked because if it fails so will
+<span class="lineNum">     199 </span>            :          * serial-&gt;data below. The only difference between the two calls is
+<span class="lineNum">     200 </span>            :          * whether or not the tags are included in the returned buffer */
+<span class="lineNum">     201 </span>            :     }
+<span class="lineNum">     202 </span><span class="lineCov">          1 :     serial-&gt;data = nsslowcert_dataStart(buf, buf_length, &amp;serial-&gt;len, PR_FALSE, NULL);</span>
+<span class="lineNum">     203 </span><span class="lineCov">          1 :     if (serial-&gt;data == NULL)</span>
+<span class="lineNum">     204 </span>            :         return SECFailure;
+<span class="lineNum">     205 </span><span class="lineCov">          1 :     buf_length -= (serial-&gt;data - buf) + serial-&gt;len;</span>
+<span class="lineNum">     206 </span><span class="lineCov">          1 :     buf = serial-&gt;data + serial-&gt;len;</span>
+<span class="lineNum">     207 </span>            :     /* skip the OID */
+<span class="lineNum">     208 </span><span class="lineCov">          1 :     dummy = nsslowcert_dataStart(buf, buf_length, &amp;dummylen, PR_FALSE, NULL);</span>
+<span class="lineNum">     209 </span><span class="lineCov">          1 :     if (dummy == NULL)</span>
+<span class="lineNum">     210 </span>            :         return SECFailure;
+<span class="lineNum">     211 </span><span class="lineCov">          1 :     buf_length -= (dummy - buf) + dummylen;</span>
+<span class="lineNum">     212 </span><span class="lineCov">          1 :     buf = dummy + dummylen;</span>
+<span class="lineNum">     213 </span>            :     /* issuer */
+<span class="lineNum">     214 </span><span class="lineCov">          1 :     issuer-&gt;data = nsslowcert_dataStart(buf, buf_length, &amp;issuer-&gt;len, PR_TRUE, NULL);</span>
+<span class="lineNum">     215 </span><span class="lineCov">          1 :     if (issuer-&gt;data == NULL)</span>
+<span class="lineNum">     216 </span>            :         return SECFailure;
+<span class="lineNum">     217 </span><span class="lineCov">          1 :     buf_length -= (issuer-&gt;data - buf) + issuer-&gt;len;</span>
+<span class="lineNum">     218 </span><span class="lineCov">          1 :     buf = issuer-&gt;data + issuer-&gt;len;</span>
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span>            :     /* only wanted issuer/SN */
+<span class="lineNum">     221 </span><span class="lineCov">          1 :     if (valid == NULL) {</span>
+<span class="lineNum">     222 </span>            :         return SECSuccess;
+<span class="lineNum">     223 </span>            :     }
+<span class="lineNum">     224 </span>            :     /* validity */
+<span class="lineNum">     225 </span><span class="lineCov">          1 :     valid-&gt;data = nsslowcert_dataStart(buf, buf_length, &amp;valid-&gt;len, PR_FALSE, NULL);</span>
+<span class="lineNum">     226 </span><span class="lineCov">          1 :     if (valid-&gt;data == NULL)</span>
+<span class="lineNum">     227 </span>            :         return SECFailure;
+<span class="lineNum">     228 </span><span class="lineCov">          1 :     buf_length -= (valid-&gt;data - buf) + valid-&gt;len;</span>
+<span class="lineNum">     229 </span><span class="lineCov">          1 :     buf = valid-&gt;data + valid-&gt;len;</span>
+<span class="lineNum">     230 </span>            :     /*subject */
+<span class="lineNum">     231 </span><span class="lineCov">          1 :     subject-&gt;data = nsslowcert_dataStart(buf, buf_length, &amp;subject-&gt;len, PR_TRUE, NULL);</span>
+<span class="lineNum">     232 </span><span class="lineCov">          1 :     if (subject-&gt;data == NULL)</span>
+<span class="lineNum">     233 </span>            :         return SECFailure;
+<span class="lineNum">     234 </span><span class="lineCov">          1 :     buf_length -= (subject-&gt;data - buf) + subject-&gt;len;</span>
+<span class="lineNum">     235 </span><span class="lineCov">          1 :     buf = subject-&gt;data + subject-&gt;len;</span>
+<span class="lineNum">     236 </span>            :     /* subject  key info */
+<span class="lineNum">     237 </span><span class="lineCov">          1 :     subjkey-&gt;data = nsslowcert_dataStart(buf, buf_length, &amp;subjkey-&gt;len, PR_TRUE, NULL);</span>
+<span class="lineNum">     238 </span><span class="lineCov">          1 :     if (subjkey-&gt;data == NULL)</span>
+<span class="lineNum">     239 </span>            :         return SECFailure;
+<span class="lineNum">     240 </span><span class="lineCov">          1 :     buf_length -= (subjkey-&gt;data - buf) + subjkey-&gt;len;</span>
+<span class="lineNum">     241 </span><span class="lineCov">          1 :     buf = subjkey-&gt;data + subjkey-&gt;len;</span>
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span><span class="lineCov">          1 :     extensions-&gt;data = NULL;</span>
+<span class="lineNum">     244 </span><span class="lineCov">          1 :     extensions-&gt;len = 0;</span>
+<span class="lineNum">     245 </span><span class="lineCov">          1 :     while (buf_length &gt; 0) {</span>
+<span class="lineNum">     246 </span>            :         /* EXTENSIONS */
+<span class="lineNum">     247 </span><span class="lineCov">          1 :         if (buf[0] == 0xa3) {</span>
+<span class="lineNum">     248 </span><span class="lineCov">          1 :             extensions-&gt;data = nsslowcert_dataStart(buf, buf_length,</span>
+<span class="lineNum">     249 </span>            :                                                     &amp;extensions-&gt;len, PR_FALSE, NULL);
+<span class="lineNum">     250 </span>            :             /* if the DER is bad, we should fail. Previously we accepted
+<span class="lineNum">     251 </span>            :              * bad DER here and treated the extension as missin */
+<span class="lineNum">     252 </span><span class="lineCov">          1 :             if (extensions-&gt;data == NULL ||</span>
+<span class="lineNum">     253 </span><span class="lineCov">          1 :                 (extensions-&gt;data - buf) + extensions-&gt;len != buf_length)</span>
+<span class="lineNum">     254 </span>            :                 return SECFailure;
+<span class="lineNum">     255 </span><span class="lineCov">          1 :             buf = extensions-&gt;data;</span>
+<span class="lineNum">     256 </span><span class="lineCov">          1 :             buf_length = extensions-&gt;len;</span>
+<span class="lineNum">     257 </span>            :             /* now parse the SEQUENCE holding the extensions. */
+<span class="lineNum">     258 </span><span class="lineCov">          1 :             dummy = nsslowcert_dataStart(buf, buf_length, &amp;dummylen, PR_FALSE, NULL);</span>
+<span class="lineNum">     259 </span><span class="lineCov">          1 :             if (dummy == NULL ||</span>
+<span class="lineNum">     260 </span><span class="lineCov">          1 :                 (dummy - buf) + dummylen != buf_length)</span>
+<span class="lineNum">     261 </span>            :                 return SECFailure;
+<span class="lineNum">     262 </span><span class="lineCov">          1 :             buf_length -= (dummy - buf);</span>
+<span class="lineNum">     263 </span><span class="lineCov">          1 :             buf = dummy;</span>
+<span class="lineNum">     264 </span>            :             /* Now parse the extensions inside this sequence */
+<span class="lineNum">     265 </span>            :         }
+<span class="lineNum">     266 </span><span class="lineCov">          1 :         dummy = nsslowcert_dataStart(buf, buf_length, &amp;dummylen, PR_FALSE, NULL);</span>
+<span class="lineNum">     267 </span><span class="lineCov">          1 :         if (dummy == NULL)</span>
+<span class="lineNum">     268 </span>            :             return SECFailure;
+<span class="lineNum">     269 </span><span class="lineCov">          1 :         buf_length -= (dummy - buf) + dummylen;</span>
+<span class="lineNum">     270 </span><span class="lineCov">          1 :         buf = dummy + dummylen;</span>
+<span class="lineNum">     271 </span>            :     }
+<span class="lineNum">     272 </span>            :     return SECSuccess;
+<span class="lineNum">     273 </span>            : }
+<a name="274"><span class="lineNum">     274 </span>            : </a>
+<span class="lineNum">     275 </span>            : static SECStatus
+<span class="lineNum">     276 </span><span class="lineNoCov">          0 : nsslowcert_GetCertTimes(NSSLOWCERTCertificate *c, PRTime *notBefore, PRTime *notAfter)</span>
+<span class="lineNum">     277 </span>            : {
+<span class="lineNum">     278 </span>            :     int rv;
+<span class="lineNum">     279 </span>            :     NSSLOWCERTValidity validity;
+<span class="lineNum">     280 </span>            : 
+<span class="lineNum">     281 </span><span class="lineNoCov">          0 :     rv = nsslowcert_GetValidityFields(c-&gt;validity.data, c-&gt;validity.len,</span>
+<span class="lineNum">     282 </span>            :                                       &amp;validity.notBefore, &amp;validity.notAfter);
+<span class="lineNum">     283 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     284 </span>            :         return rv;
+<span class="lineNum">     285 </span>            :     }
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span>            :     /* convert DER not-before time */
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :     rv = DER_DecodeTimeChoice(notBefore, &amp;validity.notBefore);</span>
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :     if (rv) {</span>
+<span class="lineNum">     290 </span>            :         return (SECFailure);
+<span class="lineNum">     291 </span>            :     }
+<span class="lineNum">     292 </span>            : 
+<span class="lineNum">     293 </span>            :     /* convert DER not-after time */
+<span class="lineNum">     294 </span><span class="lineNoCov">          0 :     rv = DER_DecodeTimeChoice(notAfter, &amp;validity.notAfter);</span>
+<span class="lineNum">     295 </span><span class="lineNoCov">          0 :     if (rv) {</span>
+<span class="lineNum">     296 </span>            :         return (SECFailure);
+<span class="lineNum">     297 </span>            :     }
+<span class="lineNum">     298 </span>            : 
+<span class="lineNum">     299 </span><span class="lineNoCov">          0 :     return (SECSuccess);</span>
+<span class="lineNum">     300 </span>            : }
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span>            : /*
+<span class="lineNum">     303 </span>            :  * is certa newer than certb?  If one is expired, pick the other one.
+<a name="304"><span class="lineNum">     304 </span>            :  */</a>
+<span class="lineNum">     305 </span>            : PRBool
+<span class="lineNum">     306 </span><span class="lineNoCov">          0 : nsslowcert_IsNewer(NSSLOWCERTCertificate *certa, NSSLOWCERTCertificate *certb)</span>
+<span class="lineNum">     307 </span>            : {
+<span class="lineNum">     308 </span>            :     PRTime notBeforeA, notAfterA, notBeforeB, notAfterB, now;
+<span class="lineNum">     309 </span>            :     SECStatus rv;
+<span class="lineNum">     310 </span>            :     PRBool newerbefore, newerafter;
+<span class="lineNum">     311 </span>            : 
+<span class="lineNum">     312 </span><span class="lineNoCov">          0 :     rv = nsslowcert_GetCertTimes(certa, &amp;notBeforeA, &amp;notAfterA);</span>
+<span class="lineNum">     313 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     314 </span>            :         return (PR_FALSE);
+<span class="lineNum">     315 </span>            :     }
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :     rv = nsslowcert_GetCertTimes(certb, &amp;notBeforeB, &amp;notAfterB);</span>
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     319 </span>            :         return (PR_TRUE);
+<span class="lineNum">     320 </span>            :     }
+<span class="lineNum">     321 </span>            : 
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 :     newerbefore = PR_FALSE;</span>
+<span class="lineNum">     323 </span><span class="lineNoCov">          0 :     if (LL_CMP(notBeforeA, &gt;, notBeforeB)) {</span>
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 :         newerbefore = PR_TRUE;</span>
+<span class="lineNum">     325 </span>            :     }
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span><span class="lineNoCov">          0 :     newerafter = PR_FALSE;</span>
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 :     if (LL_CMP(notAfterA, &gt;, notAfterB)) {</span>
+<span class="lineNum">     329 </span><span class="lineNoCov">          0 :         newerafter = PR_TRUE;</span>
+<span class="lineNum">     330 </span>            :     }
+<span class="lineNum">     331 </span>            : 
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :     if (newerbefore &amp;&amp; newerafter) {</span>
+<span class="lineNum">     333 </span>            :         return (PR_TRUE);
+<span class="lineNum">     334 </span>            :     }
+<span class="lineNum">     335 </span>            : 
+<span class="lineNum">     336 </span><span class="lineNoCov">          0 :     if ((!newerbefore) &amp;&amp; (!newerafter)) {</span>
+<span class="lineNum">     337 </span>            :         return (PR_FALSE);
+<span class="lineNum">     338 </span>            :     }
+<span class="lineNum">     339 </span>            : 
+<span class="lineNum">     340 </span>            :     /* get current time */
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :     now = PR_Now();</span>
+<span class="lineNum">     342 </span>            : 
+<span class="lineNum">     343 </span><span class="lineNoCov">          0 :     if (newerbefore) {</span>
+<span class="lineNum">     344 </span>            :         /* cert A was issued after cert B, but expires sooner */
+<span class="lineNum">     345 </span>            :         /* if A is expired, then pick B */
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :         if (LL_CMP(notAfterA, &lt;, now)) {</span>
+<span class="lineNum">     347 </span>            :             return (PR_FALSE);
+<span class="lineNum">     348 </span>            :         }
+<span class="lineNum">     349 </span><span class="lineNoCov">          0 :         return (PR_TRUE);</span>
+<span class="lineNum">     350 </span>            :     } else {
+<span class="lineNum">     351 </span>            :         /* cert B was issued after cert A, but expires sooner */
+<span class="lineNum">     352 </span>            :         /* if B is expired, then pick A */
+<span class="lineNum">     353 </span><span class="lineNoCov">          0 :         if (LL_CMP(notAfterB, &lt;, now)) {</span>
+<span class="lineNum">     354 </span>            :             return (PR_TRUE);
+<span class="lineNum">     355 </span>            :         }
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :         return (PR_FALSE);</span>
+<span class="lineNum">     357 </span>            :     }
+<span class="lineNum">     358 </span>            : }
+<span class="lineNum">     359 </span>            : 
+<span class="lineNum">     360 </span>            : #define SOFT_DEFAULT_CHUNKSIZE 2048
+<a name="361"><span class="lineNum">     361 </span>            : </a>
+<span class="lineNum">     362 </span>            : static SECStatus
+<span class="lineNum">     363 </span><span class="lineCov">          1 : nsslowcert_KeyFromIssuerAndSN(PLArenaPool *arena,</span>
+<span class="lineNum">     364 </span>            :                               SECItem *issuer, SECItem *sn, SECItem *key)
+<span class="lineNum">     365 </span>            : {
+<span class="lineNum">     366 </span><span class="lineCov">          1 :     unsigned int len = sn-&gt;len + issuer-&gt;len;</span>
+<span class="lineNum">     367 </span>            : 
+<span class="lineNum">     368 </span><span class="lineCov">          1 :     if (!arena) {</span>
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :         goto loser;</span>
+<span class="lineNum">     371 </span>            :     }
+<span class="lineNum">     372 </span><span class="lineCov">          1 :     if (len &gt; NSS_MAX_LEGACY_DB_KEY_SIZE) {</span>
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INPUT_LEN);</span>
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :         goto loser;</span>
+<span class="lineNum">     375 </span>            :     }
+<span class="lineNum">     376 </span><span class="lineCov">          1 :     key-&gt;data = (unsigned char *)PORT_ArenaAlloc(arena, len);</span>
+<span class="lineNum">     377 </span><span class="lineCov">          1 :     if (!key-&gt;data) {</span>
+<span class="lineNum">     378 </span>            :         goto loser;
+<span class="lineNum">     379 </span>            :     }
+<span class="lineNum">     380 </span>            : 
+<span class="lineNum">     381 </span><span class="lineCov">          1 :     key-&gt;len = len;</span>
+<span class="lineNum">     382 </span>            :     /* copy the serialNumber */
+<span class="lineNum">     383 </span><span class="lineCov">          1 :     PORT_Memcpy(key-&gt;data, sn-&gt;data, sn-&gt;len);</span>
+<span class="lineNum">     384 </span>            : 
+<span class="lineNum">     385 </span>            :     /* copy the issuer */
+<span class="lineNum">     386 </span><span class="lineCov">          1 :     PORT_Memcpy(&amp;key-&gt;data[sn-&gt;len], issuer-&gt;data, issuer-&gt;len);</span>
+<span class="lineNum">     387 </span>            : 
+<span class="lineNum">     388 </span><span class="lineCov">          1 :     return (SECSuccess);</span>
+<span class="lineNum">     389 </span>            : 
+<span class="lineNum">     390 </span>            : loser:
+<span class="lineNum">     391 </span>            :     return (SECFailure);
+<span class="lineNum">     392 </span>            : }
+<a name="393"><span class="lineNum">     393 </span>            : </a>
+<span class="lineNum">     394 </span>            : static SECStatus
+<span class="lineNum">     395 </span><span class="lineCov">          1 : nsslowcert_KeyFromIssuerAndSNStatic(unsigned char *space,</span>
+<span class="lineNum">     396 </span>            :                                     int spaceLen, SECItem *issuer, SECItem *sn, SECItem *key)
+<span class="lineNum">     397 </span>            : {
+<span class="lineNum">     398 </span><span class="lineCov">          1 :     unsigned int len = sn-&gt;len + issuer-&gt;len;</span>
+<span class="lineNum">     399 </span>            : 
+<span class="lineNum">     400 </span><span class="lineCov">          1 :     key-&gt;data = pkcs11_allocStaticData(len, space, spaceLen);</span>
+<span class="lineNum">     401 </span><span class="lineCov">          1 :     if (!key-&gt;data) {</span>
+<span class="lineNum">     402 </span>            :         goto loser;
+<span class="lineNum">     403 </span>            :     }
+<span class="lineNum">     404 </span>            : 
+<span class="lineNum">     405 </span><span class="lineCov">          1 :     key-&gt;len = len;</span>
+<span class="lineNum">     406 </span>            :     /* copy the serialNumber */
+<span class="lineNum">     407 </span><span class="lineCov">          1 :     PORT_Memcpy(key-&gt;data, sn-&gt;data, sn-&gt;len);</span>
+<span class="lineNum">     408 </span>            : 
+<span class="lineNum">     409 </span>            :     /* copy the issuer */
+<span class="lineNum">     410 </span><span class="lineCov">          1 :     PORT_Memcpy(&amp;key-&gt;data[sn-&gt;len], issuer-&gt;data, issuer-&gt;len);</span>
+<span class="lineNum">     411 </span>            : 
+<span class="lineNum">     412 </span><span class="lineCov">          1 :     return (SECSuccess);</span>
+<span class="lineNum">     413 </span>            : 
+<span class="lineNum">     414 </span>            : loser:
+<span class="lineNum">     415 </span>            :     return (SECFailure);
+<span class="lineNum">     416 </span>            : }
+<a name="417"><span class="lineNum">     417 </span>            : </a>
+<span class="lineNum">     418 </span>            : static char *
+<span class="lineNum">     419 </span><span class="lineCov">          1 : nsslowcert_EmailName(SECItem *derDN, char *space, unsigned int len)</span>
+<span class="lineNum">     420 </span>            : {
+<span class="lineNum">     421 </span>            :     unsigned char *buf;
+<span class="lineNum">     422 </span>            :     unsigned int buf_length;
+<span class="lineNum">     423 </span>            : 
+<span class="lineNum">     424 </span>            :     /* unwrap outer sequence */
+<span class="lineNum">     425 </span><span class="lineCov">          1 :     buf = nsslowcert_dataStart(derDN-&gt;data, derDN-&gt;len, &amp;buf_length, PR_FALSE, NULL);</span>
+<span class="lineNum">     426 </span><span class="lineCov">          1 :     if (buf == NULL)</span>
+<span class="lineNum">     427 </span>            :         return NULL;
+<span class="lineNum">     428 </span>            : 
+<span class="lineNum">     429 </span>            :     /* Walk each RDN */
+<span class="lineNum">     430 </span><span class="lineCov">          1 :     while (buf_length &gt; 0) {</span>
+<span class="lineNum">     431 </span>            :         unsigned char *rdn;
+<span class="lineNum">     432 </span>            :         unsigned int rdn_length;
+<span class="lineNum">     433 </span>            : 
+<span class="lineNum">     434 </span>            :         /* grab next rdn */
+<span class="lineNum">     435 </span><span class="lineCov">          1 :         rdn = nsslowcert_dataStart(buf, buf_length, &amp;rdn_length, PR_FALSE, NULL);</span>
+<span class="lineNum">     436 </span><span class="lineCov">          1 :         if (rdn == NULL) {</span>
+<span class="lineNum">     437 </span><span class="lineCov">          1 :             return NULL;</span>
+<span class="lineNum">     438 </span>            :         }
+<span class="lineNum">     439 </span><span class="lineCov">          1 :         buf_length -= (rdn - buf) + rdn_length;</span>
+<span class="lineNum">     440 </span><span class="lineCov">          1 :         buf = rdn + rdn_length;</span>
+<span class="lineNum">     441 </span>            : 
+<span class="lineNum">     442 </span><span class="lineCov">          1 :         while (rdn_length &gt; 0) {</span>
+<span class="lineNum">     443 </span>            :             unsigned char *ava;
+<span class="lineNum">     444 </span>            :             unsigned int ava_length;
+<span class="lineNum">     445 </span>            :             unsigned char *oid;
+<span class="lineNum">     446 </span>            :             unsigned int oid_length;
+<span class="lineNum">     447 </span>            :             unsigned char *name;
+<span class="lineNum">     448 </span>            :             unsigned int name_length;
+<span class="lineNum">     449 </span>            :             SECItem oidItem;
+<span class="lineNum">     450 </span>            :             SECOidTag type;
+<span class="lineNum">     451 </span>            : 
+<span class="lineNum">     452 </span>            :             /* unwrap the ava */
+<span class="lineNum">     453 </span><span class="lineCov">          1 :             ava = nsslowcert_dataStart(rdn, rdn_length, &amp;ava_length, PR_FALSE,</span>
+<span class="lineNum">     454 </span>            :                                        NULL);
+<span class="lineNum">     455 </span><span class="lineCov">          1 :             if (ava == NULL)</span>
+<span class="lineNum">     456 </span><span class="lineCov">          1 :                 return NULL;</span>
+<span class="lineNum">     457 </span><span class="lineCov">          1 :             rdn_length -= (ava - rdn) + ava_length;</span>
+<span class="lineNum">     458 </span><span class="lineCov">          1 :             rdn = ava + ava_length;</span>
+<span class="lineNum">     459 </span>            : 
+<span class="lineNum">     460 </span><span class="lineCov">          1 :             oid = nsslowcert_dataStart(ava, ava_length, &amp;oid_length, PR_FALSE,</span>
+<span class="lineNum">     461 </span>            :                                        NULL);
+<span class="lineNum">     462 </span><span class="lineCov">          1 :             if (oid == NULL) {</span>
+<span class="lineNum">     463 </span>            :                 return NULL;
+<span class="lineNum">     464 </span>            :             }
+<span class="lineNum">     465 </span><span class="lineCov">          1 :             ava_length -= (oid - ava) + oid_length;</span>
+<span class="lineNum">     466 </span><span class="lineCov">          1 :             ava = oid + oid_length;</span>
+<span class="lineNum">     467 </span>            : 
+<span class="lineNum">     468 </span><span class="lineCov">          1 :             name = nsslowcert_dataStart(ava, ava_length, &amp;name_length, PR_FALSE,</span>
+<span class="lineNum">     469 </span>            :                                         NULL);
+<span class="lineNum">     470 </span><span class="lineCov">          1 :             if (name == NULL) {</span>
+<span class="lineNum">     471 </span>            :                 return NULL;
+<span class="lineNum">     472 </span>            :             }
+<span class="lineNum">     473 </span><span class="lineCov">          1 :             ava_length -= (name - ava) + name_length;</span>
+<span class="lineNum">     474 </span><span class="lineCov">          1 :             ava = name + name_length;</span>
+<span class="lineNum">     475 </span>            : 
+<span class="lineNum">     476 </span><span class="lineCov">          1 :             oidItem.data = oid;</span>
+<span class="lineNum">     477 </span><span class="lineCov">          1 :             oidItem.len = oid_length;</span>
+<span class="lineNum">     478 </span><span class="lineCov">          1 :             type = SECOID_FindOIDTag(&amp;oidItem);</span>
+<span class="lineNum">     479 </span><span class="lineCov">          1 :             if ((type == SEC_OID_PKCS9_EMAIL_ADDRESS) ||</span>
+<span class="lineNum">     480 </span><span class="lineCov">          1 :                 (type == SEC_OID_RFC1274_MAIL)) {</span>
+<span class="lineNum">     481 </span>            :                 /* Email is supposed to be IA5String, so no
+<span class="lineNum">     482 </span>            :                  * translation necessary */
+<span class="lineNum">     483 </span>            :                 char *emailAddr;
+<span class="lineNum">     484 </span><span class="lineCov">          1 :                 emailAddr = (char *)pkcs11_copyStaticData(name, name_length + 1,</span>
+<span class="lineNum">     485 </span>            :                                                           (unsigned char *)space, len);
+<span class="lineNum">     486 </span><span class="lineCov">          1 :                 if (emailAddr) {</span>
+<span class="lineNum">     487 </span><span class="lineCov">          1 :                     emailAddr[name_length] = 0;</span>
+<span class="lineNum">     488 </span>            :                 }
+<span class="lineNum">     489 </span><span class="lineCov">          1 :                 return emailAddr;</span>
+<span class="lineNum">     490 </span>            :             }
+<span class="lineNum">     491 </span>            :         }
+<span class="lineNum">     492 </span>            :     }
+<span class="lineNum">     493 </span>            :     return NULL;
+<span class="lineNum">     494 </span>            : }
+<a name="495"><span class="lineNum">     495 </span>            : </a>
+<span class="lineNum">     496 </span>            : static char *
+<span class="lineNum">     497 </span><span class="lineCov">          1 : nsslowcert_EmailAltName(NSSLOWCERTCertificate *cert, char *space,</span>
+<span class="lineNum">     498 </span>            :                         unsigned int len)
+<span class="lineNum">     499 </span>            : {
+<span class="lineNum">     500 </span>            :     unsigned char *exts;
+<span class="lineNum">     501 </span>            :     unsigned int exts_length;
+<span class="lineNum">     502 </span>            : 
+<span class="lineNum">     503 </span>            :     /* unwrap the sequence */
+<span class="lineNum">     504 </span><span class="lineCov">          1 :     exts = nsslowcert_dataStart(cert-&gt;extensions.data, cert-&gt;extensions.len,</span>
+<span class="lineNum">     505 </span>            :                                 &amp;exts_length, PR_FALSE, NULL);
+<span class="lineNum">     506 </span>            :     /* loop through extension */
+<span class="lineNum">     507 </span><span class="lineCov">          1 :     while (exts &amp;&amp; exts_length &gt; 0) {</span>
+<span class="lineNum">     508 </span>            :         unsigned char *ext;
+<span class="lineNum">     509 </span>            :         unsigned int ext_length;
+<span class="lineNum">     510 </span>            :         unsigned char *oid;
+<span class="lineNum">     511 </span>            :         unsigned int oid_length;
+<span class="lineNum">     512 </span>            :         unsigned char *nameList;
+<span class="lineNum">     513 </span>            :         unsigned int nameList_length;
+<span class="lineNum">     514 </span>            :         SECItem oidItem;
+<span class="lineNum">     515 </span>            :         SECOidTag type;
+<span class="lineNum">     516 </span>            : 
+<span class="lineNum">     517 </span><span class="lineCov">          1 :         ext = nsslowcert_dataStart(exts, exts_length, &amp;ext_length,</span>
+<span class="lineNum">     518 </span>            :                                    PR_FALSE, NULL);
+<span class="lineNum">     519 </span><span class="lineCov">          1 :         if (ext == NULL) {</span>
+<span class="lineNum">     520 </span>            :             break;
+<span class="lineNum">     521 </span>            :         }
+<span class="lineNum">     522 </span><span class="lineCov">          1 :         exts_length -= (ext - exts) + ext_length;</span>
+<span class="lineNum">     523 </span><span class="lineCov">          1 :         exts = ext + ext_length;</span>
+<span class="lineNum">     524 </span>            : 
+<span class="lineNum">     525 </span><span class="lineCov">          1 :         oid = nsslowcert_dataStart(ext, ext_length, &amp;oid_length, PR_FALSE, NULL);</span>
+<span class="lineNum">     526 </span><span class="lineCov">          1 :         if (oid == NULL) {</span>
+<span class="lineNum">     527 </span>            :             break;
+<span class="lineNum">     528 </span>            :         }
+<span class="lineNum">     529 </span><span class="lineCov">          1 :         ext_length -= (oid - ext) + oid_length;</span>
+<span class="lineNum">     530 </span><span class="lineCov">          1 :         ext = oid + oid_length;</span>
+<span class="lineNum">     531 </span><span class="lineCov">          1 :         oidItem.data = oid;</span>
+<span class="lineNum">     532 </span><span class="lineCov">          1 :         oidItem.len = oid_length;</span>
+<span class="lineNum">     533 </span><span class="lineCov">          1 :         type = SECOID_FindOIDTag(&amp;oidItem);</span>
+<span class="lineNum">     534 </span>            : 
+<span class="lineNum">     535 </span>            :         /* get Alt Extension */
+<span class="lineNum">     536 </span><span class="lineCov">          1 :         if (type != SEC_OID_X509_SUBJECT_ALT_NAME) {</span>
+<span class="lineNum">     537 </span><span class="lineCov">          1 :             continue;</span>
+<span class="lineNum">     538 </span>            :         }
+<span class="lineNum">     539 </span>            : 
+<span class="lineNum">     540 </span>            :         /* skip passed the critical flag */
+<span class="lineNum">     541 </span><span class="lineNoCov">          0 :         if (ext[0] == 0x01) { /* BOOLEAN */</span>
+<span class="lineNum">     542 </span>            :             unsigned char *dummy;
+<span class="lineNum">     543 </span>            :             unsigned int dummy_length;
+<span class="lineNum">     544 </span><span class="lineNoCov">          0 :             dummy = nsslowcert_dataStart(ext, ext_length, &amp;dummy_length,</span>
+<span class="lineNum">     545 </span>            :                                          PR_FALSE, NULL);
+<span class="lineNum">     546 </span><span class="lineNoCov">          0 :             if (dummy == NULL) {</span>
+<span class="lineNum">     547 </span>            :                 break;
+<span class="lineNum">     548 </span>            :             }
+<span class="lineNum">     549 </span><span class="lineNoCov">          0 :             ext_length -= (dummy - ext) + dummy_length;</span>
+<span class="lineNum">     550 </span><span class="lineNoCov">          0 :             ext = dummy + dummy_length;</span>
+<span class="lineNum">     551 </span>            :         }
+<span class="lineNum">     552 </span>            : 
+<span class="lineNum">     553 </span>            :         /* unwrap the name list */
+<span class="lineNum">     554 </span><span class="lineNoCov">          0 :         nameList = nsslowcert_dataStart(ext, ext_length, &amp;nameList_length,</span>
+<span class="lineNum">     555 </span>            :                                         PR_FALSE, NULL);
+<span class="lineNum">     556 </span><span class="lineNoCov">          0 :         if (nameList == NULL) {</span>
+<span class="lineNum">     557 </span>            :             break;
+<span class="lineNum">     558 </span>            :         }
+<span class="lineNum">     559 </span><span class="lineNoCov">          0 :         ext_length -= (nameList - ext) + nameList_length;</span>
+<span class="lineNum">     560 </span><span class="lineNoCov">          0 :         ext = nameList + nameList_length;</span>
+<span class="lineNum">     561 </span><span class="lineNoCov">          0 :         nameList = nsslowcert_dataStart(nameList, nameList_length,</span>
+<span class="lineNum">     562 </span>            :                                         &amp;nameList_length, PR_FALSE, NULL);
+<span class="lineNum">     563 </span>            :         /* loop through the name list */
+<span class="lineNum">     564 </span><span class="lineNoCov">          0 :         while (nameList &amp;&amp; nameList_length &gt; 0) {</span>
+<span class="lineNum">     565 </span>            :             unsigned char *thisName;
+<span class="lineNum">     566 </span>            :             unsigned int thisName_length;
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span><span class="lineNoCov">          0 :             thisName = nsslowcert_dataStart(nameList, nameList_length,</span>
+<span class="lineNum">     569 </span>            :                                             &amp;thisName_length, PR_FALSE, NULL);
+<span class="lineNum">     570 </span><span class="lineNoCov">          0 :             if (thisName == NULL) {</span>
+<span class="lineNum">     571 </span>            :                 break;
+<span class="lineNum">     572 </span>            :             }
+<span class="lineNum">     573 </span><span class="lineNoCov">          0 :             if (nameList[0] == 0xa2) { /* DNS Name */</span>
+<span class="lineNum">     574 </span>            :                 SECItem dn;
+<span class="lineNum">     575 </span>            :                 char *emailAddr;
+<span class="lineNum">     576 </span>            : 
+<span class="lineNum">     577 </span><span class="lineNoCov">          0 :                 dn.data = thisName;</span>
+<span class="lineNum">     578 </span><span class="lineNoCov">          0 :                 dn.len = thisName_length;</span>
+<span class="lineNum">     579 </span><span class="lineNoCov">          0 :                 emailAddr = nsslowcert_EmailName(&amp;dn, space, len);</span>
+<span class="lineNum">     580 </span><span class="lineNoCov">          0 :                 if (emailAddr) {</span>
+<span class="lineNum">     581 </span><span class="lineNoCov">          0 :                     return emailAddr;</span>
+<span class="lineNum">     582 </span>            :                 }
+<span class="lineNum">     583 </span>            :             }
+<span class="lineNum">     584 </span><span class="lineNoCov">          0 :             if (nameList[0] == 0x81) { /* RFC 822name */</span>
+<span class="lineNum">     585 </span>            :                 char *emailAddr;
+<span class="lineNum">     586 </span><span class="lineNoCov">          0 :                 emailAddr = (char *)pkcs11_copyStaticData(thisName,</span>
+<span class="lineNum">     587 </span><span class="lineNoCov">          0 :                                                           thisName_length + 1, (unsigned char *)space, len);</span>
+<span class="lineNum">     588 </span><span class="lineNoCov">          0 :                 if (emailAddr) {</span>
+<span class="lineNum">     589 </span><span class="lineNoCov">          0 :                     emailAddr[thisName_length] = 0;</span>
+<span class="lineNum">     590 </span>            :                 }
+<span class="lineNum">     591 </span><span class="lineNoCov">          0 :                 return emailAddr;</span>
+<span class="lineNum">     592 </span>            :             }
+<span class="lineNum">     593 </span><span class="lineNoCov">          0 :             nameList_length -= (thisName - nameList) + thisName_length;</span>
+<span class="lineNum">     594 </span><span class="lineNoCov">          0 :             nameList = thisName + thisName_length;</span>
+<span class="lineNum">     595 </span>            :         }
+<span class="lineNum">     596 </span>            :         break;
+<span class="lineNum">     597 </span>            :     }
+<span class="lineNum">     598 </span>            :     return NULL;
+<span class="lineNum">     599 </span>            : }
+<a name="600"><span class="lineNum">     600 </span>            : </a>
+<span class="lineNum">     601 </span>            : static char *
+<span class="lineNum">     602 </span><span class="lineCov">          1 : nsslowcert_GetCertificateEmailAddress(NSSLOWCERTCertificate *cert)</span>
+<span class="lineNum">     603 </span>            : {
+<span class="lineNum">     604 </span><span class="lineCov">          1 :     char *emailAddr = NULL;</span>
+<span class="lineNum">     605 </span>            :     char *str;
+<span class="lineNum">     606 </span>            : 
+<span class="lineNum">     607 </span><span class="lineCov">          1 :     emailAddr = nsslowcert_EmailName(&amp;cert-&gt;derSubject, cert-&gt;emailAddrSpace,</span>
+<span class="lineNum">     608 </span>            :                                      sizeof(cert-&gt;emailAddrSpace));
+<span class="lineNum">     609 </span>            :     /* couldn't find the email address in the DN, check the subject Alt name */
+<span class="lineNum">     610 </span><span class="lineCov">          1 :     if (!emailAddr &amp;&amp; cert-&gt;extensions.data) {</span>
+<span class="lineNum">     611 </span><span class="lineCov">          1 :         emailAddr = nsslowcert_EmailAltName(cert, cert-&gt;emailAddrSpace,</span>
+<span class="lineNum">     612 </span>            :                                             sizeof(cert-&gt;emailAddrSpace));
+<span class="lineNum">     613 </span>            :     }
+<span class="lineNum">     614 </span>            : 
+<span class="lineNum">     615 </span>            :     /* make it lower case */
+<span class="lineNum">     616 </span><span class="lineCov">          1 :     str = emailAddr;</span>
+<span class="lineNum">     617 </span><span class="lineCov">          1 :     while (str &amp;&amp; *str) {</span>
+<span class="lineNum">     618 </span><span class="lineCov">          1 :         *str = tolower(*str);</span>
+<span class="lineNum">     619 </span><span class="lineCov">          1 :         str++;</span>
+<span class="lineNum">     620 </span>            :     }
+<span class="lineNum">     621 </span><span class="lineCov">          1 :     return emailAddr;</span>
+<span class="lineNum">     622 </span>            : }
+<span class="lineNum">     623 </span>            : 
+<span class="lineNum">     624 </span>            : /*
+<span class="lineNum">     625 </span>            :  * take a DER certificate and decode it into a certificate structure
+<a name="626"><span class="lineNum">     626 </span>            :  */</a>
+<span class="lineNum">     627 </span>            : NSSLOWCERTCertificate *
+<span class="lineNum">     628 </span><span class="lineCov">          1 : nsslowcert_DecodeDERCertificate(SECItem *derSignedCert, char *nickname)</span>
+<span class="lineNum">     629 </span>            : {
+<span class="lineNum">     630 </span>            :     NSSLOWCERTCertificate *cert;
+<span class="lineNum">     631 </span>            :     int rv;
+<span class="lineNum">     632 </span>            : 
+<span class="lineNum">     633 </span>            :     /* allocate the certificate structure */
+<span class="lineNum">     634 </span><span class="lineCov">          1 :     cert = nsslowcert_CreateCert();</span>
+<span class="lineNum">     635 </span>            : 
+<span class="lineNum">     636 </span><span class="lineCov">          1 :     if (!cert) {</span>
+<span class="lineNum">     637 </span>            :         goto loser;
+<span class="lineNum">     638 </span>            :     }
+<span class="lineNum">     639 </span>            : 
+<span class="lineNum">     640 </span>            :     /* point to passed in DER data */
+<span class="lineNum">     641 </span><span class="lineCov">          1 :     cert-&gt;derCert = *derSignedCert;</span>
+<span class="lineNum">     642 </span><span class="lineCov">          1 :     cert-&gt;nickname = NULL;</span>
+<span class="lineNum">     643 </span><span class="lineCov">          1 :     cert-&gt;certKey.data = NULL;</span>
+<span class="lineNum">     644 </span><span class="lineCov">          1 :     cert-&gt;referenceCount = 1;</span>
+<span class="lineNum">     645 </span>            : 
+<span class="lineNum">     646 </span>            :     /* decode the certificate info */
+<span class="lineNum">     647 </span><span class="lineCov">          1 :     rv = nsslowcert_GetCertFields(cert-&gt;derCert.data, cert-&gt;derCert.len,</span>
+<span class="lineNum">     648 </span>            :                                   &amp;cert-&gt;derIssuer, &amp;cert-&gt;serialNumber, &amp;cert-&gt;derSN, &amp;cert-&gt;derSubject,
+<span class="lineNum">     649 </span>            :                                   &amp;cert-&gt;validity, &amp;cert-&gt;derSubjKeyInfo, &amp;cert-&gt;extensions);
+<span class="lineNum">     650 </span>            : 
+<span class="lineNum">     651 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     652 </span>            :         goto loser;
+<span class="lineNum">     653 </span>            :     }
+<span class="lineNum">     654 </span>            : 
+<span class="lineNum">     655 </span>            :     /* cert-&gt;subjectKeyID;   x509v3 subject key identifier */
+<span class="lineNum">     656 </span><span class="lineCov">          1 :     cert-&gt;subjectKeyID.data = NULL;</span>
+<span class="lineNum">     657 </span><span class="lineCov">          1 :     cert-&gt;subjectKeyID.len = 0;</span>
+<span class="lineNum">     658 </span><span class="lineCov">          1 :     cert-&gt;dbEntry = NULL;</span>
+<span class="lineNum">     659 </span><span class="lineCov">          1 :     cert-&gt;trust = NULL;</span>
+<span class="lineNum">     660 </span><span class="lineCov">          1 :     cert-&gt;dbhandle = NULL;</span>
+<span class="lineNum">     661 </span>            : 
+<span class="lineNum">     662 </span>            :     /* generate and save the database key for the cert */
+<span class="lineNum">     663 </span><span class="lineCov">          1 :     rv = nsslowcert_KeyFromIssuerAndSNStatic(cert-&gt;certKeySpace,</span>
+<span class="lineNum">     664 </span>            :                                              sizeof(cert-&gt;certKeySpace), &amp;cert-&gt;derIssuer,
+<span class="lineNum">     665 </span>            :                                              &amp;cert-&gt;serialNumber, &amp;cert-&gt;certKey);
+<span class="lineNum">     666 </span><span class="lineCov">          1 :     if (rv) {</span>
+<span class="lineNum">     667 </span>            :         goto loser;
+<span class="lineNum">     668 </span>            :     }
+<span class="lineNum">     669 </span>            : 
+<span class="lineNum">     670 </span>            :     /* set the nickname */
+<span class="lineNum">     671 </span><span class="lineCov">          1 :     if (nickname == NULL) {</span>
+<span class="lineNum">     672 </span><span class="lineNoCov">          0 :         cert-&gt;nickname = NULL;</span>
+<span class="lineNum">     673 </span>            :     } else {
+<span class="lineNum">     674 </span>            :         /* copy and install the nickname */
+<span class="lineNum">     675 </span><span class="lineCov">          1 :         cert-&gt;nickname = pkcs11_copyNickname(nickname, cert-&gt;nicknameSpace,</span>
+<span class="lineNum">     676 </span>            :                                              sizeof(cert-&gt;nicknameSpace));
+<span class="lineNum">     677 </span>            :     }
+<span class="lineNum">     678 </span>            : 
+<span class="lineNum">     679 </span>            : #ifdef FIXME
+<span class="lineNum">     680 </span>            :     /* initialize the subjectKeyID */
+<span class="lineNum">     681 </span>            :     rv = cert_GetKeyID(cert);
+<span class="lineNum">     682 </span>            :     if (rv != SECSuccess) {
+<span class="lineNum">     683 </span>            :         goto loser;
+<span class="lineNum">     684 </span>            :     }
+<span class="lineNum">     685 </span>            : #endif
+<span class="lineNum">     686 </span>            : 
+<span class="lineNum">     687 </span>            :     /* set the email address */
+<span class="lineNum">     688 </span><span class="lineCov">          1 :     cert-&gt;emailAddr = nsslowcert_GetCertificateEmailAddress(cert);</span>
+<span class="lineNum">     689 </span>            : 
+<span class="lineNum">     690 </span><span class="lineCov">          1 :     cert-&gt;referenceCount = 1;</span>
+<span class="lineNum">     691 </span>            : 
+<span class="lineNum">     692 </span><span class="lineCov">          1 :     return (cert);</span>
+<span class="lineNum">     693 </span>            : 
+<span class="lineNum">     694 </span>            : loser:
+<span class="lineNum">     695 </span><span class="lineNoCov">          0 :     if (cert) {</span>
+<span class="lineNum">     696 </span><span class="lineNoCov">          0 :         nsslowcert_DestroyCertificate(cert);</span>
+<span class="lineNum">     697 </span>            :     }
+<span class="lineNum">     698 </span>            : 
+<span class="lineNum">     699 </span>            :     return (0);
+<span class="lineNum">     700 </span>            : }
+<a name="701"><span class="lineNum">     701 </span>            : </a>
+<span class="lineNum">     702 </span>            : char *
+<span class="lineNum">     703 </span><span class="lineCov">          1 : nsslowcert_FixupEmailAddr(char *emailAddr)</span>
+<span class="lineNum">     704 </span>            : {
+<span class="lineNum">     705 </span>            :     char *retaddr;
+<span class="lineNum">     706 </span>            :     char *str;
+<span class="lineNum">     707 </span>            : 
+<span class="lineNum">     708 </span><span class="lineCov">          1 :     if (emailAddr == NULL) {</span>
+<span class="lineNum">     709 </span>            :         return (NULL);
+<span class="lineNum">     710 </span>            :     }
+<span class="lineNum">     711 </span>            : 
+<span class="lineNum">     712 </span>            :     /* copy the string */
+<span class="lineNum">     713 </span><span class="lineCov">          1 :     str = retaddr = PORT_Strdup(emailAddr);</span>
+<span class="lineNum">     714 </span><span class="lineCov">          1 :     if (str == NULL) {</span>
+<span class="lineNum">     715 </span>            :         return (NULL);
+<span class="lineNum">     716 </span>            :     }
+<span class="lineNum">     717 </span>            : 
+<span class="lineNum">     718 </span>            :     /* make it lower case */
+<span class="lineNum">     719 </span><span class="lineCov">          1 :     while (*str) {</span>
+<span class="lineNum">     720 </span><span class="lineCov">          1 :         *str = tolower(*str);</span>
+<span class="lineNum">     721 </span><span class="lineCov">          1 :         str++;</span>
+<span class="lineNum">     722 </span>            :     }
+<span class="lineNum">     723 </span>            : 
+<span class="lineNum">     724 </span>            :     return (retaddr);
+<span class="lineNum">     725 </span>            : }
+<span class="lineNum">     726 </span>            : 
+<span class="lineNum">     727 </span>            : /*
+<span class="lineNum">     728 </span>            :  * Generate a database key, based on serial number and issuer, from a
+<span class="lineNum">     729 </span>            :  * DER certificate.
+<a name="730"><span class="lineNum">     730 </span>            :  */</a>
+<span class="lineNum">     731 </span>            : SECStatus
+<span class="lineNum">     732 </span><span class="lineCov">          1 : nsslowcert_KeyFromDERCert(PLArenaPool *arena, SECItem *derCert, SECItem *key)</span>
+<span class="lineNum">     733 </span>            : {
+<span class="lineNum">     734 </span>            :     int rv;
+<span class="lineNum">     735 </span>            :     NSSLOWCERTCertKey certkey;
+<span class="lineNum">     736 </span>            : 
+<span class="lineNum">     737 </span><span class="lineCov">          1 :     PORT_Memset(&amp;certkey, 0, sizeof(NSSLOWCERTCertKey));</span>
+<span class="lineNum">     738 </span>            : 
+<span class="lineNum">     739 </span><span class="lineCov">          1 :     rv = nsslowcert_GetCertFields(derCert-&gt;data, derCert-&gt;len,</span>
+<span class="lineNum">     740 </span>            :                                   &amp;certkey.derIssuer, &amp;certkey.serialNumber, NULL, NULL,
+<span class="lineNum">     741 </span>            :                                   NULL, NULL, NULL);
+<span class="lineNum">     742 </span>            : 
+<span class="lineNum">     743 </span><span class="lineCov">          1 :     if (rv) {</span>
+<span class="lineNum">     744 </span>            :         goto loser;
+<span class="lineNum">     745 </span>            :     }
+<span class="lineNum">     746 </span>            : 
+<span class="lineNum">     747 </span><span class="lineCov">          1 :     return (nsslowcert_KeyFromIssuerAndSN(arena, &amp;certkey.derIssuer,</span>
+<span class="lineNum">     748 </span>            :                                           &amp;certkey.serialNumber, key));
+<span class="lineNum">     749 </span>            : loser:
+<span class="lineNum">     750 </span>            :     return (SECFailure);
+<span class="lineNum">     751 </span>            : }
+<a name="752"><span class="lineNum">     752 </span>            : </a>
+<span class="lineNum">     753 </span>            : NSSLOWKEYPublicKey *
+<span class="lineNum">     754 </span><span class="lineCov">          1 : nsslowcert_ExtractPublicKey(NSSLOWCERTCertificate *cert)</span>
+<span class="lineNum">     755 </span>            : {
+<span class="lineNum">     756 </span>            :     NSSLOWCERTSubjectPublicKeyInfo spki;
+<span class="lineNum">     757 </span>            :     NSSLOWKEYPublicKey *pubk;
+<span class="lineNum">     758 </span>            :     SECItem os;
+<span class="lineNum">     759 </span>            :     SECStatus rv;
+<span class="lineNum">     760 </span>            :     PLArenaPool *arena;
+<span class="lineNum">     761 </span>            :     SECOidTag tag;
+<span class="lineNum">     762 </span>            :     SECItem newDerSubjKeyInfo;
+<span class="lineNum">     763 </span>            : 
+<span class="lineNum">     764 </span><span class="lineCov">          1 :     arena = PORT_NewArena(DER_DEFAULT_CHUNKSIZE);</span>
+<span class="lineNum">     765 </span><span class="lineCov">          1 :     if (arena == NULL)</span>
+<span class="lineNum">     766 </span>            :         return NULL;
+<span class="lineNum">     767 </span>            : 
+<span class="lineNum">     768 </span><span class="lineCov">          1 :     pubk = (NSSLOWKEYPublicKey *)</span>
+<span class="lineNum">     769 </span>            :         PORT_ArenaZAlloc(arena, sizeof(NSSLOWKEYPublicKey));
+<span class="lineNum">     770 </span><span class="lineCov">          1 :     if (pubk == NULL) {</span>
+<span class="lineNum">     771 </span><span class="lineNoCov">          0 :         PORT_FreeArena(arena, PR_FALSE);</span>
+<span class="lineNum">     772 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     773 </span>            :     }
+<span class="lineNum">     774 </span>            : 
+<span class="lineNum">     775 </span><span class="lineCov">          1 :     pubk-&gt;arena = arena;</span>
+<span class="lineNum">     776 </span><span class="lineCov">          1 :     PORT_Memset(&amp;spki, 0, sizeof(spki));</span>
+<span class="lineNum">     777 </span>            : 
+<span class="lineNum">     778 </span>            :     /* copy the DER into the arena, since Quick DER returns data that points
+<span class="lineNum">     779 </span>            :        into the DER input, which may get freed by the caller */
+<span class="lineNum">     780 </span><span class="lineCov">          1 :     rv = SECITEM_CopyItem(arena, &amp;newDerSubjKeyInfo, &amp;cert-&gt;derSubjKeyInfo);</span>
+<span class="lineNum">     781 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     782 </span><span class="lineNoCov">          0 :         PORT_FreeArena(arena, PR_FALSE);</span>
+<span class="lineNum">     783 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     784 </span>            :     }
+<span class="lineNum">     785 </span>            : 
+<span class="lineNum">     786 </span>            :     /* we haven't bothered decoding the spki struct yet, do it now */
+<span class="lineNum">     787 </span><span class="lineCov">          1 :     rv = SEC_QuickDERDecodeItem(arena, &amp;spki,</span>
+<span class="lineNum">     788 </span>            :                                 nsslowcert_SubjectPublicKeyInfoTemplate, &amp;newDerSubjKeyInfo);
+<span class="lineNum">     789 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     790 </span><span class="lineNoCov">          0 :         PORT_FreeArena(arena, PR_FALSE);</span>
+<span class="lineNum">     791 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     792 </span>            :     }
+<span class="lineNum">     793 </span>            : 
+<span class="lineNum">     794 </span>            :     /* Convert bit string length from bits to bytes */
+<span class="lineNum">     795 </span><span class="lineCov">          1 :     os = spki.subjectPublicKey;</span>
+<span class="lineNum">     796 </span><span class="lineCov">          1 :     DER_ConvertBitString(&amp;os);</span>
+<span class="lineNum">     797 </span>            : 
+<span class="lineNum">     798 </span><span class="lineCov">          1 :     tag = SECOID_GetAlgorithmTag(&amp;spki.algorithm);</span>
+<span class="lineNum">     799 </span><span class="lineCov">          1 :     switch (tag) {</span>
+<span class="lineNum">     800 </span>            :         case SEC_OID_X500_RSA_ENCRYPTION:
+<span class="lineNum">     801 </span>            :         case SEC_OID_PKCS1_RSA_ENCRYPTION:
+<span class="lineNum">     802 </span>            :         case SEC_OID_PKCS1_RSA_PSS_SIGNATURE:
+<span class="lineNum">     803 </span><span class="lineCov">          1 :             pubk-&gt;keyType = NSSLOWKEYRSAKey;</span>
+<span class="lineNum">     804 </span>            :             prepare_low_rsa_pub_key_for_asn1(pubk);
+<span class="lineNum">     805 </span><span class="lineCov">          1 :             rv = SEC_QuickDERDecodeItem(arena, pubk,</span>
+<span class="lineNum">     806 </span>            :                                         nsslowcert_RSAPublicKeyTemplate, &amp;os);
+<span class="lineNum">     807 </span><span class="lineCov">          1 :             if (rv == SECSuccess)</span>
+<span class="lineNum">     808 </span>            :                 return pubk;
+<span class="lineNum">     809 </span>            :             break;
+<span class="lineNum">     810 </span>            :         case SEC_OID_ANSIX9_DSA_SIGNATURE:
+<span class="lineNum">     811 </span><span class="lineNoCov">          0 :             pubk-&gt;keyType = NSSLOWKEYDSAKey;</span>
+<span class="lineNum">     812 </span>            :             prepare_low_dsa_pub_key_for_asn1(pubk);
+<span class="lineNum">     813 </span><span class="lineNoCov">          0 :             rv = SEC_QuickDERDecodeItem(arena, pubk,</span>
+<span class="lineNum">     814 </span>            :                                         nsslowcert_DSAPublicKeyTemplate, &amp;os);
+<span class="lineNum">     815 </span><span class="lineNoCov">          0 :             if (rv == SECSuccess)</span>
+<span class="lineNum">     816 </span>            :                 return pubk;
+<span class="lineNum">     817 </span>            :             break;
+<span class="lineNum">     818 </span>            :         case SEC_OID_X942_DIFFIE_HELMAN_KEY:
+<span class="lineNum">     819 </span><span class="lineNoCov">          0 :             pubk-&gt;keyType = NSSLOWKEYDHKey;</span>
+<span class="lineNum">     820 </span>            :             prepare_low_dh_pub_key_for_asn1(pubk);
+<span class="lineNum">     821 </span><span class="lineNoCov">          0 :             rv = SEC_QuickDERDecodeItem(arena, pubk,</span>
+<span class="lineNum">     822 </span>            :                                         nsslowcert_DHPublicKeyTemplate, &amp;os);
+<span class="lineNum">     823 </span><span class="lineNoCov">          0 :             if (rv == SECSuccess)</span>
+<span class="lineNum">     824 </span>            :                 return pubk;
+<span class="lineNum">     825 </span>            :             break;
+<span class="lineNum">     826 </span>            : #ifndef NSS_DISABLE_ECC
+<span class="lineNum">     827 </span>            :         case SEC_OID_ANSIX962_EC_PUBLIC_KEY:
+<span class="lineNum">     828 </span><span class="lineNoCov">          0 :             pubk-&gt;keyType = NSSLOWKEYECKey;</span>
+<span class="lineNum">     829 </span>            :             /* Since PKCS#11 directly takes the DER encoding of EC params
+<span class="lineNum">     830 </span>            :              * and public value, we don't need any decoding here.
+<span class="lineNum">     831 </span>            :              */
+<span class="lineNum">     832 </span><span class="lineNoCov">          0 :             rv = SECITEM_CopyItem(arena, &amp;pubk-&gt;u.ec.ecParams.DEREncoding,</span>
+<span class="lineNum">     833 </span>            :                                   &amp;spki.algorithm.parameters);
+<span class="lineNum">     834 </span><span class="lineNoCov">          0 :             if (rv != SECSuccess)</span>
+<span class="lineNum">     835 </span>            :                 break;
+<span class="lineNum">     836 </span>            : 
+<span class="lineNum">     837 </span>            :             /* Fill out the rest of the ecParams structure
+<span class="lineNum">     838 </span>            :              * based on the encoded params
+<span class="lineNum">     839 </span>            :              */
+<span class="lineNum">     840 </span><span class="lineNoCov">          0 :             if (LGEC_FillParams(arena, &amp;pubk-&gt;u.ec.ecParams.DEREncoding,</span>
+<span class="lineNum">     841 </span>            :                                 &amp;pubk-&gt;u.ec.ecParams) != SECSuccess)
+<span class="lineNum">     842 </span>            :                 break;
+<span class="lineNum">     843 </span>            : 
+<span class="lineNum">     844 </span><span class="lineNoCov">          0 :             rv = SECITEM_CopyItem(arena, &amp;pubk-&gt;u.ec.publicValue, &amp;os);</span>
+<span class="lineNum">     845 </span><span class="lineNoCov">          0 :             if (rv == SECSuccess)</span>
+<span class="lineNum">     846 </span>            :                 return pubk;
+<span class="lineNum">     847 </span>            :             break;
+<span class="lineNum">     848 </span>            : #endif /* NSS_DISABLE_ECC */
+<span class="lineNum">     849 </span>            :         default:
+<span class="lineNum">     850 </span>            :             rv = SECFailure;
+<span class="lineNum">     851 </span>            :             break;
+<span class="lineNum">     852 </span>            :     }
+<span class="lineNum">     853 </span>            : 
+<span class="lineNum">     854 </span><span class="lineNoCov">          0 :     lg_nsslowkey_DestroyPublicKey(pubk);</span>
+<span class="lineNum">     855 </span><span class="lineNoCov">          0 :     return NULL;</span>
+<span class="lineNum">     856 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

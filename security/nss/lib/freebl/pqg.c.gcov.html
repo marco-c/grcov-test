@@ -1,0 +1,1962 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/nss/lib/freebl/pqg.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">security/nss/lib/freebl</a> - pqg.c<span style="font-size: 80%;"> (source / <a href="pqg.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">742</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">29</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public</a>
+<span class="lineNum">       2 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       3 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : /*
+<span class="lineNum">       6 </span>            :  * PQG parameter generation/verification.  Based on FIPS 186-3.
+<span class="lineNum">       7 </span>            :  */
+<span class="lineNum">       8 </span>            : #ifdef FREEBL_NO_DEPEND
+<span class="lineNum">       9 </span>            : #include &quot;stubs.h&quot;
+<span class="lineNum">      10 </span>            : #endif
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : #include &quot;prerr.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;secerr.h&quot;
+<span class="lineNum">      14 </span>            : 
+<span class="lineNum">      15 </span>            : #include &quot;prtypes.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;blapi.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;secitem.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;mpi.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;mpprime.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;mplogic.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;secmpi.h&quot;
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : #define MAX_ITERATIONS 1000 /* Maximum number of iterations of primegen */
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : typedef enum {
+<span class="lineNum">      26 </span>            :     FIPS186_1_TYPE,   /* Probablistic */
+<span class="lineNum">      27 </span>            :     FIPS186_3_TYPE,   /* Probablistic */
+<span class="lineNum">      28 </span>            :     FIPS186_3_ST_TYPE /* Shawe-Taylor provable */
+<span class="lineNum">      29 </span>            : } pqgGenType;
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : /*
+<span class="lineNum">      32 </span>            :  * These test iterations are quite a bit larger than we previously had.
+<span class="lineNum">      33 </span>            :  * This is because FIPS 186-3 is worried about the primes in PQG generation.
+<span class="lineNum">      34 </span>            :  * It may be possible to purposefully construct composites which more
+<span class="lineNum">      35 </span>            :  * iterations of Miller-Rabin than the for your normal randomly selected
+<span class="lineNum">      36 </span>            :  * numbers.There are 3 ways to counter this: 1) use one of the cool provably
+<span class="lineNum">      37 </span>            :  * prime algorithms (which would require a lot more work than DSA-2 deservers.
+<span class="lineNum">      38 </span>            :  * 2) add a Lucas primality test (which requires coding a Lucas primality test,
+<span class="lineNum">      39 </span>            :  * or 3) use a larger M-R test count. I chose the latter. It increases the time
+<span class="lineNum">      40 </span>            :  * that it takes to prove the selected prime, but it shouldn't increase the
+<span class="lineNum">      41 </span>            :  * overall time to run the algorithm (non-primes should still faile M-R
+<span class="lineNum">      42 </span>            :  * realively quickly). If you want to get that last bit of performance,
+<span class="lineNum">      43 </span>            :  * implement Lucas and adjust these two functions.  See FIPS 186-3 Appendix C
+<span class="lineNum">      44 </span>            :  * and F for more information.
+<a name="45"><span class="lineNum">      45 </span>            :  */</a>
+<span class="lineNum">      46 </span>            : static int
+<span class="lineNum">      47 </span><span class="lineNoCov">          0 : prime_testcount_p(int L, int N)</span>
+<span class="lineNum">      48 </span>            : {
+<span class="lineNum">      49 </span><span class="lineNoCov">          0 :     switch (L) {</span>
+<span class="lineNum">      50 </span>            :         case 1024:
+<span class="lineNum">      51 </span>            :             return 40;
+<span class="lineNum">      52 </span>            :         case 2048:
+<span class="lineNum">      53 </span>            :             return 56;
+<span class="lineNum">      54 </span>            :         case 3072:
+<span class="lineNum">      55 </span>            :             return 64;
+<span class="lineNum">      56 </span>            :         default:
+<span class="lineNum">      57 </span>            :             break;
+<span class="lineNum">      58 </span>            :     }
+<span class="lineNum">      59 </span>            :     return 50; /* L = 512-960 */
+<span class="lineNum">      60 </span>            : }
+<span class="lineNum">      61 </span>            : 
+<span class="lineNum">      62 </span>            : /* The q numbers are different if you run M-R followd by Lucas. I created
+<span class="lineNum">      63 </span>            :  * a separate function so if someone wanted to add the Lucas check, they
+<span class="lineNum">      64 </span>            :  * could do so fairly easily */
+<span class="lineNum">      65 </span>            : static int
+<span class="lineNum">      66 </span>            : prime_testcount_q(int L, int N)
+<span class="lineNum">      67 </span>            : {
+<span class="lineNum">      68 </span><span class="lineNoCov">          0 :     return prime_testcount_p(L, N);</span>
+<span class="lineNum">      69 </span>            : }
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span>            : /*
+<span class="lineNum">      72 </span>            :  * generic function to make sure our input matches DSA2 requirements
+<span class="lineNum">      73 </span>            :  * this gives us one place to go if we need to bump the requirements in the
+<span class="lineNum">      74 </span>            :  * future.
+<a name="75"><span class="lineNum">      75 </span>            :  */</a>
+<span class="lineNum">      76 </span>            : static SECStatus
+<span class="lineNum">      77 </span><span class="lineNoCov">          0 : pqg_validate_dsa2(unsigned int L, unsigned int N)</span>
+<span class="lineNum">      78 </span>            : {
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span><span class="lineNoCov">          0 :     switch (L) {</span>
+<span class="lineNum">      81 </span>            :         case 1024:
+<span class="lineNum">      82 </span><span class="lineNoCov">          0 :             if (N != DSA1_Q_BITS) {</span>
+<span class="lineNum">      83 </span><span class="lineNoCov">          0 :                 PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">      84 </span><span class="lineNoCov">          0 :                 return SECFailure;</span>
+<span class="lineNum">      85 </span>            :             }
+<span class="lineNum">      86 </span>            :             break;
+<span class="lineNum">      87 </span>            :         case 2048:
+<span class="lineNum">      88 </span><span class="lineNoCov">          0 :             if ((N != 224) &amp;&amp; (N != 256)) {</span>
+<span class="lineNum">      89 </span><span class="lineNoCov">          0 :                 PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">      90 </span><span class="lineNoCov">          0 :                 return SECFailure;</span>
+<span class="lineNum">      91 </span>            :             }
+<span class="lineNum">      92 </span>            :             break;
+<span class="lineNum">      93 </span>            :         case 3072:
+<span class="lineNum">      94 </span><span class="lineNoCov">          0 :             if (N != 256) {</span>
+<span class="lineNum">      95 </span><span class="lineNoCov">          0 :                 PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">      96 </span><span class="lineNoCov">          0 :                 return SECFailure;</span>
+<span class="lineNum">      97 </span>            :             }
+<span class="lineNum">      98 </span>            :             break;
+<span class="lineNum">      99 </span>            :         default:
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     101 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">     102 </span>            :     }
+<span class="lineNum">     103 </span>            :     return SECSuccess;
+<span class="lineNum">     104 </span>            : }
+<a name="105"><span class="lineNum">     105 </span>            : </a>
+<span class="lineNum">     106 </span>            : static unsigned int
+<span class="lineNum">     107 </span><span class="lineNoCov">          0 : pqg_get_default_N(unsigned int L)</span>
+<span class="lineNum">     108 </span>            : {
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 :     unsigned int N = 0;</span>
+<span class="lineNum">     110 </span><span class="lineNoCov">          0 :     switch (L) {</span>
+<span class="lineNum">     111 </span>            :         case 1024:
+<span class="lineNum">     112 </span>            :             N = DSA1_Q_BITS;
+<span class="lineNum">     113 </span>            :             break;
+<span class="lineNum">     114 </span>            :         case 2048:
+<span class="lineNum">     115 </span><span class="lineNoCov">          0 :             N = 224;</span>
+<span class="lineNum">     116 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     117 </span>            :         case 3072:
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :             N = 256;</span>
+<span class="lineNum">     119 </span><span class="lineNoCov">          0 :             break;</span>
+<span class="lineNum">     120 </span>            :         default:
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :             break; /* N already set to zero */</span>
+<span class="lineNum">     123 </span>            :     }
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :     return N;</span>
+<span class="lineNum">     125 </span>            : }
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span>            : /*
+<span class="lineNum">     128 </span>            :  * Select the lowest hash algorithm usable
+<a name="129"><span class="lineNum">     129 </span>            :  */</a>
+<span class="lineNum">     130 </span>            : static HASH_HashType
+<span class="lineNum">     131 </span><span class="lineNoCov">          0 : getFirstHash(unsigned int L, unsigned int N)</span>
+<span class="lineNum">     132 </span>            : {
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :     if (N &lt; 224) {</span>
+<span class="lineNum">     134 </span>            :         return HASH_AlgSHA1;
+<span class="lineNum">     135 </span>            :     }
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 :     if (N &lt; 256) {</span>
+<span class="lineNum">     137 </span>            :         return HASH_AlgSHA224;
+<span class="lineNum">     138 </span>            :     }
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :     if (N &lt; 384) {</span>
+<span class="lineNum">     140 </span>            :         return HASH_AlgSHA256;
+<span class="lineNum">     141 </span>            :     }
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :     if (N &lt; 512) {</span>
+<span class="lineNum">     143 </span>            :         return HASH_AlgSHA384;
+<span class="lineNum">     144 </span>            :     }
+<span class="lineNum">     145 </span>            :     return HASH_AlgSHA512;
+<span class="lineNum">     146 </span>            : }
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span>            : /*
+<span class="lineNum">     149 </span>            :  * find the next usable hash algorthim
+<a name="150"><span class="lineNum">     150 </span>            :  */</a>
+<span class="lineNum">     151 </span>            : static HASH_HashType
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 : getNextHash(HASH_HashType hashtype)</span>
+<span class="lineNum">     153 </span>            : {
+<span class="lineNum">     154 </span>            :     switch (hashtype) {
+<span class="lineNum">     155 </span>            :         case HASH_AlgSHA1:
+<span class="lineNum">     156 </span>            :             hashtype = HASH_AlgSHA224;
+<span class="lineNum">     157 </span>            :             break;
+<span class="lineNum">     158 </span>            :         case HASH_AlgSHA224:
+<span class="lineNum">     159 </span>            :             hashtype = HASH_AlgSHA256;
+<span class="lineNum">     160 </span>            :             break;
+<span class="lineNum">     161 </span>            :         case HASH_AlgSHA256:
+<span class="lineNum">     162 </span>            :             hashtype = HASH_AlgSHA384;
+<span class="lineNum">     163 </span>            :             break;
+<span class="lineNum">     164 </span>            :         case HASH_AlgSHA384:
+<span class="lineNum">     165 </span>            :             hashtype = HASH_AlgSHA512;
+<span class="lineNum">     166 </span>            :             break;
+<span class="lineNum">     167 </span>            :         case HASH_AlgSHA512:
+<span class="lineNum">     168 </span>            :         default:
+<span class="lineNum">     169 </span>            :             hashtype = HASH_AlgTOTAL;
+<span class="lineNum">     170 </span>            :             break;
+<span class="lineNum">     171 </span>            :     }
+<span class="lineNum">     172 </span><span class="lineNoCov">          0 :     return hashtype;</span>
+<span class="lineNum">     173 </span>            : }
+<a name="174"><span class="lineNum">     174 </span>            : </a>
+<span class="lineNum">     175 </span>            : static unsigned int
+<span class="lineNum">     176 </span><span class="lineNoCov">          0 : HASH_ResultLen(HASH_HashType type)</span>
+<span class="lineNum">     177 </span>            : {
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :     const SECHashObject *hash_obj = HASH_GetRawHashObject(type);</span>
+<span class="lineNum">     179 </span>            :     PORT_Assert(hash_obj != NULL);
+<span class="lineNum">     180 </span><span class="lineNoCov">          0 :     if (hash_obj == NULL) {</span>
+<span class="lineNum">     181 </span>            :         /* type is always a valid HashType. Thus a null hash_obj must be a bug */
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);</span>
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 :         return 0;</span>
+<span class="lineNum">     184 </span>            :     }
+<span class="lineNum">     185 </span>            :     PORT_Assert(hash_obj-&gt;length != 0);
+<span class="lineNum">     186 </span><span class="lineNoCov">          0 :     return hash_obj-&gt;length;</span>
+<span class="lineNum">     187 </span>            : }
+<a name="188"><span class="lineNum">     188 </span>            : </a>
+<span class="lineNum">     189 </span>            : static SECStatus
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 : HASH_HashBuf(HASH_HashType type, unsigned char *dest,</span>
+<span class="lineNum">     191 </span>            :              const unsigned char *src, PRUint32 src_len)
+<span class="lineNum">     192 </span>            : {
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 :     const SECHashObject *hash_obj = HASH_GetRawHashObject(type);</span>
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 :     void *hashcx = NULL;</span>
+<span class="lineNum">     195 </span>            :     unsigned int dummy;
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :     if (hash_obj == NULL) {</span>
+<span class="lineNum">     198 </span>            :         return SECFailure;
+<span class="lineNum">     199 </span>            :     }
+<span class="lineNum">     200 </span>            : 
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :     hashcx = hash_obj-&gt;create();</span>
+<span class="lineNum">     202 </span><span class="lineNoCov">          0 :     if (hashcx == NULL) {</span>
+<span class="lineNum">     203 </span>            :         return SECFailure;
+<span class="lineNum">     204 </span>            :     }
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :     hash_obj-&gt;begin(hashcx);</span>
+<span class="lineNum">     206 </span><span class="lineNoCov">          0 :     hash_obj-&gt;update(hashcx, src, src_len);</span>
+<span class="lineNum">     207 </span><span class="lineNoCov">          0 :     hash_obj-&gt;end(hashcx, dest, &amp;dummy, hash_obj-&gt;length);</span>
+<span class="lineNum">     208 </span><span class="lineNoCov">          0 :     hash_obj-&gt;destroy(hashcx, PR_TRUE);</span>
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     210 </span>            : }
+<a name="211"><span class="lineNum">     211 </span>            : </a>
+<span class="lineNum">     212 </span>            : unsigned int
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 : PQG_GetLength(const SECItem *obj)</span>
+<span class="lineNum">     214 </span>            : {
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 :     unsigned int len = obj-&gt;len;</span>
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span><span class="lineNoCov">          0 :     if (obj-&gt;data == NULL) {</span>
+<span class="lineNum">     218 </span>            :         return 0;
+<span class="lineNum">     219 </span>            :     }
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 :     if (len &gt; 1 &amp;&amp; obj-&gt;data[0] == 0) {</span>
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :         len--;</span>
+<span class="lineNum">     222 </span>            :     }
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :     return len;</span>
+<span class="lineNum">     224 </span>            : }
+<a name="225"><span class="lineNum">     225 </span>            : </a>
+<span class="lineNum">     226 </span>            : SECStatus
+<span class="lineNum">     227 </span><span class="lineNoCov">          0 : PQG_Check(const PQGParams *params)</span>
+<span class="lineNum">     228 </span>            : {
+<span class="lineNum">     229 </span>            :     unsigned int L, N;
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :     if (params == NULL) {</span>
+<span class="lineNum">     233 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     234 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     235 </span>            :     }
+<span class="lineNum">     236 </span>            : 
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :     L = PQG_GetLength(&amp;params-&gt;prime) * PR_BITS_PER_BYTE;</span>
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :     N = PQG_GetLength(&amp;params-&gt;subPrime) * PR_BITS_PER_BYTE;</span>
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span><span class="lineNoCov">          0 :     if (L &lt; 1024) {</span>
+<span class="lineNum">     241 </span>            :         int j;
+<span class="lineNum">     242 </span>            : 
+<span class="lineNum">     243 </span>            :         /* handle DSA1 pqg parameters with less thatn 1024 bits*/
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :         if (N != DSA1_Q_BITS) {</span>
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">     247 </span>            :         }
+<span class="lineNum">     248 </span><span class="lineNoCov">          0 :         j = PQG_PBITS_TO_INDEX(L);</span>
+<span class="lineNum">     249 </span><span class="lineNoCov">          0 :         if (j &lt; 0) {</span>
+<span class="lineNum">     250 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 :             rv = SECFailure;</span>
+<span class="lineNum">     252 </span>            :         }
+<span class="lineNum">     253 </span>            :     } else {
+<span class="lineNum">     254 </span>            :         /* handle DSA2 parameters (includes DSA1, 1024 bits) */
+<span class="lineNum">     255 </span><span class="lineNoCov">          0 :         rv = pqg_validate_dsa2(L, N);</span>
+<span class="lineNum">     256 </span>            :     }
+<span class="lineNum">     257 </span><span class="lineNoCov">          0 :     return rv;</span>
+<span class="lineNum">     258 </span>            : }
+<a name="259"><span class="lineNum">     259 </span>            : </a>
+<span class="lineNum">     260 </span>            : HASH_HashType
+<span class="lineNum">     261 </span><span class="lineNoCov">          0 : PQG_GetHashType(const PQGParams *params)</span>
+<span class="lineNum">     262 </span>            : {
+<span class="lineNum">     263 </span>            :     unsigned int L, N;
+<span class="lineNum">     264 </span>            : 
+<span class="lineNum">     265 </span><span class="lineNoCov">          0 :     if (params == NULL) {</span>
+<span class="lineNum">     266 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     267 </span><span class="lineNoCov">          0 :         return HASH_AlgNULL;</span>
+<span class="lineNum">     268 </span>            :     }
+<span class="lineNum">     269 </span>            : 
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 :     L = PQG_GetLength(&amp;params-&gt;prime) * PR_BITS_PER_BYTE;</span>
+<span class="lineNum">     271 </span><span class="lineNoCov">          0 :     N = PQG_GetLength(&amp;params-&gt;subPrime) * PR_BITS_PER_BYTE;</span>
+<span class="lineNum">     272 </span><span class="lineNoCov">          0 :     return getFirstHash(L, N);</span>
+<span class="lineNum">     273 </span>            : }
+<span class="lineNum">     274 </span>            : 
+<span class="lineNum">     275 </span>            : /* Get a seed for generating P and Q.  If in testing mode, copy in the
+<span class="lineNum">     276 </span>            : ** seed from FIPS 186-1 appendix 5.  Otherwise, obtain bytes from the
+<span class="lineNum">     277 </span>            : ** global random number generator.
+<a name="278"><span class="lineNum">     278 </span>            : */</a>
+<span class="lineNum">     279 </span>            : static SECStatus
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 : getPQseed(SECItem *seed, PLArenaPool *arena)</span>
+<span class="lineNum">     281 </span>            : {
+<span class="lineNum">     282 </span>            :     SECStatus rv;
+<span class="lineNum">     283 </span>            : 
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 :     if (!seed-&gt;data) {</span>
+<span class="lineNum">     285 </span><span class="lineNoCov">          0 :         seed-&gt;data = (unsigned char *)PORT_ArenaZAlloc(arena, seed-&gt;len);</span>
+<span class="lineNum">     286 </span>            :     }
+<span class="lineNum">     287 </span><span class="lineNoCov">          0 :     if (!seed-&gt;data) {</span>
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_MEMORY);</span>
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     290 </span>            :     }
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :     rv = RNG_GenerateGlobalRandomBytes(seed-&gt;data, seed-&gt;len);</span>
+<span class="lineNum">     292 </span>            :     /*
+<span class="lineNum">     293 </span>            :      * NIST CMVP disallows a sequence of 20 bytes with the most
+<span class="lineNum">     294 </span>            :      * significant byte equal to 0.  Perhaps they interpret
+<span class="lineNum">     295 </span>            :      * &quot;a sequence of at least 160 bits&quot; as &quot;a number &gt;= 2^159&quot;.
+<span class="lineNum">     296 </span>            :      * So we always set the most significant bit to 1. (bug 334533)
+<span class="lineNum">     297 </span>            :      */
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 :     seed-&gt;data[0] |= 0x80;</span>
+<span class="lineNum">     299 </span><span class="lineNoCov">          0 :     return rv;</span>
+<span class="lineNum">     300 </span>            : }
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span>            : /* Generate a candidate h value.  If in testing mode, use the h value
+<span class="lineNum">     303 </span>            : ** specified in FIPS 186-1 appendix 5, h = 2.  Otherwise, obtain bytes
+<span class="lineNum">     304 </span>            : ** from the global random number generator.
+<a name="305"><span class="lineNum">     305 </span>            : */</a>
+<span class="lineNum">     306 </span>            : static SECStatus
+<span class="lineNum">     307 </span><span class="lineNoCov">          0 : generate_h_candidate(SECItem *hit, mp_int *H)</span>
+<span class="lineNum">     308 </span>            : {
+<span class="lineNum">     309 </span><span class="lineNoCov">          0 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     310 </span><span class="lineNoCov">          0 :     mp_err err = MP_OKAY;</span>
+<span class="lineNum">     311 </span>            : #ifdef FIPS_186_1_A5_TEST
+<span class="lineNum">     312 </span>            :     memset(hit-&gt;data, 0, hit-&gt;len);
+<span class="lineNum">     313 </span>            :     hit-&gt;data[hit-&gt;len - 1] = 0x02;
+<span class="lineNum">     314 </span>            : #else
+<span class="lineNum">     315 </span><span class="lineNoCov">          0 :     rv = RNG_GenerateGlobalRandomBytes(hit-&gt;data, hit-&gt;len);</span>
+<span class="lineNum">     316 </span>            : #endif
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :     if (rv)</span>
+<span class="lineNum">     318 </span>            :         return SECFailure;
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :     err = mp_read_unsigned_octets(H, hit-&gt;data, hit-&gt;len);</span>
+<span class="lineNum">     320 </span><span class="lineNoCov">          0 :     if (err) {</span>
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :         MP_TO_SEC_ERROR(err);</span>
+<span class="lineNum">     322 </span>            :         return SECFailure;
+<span class="lineNum">     323 </span>            :     }
+<span class="lineNum">     324 </span>            :     return SECSuccess;
+<span class="lineNum">     325 </span>            : }
+<a name="326"><span class="lineNum">     326 </span>            : </a>
+<span class="lineNum">     327 </span>            : static SECStatus
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 : addToSeed(const SECItem *seed,</span>
+<span class="lineNum">     329 </span>            :           unsigned long addend,
+<span class="lineNum">     330 </span>            :           int seedlen, /* g in 186-1 */
+<span class="lineNum">     331 </span>            :           SECItem *seedout)
+<span class="lineNum">     332 </span>            : {
+<span class="lineNum">     333 </span>            :     mp_int s, sum, modulus, tmp;
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :     mp_err err = MP_OKAY;</span>
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     336 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;s) = 0;</span>
+<span class="lineNum">     337 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;sum) = 0;</span>
+<span class="lineNum">     338 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;modulus) = 0;</span>
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;tmp) = 0;</span>
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;s));</span>
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;sum));</span>
+<span class="lineNum">     342 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;modulus));</span>
+<span class="lineNum">     343 </span><span class="lineNoCov">          0 :     SECITEM_TO_MPINT(*seed, &amp;s); /* s = seed */</span>
+<span class="lineNum">     344 </span>            :     /* seed += addend */
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 :     if (addend &lt; MP_DIGIT_MAX) {</span>
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_add_d(&amp;s, (mp_digit)addend, &amp;s));</span>
+<span class="lineNum">     347 </span>            :     } else {
+<span class="lineNum">     348 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_init(&amp;tmp));</span>
+<span class="lineNum">     349 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_set_ulong(&amp;tmp, addend));</span>
+<span class="lineNum">     350 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_add(&amp;s, &amp;tmp, &amp;s));</span>
+<span class="lineNum">     351 </span>            :     }
+<span class="lineNum">     352 </span>            :     /*sum = s mod 2**seedlen */
+<span class="lineNum">     353 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_div_2d(&amp;s, (mp_digit)seedlen, NULL, &amp;sum));</span>
+<span class="lineNum">     354 </span><span class="lineNoCov">          0 :     if (seedout-&gt;data != NULL) {</span>
+<span class="lineNum">     355 </span><span class="lineNoCov">          0 :         SECITEM_ZfreeItem(seedout, PR_FALSE);</span>
+<span class="lineNum">     356 </span>            :     }
+<span class="lineNum">     357 </span><span class="lineNoCov">          0 :     MPINT_TO_SECITEM(&amp;sum, seedout, NULL);</span>
+<span class="lineNum">     358 </span>            : cleanup:
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 :     mp_clear(&amp;s);</span>
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 :     mp_clear(&amp;sum);</span>
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 :     mp_clear(&amp;modulus);</span>
+<span class="lineNum">     362 </span><span class="lineNoCov">          0 :     mp_clear(&amp;tmp);</span>
+<span class="lineNum">     363 </span><span class="lineNoCov">          0 :     if (err) {</span>
+<span class="lineNum">     364 </span><span class="lineNoCov">          0 :         MP_TO_SEC_ERROR(err);</span>
+<span class="lineNum">     365 </span>            :         return SECFailure;
+<span class="lineNum">     366 </span>            :     }
+<span class="lineNum">     367 </span>            :     return rv;
+<span class="lineNum">     368 </span>            : }
+<span class="lineNum">     369 </span>            : 
+<span class="lineNum">     370 </span>            : /* Compute Hash[(SEED + addend) mod 2**g]
+<span class="lineNum">     371 </span>            : ** Result is placed in shaOutBuf.
+<span class="lineNum">     372 </span>            : ** This computation is used in steps 2 and 7 of FIPS 186 Appendix 2.2  and
+<span class="lineNum">     373 </span>            : ** step 11.2 of FIPS 186-3 Appendix A.1.1.2 .
+<a name="374"><span class="lineNum">     374 </span>            : */</a>
+<span class="lineNum">     375 </span>            : static SECStatus
+<span class="lineNum">     376 </span><span class="lineNoCov">          0 : addToSeedThenHash(HASH_HashType hashtype,</span>
+<span class="lineNum">     377 </span>            :                   const SECItem *seed,
+<span class="lineNum">     378 </span>            :                   unsigned long addend,
+<span class="lineNum">     379 </span>            :                   int seedlen, /* g in 186-1 */
+<span class="lineNum">     380 </span>            :                   unsigned char *hashOutBuf)
+<span class="lineNum">     381 </span>            : {
+<span class="lineNum">     382 </span><span class="lineNoCov">          0 :     SECItem str = { 0, 0, 0 };</span>
+<span class="lineNum">     383 </span>            :     SECStatus rv;
+<span class="lineNum">     384 </span><span class="lineNoCov">          0 :     rv = addToSeed(seed, addend, seedlen, &amp;str);</span>
+<span class="lineNum">     385 </span><span class="lineNoCov">          0 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     386 </span>            :         return rv;
+<span class="lineNum">     387 </span>            :     }
+<span class="lineNum">     388 </span><span class="lineNoCov">          0 :     rv = HASH_HashBuf(hashtype, hashOutBuf, str.data, str.len); /* hash result */</span>
+<span class="lineNum">     389 </span><span class="lineNoCov">          0 :     if (str.data)</span>
+<span class="lineNum">     390 </span><span class="lineNoCov">          0 :         SECITEM_ZfreeItem(&amp;str, PR_FALSE);</span>
+<span class="lineNum">     391 </span><span class="lineNoCov">          0 :     return rv;</span>
+<span class="lineNum">     392 </span>            : }
+<span class="lineNum">     393 </span>            : 
+<span class="lineNum">     394 </span>            : /*
+<span class="lineNum">     395 </span>            : **  Perform steps 2 and 3 of FIPS 186-1, appendix 2.2.
+<span class="lineNum">     396 </span>            : **  Generate Q from seed.
+<a name="397"><span class="lineNum">     397 </span>            : */</a>
+<span class="lineNum">     398 </span>            : static SECStatus
+<span class="lineNum">     399 </span><span class="lineNoCov">          0 : makeQfromSeed(</span>
+<span class="lineNum">     400 </span>            :     unsigned int g,      /* input.  Length of seed in bits. */
+<span class="lineNum">     401 </span>            :     const SECItem *seed, /* input.  */
+<span class="lineNum">     402 </span>            :     mp_int *Q)           /* output. */
+<span class="lineNum">     403 </span>            : {
+<span class="lineNum">     404 </span>            :     unsigned char sha1[SHA1_LENGTH];
+<span class="lineNum">     405 </span>            :     unsigned char sha2[SHA1_LENGTH];
+<span class="lineNum">     406 </span>            :     unsigned char U[SHA1_LENGTH];
+<span class="lineNum">     407 </span><span class="lineNoCov">          0 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     408 </span><span class="lineNoCov">          0 :     mp_err err = MP_OKAY;</span>
+<span class="lineNum">     409 </span>            :     int i;
+<span class="lineNum">     410 </span>            :     /* ******************************************************************
+<span class="lineNum">     411 </span>            :     ** Step 2.
+<span class="lineNum">     412 </span>            :     ** &quot;Compute U = SHA[SEED] XOR SHA[(SEED+1) mod 2**g].&quot;
+<span class="lineNum">     413 </span>            :     **/
+<span class="lineNum">     414 </span><span class="lineNoCov">          0 :     CHECK_SEC_OK(SHA1_HashBuf(sha1, seed-&gt;data, seed-&gt;len));</span>
+<span class="lineNum">     415 </span><span class="lineNoCov">          0 :     CHECK_SEC_OK(addToSeedThenHash(HASH_AlgSHA1, seed, 1, g, sha2));</span>
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :     for (i = 0; i &lt; SHA1_LENGTH; ++i)</span>
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :         U[i] = sha1[i] ^ sha2[i];</span>
+<span class="lineNum">     418 </span>            :     /* ******************************************************************
+<span class="lineNum">     419 </span>            :     ** Step 3.
+<span class="lineNum">     420 </span>            :     ** &quot;Form Q from U by setting the most signficant bit (the 2**159 bit)
+<span class="lineNum">     421 </span>            :     **  and the least signficant bit to 1.  In terms of boolean operations,
+<span class="lineNum">     422 </span>            :     **  Q = U OR 2**159 OR 1.  Note that 2**159 &lt; Q &lt; 2**160.&quot;
+<span class="lineNum">     423 </span>            :     */
+<span class="lineNum">     424 </span><span class="lineNoCov">          0 :     U[0] |= 0x80; /* U is MSB first */</span>
+<span class="lineNum">     425 </span><span class="lineNoCov">          0 :     U[SHA1_LENGTH - 1] |= 0x01;</span>
+<span class="lineNum">     426 </span><span class="lineNoCov">          0 :     err = mp_read_unsigned_octets(Q, U, SHA1_LENGTH);</span>
+<span class="lineNum">     427 </span>            : cleanup:
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :     memset(U, 0, SHA1_LENGTH);</span>
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 :     memset(sha1, 0, SHA1_LENGTH);</span>
+<span class="lineNum">     430 </span><span class="lineNoCov">          0 :     memset(sha2, 0, SHA1_LENGTH);</span>
+<span class="lineNum">     431 </span><span class="lineNoCov">          0 :     if (err) {</span>
+<span class="lineNum">     432 </span><span class="lineNoCov">          0 :         MP_TO_SEC_ERROR(err);</span>
+<span class="lineNum">     433 </span>            :         return SECFailure;
+<span class="lineNum">     434 </span>            :     }
+<span class="lineNum">     435 </span>            :     return rv;
+<span class="lineNum">     436 </span>            : }
+<span class="lineNum">     437 </span>            : 
+<span class="lineNum">     438 </span>            : /*
+<span class="lineNum">     439 </span>            : **  Perform steps 6 and 7 of FIPS 186-3, appendix A.1.1.2.
+<span class="lineNum">     440 </span>            : **  Generate Q from seed.
+<a name="441"><span class="lineNum">     441 </span>            : */</a>
+<span class="lineNum">     442 </span>            : static SECStatus
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 : makeQ2fromSeed(</span>
+<span class="lineNum">     444 </span>            :     HASH_HashType hashtype, /* selected Hashing algorithm */
+<span class="lineNum">     445 </span>            :     unsigned int N,         /* input.  Length of q in bits. */
+<span class="lineNum">     446 </span>            :     const SECItem *seed,    /* input.  */
+<span class="lineNum">     447 </span>            :     mp_int *Q)              /* output. */
+<span class="lineNum">     448 </span>            : {
+<span class="lineNum">     449 </span>            :     unsigned char U[HASH_LENGTH_MAX];
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     451 </span><span class="lineNoCov">          0 :     mp_err err = MP_OKAY;</span>
+<span class="lineNum">     452 </span><span class="lineNoCov">          0 :     int N_bytes = N / PR_BITS_PER_BYTE; /* length of N in bytes rather than bits */</span>
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :     int hashLen = HASH_ResultLen(hashtype);</span>
+<span class="lineNum">     454 </span><span class="lineNoCov">          0 :     int offset = 0;</span>
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span>            :     /* ******************************************************************
+<span class="lineNum">     457 </span>            :     ** Step 6.
+<span class="lineNum">     458 </span>            :     ** &quot;Compute U = hash[SEED] mod 2**N-1].&quot;
+<span class="lineNum">     459 </span>            :     **/
+<span class="lineNum">     460 </span><span class="lineNoCov">          0 :     CHECK_SEC_OK(HASH_HashBuf(hashtype, U, seed-&gt;data, seed-&gt;len));</span>
+<span class="lineNum">     461 </span>            :     /* mod 2**N . Step 7 will explicitly set the top bit to 1, so no need
+<span class="lineNum">     462 </span>            :      * to handle mod 2**N-1 */
+<span class="lineNum">     463 </span><span class="lineNoCov">          0 :     if (hashLen &gt; N_bytes) {</span>
+<span class="lineNum">     464 </span><span class="lineNoCov">          0 :         offset = hashLen - N_bytes;</span>
+<span class="lineNum">     465 </span>            :     }
+<span class="lineNum">     466 </span>            :     /* ******************************************************************
+<span class="lineNum">     467 </span>            :     ** Step 7.
+<span class="lineNum">     468 </span>            :     ** computed_q = 2**(N-1) + U + 1 - (U mod 2)
+<span class="lineNum">     469 </span>            :     **
+<span class="lineNum">     470 </span>            :     ** This is the same as:
+<span class="lineNum">     471 </span>            :     ** computed_q = 2**(N-1) | U | 1;
+<span class="lineNum">     472 </span>            :     */
+<span class="lineNum">     473 </span><span class="lineNoCov">          0 :     U[offset] |= 0x80; /* U is MSB first */</span>
+<span class="lineNum">     474 </span><span class="lineNoCov">          0 :     U[hashLen - 1] |= 0x01;</span>
+<span class="lineNum">     475 </span><span class="lineNoCov">          0 :     err = mp_read_unsigned_octets(Q, &amp;U[offset], N_bytes);</span>
+<span class="lineNum">     476 </span>            : cleanup:
+<span class="lineNum">     477 </span><span class="lineNoCov">          0 :     memset(U, 0, HASH_LENGTH_MAX);</span>
+<span class="lineNum">     478 </span><span class="lineNoCov">          0 :     if (err) {</span>
+<span class="lineNum">     479 </span><span class="lineNoCov">          0 :         MP_TO_SEC_ERROR(err);</span>
+<span class="lineNum">     480 </span>            :         return SECFailure;
+<span class="lineNum">     481 </span>            :     }
+<span class="lineNum">     482 </span>            :     return rv;
+<span class="lineNum">     483 </span>            : }
+<span class="lineNum">     484 </span>            : 
+<span class="lineNum">     485 </span>            : /*
+<span class="lineNum">     486 </span>            : **  Perform steps from  FIPS 186-3, Appendix A.1.2.1 and Appendix C.6
+<span class="lineNum">     487 </span>            : **
+<span class="lineNum">     488 </span>            : **  This generates a provable prime from two smaller prime. The resulting
+<span class="lineNum">     489 </span>            : **  prime p will have q0 as a multiple of p-1. q0 can be 1.
+<span class="lineNum">     490 </span>            : **
+<span class="lineNum">     491 </span>            : ** This implments steps 4 thorough 22 of FIPS 186-3 A.1.2.1 and
+<span class="lineNum">     492 </span>            : **                steps 16 through 34 of FIPS 186-2 C.6
+<span class="lineNum">     493 </span>            : */
+<a name="494"><span class="lineNum">     494 </span>            : #define MAX_ST_SEED_BITS (HASH_LENGTH_MAX * PR_BITS_PER_BYTE)</a>
+<span class="lineNum">     495 </span>            : static SECStatus
+<span class="lineNum">     496 </span><span class="lineNoCov">          0 : makePrimefromPrimesShaweTaylor(</span>
+<span class="lineNum">     497 </span>            :     HASH_HashType hashtype,          /* selected Hashing algorithm */
+<span class="lineNum">     498 </span>            :     unsigned int length,             /* input. Length of prime in bits. */
+<span class="lineNum">     499 </span>            :     mp_int *c0,                      /* seed prime */
+<span class="lineNum">     500 </span>            :     mp_int *q,                       /* sub prime, can be 1 */
+<span class="lineNum">     501 </span>            :     mp_int *prime,                   /* output.  */
+<span class="lineNum">     502 </span>            :     SECItem *prime_seed,             /* input/output.  */
+<span class="lineNum">     503 </span>            :     unsigned int *prime_gen_counter) /* input/output.  */
+<span class="lineNum">     504 </span>            : {
+<span class="lineNum">     505 </span>            :     mp_int c;
+<span class="lineNum">     506 </span>            :     mp_int c0_2;
+<span class="lineNum">     507 </span>            :     mp_int t;
+<span class="lineNum">     508 </span>            :     mp_int a;
+<span class="lineNum">     509 </span>            :     mp_int z;
+<span class="lineNum">     510 </span>            :     mp_int two_length_minus_1;
+<span class="lineNum">     511 </span><span class="lineNoCov">          0 :     SECStatus rv = SECFailure;</span>
+<span class="lineNum">     512 </span><span class="lineNoCov">          0 :     int hashlen = HASH_ResultLen(hashtype);</span>
+<span class="lineNum">     513 </span><span class="lineNoCov">          0 :     int outlen = hashlen * PR_BITS_PER_BYTE;</span>
+<span class="lineNum">     514 </span>            :     int offset;
+<span class="lineNum">     515 </span>            :     unsigned char bit, mask;
+<span class="lineNum">     516 </span>            :     /* x needs to hold roundup(L/outlen)*outlen.
+<span class="lineNum">     517 </span>            :      * This can be no larger than L+outlen-1, So we set it's size to
+<span class="lineNum">     518 </span>            :      * our max L + max outlen and know we are safe */
+<span class="lineNum">     519 </span>            :     unsigned char x[DSA_MAX_P_BITS / 8 + HASH_LENGTH_MAX];
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 :     mp_err err = MP_OKAY;</span>
+<span class="lineNum">     521 </span>            :     int i;
+<span class="lineNum">     522 </span>            :     int iterations;
+<span class="lineNum">     523 </span>            :     int old_counter;
+<span class="lineNum">     524 </span>            : 
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;c) = 0;</span>
+<span class="lineNum">     526 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;c0_2) = 0;</span>
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;t) = 0;</span>
+<span class="lineNum">     528 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;a) = 0;</span>
+<span class="lineNum">     529 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;z) = 0;</span>
+<span class="lineNum">     530 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;two_length_minus_1) = 0;</span>
+<span class="lineNum">     531 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;c));</span>
+<span class="lineNum">     532 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;c0_2));</span>
+<span class="lineNum">     533 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;t));</span>
+<span class="lineNum">     534 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;a));</span>
+<span class="lineNum">     535 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;z));</span>
+<span class="lineNum">     536 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;two_length_minus_1));</span>
+<span class="lineNum">     537 </span>            : 
+<span class="lineNum">     538 </span>            :     /*
+<span class="lineNum">     539 </span>            :     ** There is a slight mapping of variable names depending on which
+<span class="lineNum">     540 </span>            :     ** FIPS 186 steps are being carried out. The mapping is as follows:
+<span class="lineNum">     541 </span>            :     **  variable          A.1.2.1           C.6
+<span class="lineNum">     542 </span>            :     **    c0                p0               c0
+<span class="lineNum">     543 </span>            :     **    q                 q                1
+<span class="lineNum">     544 </span>            :     **    c                 p                c
+<span class="lineNum">     545 </span>            :     **    c0_2            2*p0*q            2*c0
+<span class="lineNum">     546 </span>            :     **    length            L               length
+<span class="lineNum">     547 </span>            :     **    prime_seed       pseed            prime_seed
+<span class="lineNum">     548 </span>            :     **  prime_gen_counter pgen_counter     prime_gen_counter
+<span class="lineNum">     549 </span>            :     **
+<span class="lineNum">     550 </span>            :     ** Also note: or iterations variable is actually iterations+1, since
+<span class="lineNum">     551 </span>            :     ** iterations+1 works better in C.
+<span class="lineNum">     552 </span>            :     */
+<span class="lineNum">     553 </span>            : 
+<span class="lineNum">     554 </span>            :     /* Step 4/16 iterations = ceiling(length/outlen)-1 */
+<span class="lineNum">     555 </span><span class="lineNoCov">          0 :     iterations = (length + outlen - 1) / outlen; /* NOTE: iterations +1 */</span>
+<span class="lineNum">     556 </span>            :     /* Step 5/17 old_counter = prime_gen_counter */
+<span class="lineNum">     557 </span><span class="lineNoCov">          0 :     old_counter = *prime_gen_counter;</span>
+<span class="lineNum">     558 </span>            :     /*
+<span class="lineNum">     559 </span>            :     ** Comment: Generate a pseudorandom integer x in the interval
+<span class="lineNum">     560 </span>            :     ** [2**(lenght-1), 2**length].
+<span class="lineNum">     561 </span>            :     **
+<span class="lineNum">     562 </span>            :     ** Step 6/18 x = 0
+<span class="lineNum">     563 </span>            :     */
+<span class="lineNum">     564 </span><span class="lineNoCov">          0 :     PORT_Memset(x, 0, sizeof(x));</span>
+<span class="lineNum">     565 </span>            :     /*
+<span class="lineNum">     566 </span>            :     ** Step 7/19 for i = 0 to iterations do
+<span class="lineNum">     567 </span>            :     **  x = x + (HASH(prime_seed + i) * 2^(i*outlen))
+<span class="lineNum">     568 </span>            :     */
+<span class="lineNum">     569 </span><span class="lineNoCov">          0 :     for (i = 0; i &lt; iterations; i++) {</span>
+<span class="lineNum">     570 </span>            :         /* is bigger than prime_seed should get to */
+<span class="lineNum">     571 </span><span class="lineNoCov">          0 :         CHECK_SEC_OK(addToSeedThenHash(hashtype, prime_seed, i,</span>
+<span class="lineNum">     572 </span>            :                                        MAX_ST_SEED_BITS, &amp;x[(iterations - i - 1) * hashlen]));
+<span class="lineNum">     573 </span>            :     }
+<span class="lineNum">     574 </span>            :     /* Step 8/20 prime_seed = prime_seed + iterations + 1 */
+<span class="lineNum">     575 </span><span class="lineNoCov">          0 :     CHECK_SEC_OK(addToSeed(prime_seed, iterations, MAX_ST_SEED_BITS,</span>
+<span class="lineNum">     576 </span>            :                            prime_seed));
+<span class="lineNum">     577 </span>            :     /*
+<span class="lineNum">     578 </span>            :     ** Step 9/21 x = 2 ** (length-1) + x mod 2 ** (length-1)
+<span class="lineNum">     579 </span>            :     **
+<span class="lineNum">     580 </span>            :     **   This step mathematically sets the high bit and clears out
+<span class="lineNum">     581 </span>            :     **  all the other bits higher than length. 'x' is stored
+<span class="lineNum">     582 </span>            :     **  in the x array, MSB first. The above formula gives us an 'x'
+<span class="lineNum">     583 </span>            :     **  which is length bytes long and has the high bit set. We also know
+<span class="lineNum">     584 </span>            :     **  that length &lt;= iterations*outlen since
+<span class="lineNum">     585 </span>            :     **  iterations=ceiling(length/outlen). First we find the offset in
+<span class="lineNum">     586 </span>            :     **  bytes into the array where the high bit is.
+<span class="lineNum">     587 </span>            :     */
+<span class="lineNum">     588 </span><span class="lineNoCov">          0 :     offset = (outlen * iterations - length) / PR_BITS_PER_BYTE;</span>
+<span class="lineNum">     589 </span>            :     /* now we want to set the 'high bit', since length may not be a
+<span class="lineNum">     590 </span>            :      * multiple of 8,*/
+<span class="lineNum">     591 </span><span class="lineNoCov">          0 :     bit = 1 &lt;&lt; ((length - 1) &amp; 0x7); /* select the proper bit in the byte */</span>
+<span class="lineNum">     592 </span>            :     /* we need to zero out the rest of the bits in the byte above */
+<span class="lineNum">     593 </span><span class="lineNoCov">          0 :     mask = (bit - 1);</span>
+<span class="lineNum">     594 </span>            :     /* now we set it */
+<span class="lineNum">     595 </span><span class="lineNoCov">          0 :     x[offset] = (mask &amp; x[offset]) | bit;</span>
+<span class="lineNum">     596 </span>            :     /*
+<span class="lineNum">     597 </span>            :     ** Comment: Generate a candidate prime c in the interval
+<span class="lineNum">     598 </span>            :     ** [2**(lenght-1), 2**length].
+<span class="lineNum">     599 </span>            :     **
+<span class="lineNum">     600 </span>            :     ** Step 10 t = ceiling(x/(2q(p0)))
+<span class="lineNum">     601 </span>            :     ** Step 22 t = ceiling(x/(2(c0)))
+<span class="lineNum">     602 </span>            :     */
+<span class="lineNum">     603 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_read_unsigned_octets(&amp;t, &amp;x[offset],</span>
+<span class="lineNum">     604 </span>            :                                          hashlen * iterations - offset)); /* t = x */
+<span class="lineNum">     605 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_mul(c0, q, &amp;c0_2));                                   /* c0_2 is now c0*q */</span>
+<span class="lineNum">     606 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_add(&amp;c0_2, &amp;c0_2, &amp;c0_2));                            /* c0_2 is now 2*q*c0 */</span>
+<span class="lineNum">     607 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_add(&amp;t, &amp;c0_2, &amp;t));                                  /* t = x+2*q*c0 */</span>
+<span class="lineNum">     608 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_sub_d(&amp;t, (mp_digit)1, &amp;t));                          /* t = x+2*q*c0 -1 */</span>
+<span class="lineNum">     609 </span>            :     /* t = floor((x+2qc0-1)/2qc0) = ceil(x/2qc0) */
+<span class="lineNum">     610 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_div(&amp;t, &amp;c0_2, &amp;t, NULL));</span>
+<span class="lineNum">     611 </span>            :     /*
+<span class="lineNum">     612 </span>            :     ** step 11: if (2tqp0 +1 &gt; 2**length), then t = ceiling(2**(length-1)/2qp0)
+<span class="lineNum">     613 </span>            :     ** step 12: t = 2tqp0 +1.
+<span class="lineNum">     614 </span>            :     **
+<span class="lineNum">     615 </span>            :     ** step 23: if (2tc0 +1 &gt; 2**length), then t = ceiling(2**(length-1)/2c0)
+<span class="lineNum">     616 </span>            :     ** step 24: t = 2tc0 +1.
+<span class="lineNum">     617 </span>            :     */
+<span class="lineNum">     618 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_2expt(&amp;two_length_minus_1, length - 1));</span>
+<span class="lineNum">     619 </span>            : step_23:
+<span class="lineNum">     620 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_mul(&amp;t, &amp;c0_2, &amp;c));                /* c = t*2qc0 */</span>
+<span class="lineNum">     621 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_add_d(&amp;c, (mp_digit)1, &amp;c));        /* c= 2tqc0 + 1*/</span>
+<span class="lineNum">     622 </span><span class="lineNoCov">          0 :     if (mpl_significant_bits(&amp;c) &gt; length) {            /* if c &gt; 2**length */</span>
+<span class="lineNum">     623 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_sub_d(&amp;c0_2, (mp_digit)1, &amp;t)); /* t = 2qc0-1 */</span>
+<span class="lineNum">     624 </span>            :         /* t = 2**(length-1) + 2qc0 -1 */
+<span class="lineNum">     625 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_add(&amp;two_length_minus_1, &amp;t, &amp;t));</span>
+<span class="lineNum">     626 </span>            :         /* t = floor((2**(length-1)+2qc0 -1)/2qco)
+<span class="lineNum">     627 </span>            :          *   = ceil(2**(lenght-2)/2qc0) */
+<span class="lineNum">     628 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_div(&amp;t, &amp;c0_2, &amp;t, NULL));</span>
+<span class="lineNum">     629 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_mul(&amp;t, &amp;c0_2, &amp;c));</span>
+<span class="lineNum">     630 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_add_d(&amp;c, (mp_digit)1, &amp;c)); /* c= 2tqc0 + 1*/</span>
+<span class="lineNum">     631 </span>            :     }
+<span class="lineNum">     632 </span>            :     /* Step 13/25 prime_gen_counter = prime_gen_counter + 1*/
+<span class="lineNum">     633 </span><span class="lineNoCov">          0 :     (*prime_gen_counter)++;</span>
+<span class="lineNum">     634 </span>            :     /*
+<span class="lineNum">     635 </span>            :     ** Comment: Test the candidate prime c for primality; first pick an
+<span class="lineNum">     636 </span>            :     ** integer a between 2 and c-2.
+<span class="lineNum">     637 </span>            :     **
+<span class="lineNum">     638 </span>            :     ** Step 14/26 a=0
+<span class="lineNum">     639 </span>            :     */
+<span class="lineNum">     640 </span><span class="lineNoCov">          0 :     PORT_Memset(x, 0, sizeof(x)); /* use x for a */</span>
+<span class="lineNum">     641 </span>            :     /*
+<span class="lineNum">     642 </span>            :     ** Step 15/27 for i = 0 to iterations do
+<span class="lineNum">     643 </span>            :     **  a = a + (HASH(prime_seed + i) * 2^(i*outlen))
+<span class="lineNum">     644 </span>            :     **
+<span class="lineNum">     645 </span>            :     ** NOTE: we reuse the x array for 'a' initially.
+<span class="lineNum">     646 </span>            :     */
+<span class="lineNum">     647 </span><span class="lineNoCov">          0 :     for (i = 0; i &lt; iterations; i++) {</span>
+<span class="lineNum">     648 </span>            :         /* MAX_ST_SEED_BITS is bigger than prime_seed should get to */
+<span class="lineNum">     649 </span><span class="lineNoCov">          0 :         CHECK_SEC_OK(addToSeedThenHash(hashtype, prime_seed, i,</span>
+<span class="lineNum">     650 </span>            :                                        MAX_ST_SEED_BITS, &amp;x[(iterations - i - 1) * hashlen]));
+<span class="lineNum">     651 </span>            :     }
+<span class="lineNum">     652 </span>            :     /* Step 16/28 prime_seed = prime_seed + iterations + 1 */
+<span class="lineNum">     653 </span><span class="lineNoCov">          0 :     CHECK_SEC_OK(addToSeed(prime_seed, iterations, MAX_ST_SEED_BITS,</span>
+<span class="lineNum">     654 </span>            :                            prime_seed));
+<span class="lineNum">     655 </span>            :     /* Step 17/29 a = 2 + (a mod (c-3)). */
+<span class="lineNum">     656 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_read_unsigned_octets(&amp;a, x, iterations * hashlen));</span>
+<span class="lineNum">     657 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_sub_d(&amp;c, (mp_digit)3, &amp;z)); /* z = c -3 */</span>
+<span class="lineNum">     658 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_mod(&amp;a, &amp;z, &amp;a));            /* a = a mod c -3 */</span>
+<span class="lineNum">     659 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_add_d(&amp;a, (mp_digit)2, &amp;a)); /* a = 2 + a mod c -3 */</span>
+<span class="lineNum">     660 </span>            :     /*
+<span class="lineNum">     661 </span>            :     ** Step 18 z = a**(2tq) mod p.
+<span class="lineNum">     662 </span>            :     ** Step 30 z = a**(2t) mod c.
+<span class="lineNum">     663 </span>            :     */
+<span class="lineNum">     664 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_mul(&amp;t, q, &amp;z));          /* z = tq */</span>
+<span class="lineNum">     665 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_add(&amp;z, &amp;z, &amp;z));         /* z = 2tq */</span>
+<span class="lineNum">     666 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_exptmod(&amp;a, &amp;z, &amp;c, &amp;z)); /* z = a**(2tq) mod c */</span>
+<span class="lineNum">     667 </span>            :     /*
+<span class="lineNum">     668 </span>            :     ** Step 19 if (( 1 == GCD(z-1,p)) and ( 1 == z**p0 mod p )), then
+<span class="lineNum">     669 </span>            :     ** Step 31 if (( 1 == GCD(z-1,c)) and ( 1 == z**c0 mod c )), then
+<span class="lineNum">     670 </span>            :     */
+<span class="lineNum">     671 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_sub_d(&amp;z, (mp_digit)1, &amp;a));</span>
+<span class="lineNum">     672 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_gcd(&amp;a, &amp;c, &amp;a));</span>
+<span class="lineNum">     673 </span><span class="lineNoCov">          0 :     if (mp_cmp_d(&amp;a, (mp_digit)1) == 0) {</span>
+<span class="lineNum">     674 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_exptmod(&amp;z, c0, &amp;c, &amp;a));</span>
+<span class="lineNum">     675 </span><span class="lineNoCov">          0 :         if (mp_cmp_d(&amp;a, (mp_digit)1) == 0) {</span>
+<span class="lineNum">     676 </span>            :             /* Step 31.1 prime = c */
+<span class="lineNum">     677 </span><span class="lineNoCov">          0 :             CHECK_MPI_OK(mp_copy(&amp;c, prime));</span>
+<span class="lineNum">     678 </span>            :             /*
+<span class="lineNum">     679 </span>            :         ** Step 31.2 return Success, prime, prime_seed,
+<span class="lineNum">     680 </span>            :         **    prime_gen_counter
+<span class="lineNum">     681 </span>            :         */
+<span class="lineNum">     682 </span><span class="lineNoCov">          0 :             rv = SECSuccess;</span>
+<span class="lineNum">     683 </span><span class="lineNoCov">          0 :             goto cleanup;</span>
+<span class="lineNum">     684 </span>            :         }
+<span class="lineNum">     685 </span>            :     }
+<span class="lineNum">     686 </span>            :     /*
+<span class="lineNum">     687 </span>            :     ** Step 20/32 If (prime_gen_counter &gt; 4 * length + old_counter then
+<span class="lineNum">     688 </span>            :     **   return (FAILURE, 0, 0, 0).
+<span class="lineNum">     689 </span>            :     ** NOTE: the test is reversed, so we fall through on failure to the
+<span class="lineNum">     690 </span>            :     ** cleanup routine
+<span class="lineNum">     691 </span>            :     */
+<span class="lineNum">     692 </span><span class="lineNoCov">          0 :     if (*prime_gen_counter &lt; (4 * length + old_counter)) {</span>
+<span class="lineNum">     693 </span>            :         /* Step 21/33 t = t + 1 */
+<span class="lineNum">     694 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_add_d(&amp;t, (mp_digit)1, &amp;t));</span>
+<span class="lineNum">     695 </span>            :         /* Step 22/34 Go to step 23/11 */
+<span class="lineNum">     696 </span>            :         goto step_23;
+<span class="lineNum">     697 </span>            :     }
+<span class="lineNum">     698 </span>            : 
+<span class="lineNum">     699 </span>            :     /* if (prime_gencont &gt; (4*length + old_counter), fall through to failure */
+<span class="lineNum">     700 </span>            :     rv = SECFailure; /* really is already set, but paranoia is good */
+<span class="lineNum">     701 </span>            : 
+<span class="lineNum">     702 </span>            : cleanup:
+<span class="lineNum">     703 </span><span class="lineNoCov">          0 :     mp_clear(&amp;c);</span>
+<span class="lineNum">     704 </span><span class="lineNoCov">          0 :     mp_clear(&amp;c0_2);</span>
+<span class="lineNum">     705 </span><span class="lineNoCov">          0 :     mp_clear(&amp;t);</span>
+<span class="lineNum">     706 </span><span class="lineNoCov">          0 :     mp_clear(&amp;a);</span>
+<span class="lineNum">     707 </span><span class="lineNoCov">          0 :     mp_clear(&amp;z);</span>
+<span class="lineNum">     708 </span><span class="lineNoCov">          0 :     mp_clear(&amp;two_length_minus_1);</span>
+<span class="lineNum">     709 </span><span class="lineNoCov">          0 :     PORT_Memset(x, 0, sizeof(x));</span>
+<span class="lineNum">     710 </span><span class="lineNoCov">          0 :     if (err) {</span>
+<span class="lineNum">     711 </span><span class="lineNoCov">          0 :         MP_TO_SEC_ERROR(err);</span>
+<span class="lineNum">     712 </span>            :         rv = SECFailure;
+<span class="lineNum">     713 </span>            :     }
+<span class="lineNum">     714 </span><span class="lineNoCov">          0 :     if (rv == SECFailure) {</span>
+<span class="lineNum">     715 </span><span class="lineNoCov">          0 :         mp_zero(prime);</span>
+<span class="lineNum">     716 </span><span class="lineNoCov">          0 :         if (prime_seed-&gt;data) {</span>
+<span class="lineNum">     717 </span><span class="lineNoCov">          0 :             SECITEM_FreeItem(prime_seed, PR_FALSE);</span>
+<span class="lineNum">     718 </span>            :         }
+<span class="lineNum">     719 </span><span class="lineNoCov">          0 :         *prime_gen_counter = 0;</span>
+<span class="lineNum">     720 </span>            :     }
+<span class="lineNum">     721 </span><span class="lineNoCov">          0 :     return rv;</span>
+<span class="lineNum">     722 </span>            : }
+<span class="lineNum">     723 </span>            : 
+<span class="lineNum">     724 </span>            : /*
+<span class="lineNum">     725 </span>            : **  Perform steps from  FIPS 186-3, Appendix C.6
+<span class="lineNum">     726 </span>            : **
+<span class="lineNum">     727 </span>            : **  This generates a provable prime from a seed
+<a name="728"><span class="lineNum">     728 </span>            : */</a>
+<span class="lineNum">     729 </span>            : static SECStatus
+<span class="lineNum">     730 </span><span class="lineNoCov">          0 : makePrimefromSeedShaweTaylor(</span>
+<span class="lineNum">     731 </span>            :     HASH_HashType hashtype,          /* selected Hashing algorithm */
+<span class="lineNum">     732 </span>            :     unsigned int length,             /* input.  Length of prime in bits. */
+<span class="lineNum">     733 </span>            :     const SECItem *input_seed,       /* input.  */
+<span class="lineNum">     734 </span>            :     mp_int *prime,                   /* output.  */
+<span class="lineNum">     735 </span>            :     SECItem *prime_seed,             /* output.  */
+<span class="lineNum">     736 </span>            :     unsigned int *prime_gen_counter) /* output.  */
+<span class="lineNum">     737 </span>            : {
+<span class="lineNum">     738 </span>            :     mp_int c;
+<span class="lineNum">     739 </span>            :     mp_int c0;
+<span class="lineNum">     740 </span>            :     mp_int one;
+<span class="lineNum">     741 </span><span class="lineNoCov">          0 :     SECStatus rv = SECFailure;</span>
+<span class="lineNum">     742 </span><span class="lineNoCov">          0 :     int hashlen = HASH_ResultLen(hashtype);</span>
+<span class="lineNum">     743 </span><span class="lineNoCov">          0 :     int outlen = hashlen * PR_BITS_PER_BYTE;</span>
+<span class="lineNum">     744 </span>            :     int offset;
+<span class="lineNum">     745 </span>            :     unsigned char bit, mask;
+<span class="lineNum">     746 </span>            :     unsigned char x[HASH_LENGTH_MAX * 2];
+<span class="lineNum">     747 </span>            :     mp_digit dummy;
+<span class="lineNum">     748 </span><span class="lineNoCov">          0 :     mp_err err = MP_OKAY;</span>
+<span class="lineNum">     749 </span>            :     int i;
+<span class="lineNum">     750 </span>            : 
+<span class="lineNum">     751 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;c) = 0;</span>
+<span class="lineNum">     752 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;c0) = 0;</span>
+<span class="lineNum">     753 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;one) = 0;</span>
+<span class="lineNum">     754 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;c));</span>
+<span class="lineNum">     755 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;c0));</span>
+<span class="lineNum">     756 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;one));</span>
+<span class="lineNum">     757 </span>            : 
+<span class="lineNum">     758 </span>            :     /* Step 1. if length &lt; 2 then return (FAILURE, 0, 0, 0) */
+<span class="lineNum">     759 </span><span class="lineNoCov">          0 :     if (length &lt; 2) {</span>
+<span class="lineNum">     760 </span>            :         rv = SECFailure;
+<span class="lineNum">     761 </span>            :         goto cleanup;
+<span class="lineNum">     762 </span>            :     }
+<span class="lineNum">     763 </span>            :     /* Step 2. if length &gt;= 33 then goto step 14 */
+<span class="lineNum">     764 </span><span class="lineNoCov">          0 :     if (length &gt;= 33) {</span>
+<span class="lineNum">     765 </span><span class="lineNoCov">          0 :         mp_zero(&amp;one);</span>
+<span class="lineNum">     766 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_add_d(&amp;one, (mp_digit)1, &amp;one));</span>
+<span class="lineNum">     767 </span>            : 
+<span class="lineNum">     768 </span>            :         /* Step 14 (status, c0, prime_seed, prime_gen_counter) =
+<span class="lineNum">     769 </span>            :     ** (ST_Random_Prime((ceil(length/2)+1, input_seed)
+<span class="lineNum">     770 </span>            :     */
+<span class="lineNum">     771 </span><span class="lineNoCov">          0 :         rv = makePrimefromSeedShaweTaylor(hashtype, (length + 1) / 2 + 1,</span>
+<span class="lineNum">     772 </span>            :                                           input_seed, &amp;c0, prime_seed, prime_gen_counter);
+<span class="lineNum">     773 </span>            :         /* Step 15 if FAILURE is returned, return (FAILURE, 0, 0, 0). */
+<span class="lineNum">     774 </span><span class="lineNoCov">          0 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     775 </span>            :             goto cleanup;
+<span class="lineNum">     776 </span>            :         }
+<span class="lineNum">     777 </span>            :         /* Steps 16-34 */
+<span class="lineNum">     778 </span><span class="lineNoCov">          0 :         rv = makePrimefromPrimesShaweTaylor(hashtype, length, &amp;c0, &amp;one,</span>
+<span class="lineNum">     779 </span>            :                                             prime, prime_seed, prime_gen_counter);
+<span class="lineNum">     780 </span><span class="lineNoCov">          0 :         goto cleanup; /* we're done, one way or the other */</span>
+<span class="lineNum">     781 </span>            :     }
+<span class="lineNum">     782 </span>            :     /* Step 3 prime_seed = input_seed */
+<span class="lineNum">     783 </span><span class="lineNoCov">          0 :     CHECK_SEC_OK(SECITEM_CopyItem(NULL, prime_seed, input_seed));</span>
+<span class="lineNum">     784 </span>            :     /* Step 4 prime_gen_count = 0 */
+<span class="lineNum">     785 </span><span class="lineNoCov">          0 :     *prime_gen_counter = 0;</span>
+<span class="lineNum">     786 </span>            : 
+<span class="lineNum">     787 </span>            : step_5:
+<span class="lineNum">     788 </span>            :     /* Step 5 c = Hash(prime_seed) xor Hash(prime_seed+1). */
+<span class="lineNum">     789 </span><span class="lineNoCov">          0 :     CHECK_SEC_OK(HASH_HashBuf(hashtype, x, prime_seed-&gt;data, prime_seed-&gt;len));</span>
+<span class="lineNum">     790 </span><span class="lineNoCov">          0 :     CHECK_SEC_OK(addToSeedThenHash(hashtype, prime_seed, 1,</span>
+<span class="lineNum">     791 </span>            :                                    MAX_ST_SEED_BITS, &amp;x[hashlen]));
+<span class="lineNum">     792 </span><span class="lineNoCov">          0 :     for (i = 0; i &lt; hashlen; i++) {</span>
+<span class="lineNum">     793 </span><span class="lineNoCov">          0 :         x[i] = x[i] ^ x[i + hashlen];</span>
+<span class="lineNum">     794 </span>            :     }
+<span class="lineNum">     795 </span>            :     /* Step 6 c = 2**length-1 + c mod 2**length-1 */
+<span class="lineNum">     796 </span>            :     /*   This step mathematically sets the high bit and clears out
+<span class="lineNum">     797 </span>            :     **  all the other bits higher than length. Right now c is stored
+<span class="lineNum">     798 </span>            :     **  in the x array, MSB first. The above formula gives us a c which
+<span class="lineNum">     799 </span>            :     **  is length bytes long and has the high bit set. We also know that
+<span class="lineNum">     800 </span>            :     **  length &lt; outlen since the smallest outlen is 160 bits and the largest
+<span class="lineNum">     801 </span>            :     **  length at this point is 32 bits. So first we find the offset in bytes
+<span class="lineNum">     802 </span>            :     **  into the array where the high bit is.
+<span class="lineNum">     803 </span>            :     */
+<span class="lineNum">     804 </span><span class="lineNoCov">          0 :     offset = (outlen - length) / PR_BITS_PER_BYTE;</span>
+<span class="lineNum">     805 </span>            :     /* now we want to set the 'high bit'. We have to calculate this since
+<span class="lineNum">     806 </span>            :      * length may not be a multiple of 8.*/
+<span class="lineNum">     807 </span><span class="lineNoCov">          0 :     bit = 1 &lt;&lt; ((length - 1) &amp; 0x7); /* select the proper bit in the byte */</span>
+<span class="lineNum">     808 </span>            :     /* we need to zero out the rest of the bits  in the byte above */
+<span class="lineNum">     809 </span><span class="lineNoCov">          0 :     mask = (bit - 1);</span>
+<span class="lineNum">     810 </span>            :     /* now we set it */
+<span class="lineNum">     811 </span><span class="lineNoCov">          0 :     x[offset] = (mask &amp; x[offset]) | bit;</span>
+<span class="lineNum">     812 </span>            :     /* Step 7 c = c*floor(c/2) + 1 */
+<span class="lineNum">     813 </span>            :     /* set the low bit. much easier to find (the end of the array) */
+<span class="lineNum">     814 </span><span class="lineNoCov">          0 :     x[hashlen - 1] |= 1;</span>
+<span class="lineNum">     815 </span>            :     /* now that we've set our bits, we can create our candidate &quot;c&quot; */
+<span class="lineNum">     816 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_read_unsigned_octets(&amp;c, &amp;x[offset], hashlen - offset));</span>
+<span class="lineNum">     817 </span>            :     /* Step 8 prime_gen_counter = prime_gen_counter + 1 */
+<span class="lineNum">     818 </span><span class="lineNoCov">          0 :     (*prime_gen_counter)++;</span>
+<span class="lineNum">     819 </span>            :     /* Step 9 prime_seed = prime_seed + 2 */
+<span class="lineNum">     820 </span><span class="lineNoCov">          0 :     CHECK_SEC_OK(addToSeed(prime_seed, 2, MAX_ST_SEED_BITS, prime_seed));</span>
+<span class="lineNum">     821 </span>            :     /* Step 10 Perform deterministic primality test on c. For example, since
+<span class="lineNum">     822 </span>            :     ** c is small, it's primality can be tested by trial division, See
+<span class="lineNum">     823 </span>            :     ** See Appendic C.7.
+<span class="lineNum">     824 </span>            :     **
+<span class="lineNum">     825 </span>            :     ** We in fact test with trial division. mpi has a built int trial divider
+<span class="lineNum">     826 </span>            :     ** that divides all divisors up to 2^16.
+<span class="lineNum">     827 </span>            :     */
+<span class="lineNum">     828 </span><span class="lineNoCov">          0 :     if (prime_tab[prime_tab_size - 1] &lt; 0xFFF1) {</span>
+<span class="lineNum">     829 </span>            :         /* we aren't testing all the primes between 0 and 2^16, we really
+<span class="lineNum">     830 </span>            :      * can't use this construction. Just fail. */
+<span class="lineNum">     831 </span>            :         rv = SECFailure;
+<span class="lineNum">     832 </span>            :         goto cleanup;
+<span class="lineNum">     833 </span>            :     }
+<span class="lineNum">     834 </span><span class="lineNoCov">          0 :     dummy = prime_tab_size;</span>
+<span class="lineNum">     835 </span><span class="lineNoCov">          0 :     err = mpp_divis_primes(&amp;c, &amp;dummy);</span>
+<span class="lineNum">     836 </span>            :     /* Step 11 if c is prime then */
+<span class="lineNum">     837 </span><span class="lineNoCov">          0 :     if (err == MP_NO) {</span>
+<span class="lineNum">     838 </span>            :         /* Step 11.1 prime = c */
+<span class="lineNum">     839 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_copy(&amp;c, prime));</span>
+<span class="lineNum">     840 </span>            :         /* Step 11.2 return SUCCESS prime, prime_seed, prime_gen_counter */
+<span class="lineNum">     841 </span><span class="lineNoCov">          0 :         err = MP_OKAY;</span>
+<span class="lineNum">     842 </span><span class="lineNoCov">          0 :         rv = SECSuccess;</span>
+<span class="lineNum">     843 </span><span class="lineNoCov">          0 :         goto cleanup;</span>
+<span class="lineNum">     844 </span><span class="lineNoCov">          0 :     } else if (err != MP_YES) {</span>
+<span class="lineNum">     845 </span>            :         goto cleanup; /* function failed, bail out */
+<span class="lineNum">     846 </span>            :     } else {
+<span class="lineNum">     847 </span>            :         /* reset mp_err */
+<span class="lineNum">     848 </span><span class="lineNoCov">          0 :         err = MP_OKAY;</span>
+<span class="lineNum">     849 </span>            :     }
+<span class="lineNum">     850 </span>            :     /*
+<span class="lineNum">     851 </span>            :     ** Step 12 if (prime_gen_counter &gt; (4*len))
+<span class="lineNum">     852 </span>            :     ** then return (FAILURE, 0, 0, 0))
+<span class="lineNum">     853 </span>            :     ** Step 13 goto step 5
+<span class="lineNum">     854 </span>            :     */
+<span class="lineNum">     855 </span><span class="lineNoCov">          0 :     if (*prime_gen_counter &lt;= (4 * length)) {</span>
+<span class="lineNum">     856 </span>            :         goto step_5;
+<span class="lineNum">     857 </span>            :     }
+<span class="lineNum">     858 </span>            :     /* if (prime_gencont &gt; 4*length), fall through to failure */
+<span class="lineNum">     859 </span>            :     rv = SECFailure; /* really is already set, but paranoia is good */
+<span class="lineNum">     860 </span>            : 
+<span class="lineNum">     861 </span>            : cleanup:
+<span class="lineNum">     862 </span><span class="lineNoCov">          0 :     mp_clear(&amp;c);</span>
+<span class="lineNum">     863 </span><span class="lineNoCov">          0 :     mp_clear(&amp;c0);</span>
+<span class="lineNum">     864 </span><span class="lineNoCov">          0 :     mp_clear(&amp;one);</span>
+<span class="lineNum">     865 </span><span class="lineNoCov">          0 :     PORT_Memset(x, 0, sizeof(x));</span>
+<span class="lineNum">     866 </span><span class="lineNoCov">          0 :     if (err) {</span>
+<span class="lineNum">     867 </span><span class="lineNoCov">          0 :         MP_TO_SEC_ERROR(err);</span>
+<span class="lineNum">     868 </span>            :         rv = SECFailure;
+<span class="lineNum">     869 </span>            :     }
+<span class="lineNum">     870 </span><span class="lineNoCov">          0 :     if (rv == SECFailure) {</span>
+<span class="lineNum">     871 </span><span class="lineNoCov">          0 :         mp_zero(prime);</span>
+<span class="lineNum">     872 </span><span class="lineNoCov">          0 :         if (prime_seed-&gt;data) {</span>
+<span class="lineNum">     873 </span><span class="lineNoCov">          0 :             SECITEM_FreeItem(prime_seed, PR_FALSE);</span>
+<span class="lineNum">     874 </span>            :         }
+<span class="lineNum">     875 </span><span class="lineNoCov">          0 :         *prime_gen_counter = 0;</span>
+<span class="lineNum">     876 </span>            :     }
+<span class="lineNum">     877 </span><span class="lineNoCov">          0 :     return rv;</span>
+<span class="lineNum">     878 </span>            : }
+<span class="lineNum">     879 </span>            : 
+<span class="lineNum">     880 </span>            : /*
+<span class="lineNum">     881 </span>            :  * Find a Q and algorithm from Seed.
+<a name="882"><span class="lineNum">     882 </span>            :  */</a>
+<span class="lineNum">     883 </span>            : static SECStatus
+<span class="lineNum">     884 </span><span class="lineNoCov">          0 : findQfromSeed(</span>
+<span class="lineNum">     885 </span>            :     unsigned int L,             /* input.  Length of p in bits. */
+<span class="lineNum">     886 </span>            :     unsigned int N,             /* input.  Length of q in bits. */
+<span class="lineNum">     887 </span>            :     unsigned int g,             /* input.  Length of seed in bits. */
+<span class="lineNum">     888 </span>            :     const SECItem *seed,        /* input.  */
+<span class="lineNum">     889 </span>            :     mp_int *Q,                  /* input. */
+<span class="lineNum">     890 </span>            :     mp_int *Q_,                 /* output. */
+<span class="lineNum">     891 </span>            :     unsigned int *qseed_len,    /* output */
+<span class="lineNum">     892 </span>            :     HASH_HashType *hashtypePtr, /* output. Hash uses */
+<span class="lineNum">     893 </span>            :     pqgGenType *typePtr)        /* output. Generation Type used */
+<span class="lineNum">     894 </span>            : {
+<span class="lineNum">     895 </span>            :     HASH_HashType hashtype;
+<span class="lineNum">     896 </span><span class="lineNoCov">          0 :     SECItem firstseed = { 0, 0, 0 };</span>
+<span class="lineNum">     897 </span><span class="lineNoCov">          0 :     SECItem qseed = { 0, 0, 0 };</span>
+<span class="lineNum">     898 </span>            :     SECStatus rv;
+<span class="lineNum">     899 </span>            : 
+<span class="lineNum">     900 </span><span class="lineNoCov">          0 :     *qseed_len = 0; /* only set if FIPS186_3_ST_TYPE */</span>
+<span class="lineNum">     901 </span>            : 
+<span class="lineNum">     902 </span>            :     /* handle legacy small DSA first can only be FIPS186_1_TYPE */
+<span class="lineNum">     903 </span><span class="lineNoCov">          0 :     if (L &lt; 1024) {</span>
+<span class="lineNum">     904 </span><span class="lineNoCov">          0 :         rv = makeQfromSeed(g, seed, Q_);</span>
+<span class="lineNum">     905 </span><span class="lineNoCov">          0 :         if ((rv == SECSuccess) &amp;&amp; (mp_cmp(Q, Q_) == 0)) {</span>
+<span class="lineNum">     906 </span><span class="lineNoCov">          0 :             *hashtypePtr = HASH_AlgSHA1;</span>
+<span class="lineNum">     907 </span><span class="lineNoCov">          0 :             *typePtr = FIPS186_1_TYPE;</span>
+<span class="lineNum">     908 </span><span class="lineNoCov">          0 :             return SECSuccess;</span>
+<span class="lineNum">     909 </span>            :         }
+<span class="lineNum">     910 </span>            :         return SECFailure;
+<span class="lineNum">     911 </span>            :     }
+<span class="lineNum">     912 </span>            :     /* 1024 could use FIPS186_1 or FIPS186_3 algorithms, we need to try
+<span class="lineNum">     913 </span>            :      * them both */
+<span class="lineNum">     914 </span><span class="lineNoCov">          0 :     if (L == 1024) {</span>
+<span class="lineNum">     915 </span><span class="lineNoCov">          0 :         rv = makeQfromSeed(g, seed, Q_);</span>
+<span class="lineNum">     916 </span><span class="lineNoCov">          0 :         if (rv == SECSuccess) {</span>
+<span class="lineNum">     917 </span><span class="lineNoCov">          0 :             if (mp_cmp(Q, Q_) == 0) {</span>
+<span class="lineNum">     918 </span><span class="lineNoCov">          0 :                 *hashtypePtr = HASH_AlgSHA1;</span>
+<span class="lineNum">     919 </span><span class="lineNoCov">          0 :                 *typePtr = FIPS186_1_TYPE;</span>
+<span class="lineNum">     920 </span><span class="lineNoCov">          0 :                 return SECSuccess;</span>
+<span class="lineNum">     921 </span>            :             }
+<span class="lineNum">     922 </span>            :         }
+<span class="lineNum">     923 </span>            :         /* fall through for FIPS186_3 types */
+<span class="lineNum">     924 </span>            :     }
+<span class="lineNum">     925 </span>            :     /* at this point we know we aren't using FIPS186_1, start trying FIPS186_3
+<span class="lineNum">     926 </span>            :      * with appropriate hash types */
+<span class="lineNum">     927 </span><span class="lineNoCov">          0 :     for (hashtype = getFirstHash(L, N); hashtype != HASH_AlgTOTAL;</span>
+<span class="lineNum">     928 </span><span class="lineNoCov">          0 :          hashtype = getNextHash(hashtype)) {</span>
+<span class="lineNum">     929 </span><span class="lineNoCov">          0 :         rv = makeQ2fromSeed(hashtype, N, seed, Q_);</span>
+<span class="lineNum">     930 </span><span class="lineNoCov">          0 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     931 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     932 </span>            :         }
+<span class="lineNum">     933 </span><span class="lineNoCov">          0 :         if (mp_cmp(Q, Q_) == 0) {</span>
+<span class="lineNum">     934 </span><span class="lineNoCov">          0 :             *hashtypePtr = hashtype;</span>
+<span class="lineNum">     935 </span><span class="lineNoCov">          0 :             *typePtr = FIPS186_3_TYPE;</span>
+<span class="lineNum">     936 </span><span class="lineNoCov">          0 :             return SECSuccess;</span>
+<span class="lineNum">     937 </span>            :         }
+<span class="lineNum">     938 </span>            :     }
+<span class="lineNum">     939 </span>            :     /*
+<span class="lineNum">     940 </span>            :      * OK finally try FIPS186_3 Shawe-Taylor
+<span class="lineNum">     941 </span>            :      */
+<span class="lineNum">     942 </span><span class="lineNoCov">          0 :     firstseed = *seed;</span>
+<span class="lineNum">     943 </span><span class="lineNoCov">          0 :     firstseed.len = seed-&gt;len / 3;</span>
+<span class="lineNum">     944 </span><span class="lineNoCov">          0 :     for (hashtype = getFirstHash(L, N); hashtype != HASH_AlgTOTAL;</span>
+<span class="lineNum">     945 </span><span class="lineNoCov">          0 :          hashtype = getNextHash(hashtype)) {</span>
+<span class="lineNum">     946 </span>            :         unsigned int count;
+<span class="lineNum">     947 </span>            : 
+<span class="lineNum">     948 </span><span class="lineNoCov">          0 :         rv = makePrimefromSeedShaweTaylor(hashtype, N, &amp;firstseed, Q_,</span>
+<span class="lineNum">     949 </span>            :                                           &amp;qseed, &amp;count);
+<span class="lineNum">     950 </span><span class="lineNoCov">          0 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     951 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">     952 </span>            :         }
+<span class="lineNum">     953 </span><span class="lineNoCov">          0 :         if (mp_cmp(Q, Q_) == 0) {</span>
+<span class="lineNum">     954 </span>            :             /* check qseed as well... */
+<span class="lineNum">     955 </span><span class="lineNoCov">          0 :             int offset = seed-&gt;len - qseed.len;</span>
+<span class="lineNum">     956 </span><span class="lineNoCov">          0 :             if ((offset &lt; 0) ||</span>
+<span class="lineNum">     957 </span><span class="lineNoCov">          0 :                 (PORT_Memcmp(&amp;seed-&gt;data[offset], qseed.data, qseed.len) != 0)) {</span>
+<span class="lineNum">     958 </span>            :                 /* we found q, but the seeds don't match. This isn't an
+<span class="lineNum">     959 </span>            :          * accident, someone has been tweeking with the seeds, just
+<span class="lineNum">     960 </span>            :          * fail a this point. */
+<span class="lineNum">     961 </span><span class="lineNoCov">          0 :                 SECITEM_FreeItem(&amp;qseed, PR_FALSE);</span>
+<span class="lineNum">     962 </span><span class="lineNoCov">          0 :                 return SECFailure;</span>
+<span class="lineNum">     963 </span>            :             }
+<span class="lineNum">     964 </span><span class="lineNoCov">          0 :             *qseed_len = qseed.len;</span>
+<span class="lineNum">     965 </span><span class="lineNoCov">          0 :             *hashtypePtr = hashtype;</span>
+<span class="lineNum">     966 </span><span class="lineNoCov">          0 :             *typePtr = FIPS186_3_ST_TYPE;</span>
+<span class="lineNum">     967 </span><span class="lineNoCov">          0 :             SECITEM_FreeItem(&amp;qseed, PR_FALSE);</span>
+<span class="lineNum">     968 </span><span class="lineNoCov">          0 :             return SECSuccess;</span>
+<span class="lineNum">     969 </span>            :         }
+<span class="lineNum">     970 </span><span class="lineNoCov">          0 :         SECITEM_FreeItem(&amp;qseed, PR_FALSE);</span>
+<span class="lineNum">     971 </span>            :     }
+<span class="lineNum">     972 </span>            :     /* no hash algorithms found which match seed to Q, fail */
+<span class="lineNum">     973 </span>            :     return SECFailure;
+<span class="lineNum">     974 </span>            : }
+<span class="lineNum">     975 </span>            : 
+<span class="lineNum">     976 </span>            : /*
+<span class="lineNum">     977 </span>            : **  Perform steps 7, 8 and 9 of FIPS 186, appendix 2.2.
+<span class="lineNum">     978 </span>            : **  which are the same as steps 11.1-11.5 of FIPS 186-2, App A.1.1.2
+<span class="lineNum">     979 </span>            : **  Generate P from Q, seed, L, and offset.
+<a name="980"><span class="lineNum">     980 </span>            : */</a>
+<span class="lineNum">     981 </span>            : static SECStatus
+<span class="lineNum">     982 </span><span class="lineNoCov">          0 : makePfromQandSeed(</span>
+<span class="lineNum">     983 </span>            :     HASH_HashType hashtype, /* selected Hashing algorithm */
+<span class="lineNum">     984 </span>            :     unsigned int L,         /* Length of P in bits.  Per FIPS 186. */
+<span class="lineNum">     985 </span>            :     unsigned int N,         /* Length of Q in bits.  Per FIPS 186. */
+<span class="lineNum">     986 </span>            :     unsigned int offset,    /* Per FIPS 186, App 2.2. &amp; 186-3 App A.1.1.2 */
+<span class="lineNum">     987 </span>            :     unsigned int seedlen,   /* input. Length of seed in bits. (g in 186-1)*/
+<span class="lineNum">     988 </span>            :     const SECItem *seed,    /* input.  */
+<span class="lineNum">     989 </span>            :     const mp_int *Q,        /* input.  */
+<span class="lineNum">     990 </span>            :     mp_int *P)              /* output. */
+<span class="lineNum">     991 </span>            : {
+<span class="lineNum">     992 </span>            :     unsigned int j;       /* Per FIPS 186-3 App. A.1.1.2  (k in 186-1)*/
+<span class="lineNum">     993 </span>            :     unsigned int n;       /* Per FIPS 186, appendix 2.2. */
+<span class="lineNum">     994 </span>            :     mp_digit b;           /* Per FIPS 186, appendix 2.2. */
+<span class="lineNum">     995 </span>            :     unsigned int outlen;  /* Per FIPS 186-3 App. A.1.1.2 */
+<span class="lineNum">     996 </span>            :     unsigned int hashlen; /* outlen in bytes */
+<span class="lineNum">     997 </span>            :     unsigned char V_j[HASH_LENGTH_MAX];
+<span class="lineNum">     998 </span>            :     mp_int W, X, c, twoQ, V_n, tmp;
+<span class="lineNum">     999 </span><span class="lineNoCov">          0 :     mp_err err = MP_OKAY;</span>
+<span class="lineNum">    1000 </span><span class="lineNoCov">          0 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">    1001 </span>            :     /* Initialize bignums */
+<span class="lineNum">    1002 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;W) = 0;</span>
+<span class="lineNum">    1003 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;X) = 0;</span>
+<span class="lineNum">    1004 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;c) = 0;</span>
+<span class="lineNum">    1005 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;twoQ) = 0;</span>
+<span class="lineNum">    1006 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;V_n) = 0;</span>
+<span class="lineNum">    1007 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;tmp) = 0;</span>
+<span class="lineNum">    1008 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;W));</span>
+<span class="lineNum">    1009 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;X));</span>
+<span class="lineNum">    1010 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;c));</span>
+<span class="lineNum">    1011 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;twoQ));</span>
+<span class="lineNum">    1012 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;tmp));</span>
+<span class="lineNum">    1013 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;V_n));</span>
+<span class="lineNum">    1014 </span>            : 
+<span class="lineNum">    1015 </span><span class="lineNoCov">          0 :     hashlen = HASH_ResultLen(hashtype);</span>
+<span class="lineNum">    1016 </span><span class="lineNoCov">          0 :     outlen = hashlen * PR_BITS_PER_BYTE;</span>
+<span class="lineNum">    1017 </span>            : 
+<span class="lineNum">    1018 </span>            :     /* L - 1 = n*outlen + b */
+<span class="lineNum">    1019 </span><span class="lineNoCov">          0 :     n = (L - 1) / outlen;</span>
+<span class="lineNum">    1020 </span><span class="lineNoCov">          0 :     b = (L - 1) % outlen;</span>
+<span class="lineNum">    1021 </span>            : 
+<span class="lineNum">    1022 </span>            :     /* ******************************************************************
+<span class="lineNum">    1023 </span>            :     ** Step 11.1 (Step 7 in 186-1)
+<span class="lineNum">    1024 </span>            :     **  &quot;for j = 0 ... n let
+<span class="lineNum">    1025 </span>            :     **           V_j = SHA[(SEED + offset + j) mod 2**seedlen].&quot;
+<span class="lineNum">    1026 </span>            :     **
+<span class="lineNum">    1027 </span>            :     ** Step 11.2 (Step 8 in 186-1)
+<span class="lineNum">    1028 </span>            :     **   &quot;W = V_0 + (V_1 * 2**outlen) + ... + (V_n-1 * 2**((n-1)*outlen))
+<span class="lineNum">    1029 </span>            :     **         + ((V_n mod 2**b) * 2**(n*outlen))
+<span class="lineNum">    1030 </span>            :     */
+<span class="lineNum">    1031 </span><span class="lineNoCov">          0 :     for (j = 0; j &lt; n; ++j) { /* Do the first n terms of V_j */</span>
+<span class="lineNum">    1032 </span>            :         /* Do step 11.1 for iteration j.
+<span class="lineNum">    1033 </span>            :     ** V_j = HASH[(seed + offset + j) mod 2**g]
+<span class="lineNum">    1034 </span>            :     */
+<span class="lineNum">    1035 </span><span class="lineNoCov">          0 :         CHECK_SEC_OK(addToSeedThenHash(hashtype, seed, offset + j, seedlen, V_j));</span>
+<span class="lineNum">    1036 </span>            :         /* Do step 11.2 for iteration j.
+<span class="lineNum">    1037 </span>            :     ** W += V_j * 2**(j*outlen)
+<span class="lineNum">    1038 </span>            :     */
+<span class="lineNum">    1039 </span><span class="lineNoCov">          0 :         OCTETS_TO_MPINT(V_j, &amp;tmp, hashlen);           /* get bignum V_j     */</span>
+<span class="lineNum">    1040 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mpl_lsh(&amp;tmp, &amp;tmp, j * outlen)); /* tmp=V_j &lt;&lt; j*outlen */</span>
+<span class="lineNum">    1041 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_add(&amp;W, &amp;tmp, &amp;W));            /* W += tmp           */</span>
+<span class="lineNum">    1042 </span>            :     }
+<span class="lineNum">    1043 </span>            :     /* Step 11.2, continued.
+<span class="lineNum">    1044 </span>            :     **   [W += ((V_n mod 2**b) * 2**(n*outlen))]
+<span class="lineNum">    1045 </span>            :     */
+<span class="lineNum">    1046 </span><span class="lineNoCov">          0 :     CHECK_SEC_OK(addToSeedThenHash(hashtype, seed, offset + n, seedlen, V_j));</span>
+<span class="lineNum">    1047 </span><span class="lineNoCov">          0 :     OCTETS_TO_MPINT(V_j, &amp;V_n, hashlen);           /* get bignum V_n     */</span>
+<span class="lineNum">    1048 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_div_2d(&amp;V_n, b, NULL, &amp;tmp));  /* tmp = V_n mod 2**b */</span>
+<span class="lineNum">    1049 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mpl_lsh(&amp;tmp, &amp;tmp, n * outlen)); /* tmp = tmp &lt;&lt; n*outlen */</span>
+<span class="lineNum">    1050 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_add(&amp;W, &amp;tmp, &amp;W));            /* W += tmp           */</span>
+<span class="lineNum">    1051 </span>            :     /* Step 11.3, (Step 8 in 186-1)
+<span class="lineNum">    1052 </span>            :     ** &quot;X = W + 2**(L-1).
+<span class="lineNum">    1053 </span>            :     **  Note that 0 &lt;= W &lt; 2**(L-1) and hence 2**(L-1) &lt;= X &lt; 2**L.&quot;
+<span class="lineNum">    1054 </span>            :     */
+<span class="lineNum">    1055 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mpl_set_bit(&amp;X, (mp_size)(L - 1), 1)); /* X = 2**(L-1) */</span>
+<span class="lineNum">    1056 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_add(&amp;X, &amp;W, &amp;X));                   /* X += W       */</span>
+<span class="lineNum">    1057 </span>            :     /*************************************************************
+<span class="lineNum">    1058 </span>            :     ** Step 11.4. (Step 9 in 186-1)
+<span class="lineNum">    1059 </span>            :     ** &quot;c = X mod 2q&quot;
+<span class="lineNum">    1060 </span>            :     */
+<span class="lineNum">    1061 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_mul_2(Q, &amp;twoQ));    /* 2q           */</span>
+<span class="lineNum">    1062 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_mod(&amp;X, &amp;twoQ, &amp;c)); /* c = X mod 2q */</span>
+<span class="lineNum">    1063 </span>            :     /*************************************************************
+<span class="lineNum">    1064 </span>            :     ** Step 11.5. (Step 9 in 186-1)
+<span class="lineNum">    1065 </span>            :     ** &quot;p = X - (c - 1).
+<span class="lineNum">    1066 </span>            :     **  Note that p is congruent to 1 mod 2q.&quot;
+<span class="lineNum">    1067 </span>            :     */
+<span class="lineNum">    1068 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_sub_d(&amp;c, 1, &amp;c)); /* c -= 1       */</span>
+<span class="lineNum">    1069 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_sub(&amp;X, &amp;c, P));   /* P = X - c    */</span>
+<span class="lineNum">    1070 </span>            : cleanup:
+<span class="lineNum">    1071 </span><span class="lineNoCov">          0 :     mp_clear(&amp;W);</span>
+<span class="lineNum">    1072 </span><span class="lineNoCov">          0 :     mp_clear(&amp;X);</span>
+<span class="lineNum">    1073 </span><span class="lineNoCov">          0 :     mp_clear(&amp;c);</span>
+<span class="lineNum">    1074 </span><span class="lineNoCov">          0 :     mp_clear(&amp;twoQ);</span>
+<span class="lineNum">    1075 </span><span class="lineNoCov">          0 :     mp_clear(&amp;V_n);</span>
+<span class="lineNum">    1076 </span><span class="lineNoCov">          0 :     mp_clear(&amp;tmp);</span>
+<span class="lineNum">    1077 </span><span class="lineNoCov">          0 :     if (err) {</span>
+<span class="lineNum">    1078 </span><span class="lineNoCov">          0 :         MP_TO_SEC_ERROR(err);</span>
+<span class="lineNum">    1079 </span>            :         return SECFailure;
+<span class="lineNum">    1080 </span>            :     }
+<span class="lineNum">    1081 </span>            :     return rv;
+<span class="lineNum">    1082 </span>            : }
+<span class="lineNum">    1083 </span>            : 
+<span class="lineNum">    1084 </span>            : /*
+<span class="lineNum">    1085 </span>            : ** Generate G from h, P, and Q.
+<a name="1086"><span class="lineNum">    1086 </span>            : */</a>
+<span class="lineNum">    1087 </span>            : static SECStatus
+<span class="lineNum">    1088 </span><span class="lineNoCov">          0 : makeGfromH(const mp_int *P, /* input.  */</span>
+<span class="lineNum">    1089 </span>            :            const mp_int *Q, /* input.  */
+<span class="lineNum">    1090 </span>            :            mp_int *H,       /* input and output. */
+<span class="lineNum">    1091 </span>            :            mp_int *G,       /* output. */
+<span class="lineNum">    1092 </span>            :            PRBool *passed)
+<span class="lineNum">    1093 </span>            : {
+<span class="lineNum">    1094 </span>            :     mp_int exp, pm1;
+<span class="lineNum">    1095 </span><span class="lineNoCov">          0 :     mp_err err = MP_OKAY;</span>
+<span class="lineNum">    1096 </span><span class="lineNoCov">          0 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">    1097 </span><span class="lineNoCov">          0 :     *passed = PR_FALSE;</span>
+<span class="lineNum">    1098 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;exp) = 0;</span>
+<span class="lineNum">    1099 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;pm1) = 0;</span>
+<span class="lineNum">    1100 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;exp));</span>
+<span class="lineNum">    1101 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;pm1));</span>
+<span class="lineNum">    1102 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_sub_d(P, 1, &amp;pm1));   /* P - 1            */</span>
+<span class="lineNum">    1103 </span><span class="lineNoCov">          0 :     if (mp_cmp(H, &amp;pm1) &gt;= 0)             /* H &gt;= P-1         */</span>
+<span class="lineNum">    1104 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_sub(H, &amp;pm1, H)); /* H = H mod (P-1)  */</span>
+<span class="lineNum">    1105 </span>            :     /* Let b = 2**n (smallest power of 2 greater than P).
+<span class="lineNum">    1106 </span>            :     ** Since P-1 &gt;= b/2, and H &lt; b, quotient(H/(P-1)) = 0 or 1
+<span class="lineNum">    1107 </span>            :     ** so the above operation safely computes H mod (P-1)
+<span class="lineNum">    1108 </span>            :     */
+<span class="lineNum">    1109 </span>            :     /* Check for H = to 0 or 1.  Regen H if so.  (Regen means return error). */
+<span class="lineNum">    1110 </span><span class="lineNoCov">          0 :     if (mp_cmp_d(H, 1) &lt;= 0) {</span>
+<span class="lineNum">    1111 </span>            :         rv = SECFailure;
+<span class="lineNum">    1112 </span>            :         goto cleanup;
+<span class="lineNum">    1113 </span>            :     }
+<span class="lineNum">    1114 </span>            :     /* Compute G, according to the equation  G = (H ** ((P-1)/Q)) mod P */
+<span class="lineNum">    1115 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_div(&amp;pm1, Q, &amp;exp, NULL)); /* exp = (P-1)/Q      */</span>
+<span class="lineNum">    1116 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_exptmod(H, &amp;exp, P, G));   /* G = H ** exp mod P */</span>
+<span class="lineNum">    1117 </span>            :     /* Check for G == 0 or G == 1, return error if so. */
+<span class="lineNum">    1118 </span><span class="lineNoCov">          0 :     if (mp_cmp_d(G, 1) &lt;= 0) {</span>
+<span class="lineNum">    1119 </span>            :         rv = SECFailure;
+<span class="lineNum">    1120 </span>            :         goto cleanup;
+<span class="lineNum">    1121 </span>            :     }
+<span class="lineNum">    1122 </span><span class="lineNoCov">          0 :     *passed = PR_TRUE;</span>
+<span class="lineNum">    1123 </span>            : cleanup:
+<span class="lineNum">    1124 </span><span class="lineNoCov">          0 :     mp_clear(&amp;exp);</span>
+<span class="lineNum">    1125 </span><span class="lineNoCov">          0 :     mp_clear(&amp;pm1);</span>
+<span class="lineNum">    1126 </span><span class="lineNoCov">          0 :     if (err) {</span>
+<span class="lineNum">    1127 </span><span class="lineNoCov">          0 :         MP_TO_SEC_ERROR(err);</span>
+<span class="lineNum">    1128 </span>            :         rv = SECFailure;
+<span class="lineNum">    1129 </span>            :     }
+<span class="lineNum">    1130 </span><span class="lineNoCov">          0 :     return rv;</span>
+<span class="lineNum">    1131 </span>            : }
+<span class="lineNum">    1132 </span>            : 
+<span class="lineNum">    1133 </span>            : /*
+<span class="lineNum">    1134 </span>            : ** Generate G from seed, index, P, and Q.
+<a name="1135"><span class="lineNum">    1135 </span>            : */</a>
+<span class="lineNum">    1136 </span>            : static SECStatus
+<span class="lineNum">    1137 </span><span class="lineNoCov">          0 : makeGfromIndex(HASH_HashType hashtype,</span>
+<span class="lineNum">    1138 </span>            :                const mp_int *P,     /* input.  */
+<span class="lineNum">    1139 </span>            :                const mp_int *Q,     /* input.  */
+<span class="lineNum">    1140 </span>            :                const SECItem *seed, /* input. */
+<span class="lineNum">    1141 </span>            :                unsigned char index, /* input. */
+<span class="lineNum">    1142 </span>            :                mp_int *G)           /* input/output */
+<span class="lineNum">    1143 </span>            : {
+<span class="lineNum">    1144 </span>            :     mp_int e, pm1, W;
+<span class="lineNum">    1145 </span>            :     unsigned int count;
+<span class="lineNum">    1146 </span>            :     unsigned char data[HASH_LENGTH_MAX];
+<span class="lineNum">    1147 </span>            :     unsigned int len;
+<span class="lineNum">    1148 </span><span class="lineNoCov">          0 :     mp_err err = MP_OKAY;</span>
+<span class="lineNum">    1149 </span><span class="lineNoCov">          0 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">    1150 </span><span class="lineNoCov">          0 :     const SECHashObject *hashobj = NULL;</span>
+<span class="lineNum">    1151 </span><span class="lineNoCov">          0 :     void *hashcx = NULL;</span>
+<span class="lineNum">    1152 </span>            : 
+<span class="lineNum">    1153 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;e) = 0;</span>
+<span class="lineNum">    1154 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;pm1) = 0;</span>
+<span class="lineNum">    1155 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;W) = 0;</span>
+<span class="lineNum">    1156 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;e));</span>
+<span class="lineNum">    1157 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;pm1));</span>
+<span class="lineNum">    1158 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;W));</span>
+<span class="lineNum">    1159 </span>            : 
+<span class="lineNum">    1160 </span>            :     /* initialize our hash stuff */
+<span class="lineNum">    1161 </span><span class="lineNoCov">          0 :     hashobj = HASH_GetRawHashObject(hashtype);</span>
+<span class="lineNum">    1162 </span><span class="lineNoCov">          0 :     if (hashobj == NULL) {</span>
+<span class="lineNum">    1163 </span>            :         /* shouldn't happen */
+<span class="lineNum">    1164 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);</span>
+<span class="lineNum">    1165 </span><span class="lineNoCov">          0 :         rv = SECFailure;</span>
+<span class="lineNum">    1166 </span><span class="lineNoCov">          0 :         goto cleanup;</span>
+<span class="lineNum">    1167 </span>            :     }
+<span class="lineNum">    1168 </span><span class="lineNoCov">          0 :     hashcx = hashobj-&gt;create();</span>
+<span class="lineNum">    1169 </span><span class="lineNoCov">          0 :     if (hashcx == NULL) {</span>
+<span class="lineNum">    1170 </span>            :         rv = SECFailure;
+<span class="lineNum">    1171 </span>            :         goto cleanup;
+<span class="lineNum">    1172 </span>            :     }
+<span class="lineNum">    1173 </span>            : 
+<span class="lineNum">    1174 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_sub_d(P, 1, &amp;pm1)); /* P - 1            */</span>
+<span class="lineNum">    1175 </span>            :     /* Step 3 e = (p-1)/q */
+<span class="lineNum">    1176 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_div(&amp;pm1, Q, &amp;e, NULL)); /* e = (P-1)/Q      */</span>
+<span class="lineNum">    1177 </span>            : /* Steps 4, 5, and 6 */
+<span class="lineNum">    1178 </span>            : /* count is a 16 bit value in the spec. We actually represent count
+<span class="lineNum">    1179 </span>            :      * as more than 16 bits so we can easily detect the 16 bit overflow */
+<span class="lineNum">    1180 </span>            : #define MAX_COUNT 0x10000
+<span class="lineNum">    1181 </span><span class="lineNoCov">          0 :     for (count = 1; count &lt; MAX_COUNT; count++) {</span>
+<span class="lineNum">    1182 </span>            :         /* step 7
+<span class="lineNum">    1183 </span>            :          * U = domain_param_seed || &quot;ggen&quot; || index || count
+<span class="lineNum">    1184 </span>            :              * step 8
+<span class="lineNum">    1185 </span>            :          * W = HASH(U)
+<span class="lineNum">    1186 </span>            :          */
+<span class="lineNum">    1187 </span><span class="lineNoCov">          0 :         hashobj-&gt;begin(hashcx);</span>
+<span class="lineNum">    1188 </span><span class="lineNoCov">          0 :         hashobj-&gt;update(hashcx, seed-&gt;data, seed-&gt;len);</span>
+<span class="lineNum">    1189 </span><span class="lineNoCov">          0 :         hashobj-&gt;update(hashcx, (unsigned char *)&quot;ggen&quot;, 4);</span>
+<span class="lineNum">    1190 </span><span class="lineNoCov">          0 :         hashobj-&gt;update(hashcx, &amp;index, 1);</span>
+<span class="lineNum">    1191 </span><span class="lineNoCov">          0 :         data[0] = (count &gt;&gt; 8) &amp; 0xff;</span>
+<span class="lineNum">    1192 </span><span class="lineNoCov">          0 :         data[1] = count &amp; 0xff;</span>
+<span class="lineNum">    1193 </span><span class="lineNoCov">          0 :         hashobj-&gt;update(hashcx, data, 2);</span>
+<span class="lineNum">    1194 </span><span class="lineNoCov">          0 :         hashobj-&gt;end(hashcx, data, &amp;len, sizeof(data));</span>
+<span class="lineNum">    1195 </span><span class="lineNoCov">          0 :         OCTETS_TO_MPINT(data, &amp;W, len);</span>
+<span class="lineNum">    1196 </span>            :         /* step 9. g = W**e mod p */
+<span class="lineNum">    1197 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mp_exptmod(&amp;W, &amp;e, P, G));</span>
+<span class="lineNum">    1198 </span>            :         /* step 10. if (g &lt; 2) then goto step 5 */
+<span class="lineNum">    1199 </span>            :         /* NOTE: this weird construct is to keep the flow according to the spec.
+<span class="lineNum">    1200 </span>            :      * the continue puts us back to step 5 of the for loop */
+<span class="lineNum">    1201 </span><span class="lineNoCov">          0 :         if (mp_cmp_d(G, 2) &lt; 0) {</span>
+<span class="lineNum">    1202 </span><span class="lineNoCov">          0 :             continue;</span>
+<span class="lineNum">    1203 </span>            :         }
+<span class="lineNum">    1204 </span>            :         break; /* step 11 follows step 10 if the test condition is false */
+<span class="lineNum">    1205 </span>            :     }
+<span class="lineNum">    1206 </span><span class="lineNoCov">          0 :     if (count &gt;= MAX_COUNT) {</span>
+<span class="lineNum">    1207 </span><span class="lineNoCov">          0 :         rv = SECFailure; /* last part of step 6 */</span>
+<span class="lineNum">    1208 </span>            :     }
+<span class="lineNum">    1209 </span>            : /* step 11.
+<span class="lineNum">    1210 </span>            :      * return valid G */
+<span class="lineNum">    1211 </span>            : cleanup:
+<span class="lineNum">    1212 </span><span class="lineNoCov">          0 :     PORT_Memset(data, 0, sizeof(data));</span>
+<span class="lineNum">    1213 </span><span class="lineNoCov">          0 :     if (hashcx) {</span>
+<span class="lineNum">    1214 </span><span class="lineNoCov">          0 :         hashobj-&gt;destroy(hashcx, PR_TRUE);</span>
+<span class="lineNum">    1215 </span>            :     }
+<span class="lineNum">    1216 </span><span class="lineNoCov">          0 :     mp_clear(&amp;e);</span>
+<span class="lineNum">    1217 </span><span class="lineNoCov">          0 :     mp_clear(&amp;pm1);</span>
+<span class="lineNum">    1218 </span><span class="lineNoCov">          0 :     mp_clear(&amp;W);</span>
+<span class="lineNum">    1219 </span><span class="lineNoCov">          0 :     if (err) {</span>
+<span class="lineNum">    1220 </span><span class="lineNoCov">          0 :         MP_TO_SEC_ERROR(err);</span>
+<span class="lineNum">    1221 </span>            :         rv = SECFailure;
+<span class="lineNum">    1222 </span>            :     }
+<span class="lineNum">    1223 </span><span class="lineNoCov">          0 :     return rv;</span>
+<span class="lineNum">    1224 </span>            : }
+<span class="lineNum">    1225 </span>            : 
+<span class="lineNum">    1226 </span>            : /* This code uses labels and gotos, so that it can follow the numbered
+<span class="lineNum">    1227 </span>            : ** steps in the algorithms from FIPS 186-3 appendix A.1.1.2 very closely,
+<span class="lineNum">    1228 </span>            : ** and so that the correctness of this code can be easily verified.
+<span class="lineNum">    1229 </span>            : ** So, please forgive the ugly c code.
+<a name="1230"><span class="lineNum">    1230 </span>            : **/</a>
+<span class="lineNum">    1231 </span>            : static SECStatus
+<span class="lineNum">    1232 </span><span class="lineNoCov">          0 : pqg_ParamGen(unsigned int L, unsigned int N, pqgGenType type,</span>
+<span class="lineNum">    1233 </span>            :              unsigned int seedBytes, PQGParams **pParams, PQGVerify **pVfy)
+<span class="lineNum">    1234 </span>            : {
+<span class="lineNum">    1235 </span>            :     unsigned int n;       /* Per FIPS 186, app 2.2. 186-3 app A.1.1.2 */
+<span class="lineNum">    1236 </span>            :     unsigned int seedlen; /* Per FIPS 186-3 app A.1.1.2  (was 'g' 186-1)*/
+<span class="lineNum">    1237 </span>            :     unsigned int counter; /* Per FIPS 186, app 2.2. 186-3 app A.1.1.2 */
+<span class="lineNum">    1238 </span>            :     unsigned int offset;  /* Per FIPS 186, app 2.2. 186-3 app A.1.1.2 */
+<span class="lineNum">    1239 </span>            :     unsigned int outlen;  /* Per FIPS 186-3, appendix A.1.1.2. */
+<span class="lineNum">    1240 </span>            :     unsigned int maxCount;
+<span class="lineNum">    1241 </span>            :     HASH_HashType hashtype;
+<span class="lineNum">    1242 </span>            :     SECItem *seed; /* Per FIPS 186, app 2.2. 186-3 app A.1.1.2 */
+<span class="lineNum">    1243 </span><span class="lineNoCov">          0 :     PLArenaPool *arena = NULL;</span>
+<span class="lineNum">    1244 </span><span class="lineNoCov">          0 :     PQGParams *params = NULL;</span>
+<span class="lineNum">    1245 </span><span class="lineNoCov">          0 :     PQGVerify *verify = NULL;</span>
+<span class="lineNum">    1246 </span>            :     PRBool passed;
+<span class="lineNum">    1247 </span><span class="lineNoCov">          0 :     SECItem hit = { 0, 0, 0 };</span>
+<span class="lineNum">    1248 </span><span class="lineNoCov">          0 :     SECItem firstseed = { 0, 0, 0 };</span>
+<span class="lineNum">    1249 </span><span class="lineNoCov">          0 :     SECItem qseed = { 0, 0, 0 };</span>
+<span class="lineNum">    1250 </span><span class="lineNoCov">          0 :     SECItem pseed = { 0, 0, 0 };</span>
+<span class="lineNum">    1251 </span>            :     mp_int P, Q, G, H, l, p0;
+<span class="lineNum">    1252 </span><span class="lineNoCov">          0 :     mp_err err = MP_OKAY;</span>
+<span class="lineNum">    1253 </span><span class="lineNoCov">          0 :     SECStatus rv = SECFailure;</span>
+<span class="lineNum">    1254 </span><span class="lineNoCov">          0 :     int iterations = 0;</span>
+<span class="lineNum">    1255 </span>            : 
+<span class="lineNum">    1256 </span>            :     /* Step 1. L and N already checked by caller*/
+<span class="lineNum">    1257 </span>            :     /* Step 2. if (seedlen &lt; N) return INVALID; */
+<span class="lineNum">    1258 </span><span class="lineNoCov">          0 :     if (seedBytes &lt; N / PR_BITS_PER_BYTE || !pParams || !pVfy) {</span>
+<span class="lineNum">    1259 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">    1260 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">    1261 </span>            :     }
+<span class="lineNum">    1262 </span>            : 
+<span class="lineNum">    1263 </span>            :     /* Initialize bignums */
+<span class="lineNum">    1264 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;P) = 0;</span>
+<span class="lineNum">    1265 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;Q) = 0;</span>
+<span class="lineNum">    1266 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;G) = 0;</span>
+<span class="lineNum">    1267 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;H) = 0;</span>
+<span class="lineNum">    1268 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;l) = 0;</span>
+<span class="lineNum">    1269 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;p0) = 0;</span>
+<span class="lineNum">    1270 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;P));</span>
+<span class="lineNum">    1271 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;Q));</span>
+<span class="lineNum">    1272 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;G));</span>
+<span class="lineNum">    1273 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;H));</span>
+<span class="lineNum">    1274 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;l));</span>
+<span class="lineNum">    1275 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;p0));</span>
+<span class="lineNum">    1276 </span>            : 
+<span class="lineNum">    1277 </span>            :     /* parameters have been passed in, only generate G */
+<span class="lineNum">    1278 </span><span class="lineNoCov">          0 :     if (*pParams != NULL) {</span>
+<span class="lineNum">    1279 </span>            :         /* we only support G index generation if generating separate from PQ */
+<span class="lineNum">    1280 </span><span class="lineNoCov">          0 :         if ((*pVfy == NULL) || (type == FIPS186_1_TYPE) ||</span>
+<span class="lineNum">    1281 </span><span class="lineNoCov">          0 :             ((*pVfy)-&gt;h.len != 1) || ((*pVfy)-&gt;h.data == NULL) ||</span>
+<span class="lineNum">    1282 </span><span class="lineNoCov">          0 :             ((*pVfy)-&gt;seed.data == NULL) || ((*pVfy)-&gt;seed.len == 0)) {</span>
+<span class="lineNum">    1283 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">    1284 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">    1285 </span>            :         }
+<span class="lineNum">    1286 </span><span class="lineNoCov">          0 :         params = *pParams;</span>
+<span class="lineNum">    1287 </span><span class="lineNoCov">          0 :         verify = *pVfy;</span>
+<span class="lineNum">    1288 </span>            : 
+<span class="lineNum">    1289 </span>            :         /* fill in P Q,  */
+<span class="lineNum">    1290 </span><span class="lineNoCov">          0 :         SECITEM_TO_MPINT((*pParams)-&gt;prime, &amp;P);</span>
+<span class="lineNum">    1291 </span><span class="lineNoCov">          0 :         SECITEM_TO_MPINT((*pParams)-&gt;subPrime, &amp;Q);</span>
+<span class="lineNum">    1292 </span><span class="lineNoCov">          0 :         hashtype = getFirstHash(L, N);</span>
+<span class="lineNum">    1293 </span><span class="lineNoCov">          0 :         CHECK_SEC_OK(makeGfromIndex(hashtype, &amp;P, &amp;Q, &amp;(*pVfy)-&gt;seed,</span>
+<span class="lineNum">    1294 </span>            :                                     (*pVfy)-&gt;h.data[0], &amp;G));
+<span class="lineNum">    1295 </span><span class="lineNoCov">          0 :         MPINT_TO_SECITEM(&amp;G, &amp;(*pParams)-&gt;base, (*pParams)-&gt;arena);</span>
+<span class="lineNum">    1296 </span><span class="lineNoCov">          0 :         goto cleanup;</span>
+<span class="lineNum">    1297 </span>            :     }
+<span class="lineNum">    1298 </span>            :     /* Initialize an arena for the params. */
+<span class="lineNum">    1299 </span><span class="lineNoCov">          0 :     arena = PORT_NewArena(NSS_FREEBL_DEFAULT_CHUNKSIZE);</span>
+<span class="lineNum">    1300 </span><span class="lineNoCov">          0 :     if (!arena) {</span>
+<span class="lineNum">    1301 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_MEMORY);</span>
+<span class="lineNum">    1302 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">    1303 </span>            :     }
+<span class="lineNum">    1304 </span><span class="lineNoCov">          0 :     params = (PQGParams *)PORT_ArenaZAlloc(arena, sizeof(PQGParams));</span>
+<span class="lineNum">    1305 </span><span class="lineNoCov">          0 :     if (!params) {</span>
+<span class="lineNum">    1306 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_MEMORY);</span>
+<span class="lineNum">    1307 </span><span class="lineNoCov">          0 :         PORT_FreeArena(arena, PR_TRUE);</span>
+<span class="lineNum">    1308 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">    1309 </span>            :     }
+<span class="lineNum">    1310 </span><span class="lineNoCov">          0 :     params-&gt;arena = arena;</span>
+<span class="lineNum">    1311 </span>            :     /* Initialize an arena for the verify. */
+<span class="lineNum">    1312 </span><span class="lineNoCov">          0 :     arena = PORT_NewArena(NSS_FREEBL_DEFAULT_CHUNKSIZE);</span>
+<span class="lineNum">    1313 </span><span class="lineNoCov">          0 :     if (!arena) {</span>
+<span class="lineNum">    1314 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_MEMORY);</span>
+<span class="lineNum">    1315 </span><span class="lineNoCov">          0 :         PORT_FreeArena(params-&gt;arena, PR_TRUE);</span>
+<span class="lineNum">    1316 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">    1317 </span>            :     }
+<span class="lineNum">    1318 </span><span class="lineNoCov">          0 :     verify = (PQGVerify *)PORT_ArenaZAlloc(arena, sizeof(PQGVerify));</span>
+<span class="lineNum">    1319 </span><span class="lineNoCov">          0 :     if (!verify) {</span>
+<span class="lineNum">    1320 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_MEMORY);</span>
+<span class="lineNum">    1321 </span><span class="lineNoCov">          0 :         PORT_FreeArena(arena, PR_TRUE);</span>
+<span class="lineNum">    1322 </span><span class="lineNoCov">          0 :         PORT_FreeArena(params-&gt;arena, PR_TRUE);</span>
+<span class="lineNum">    1323 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">    1324 </span>            :     }
+<span class="lineNum">    1325 </span><span class="lineNoCov">          0 :     verify-&gt;arena = arena;</span>
+<span class="lineNum">    1326 </span><span class="lineNoCov">          0 :     seed = &amp;verify-&gt;seed;</span>
+<span class="lineNum">    1327 </span><span class="lineNoCov">          0 :     arena = NULL;</span>
+<span class="lineNum">    1328 </span>            : 
+<span class="lineNum">    1329 </span>            :     /* Select Hash and Compute lengths. */
+<span class="lineNum">    1330 </span>            :     /* getFirstHash gives us the smallest acceptable hash for this key
+<span class="lineNum">    1331 </span>            :      * strength */
+<span class="lineNum">    1332 </span><span class="lineNoCov">          0 :     hashtype = getFirstHash(L, N);</span>
+<span class="lineNum">    1333 </span><span class="lineNoCov">          0 :     outlen = HASH_ResultLen(hashtype) * PR_BITS_PER_BYTE;</span>
+<span class="lineNum">    1334 </span>            : 
+<span class="lineNum">    1335 </span>            :     /* Step 3: n = Ceil(L/outlen)-1; (same as n = Floor((L-1)/outlen)) */
+<span class="lineNum">    1336 </span><span class="lineNoCov">          0 :     n = (L - 1) / outlen;</span>
+<span class="lineNum">    1337 </span>            :     /* Step 4: (skipped since we don't use b): b = L -1 - (n*outlen); */
+<span class="lineNum">    1338 </span><span class="lineNoCov">          0 :     seedlen = seedBytes * PR_BITS_PER_BYTE; /* bits in seed */</span>
+<span class="lineNum">    1339 </span>            : step_5:
+<span class="lineNum">    1340 </span>            :     /* ******************************************************************
+<span class="lineNum">    1341 </span>            :     ** Step 5. (Step 1 in 186-1)
+<span class="lineNum">    1342 </span>            :     ** &quot;Choose an abitrary sequence of at least N bits and call it SEED.
+<span class="lineNum">    1343 </span>            :     **  Let g be the length of SEED in bits.&quot;
+<span class="lineNum">    1344 </span>            :     */
+<span class="lineNum">    1345 </span><span class="lineNoCov">          0 :     if (++iterations &gt; MAX_ITERATIONS) { /* give up after a while */</span>
+<span class="lineNum">    1346 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NEED_RANDOM);</span>
+<span class="lineNum">    1347 </span><span class="lineNoCov">          0 :         goto cleanup;</span>
+<span class="lineNum">    1348 </span>            :     }
+<span class="lineNum">    1349 </span><span class="lineNoCov">          0 :     seed-&gt;len = seedBytes;</span>
+<span class="lineNum">    1350 </span><span class="lineNoCov">          0 :     CHECK_SEC_OK(getPQseed(seed, verify-&gt;arena));</span>
+<span class="lineNum">    1351 </span>            :     /* ******************************************************************
+<span class="lineNum">    1352 </span>            :     ** Step 6. (Step 2 in 186-1)
+<span class="lineNum">    1353 </span>            :     **
+<span class="lineNum">    1354 </span>            :     ** &quot;Compute U = SHA[SEED] XOR SHA[(SEED+1) mod 2**g].  (186-1)&quot;
+<span class="lineNum">    1355 </span>            :     ** &quot;Compute U = HASH[SEED] 2**(N-1).  (186-3)&quot;
+<span class="lineNum">    1356 </span>            :     **
+<span class="lineNum">    1357 </span>            :     ** Step 7. (Step 3 in 186-1)
+<span class="lineNum">    1358 </span>            :     ** &quot;Form Q from U by setting the most signficant bit (the 2**159 bit)
+<span class="lineNum">    1359 </span>            :     **  and the least signficant bit to 1.  In terms of boolean operations,
+<span class="lineNum">    1360 </span>            :     **  Q = U OR 2**159 OR 1.  Note that 2**159 &lt; Q &lt; 2**160. (186-1)&quot;
+<span class="lineNum">    1361 </span>            :     **
+<span class="lineNum">    1362 </span>            :     ** &quot;q = 2**(N-1) + U + 1 - (U mod 2) (186-3)
+<span class="lineNum">    1363 </span>            :     **
+<span class="lineNum">    1364 </span>            :     ** Note: Both formulations are the same for U &lt; 2**(N-1) and N=160
+<span class="lineNum">    1365 </span>            :     **
+<span class="lineNum">    1366 </span>            :     ** If using Shawe-Taylor, We do the entire A.1.2.1.2 setps in the block
+<span class="lineNum">    1367 </span>            :     ** FIPS186_3_ST_TYPE.
+<span class="lineNum">    1368 </span>            :     */
+<span class="lineNum">    1369 </span><span class="lineNoCov">          0 :     if (type == FIPS186_1_TYPE) {</span>
+<span class="lineNum">    1370 </span><span class="lineNoCov">          0 :         CHECK_SEC_OK(makeQfromSeed(seedlen, seed, &amp;Q));</span>
+<span class="lineNum">    1371 </span><span class="lineNoCov">          0 :     } else if (type == FIPS186_3_TYPE) {</span>
+<span class="lineNum">    1372 </span><span class="lineNoCov">          0 :         CHECK_SEC_OK(makeQ2fromSeed(hashtype, N, seed, &amp;Q));</span>
+<span class="lineNum">    1373 </span>            :     } else {
+<span class="lineNum">    1374 </span>            :         /* FIPS186_3_ST_TYPE */
+<span class="lineNum">    1375 </span>            :         unsigned int qgen_counter, pgen_counter;
+<span class="lineNum">    1376 </span>            : 
+<span class="lineNum">    1377 </span>            :         /* Step 1 (L,N) already checked for acceptability */
+<span class="lineNum">    1378 </span>            : 
+<span class="lineNum">    1379 </span><span class="lineNoCov">          0 :         firstseed = *seed;</span>
+<span class="lineNum">    1380 </span><span class="lineNoCov">          0 :         qgen_counter = 0;</span>
+<span class="lineNum">    1381 </span>            :         /* Step 2. Use N and firstseed to  generate random prime q
+<span class="lineNum">    1382 </span>            :      * using Apendix C.6 */
+<span class="lineNum">    1383 </span><span class="lineNoCov">          0 :         CHECK_SEC_OK(makePrimefromSeedShaweTaylor(hashtype, N, &amp;firstseed, &amp;Q,</span>
+<span class="lineNum">    1384 </span>            :                                                   &amp;qseed, &amp;qgen_counter));
+<span class="lineNum">    1385 </span>            :         /* Step 3. Use floor(L/2+1) and qseed to generate random prime p0
+<span class="lineNum">    1386 </span>            :      * using Appendix C.6 */
+<span class="lineNum">    1387 </span><span class="lineNoCov">          0 :         pgen_counter = 0;</span>
+<span class="lineNum">    1388 </span><span class="lineNoCov">          0 :         CHECK_SEC_OK(makePrimefromSeedShaweTaylor(hashtype, (L + 1) / 2 + 1,</span>
+<span class="lineNum">    1389 </span>            :                                                   &amp;qseed, &amp;p0, &amp;pseed, &amp;pgen_counter));
+<span class="lineNum">    1390 </span>            :         /* Steps 4-22 FIPS 186-3 appendix A.1.2.1.2 */
+<span class="lineNum">    1391 </span><span class="lineNoCov">          0 :         CHECK_SEC_OK(makePrimefromPrimesShaweTaylor(hashtype, L,</span>
+<span class="lineNum">    1392 </span>            :                                                     &amp;p0, &amp;Q, &amp;P, &amp;pseed, &amp;pgen_counter));
+<span class="lineNum">    1393 </span>            : 
+<span class="lineNum">    1394 </span>            :         /* combine all the seeds */
+<span class="lineNum">    1395 </span><span class="lineNoCov">          0 :         seed-&gt;len = firstseed.len + qseed.len + pseed.len;</span>
+<span class="lineNum">    1396 </span><span class="lineNoCov">          0 :         seed-&gt;data = PORT_ArenaZAlloc(verify-&gt;arena, seed-&gt;len);</span>
+<span class="lineNum">    1397 </span><span class="lineNoCov">          0 :         if (seed-&gt;data == NULL) {</span>
+<span class="lineNum">    1398 </span>            :             goto cleanup;
+<span class="lineNum">    1399 </span>            :         }
+<span class="lineNum">    1400 </span><span class="lineNoCov">          0 :         PORT_Memcpy(seed-&gt;data, firstseed.data, firstseed.len);</span>
+<span class="lineNum">    1401 </span><span class="lineNoCov">          0 :         PORT_Memcpy(seed-&gt;data + firstseed.len, pseed.data, pseed.len);</span>
+<span class="lineNum">    1402 </span><span class="lineNoCov">          0 :         PORT_Memcpy(seed-&gt;data + firstseed.len + pseed.len, qseed.data, qseed.len);</span>
+<span class="lineNum">    1403 </span><span class="lineNoCov">          0 :         counter = 0; /* (qgen_counter &lt;&lt; 16) | pgen_counter; */</span>
+<span class="lineNum">    1404 </span>            : 
+<span class="lineNum">    1405 </span>            :         /* we've generated both P and Q now, skip to generating G */
+<span class="lineNum">    1406 </span><span class="lineNoCov">          0 :         goto generate_G;</span>
+<span class="lineNum">    1407 </span>            :     }
+<span class="lineNum">    1408 </span>            :     /* ******************************************************************
+<span class="lineNum">    1409 </span>            :     ** Step 8. (Step 4 in 186-1)
+<span class="lineNum">    1410 </span>            :     ** &quot;Use a robust primality testing algorithm to test whether q is prime.&quot;
+<span class="lineNum">    1411 </span>            :     **
+<span class="lineNum">    1412 </span>            :     ** Appendix 2.1 states that a Rabin test with at least 50 iterations
+<span class="lineNum">    1413 </span>            :     ** &quot;will give an acceptable probability of error.&quot;
+<span class="lineNum">    1414 </span>            :     */
+<span class="lineNum">    1415 </span>            :     /*CHECK_SEC_OK( prm_RabinTest(&amp;Q, &amp;passed) );*/
+<span class="lineNum">    1416 </span><span class="lineNoCov">          0 :     err = mpp_pprime(&amp;Q, prime_testcount_q(L, N));</span>
+<span class="lineNum">    1417 </span><span class="lineNoCov">          0 :     passed = (err == MP_YES) ? SECSuccess : SECFailure;</span>
+<span class="lineNum">    1418 </span>            :     /* ******************************************************************
+<span class="lineNum">    1419 </span>            :     ** Step 9. (Step 5 in 186-1) &quot;If q is not prime, goto step 5 (1 in 186-1).&quot;
+<span class="lineNum">    1420 </span>            :     */
+<span class="lineNum">    1421 </span><span class="lineNoCov">          0 :     if (passed != SECSuccess)</span>
+<span class="lineNum">    1422 </span>            :         goto step_5;
+<span class="lineNum">    1423 </span>            :     /* ******************************************************************
+<span class="lineNum">    1424 </span>            :     ** Step 10.
+<span class="lineNum">    1425 </span>            :     **      offset = 1;
+<span class="lineNum">    1426 </span>            :     **(     Step 6b 186-1)&quot;Let counter = 0 and offset = 2.&quot;
+<span class="lineNum">    1427 </span>            :     */
+<span class="lineNum">    1428 </span><span class="lineNoCov">          0 :     offset = (type == FIPS186_1_TYPE) ? 2 : 1;</span>
+<span class="lineNum">    1429 </span>            :     /*
+<span class="lineNum">    1430 </span>            :     ** Step 11. (Step 6a,13a,14 in 186-1)
+<span class="lineNum">    1431 </span>            :     **  For counter - 0 to (4L-1) do
+<span class="lineNum">    1432 </span>            :     **
+<span class="lineNum">    1433 </span>            :     */
+<span class="lineNum">    1434 </span><span class="lineNoCov">          0 :     maxCount = L &gt;= 1024 ? (4 * L - 1) : 4095;</span>
+<span class="lineNum">    1435 </span><span class="lineNoCov">          0 :     for (counter = 0; counter &lt;= maxCount; counter++) {</span>
+<span class="lineNum">    1436 </span>            :         /* ******************************************************************
+<span class="lineNum">    1437 </span>            :     ** Step 11.1  (Step 7 in 186-1)
+<span class="lineNum">    1438 </span>            :     ** &quot;for j = 0 ... n let
+<span class="lineNum">    1439 </span>            :     **          V_j = HASH[(SEED + offset + j) mod 2**seedlen].&quot;
+<span class="lineNum">    1440 </span>            :     **
+<span class="lineNum">    1441 </span>            :     ** Step 11.2 (Step 8 in 186-1)
+<span class="lineNum">    1442 </span>            :     ** &quot;W = V_0 + V_1*2**outlen+...+ V_n-1 * 2**((n-1)*outlen) +
+<span class="lineNum">    1443 </span>            :     **                               ((Vn* mod 2**b)*2**(n*outlen))&quot;
+<span class="lineNum">    1444 </span>            :     ** Step 11.3 (Step 8 in 186-1)
+<span class="lineNum">    1445 </span>            :     ** &quot;X = W + 2**(L-1)
+<span class="lineNum">    1446 </span>            :     **  Note that 0 &lt;= W &lt; 2**(L-1) and hence 2**(L-1) &lt;= X &lt; 2**L.&quot;
+<span class="lineNum">    1447 </span>            :     **
+<span class="lineNum">    1448 </span>            :     ** Step 11.4 (Step 9 in 186-1).
+<span class="lineNum">    1449 </span>            :     ** &quot;c = X mod 2q&quot;
+<span class="lineNum">    1450 </span>            :     **
+<span class="lineNum">    1451 </span>            :     ** Step 11.5 (Step 9 in 186-1).
+<span class="lineNum">    1452 </span>            :     ** &quot; p = X - (c - 1).
+<span class="lineNum">    1453 </span>            :     **  Note that p is congruent to 1 mod 2q.&quot;
+<span class="lineNum">    1454 </span>            :     */
+<span class="lineNum">    1455 </span><span class="lineNoCov">          0 :         CHECK_SEC_OK(makePfromQandSeed(hashtype, L, N, offset, seedlen,</span>
+<span class="lineNum">    1456 </span>            :                                        seed, &amp;Q, &amp;P));
+<span class="lineNum">    1457 </span>            :         /*************************************************************
+<span class="lineNum">    1458 </span>            :     ** Step 11.6. (Step 10 in 186-1)
+<span class="lineNum">    1459 </span>            :     ** &quot;if p &lt; 2**(L-1), then goto step 11.9. (step 13 in 186-1)&quot;
+<span class="lineNum">    1460 </span>            :     */
+<span class="lineNum">    1461 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mpl_set_bit(&amp;l, (mp_size)(L - 1), 1)); /* l = 2**(L-1) */</span>
+<span class="lineNum">    1462 </span><span class="lineNoCov">          0 :         if (mp_cmp(&amp;P, &amp;l) &lt; 0)</span>
+<span class="lineNum">    1463 </span>            :             goto step_11_9;
+<span class="lineNum">    1464 </span>            :         /************************************************************
+<span class="lineNum">    1465 </span>            :     ** Step 11.7 (step 11 in 186-1)
+<span class="lineNum">    1466 </span>            :     ** &quot;Perform a robust primality test on p.&quot;
+<span class="lineNum">    1467 </span>            :     */
+<span class="lineNum">    1468 </span>            :         /*CHECK_SEC_OK( prm_RabinTest(&amp;P, &amp;passed) );*/
+<span class="lineNum">    1469 </span><span class="lineNoCov">          0 :         err = mpp_pprime(&amp;P, prime_testcount_p(L, N));</span>
+<span class="lineNum">    1470 </span><span class="lineNoCov">          0 :         passed = (err == MP_YES) ? SECSuccess : SECFailure;</span>
+<span class="lineNum">    1471 </span>            :         /* ******************************************************************
+<span class="lineNum">    1472 </span>            :     ** Step 11.8. &quot;If p is determined to be primed return VALID
+<span class="lineNum">    1473 </span>            :         ** values of p, q, seed and counter.&quot;
+<span class="lineNum">    1474 </span>            :     */
+<span class="lineNum">    1475 </span><span class="lineNoCov">          0 :         if (passed == SECSuccess)</span>
+<span class="lineNum">    1476 </span>            :             break;
+<span class="lineNum">    1477 </span>            :     step_11_9:
+<span class="lineNum">    1478 </span>            :         /* ******************************************************************
+<span class="lineNum">    1479 </span>            :     ** Step 11.9.  &quot;offset = offset + n + 1.&quot;
+<span class="lineNum">    1480 </span>            :     */
+<span class="lineNum">    1481 </span><span class="lineNoCov">          0 :         offset += n + 1;</span>
+<span class="lineNum">    1482 </span>            :     }
+<span class="lineNum">    1483 </span>            :     /* ******************************************************************
+<span class="lineNum">    1484 </span>            :     ** Step 12.  &quot;goto step 5.&quot;
+<span class="lineNum">    1485 </span>            :     **
+<span class="lineNum">    1486 </span>            :     ** NOTE: if counter &lt;= maxCount, then we exited the loop at Step 11.8
+<span class="lineNum">    1487 </span>            :     ** and now need to return p,q, seed, and counter.
+<span class="lineNum">    1488 </span>            :     */
+<span class="lineNum">    1489 </span><span class="lineNoCov">          0 :     if (counter &gt; maxCount)</span>
+<span class="lineNum">    1490 </span>            :         goto step_5;
+<span class="lineNum">    1491 </span>            : 
+<span class="lineNum">    1492 </span>            : generate_G:
+<span class="lineNum">    1493 </span>            :     /* ******************************************************************
+<span class="lineNum">    1494 </span>            :     ** returning p, q, seed and counter
+<span class="lineNum">    1495 </span>            :     */
+<span class="lineNum">    1496 </span><span class="lineNoCov">          0 :     if (type == FIPS186_1_TYPE) {</span>
+<span class="lineNum">    1497 </span>            :         /* Generate g, This is called the &quot;Unverifiable Generation of g
+<span class="lineNum">    1498 </span>            :      * in FIPA186-3 Appedix A.2.1. For compatibility we maintain
+<span class="lineNum">    1499 </span>            :      * this version of the code */
+<span class="lineNum">    1500 </span><span class="lineNoCov">          0 :         SECITEM_AllocItem(NULL, &amp;hit, L / 8); /* h is no longer than p */</span>
+<span class="lineNum">    1501 </span><span class="lineNoCov">          0 :         if (!hit.data)</span>
+<span class="lineNum">    1502 </span>            :             goto cleanup;
+<span class="lineNum">    1503 </span>            :         do {
+<span class="lineNum">    1504 </span>            :             /* loop generate h until 1&lt;h&lt;p-1 and (h**[(p-1)/q])mod p &gt; 1 */
+<span class="lineNum">    1505 </span><span class="lineNoCov">          0 :             CHECK_SEC_OK(generate_h_candidate(&amp;hit, &amp;H));</span>
+<span class="lineNum">    1506 </span><span class="lineNoCov">          0 :             CHECK_SEC_OK(makeGfromH(&amp;P, &amp;Q, &amp;H, &amp;G, &amp;passed));</span>
+<span class="lineNum">    1507 </span><span class="lineNoCov">          0 :         } while (passed != PR_TRUE);</span>
+<span class="lineNum">    1508 </span><span class="lineNoCov">          0 :         MPINT_TO_SECITEM(&amp;H, &amp;verify-&gt;h, verify-&gt;arena);</span>
+<span class="lineNum">    1509 </span>            :     } else {
+<span class="lineNum">    1510 </span><span class="lineNoCov">          0 :         unsigned char index = 1; /* default to 1 */</span>
+<span class="lineNum">    1511 </span><span class="lineNoCov">          0 :         verify-&gt;h.data = (unsigned char *)PORT_ArenaZAlloc(verify-&gt;arena, 1);</span>
+<span class="lineNum">    1512 </span><span class="lineNoCov">          0 :         if (verify-&gt;h.data == NULL) {</span>
+<span class="lineNum">    1513 </span>            :             goto cleanup;
+<span class="lineNum">    1514 </span>            :         }
+<span class="lineNum">    1515 </span><span class="lineNoCov">          0 :         verify-&gt;h.len = 1;</span>
+<span class="lineNum">    1516 </span><span class="lineNoCov">          0 :         verify-&gt;h.data[0] = index;</span>
+<span class="lineNum">    1517 </span>            :         /* Generate g, using the FIPS 186-3 Appendix A.23 */
+<span class="lineNum">    1518 </span><span class="lineNoCov">          0 :         CHECK_SEC_OK(makeGfromIndex(hashtype, &amp;P, &amp;Q, seed, index, &amp;G));</span>
+<span class="lineNum">    1519 </span>            :     }
+<span class="lineNum">    1520 </span>            :     /* All generation is done.  Now, save the PQG params.  */
+<span class="lineNum">    1521 </span><span class="lineNoCov">          0 :     MPINT_TO_SECITEM(&amp;P, &amp;params-&gt;prime, params-&gt;arena);</span>
+<span class="lineNum">    1522 </span><span class="lineNoCov">          0 :     MPINT_TO_SECITEM(&amp;Q, &amp;params-&gt;subPrime, params-&gt;arena);</span>
+<span class="lineNum">    1523 </span><span class="lineNoCov">          0 :     MPINT_TO_SECITEM(&amp;G, &amp;params-&gt;base, params-&gt;arena);</span>
+<span class="lineNum">    1524 </span><span class="lineNoCov">          0 :     verify-&gt;counter = counter;</span>
+<span class="lineNum">    1525 </span><span class="lineNoCov">          0 :     *pParams = params;</span>
+<span class="lineNum">    1526 </span><span class="lineNoCov">          0 :     *pVfy = verify;</span>
+<span class="lineNum">    1527 </span>            : cleanup:
+<span class="lineNum">    1528 </span><span class="lineNoCov">          0 :     if (pseed.data) {</span>
+<span class="lineNum">    1529 </span><span class="lineNoCov">          0 :         PORT_Free(pseed.data);</span>
+<span class="lineNum">    1530 </span>            :     }
+<span class="lineNum">    1531 </span><span class="lineNoCov">          0 :     if (qseed.data) {</span>
+<span class="lineNum">    1532 </span><span class="lineNoCov">          0 :         PORT_Free(qseed.data);</span>
+<span class="lineNum">    1533 </span>            :     }
+<span class="lineNum">    1534 </span><span class="lineNoCov">          0 :     mp_clear(&amp;P);</span>
+<span class="lineNum">    1535 </span><span class="lineNoCov">          0 :     mp_clear(&amp;Q);</span>
+<span class="lineNum">    1536 </span><span class="lineNoCov">          0 :     mp_clear(&amp;G);</span>
+<span class="lineNum">    1537 </span><span class="lineNoCov">          0 :     mp_clear(&amp;H);</span>
+<span class="lineNum">    1538 </span><span class="lineNoCov">          0 :     mp_clear(&amp;l);</span>
+<span class="lineNum">    1539 </span><span class="lineNoCov">          0 :     mp_clear(&amp;p0);</span>
+<span class="lineNum">    1540 </span><span class="lineNoCov">          0 :     if (err) {</span>
+<span class="lineNum">    1541 </span><span class="lineNoCov">          0 :         MP_TO_SEC_ERROR(err);</span>
+<span class="lineNum">    1542 </span>            :         rv = SECFailure;
+<span class="lineNum">    1543 </span>            :     }
+<span class="lineNum">    1544 </span><span class="lineNoCov">          0 :     if (rv) {</span>
+<span class="lineNum">    1545 </span><span class="lineNoCov">          0 :         if (params) {</span>
+<span class="lineNum">    1546 </span><span class="lineNoCov">          0 :             PORT_FreeArena(params-&gt;arena, PR_TRUE);</span>
+<span class="lineNum">    1547 </span>            :         }
+<span class="lineNum">    1548 </span><span class="lineNoCov">          0 :         if (verify) {</span>
+<span class="lineNum">    1549 </span><span class="lineNoCov">          0 :             PORT_FreeArena(verify-&gt;arena, PR_TRUE);</span>
+<span class="lineNum">    1550 </span>            :         }
+<span class="lineNum">    1551 </span>            :     }
+<span class="lineNum">    1552 </span><span class="lineNoCov">          0 :     if (hit.data) {</span>
+<span class="lineNum">    1553 </span><span class="lineNoCov">          0 :         SECITEM_FreeItem(&amp;hit, PR_FALSE);</span>
+<span class="lineNum">    1554 </span>            :     }
+<span class="lineNum">    1555 </span><span class="lineNoCov">          0 :     return rv;</span>
+<span class="lineNum">    1556 </span>            : }
+<a name="1557"><span class="lineNum">    1557 </span>            : </a>
+<span class="lineNum">    1558 </span>            : SECStatus
+<span class="lineNum">    1559 </span><span class="lineNoCov">          0 : PQG_ParamGen(unsigned int j, PQGParams **pParams, PQGVerify **pVfy)</span>
+<span class="lineNum">    1560 </span>            : {
+<span class="lineNum">    1561 </span>            :     unsigned int L; /* Length of P in bits.  Per FIPS 186. */
+<span class="lineNum">    1562 </span>            :     unsigned int seedBytes;
+<span class="lineNum">    1563 </span>            : 
+<span class="lineNum">    1564 </span><span class="lineNoCov">          0 :     if (j &gt; 8 || !pParams || !pVfy) {</span>
+<span class="lineNum">    1565 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">    1566 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">    1567 </span>            :     }
+<span class="lineNum">    1568 </span><span class="lineNoCov">          0 :     L = 512 + (j * 64); /* bits in P */</span>
+<span class="lineNum">    1569 </span><span class="lineNoCov">          0 :     seedBytes = L / 8;</span>
+<span class="lineNum">    1570 </span><span class="lineNoCov">          0 :     return pqg_ParamGen(L, DSA1_Q_BITS, FIPS186_1_TYPE, seedBytes,</span>
+<span class="lineNum">    1571 </span>            :                         pParams, pVfy);
+<span class="lineNum">    1572 </span>            : }
+<a name="1573"><span class="lineNum">    1573 </span>            : </a>
+<span class="lineNum">    1574 </span>            : SECStatus
+<span class="lineNum">    1575 </span><span class="lineNoCov">          0 : PQG_ParamGenSeedLen(unsigned int j, unsigned int seedBytes,</span>
+<span class="lineNum">    1576 </span>            :                     PQGParams **pParams, PQGVerify **pVfy)
+<span class="lineNum">    1577 </span>            : {
+<span class="lineNum">    1578 </span>            :     unsigned int L; /* Length of P in bits.  Per FIPS 186. */
+<span class="lineNum">    1579 </span>            : 
+<span class="lineNum">    1580 </span><span class="lineNoCov">          0 :     if (j &gt; 8 || !pParams || !pVfy) {</span>
+<span class="lineNum">    1581 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">    1582 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">    1583 </span>            :     }
+<span class="lineNum">    1584 </span><span class="lineNoCov">          0 :     L = 512 + (j * 64); /* bits in P */</span>
+<span class="lineNum">    1585 </span><span class="lineNoCov">          0 :     return pqg_ParamGen(L, DSA1_Q_BITS, FIPS186_1_TYPE, seedBytes,</span>
+<span class="lineNum">    1586 </span>            :                         pParams, pVfy);
+<span class="lineNum">    1587 </span>            : }
+<a name="1588"><span class="lineNum">    1588 </span>            : </a>
+<span class="lineNum">    1589 </span>            : SECStatus
+<span class="lineNum">    1590 </span><span class="lineNoCov">          0 : PQG_ParamGenV2(unsigned int L, unsigned int N, unsigned int seedBytes,</span>
+<span class="lineNum">    1591 </span>            :                PQGParams **pParams, PQGVerify **pVfy)
+<span class="lineNum">    1592 </span>            : {
+<span class="lineNum">    1593 </span><span class="lineNoCov">          0 :     if (N == 0) {</span>
+<span class="lineNum">    1594 </span><span class="lineNoCov">          0 :         N = pqg_get_default_N(L);</span>
+<span class="lineNum">    1595 </span>            :     }
+<span class="lineNum">    1596 </span><span class="lineNoCov">          0 :     if (seedBytes == 0) {</span>
+<span class="lineNum">    1597 </span>            :         /* seedBytes == L/8 for probable primes, N/8 for Shawe-Taylor Primes */
+<span class="lineNum">    1598 </span><span class="lineNoCov">          0 :         seedBytes = N / 8;</span>
+<span class="lineNum">    1599 </span>            :     }
+<span class="lineNum">    1600 </span><span class="lineNoCov">          0 :     if (pqg_validate_dsa2(L, N) != SECSuccess) {</span>
+<span class="lineNum">    1601 </span>            :         /* error code already set */
+<span class="lineNum">    1602 </span>            :         return SECFailure;
+<span class="lineNum">    1603 </span>            :     }
+<span class="lineNum">    1604 </span><span class="lineNoCov">          0 :     return pqg_ParamGen(L, N, FIPS186_3_ST_TYPE, seedBytes, pParams, pVfy);</span>
+<span class="lineNum">    1605 </span>            : }
+<span class="lineNum">    1606 </span>            : 
+<span class="lineNum">    1607 </span>            : /*
+<span class="lineNum">    1608 </span>            :  * verify can use vfy structures returned from either FIPS186-1 or
+<span class="lineNum">    1609 </span>            :  * FIPS186-2, and can handle differences in selected Hash functions to
+<span class="lineNum">    1610 </span>            :  * generate the parameters.
+<a name="1611"><span class="lineNum">    1611 </span>            :  */</a>
+<span class="lineNum">    1612 </span>            : SECStatus
+<span class="lineNum">    1613 </span><span class="lineNoCov">          0 : PQG_VerifyParams(const PQGParams *params,</span>
+<span class="lineNum">    1614 </span>            :                  const PQGVerify *vfy, SECStatus *result)
+<span class="lineNum">    1615 </span>            : {
+<span class="lineNum">    1616 </span><span class="lineNoCov">          0 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">    1617 </span>            :     unsigned int g, n, L, N, offset, outlen;
+<span class="lineNum">    1618 </span>            :     mp_int p0, P, Q, G, P_, Q_, G_, r, h;
+<span class="lineNum">    1619 </span><span class="lineNoCov">          0 :     mp_err err = MP_OKAY;</span>
+<span class="lineNum">    1620 </span>            :     int j;
+<span class="lineNum">    1621 </span><span class="lineNoCov">          0 :     unsigned int counter_max = 0; /* handle legacy L &lt; 1024 */</span>
+<span class="lineNum">    1622 </span>            :     unsigned int qseed_len;
+<span class="lineNum">    1623 </span><span class="lineNoCov">          0 :     SECItem pseed_ = { 0, 0, 0 };</span>
+<span class="lineNum">    1624 </span>            :     HASH_HashType hashtype;
+<span class="lineNum">    1625 </span>            :     pqgGenType type;
+<span class="lineNum">    1626 </span>            : 
+<span class="lineNum">    1627 </span>            : #define CHECKPARAM(cond)      \
+<span class="lineNum">    1628 </span>            :     if (!(cond)) {            \
+<span class="lineNum">    1629 </span>            :         *result = SECFailure; \
+<span class="lineNum">    1630 </span>            :         goto cleanup;         \
+<span class="lineNum">    1631 </span>            :     }
+<span class="lineNum">    1632 </span><span class="lineNoCov">          0 :     if (!params || !vfy || !result) {</span>
+<span class="lineNum">    1633 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">    1634 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">    1635 </span>            :     }
+<span class="lineNum">    1636 </span>            :     /* always need at least p, q, and seed for any meaningful check */
+<span class="lineNum">    1637 </span><span class="lineNoCov">          0 :     if ((params-&gt;prime.len == 0) || (params-&gt;subPrime.len == 0) ||</span>
+<span class="lineNum">    1638 </span><span class="lineNoCov">          0 :         (vfy-&gt;seed.len == 0)) {</span>
+<span class="lineNum">    1639 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">    1640 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">    1641 </span>            :     }
+<span class="lineNum">    1642 </span>            :     /* we want to either check PQ or G or both. If we don't have G, make
+<span class="lineNum">    1643 </span>            :      * sure we have count so we can check P. */
+<span class="lineNum">    1644 </span><span class="lineNoCov">          0 :     if ((params-&gt;base.len == 0) &amp;&amp; (vfy-&gt;counter == -1)) {</span>
+<span class="lineNum">    1645 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">    1646 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">    1647 </span>            :     }
+<span class="lineNum">    1648 </span>            : 
+<span class="lineNum">    1649 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;p0) = 0;</span>
+<span class="lineNum">    1650 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;P) = 0;</span>
+<span class="lineNum">    1651 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;Q) = 0;</span>
+<span class="lineNum">    1652 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;G) = 0;</span>
+<span class="lineNum">    1653 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;P_) = 0;</span>
+<span class="lineNum">    1654 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;Q_) = 0;</span>
+<span class="lineNum">    1655 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;G_) = 0;</span>
+<span class="lineNum">    1656 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;r) = 0;</span>
+<span class="lineNum">    1657 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;h) = 0;</span>
+<span class="lineNum">    1658 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;p0));</span>
+<span class="lineNum">    1659 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;P));</span>
+<span class="lineNum">    1660 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;Q));</span>
+<span class="lineNum">    1661 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;G));</span>
+<span class="lineNum">    1662 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;P_));</span>
+<span class="lineNum">    1663 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;Q_));</span>
+<span class="lineNum">    1664 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;G_));</span>
+<span class="lineNum">    1665 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;r));</span>
+<span class="lineNum">    1666 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_init(&amp;h));</span>
+<span class="lineNum">    1667 </span><span class="lineNoCov">          0 :     *result = SECSuccess;</span>
+<span class="lineNum">    1668 </span><span class="lineNoCov">          0 :     SECITEM_TO_MPINT(params-&gt;prime, &amp;P);</span>
+<span class="lineNum">    1669 </span><span class="lineNoCov">          0 :     SECITEM_TO_MPINT(params-&gt;subPrime, &amp;Q);</span>
+<span class="lineNum">    1670 </span>            :     /* if G isn't specified, just check P and Q */
+<span class="lineNum">    1671 </span><span class="lineNoCov">          0 :     if (params-&gt;base.len != 0) {</span>
+<span class="lineNum">    1672 </span><span class="lineNoCov">          0 :         SECITEM_TO_MPINT(params-&gt;base, &amp;G);</span>
+<span class="lineNum">    1673 </span>            :     }
+<span class="lineNum">    1674 </span>            :     /* 1.  Check (L,N) pair */
+<span class="lineNum">    1675 </span><span class="lineNoCov">          0 :     N = mpl_significant_bits(&amp;Q);</span>
+<span class="lineNum">    1676 </span><span class="lineNoCov">          0 :     L = mpl_significant_bits(&amp;P);</span>
+<span class="lineNum">    1677 </span><span class="lineNoCov">          0 :     if (L &lt; 1024) {</span>
+<span class="lineNum">    1678 </span>            :         /* handle DSA1 pqg parameters with less thatn 1024 bits*/
+<span class="lineNum">    1679 </span><span class="lineNoCov">          0 :         CHECKPARAM(N == DSA1_Q_BITS);</span>
+<span class="lineNum">    1680 </span><span class="lineNoCov">          0 :         j = PQG_PBITS_TO_INDEX(L);</span>
+<span class="lineNum">    1681 </span><span class="lineNoCov">          0 :         CHECKPARAM(j &gt;= 0 &amp;&amp; j &lt;= 8);</span>
+<span class="lineNum">    1682 </span>            :         counter_max = 4096;
+<span class="lineNum">    1683 </span>            :     } else {
+<span class="lineNum">    1684 </span>            :         /* handle DSA2 parameters (includes DSA1, 1024 bits) */
+<span class="lineNum">    1685 </span><span class="lineNoCov">          0 :         CHECKPARAM(pqg_validate_dsa2(L, N) == SECSuccess);</span>
+<span class="lineNum">    1686 </span><span class="lineNoCov">          0 :         counter_max = 4 * L;</span>
+<span class="lineNum">    1687 </span>            :     }
+<span class="lineNum">    1688 </span>            :     /* 3.  G &lt; P */
+<span class="lineNum">    1689 </span><span class="lineNoCov">          0 :     if (params-&gt;base.len != 0) {</span>
+<span class="lineNum">    1690 </span><span class="lineNoCov">          0 :         CHECKPARAM(mp_cmp(&amp;G, &amp;P) &lt; 0);</span>
+<span class="lineNum">    1691 </span>            :     }
+<span class="lineNum">    1692 </span>            :     /* 4.  P % Q == 1 */
+<span class="lineNum">    1693 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_mod(&amp;P, &amp;Q, &amp;r));</span>
+<span class="lineNum">    1694 </span><span class="lineNoCov">          0 :     CHECKPARAM(mp_cmp_d(&amp;r, 1) == 0);</span>
+<span class="lineNum">    1695 </span>            :     /* 5.  Q is prime */
+<span class="lineNum">    1696 </span><span class="lineNoCov">          0 :     CHECKPARAM(mpp_pprime(&amp;Q, prime_testcount_q(L, N)) == MP_YES);</span>
+<span class="lineNum">    1697 </span>            :     /* 6.  P is prime */
+<span class="lineNum">    1698 </span><span class="lineNoCov">          0 :     CHECKPARAM(mpp_pprime(&amp;P, prime_testcount_p(L, N)) == MP_YES);</span>
+<span class="lineNum">    1699 </span>            :     /* Steps 7-12 are done only if the optional PQGVerify is supplied. */
+<span class="lineNum">    1700 </span>            :     /* continue processing P */
+<span class="lineNum">    1701 </span>            :     /* 7.  counter &lt; 4*L */
+<span class="lineNum">    1702 </span><span class="lineNoCov">          0 :     CHECKPARAM((vfy-&gt;counter == -1) || (vfy-&gt;counter &lt; counter_max));</span>
+<span class="lineNum">    1703 </span>            :     /* 8.  g &gt;= N and g &lt; 2*L   (g is length of seed in bits) */
+<span class="lineNum">    1704 </span><span class="lineNoCov">          0 :     g = vfy-&gt;seed.len * 8;</span>
+<span class="lineNum">    1705 </span><span class="lineNoCov">          0 :     CHECKPARAM(g &gt;= N &amp;&amp; g &lt; counter_max / 2);</span>
+<span class="lineNum">    1706 </span>            :     /* 9.  Q generated from SEED matches Q in PQGParams. */
+<span class="lineNum">    1707 </span>            :     /* This function checks all possible hash and generation types to
+<span class="lineNum">    1708 </span>            :      * find a Q_ which matches Q. */
+<span class="lineNum">    1709 </span><span class="lineNoCov">          0 :     CHECKPARAM(findQfromSeed(L, N, g, &amp;vfy-&gt;seed, &amp;Q, &amp;Q_, &amp;qseed_len,</span>
+<span class="lineNum">    1710 </span>            :                              &amp;hashtype, &amp;type) == SECSuccess);
+<span class="lineNum">    1711 </span><span class="lineNoCov">          0 :     CHECKPARAM(mp_cmp(&amp;Q, &amp;Q_) == 0);</span>
+<span class="lineNum">    1712 </span><span class="lineNoCov">          0 :     if (type == FIPS186_3_ST_TYPE) {</span>
+<span class="lineNum">    1713 </span><span class="lineNoCov">          0 :         SECItem qseed = { 0, 0, 0 };</span>
+<span class="lineNum">    1714 </span><span class="lineNoCov">          0 :         SECItem pseed = { 0, 0, 0 };</span>
+<span class="lineNum">    1715 </span>            :         unsigned int first_seed_len;
+<span class="lineNum">    1716 </span><span class="lineNoCov">          0 :         unsigned int pgen_counter = 0;</span>
+<span class="lineNum">    1717 </span>            : 
+<span class="lineNum">    1718 </span>            :         /* extract pseed and qseed from domain_parameter_seed, which is
+<span class="lineNum">    1719 </span>            :          * first_seed || pseed || qseed. qseed is first_seed + small_integer
+<span class="lineNum">    1720 </span>            :          * pseed is qseed + small_integer. This means most of the time
+<span class="lineNum">    1721 </span>            :          * first_seed.len == qseed.len == pseed.len. Rarely qseed.len and/or
+<span class="lineNum">    1722 </span>            :          * pseed.len will be one greater than first_seed.len, so we can
+<span class="lineNum">    1723 </span>            :          * depend on the fact that
+<span class="lineNum">    1724 </span>            :          *   first_seed.len = floor(domain_parameter_seed.len/3).
+<span class="lineNum">    1725 </span>            :          * findQfromSeed returned qseed.len, so we can calculate pseed.len as
+<span class="lineNum">    1726 </span>            :          *   pseed.len = domain_parameter_seed.len - first_seed.len - qseed.len
+<span class="lineNum">    1727 </span>            :          * this is probably over kill, since 99.999% of the time they will all
+<span class="lineNum">    1728 </span>            :          * be equal.
+<span class="lineNum">    1729 </span>            :          *
+<span class="lineNum">    1730 </span>            :          * With the lengths, we can now find the offsets;
+<span class="lineNum">    1731 </span>            :          * first_seed.data = domain_parameter_seed.data + 0
+<span class="lineNum">    1732 </span>            :          * pseed.data = domain_parameter_seed.data + first_seed.len
+<span class="lineNum">    1733 </span>            :          * qseed.data = domain_parameter_seed.data
+<span class="lineNum">    1734 </span>            :          *         + domain_paramter_seed.len - qseed.len
+<span class="lineNum">    1735 </span>            :          *
+<span class="lineNum">    1736 </span>            :          */
+<span class="lineNum">    1737 </span><span class="lineNoCov">          0 :         first_seed_len = vfy-&gt;seed.len / 3;</span>
+<span class="lineNum">    1738 </span><span class="lineNoCov">          0 :         CHECKPARAM(qseed_len &lt; vfy-&gt;seed.len);</span>
+<span class="lineNum">    1739 </span><span class="lineNoCov">          0 :         CHECKPARAM(first_seed_len * 8 &gt; N - 1);</span>
+<span class="lineNum">    1740 </span><span class="lineNoCov">          0 :         CHECKPARAM(first_seed_len + qseed_len &lt; vfy-&gt;seed.len);</span>
+<span class="lineNum">    1741 </span><span class="lineNoCov">          0 :         qseed.len = qseed_len;</span>
+<span class="lineNum">    1742 </span><span class="lineNoCov">          0 :         qseed.data = vfy-&gt;seed.data + vfy-&gt;seed.len - qseed.len;</span>
+<span class="lineNum">    1743 </span><span class="lineNoCov">          0 :         pseed.len = vfy-&gt;seed.len - (first_seed_len + qseed_len);</span>
+<span class="lineNum">    1744 </span><span class="lineNoCov">          0 :         pseed.data = vfy-&gt;seed.data + first_seed_len;</span>
+<span class="lineNum">    1745 </span>            : 
+<span class="lineNum">    1746 </span>            :         /*
+<span class="lineNum">    1747 </span>            :          * now complete FIPS 186-3 A.1.2.1.2. Step 1 was completed
+<span class="lineNum">    1748 </span>            :          * above in our initial checks, Step 2 was completed by
+<span class="lineNum">    1749 </span>            :          * findQfromSeed */
+<span class="lineNum">    1750 </span>            : 
+<span class="lineNum">    1751 </span>            :         /* Step 3 (status, c0, prime_seed, prime_gen_counter) =
+<span class="lineNum">    1752 </span>            :         ** (ST_Random_Prime((ceil(length/2)+1, input_seed)
+<span class="lineNum">    1753 </span>            :         */
+<span class="lineNum">    1754 </span><span class="lineNoCov">          0 :         CHECK_SEC_OK(makePrimefromSeedShaweTaylor(hashtype, (L + 1) / 2 + 1,</span>
+<span class="lineNum">    1755 </span>            :                                                   &amp;qseed, &amp;p0, &amp;pseed_, &amp;pgen_counter));
+<span class="lineNum">    1756 </span>            :         /* Steps 4-22 FIPS 186-3 appendix A.1.2.1.2 */
+<span class="lineNum">    1757 </span><span class="lineNoCov">          0 :         CHECK_SEC_OK(makePrimefromPrimesShaweTaylor(hashtype, L,</span>
+<span class="lineNum">    1758 </span>            :                                                     &amp;p0, &amp;Q_, &amp;P_, &amp;pseed_, &amp;pgen_counter));
+<span class="lineNum">    1759 </span><span class="lineNoCov">          0 :         CHECKPARAM(mp_cmp(&amp;P, &amp;P_) == 0);</span>
+<span class="lineNum">    1760 </span>            :         /* make sure pseed wasn't tampered with (since it is part of
+<span class="lineNum">    1761 </span>            :          * calculating G) */
+<span class="lineNum">    1762 </span><span class="lineNoCov">          0 :         CHECKPARAM(SECITEM_CompareItem(&amp;pseed, &amp;pseed_) == SECEqual);</span>
+<span class="lineNum">    1763 </span><span class="lineNoCov">          0 :     } else if (vfy-&gt;counter == -1) {</span>
+<span class="lineNum">    1764 </span>            :         /* If counter is set to -1, we are really only verifying G, skip
+<span class="lineNum">    1765 </span>            :          * the remainder of the checks for P */
+<span class="lineNum">    1766 </span><span class="lineNoCov">          0 :         CHECKPARAM(type != FIPS186_1_TYPE); /* we only do this for DSA2 */</span>
+<span class="lineNum">    1767 </span>            :     } else {
+<span class="lineNum">    1768 </span>            :         /* 10. P generated from (L, counter, g, SEED, Q) matches P
+<span class="lineNum">    1769 </span>            :          * in PQGParams. */
+<span class="lineNum">    1770 </span><span class="lineNoCov">          0 :         outlen = HASH_ResultLen(hashtype) * PR_BITS_PER_BYTE;</span>
+<span class="lineNum">    1771 </span><span class="lineNoCov">          0 :         n = (L - 1) / outlen;</span>
+<span class="lineNum">    1772 </span><span class="lineNoCov">          0 :         offset = vfy-&gt;counter * (n + 1) + ((type == FIPS186_1_TYPE) ? 2 : 1);</span>
+<span class="lineNum">    1773 </span><span class="lineNoCov">          0 :         CHECK_SEC_OK(makePfromQandSeed(hashtype, L, N, offset, g, &amp;vfy-&gt;seed,</span>
+<span class="lineNum">    1774 </span>            :                                        &amp;Q, &amp;P_));
+<span class="lineNum">    1775 </span><span class="lineNoCov">          0 :         CHECKPARAM(mp_cmp(&amp;P, &amp;P_) == 0);</span>
+<span class="lineNum">    1776 </span>            :     }
+<span class="lineNum">    1777 </span>            : 
+<span class="lineNum">    1778 </span>            :     /* now check G, skip if don't have a g */
+<span class="lineNum">    1779 </span><span class="lineNoCov">          0 :     if (params-&gt;base.len == 0)</span>
+<span class="lineNum">    1780 </span>            :         goto cleanup;
+<span class="lineNum">    1781 </span>            : 
+<span class="lineNum">    1782 </span>            :     /* first Always check that G is OK  FIPS186-3 A.2.2  &amp; A.2.4*/
+<span class="lineNum">    1783 </span>            :     /* 1. 2 &lt; G &lt; P-1 */
+<span class="lineNum">    1784 </span>            :     /* P is prime, p-1 == zero 1st bit */
+<span class="lineNum">    1785 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mpl_set_bit(&amp;P, 0, 0));</span>
+<span class="lineNum">    1786 </span><span class="lineNoCov">          0 :     CHECKPARAM(mp_cmp_d(&amp;G, 2) &gt; 0 &amp;&amp; mp_cmp(&amp;G, &amp;P) &lt; 0);</span>
+<span class="lineNum">    1787 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mpl_set_bit(&amp;P, 0, 1)); /* set it back */</span>
+<span class="lineNum">    1788 </span>            :     /* 2. verify g**q mod p == 1 */
+<span class="lineNum">    1789 </span><span class="lineNoCov">          0 :     CHECK_MPI_OK(mp_exptmod(&amp;G, &amp;Q, &amp;P, &amp;h)); /* h = G ** Q mod P */</span>
+<span class="lineNum">    1790 </span><span class="lineNoCov">          0 :     CHECKPARAM(mp_cmp_d(&amp;h, 1) == 0);</span>
+<span class="lineNum">    1791 </span>            : 
+<span class="lineNum">    1792 </span>            :     /* no h, the above is the best we can do */
+<span class="lineNum">    1793 </span><span class="lineNoCov">          0 :     if (vfy-&gt;h.len == 0) {</span>
+<span class="lineNum">    1794 </span><span class="lineNoCov">          0 :         if (type != FIPS186_1_TYPE) {</span>
+<span class="lineNum">    1795 </span><span class="lineNoCov">          0 :             *result = SECWouldBlock;</span>
+<span class="lineNum">    1796 </span>            :         }
+<span class="lineNum">    1797 </span>            :         goto cleanup;
+<span class="lineNum">    1798 </span>            :     }
+<span class="lineNum">    1799 </span>            : 
+<span class="lineNum">    1800 </span>            :     /*
+<span class="lineNum">    1801 </span>            :      * If h is one byte and FIPS186-3 was used to generate Q (we've verified
+<span class="lineNum">    1802 </span>            :      * Q was generated from seed already, then we assume that FIPS 186-3
+<span class="lineNum">    1803 </span>            :      * appendix A.2.3 was used to generate G. Otherwise we assume A.2.1 was
+<span class="lineNum">    1804 </span>            :      * used to generate G.
+<span class="lineNum">    1805 </span>            :      */
+<span class="lineNum">    1806 </span><span class="lineNoCov">          0 :     if ((vfy-&gt;h.len == 1) &amp;&amp; (type != FIPS186_1_TYPE)) {</span>
+<span class="lineNum">    1807 </span>            :         /* A.2.3 */
+<span class="lineNum">    1808 </span><span class="lineNoCov">          0 :         CHECK_SEC_OK(makeGfromIndex(hashtype, &amp;P, &amp;Q, &amp;vfy-&gt;seed,</span>
+<span class="lineNum">    1809 </span>            :                                     vfy-&gt;h.data[0], &amp;G_));
+<span class="lineNum">    1810 </span><span class="lineNoCov">          0 :         CHECKPARAM(mp_cmp(&amp;G, &amp;G_) == 0);</span>
+<span class="lineNum">    1811 </span>            :     } else {
+<span class="lineNum">    1812 </span>            :         int passed;
+<span class="lineNum">    1813 </span>            :         /* A.2.1 */
+<span class="lineNum">    1814 </span><span class="lineNoCov">          0 :         SECITEM_TO_MPINT(vfy-&gt;h, &amp;h);</span>
+<span class="lineNum">    1815 </span>            :         /* 11. 1 &lt; h &lt; P-1 */
+<span class="lineNum">    1816 </span>            :         /* P is prime, p-1 == zero 1st bit */
+<span class="lineNum">    1817 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mpl_set_bit(&amp;P, 0, 0));</span>
+<span class="lineNum">    1818 </span><span class="lineNoCov">          0 :         CHECKPARAM(mp_cmp_d(&amp;G, 2) &gt; 0 &amp;&amp; mp_cmp(&amp;G, &amp;P));</span>
+<span class="lineNum">    1819 </span><span class="lineNoCov">          0 :         CHECK_MPI_OK(mpl_set_bit(&amp;P, 0, 1)); /* set it back */</span>
+<span class="lineNum">    1820 </span>            :                                              /* 12. G generated from h matches G in PQGParams. */
+<span class="lineNum">    1821 </span><span class="lineNoCov">          0 :         CHECK_SEC_OK(makeGfromH(&amp;P, &amp;Q, &amp;h, &amp;G_, &amp;passed));</span>
+<span class="lineNum">    1822 </span><span class="lineNoCov">          0 :         CHECKPARAM(passed &amp;&amp; mp_cmp(&amp;G, &amp;G_) == 0);</span>
+<span class="lineNum">    1823 </span>            :     }
+<span class="lineNum">    1824 </span>            : cleanup:
+<span class="lineNum">    1825 </span><span class="lineNoCov">          0 :     mp_clear(&amp;p0);</span>
+<span class="lineNum">    1826 </span><span class="lineNoCov">          0 :     mp_clear(&amp;P);</span>
+<span class="lineNum">    1827 </span><span class="lineNoCov">          0 :     mp_clear(&amp;Q);</span>
+<span class="lineNum">    1828 </span><span class="lineNoCov">          0 :     mp_clear(&amp;G);</span>
+<span class="lineNum">    1829 </span><span class="lineNoCov">          0 :     mp_clear(&amp;P_);</span>
+<span class="lineNum">    1830 </span><span class="lineNoCov">          0 :     mp_clear(&amp;Q_);</span>
+<span class="lineNum">    1831 </span><span class="lineNoCov">          0 :     mp_clear(&amp;G_);</span>
+<span class="lineNum">    1832 </span><span class="lineNoCov">          0 :     mp_clear(&amp;r);</span>
+<span class="lineNum">    1833 </span><span class="lineNoCov">          0 :     mp_clear(&amp;h);</span>
+<span class="lineNum">    1834 </span><span class="lineNoCov">          0 :     if (pseed_.data) {</span>
+<span class="lineNum">    1835 </span><span class="lineNoCov">          0 :         SECITEM_FreeItem(&amp;pseed_, PR_FALSE);</span>
+<span class="lineNum">    1836 </span>            :     }
+<span class="lineNum">    1837 </span><span class="lineNoCov">          0 :     if (err) {</span>
+<span class="lineNum">    1838 </span><span class="lineNoCov">          0 :         MP_TO_SEC_ERROR(err);</span>
+<span class="lineNum">    1839 </span>            :         rv = SECFailure;
+<span class="lineNum">    1840 </span>            :     }
+<span class="lineNum">    1841 </span><span class="lineNoCov">          0 :     return rv;</span>
+<span class="lineNum">    1842 </span>            : }
+<span class="lineNum">    1843 </span>            : 
+<span class="lineNum">    1844 </span>            : /**************************************************************************
+<span class="lineNum">    1845 </span>            :  *  Free the PQGParams struct and the things it points to.                *
+<a name="1846"><span class="lineNum">    1846 </span>            :  **************************************************************************/</a>
+<span class="lineNum">    1847 </span>            : void
+<span class="lineNum">    1848 </span><span class="lineNoCov">          0 : PQG_DestroyParams(PQGParams *params)</span>
+<span class="lineNum">    1849 </span>            : {
+<span class="lineNum">    1850 </span><span class="lineNoCov">          0 :     if (params == NULL)</span>
+<span class="lineNum">    1851 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1852 </span><span class="lineNoCov">          0 :     if (params-&gt;arena != NULL) {</span>
+<span class="lineNum">    1853 </span><span class="lineNoCov">          0 :         PORT_FreeArena(params-&gt;arena, PR_FALSE); /* don't zero it */</span>
+<span class="lineNum">    1854 </span>            :     } else {
+<span class="lineNum">    1855 </span><span class="lineNoCov">          0 :         SECITEM_FreeItem(&amp;params-&gt;prime, PR_FALSE);    /* don't free prime */</span>
+<span class="lineNum">    1856 </span><span class="lineNoCov">          0 :         SECITEM_FreeItem(&amp;params-&gt;subPrime, PR_FALSE); /* don't free subPrime */</span>
+<span class="lineNum">    1857 </span><span class="lineNoCov">          0 :         SECITEM_FreeItem(&amp;params-&gt;base, PR_FALSE);     /* don't free base */</span>
+<span class="lineNum">    1858 </span><span class="lineNoCov">          0 :         PORT_Free(params);</span>
+<span class="lineNum">    1859 </span>            :     }
+<span class="lineNum">    1860 </span>            : }
+<span class="lineNum">    1861 </span>            : 
+<span class="lineNum">    1862 </span>            : /**************************************************************************
+<span class="lineNum">    1863 </span>            :  *  Free the PQGVerify struct and the things it points to.                *
+<span class="lineNum">    1864 </span>            :  **************************************************************************/
+<a name="1865"><span class="lineNum">    1865 </span>            : </a>
+<span class="lineNum">    1866 </span>            : void
+<span class="lineNum">    1867 </span><span class="lineNoCov">          0 : PQG_DestroyVerify(PQGVerify *vfy)</span>
+<span class="lineNum">    1868 </span>            : {
+<span class="lineNum">    1869 </span><span class="lineNoCov">          0 :     if (vfy == NULL)</span>
+<span class="lineNum">    1870 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1871 </span><span class="lineNoCov">          0 :     if (vfy-&gt;arena != NULL) {</span>
+<span class="lineNum">    1872 </span><span class="lineNoCov">          0 :         PORT_FreeArena(vfy-&gt;arena, PR_FALSE); /* don't zero it */</span>
+<span class="lineNum">    1873 </span>            :     } else {
+<span class="lineNum">    1874 </span><span class="lineNoCov">          0 :         SECITEM_FreeItem(&amp;vfy-&gt;seed, PR_FALSE); /* don't free seed */</span>
+<span class="lineNum">    1875 </span><span class="lineNoCov">          0 :         SECITEM_FreeItem(&amp;vfy-&gt;h, PR_FALSE);    /* don't free h */</span>
+<span class="lineNum">    1876 </span><span class="lineNoCov">          0 :         PORT_Free(vfy);</span>
+<span class="lineNum">    1877 </span>            :     }
+<span class="lineNum">    1878 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

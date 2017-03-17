@@ -1,0 +1,629 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/nss/lib/freebl/sha_fast.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">security/nss/lib/freebl</a> - sha_fast.c<span style="font-size: 80%;"> (source / <a href="sha_fast.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">229</td>
+            <td class="headerCovTableEntry">250</td>
+            <td class="headerCovTableEntryHi">91.6 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">8</td>
+            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntryLo">57.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public</a>
+<span class="lineNum">       2 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       3 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : #ifdef FREEBL_NO_DEPEND
+<span class="lineNum">       6 </span>            : #include &quot;stubs.h&quot;
+<span class="lineNum">       7 </span>            : #endif
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &lt;memory.h&gt;
+<span class="lineNum">      10 </span>            : #include &quot;blapi.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;sha_fast.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;prerror.h&quot;
+<span class="lineNum">      13 </span>            : 
+<span class="lineNum">      14 </span>            : #ifdef TRACING_SSL
+<span class="lineNum">      15 </span>            : #include &quot;ssl.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;ssltrace.h&quot;
+<span class="lineNum">      17 </span>            : #endif
+<span class="lineNum">      18 </span>            : 
+<span class="lineNum">      19 </span>            : static void shaCompress(volatile SHA_HW_t *X, const PRUint32 *datain);
+<span class="lineNum">      20 </span>            : 
+<span class="lineNum">      21 </span>            : #define W u.w
+<span class="lineNum">      22 </span>            : #define B u.b
+<span class="lineNum">      23 </span>            : 
+<span class="lineNum">      24 </span>            : #define SHA_F1(X, Y, Z) ((((Y) ^ (Z)) &amp; (X)) ^ (Z))
+<span class="lineNum">      25 </span>            : #define SHA_F2(X, Y, Z) ((X) ^ (Y) ^ (Z))
+<span class="lineNum">      26 </span>            : #define SHA_F3(X, Y, Z) (((X) &amp; (Y)) | ((Z) &amp; ((X) | (Y))))
+<span class="lineNum">      27 </span>            : #define SHA_F4(X, Y, Z) ((X) ^ (Y) ^ (Z))
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #define SHA_MIX(n, a, b, c) XW(n) = SHA_ROTL(XW(a) ^ XW(b) ^ XW(c) ^ XW(n), 1)
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : /*
+<span class="lineNum">      32 </span>            :  *  SHA: initialize context
+<a name="33"><span class="lineNum">      33 </span>            :  */</a>
+<span class="lineNum">      34 </span>            : void
+<span class="lineNum">      35 </span><span class="lineCov">          1 : SHA1_Begin(SHA1Context *ctx)</span>
+<span class="lineNum">      36 </span>            : {
+<span class="lineNum">      37 </span><span class="lineCov">          1 :     ctx-&gt;size = 0;</span>
+<span class="lineNum">      38 </span>            :     /*
+<span class="lineNum">      39 </span>            :    *  Initialize H with constants from FIPS180-1.
+<span class="lineNum">      40 </span>            :    */
+<span class="lineNum">      41 </span><span class="lineCov">          1 :     ctx-&gt;H[0] = 0x67452301L;</span>
+<span class="lineNum">      42 </span><span class="lineCov">          1 :     ctx-&gt;H[1] = 0xefcdab89L;</span>
+<span class="lineNum">      43 </span><span class="lineCov">          1 :     ctx-&gt;H[2] = 0x98badcfeL;</span>
+<span class="lineNum">      44 </span><span class="lineCov">          1 :     ctx-&gt;H[3] = 0x10325476L;</span>
+<span class="lineNum">      45 </span><span class="lineCov">          1 :     ctx-&gt;H[4] = 0xc3d2e1f0L;</span>
+<span class="lineNum">      46 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span>            : /* Explanation of H array and index values:
+<span class="lineNum">      49 </span>            :  * The context's H array is actually the concatenation of two arrays
+<span class="lineNum">      50 </span>            :  * defined by SHA1, the H array of state variables (5 elements),
+<span class="lineNum">      51 </span>            :  * and the W array of intermediate values, of which there are 16 elements.
+<span class="lineNum">      52 </span>            :  * The W array starts at H[5], that is W[0] is H[5].
+<span class="lineNum">      53 </span>            :  * Although these values are defined as 32-bit values, we use 64-bit
+<span class="lineNum">      54 </span>            :  * variables to hold them because the AMD64 stores 64 bit values in
+<span class="lineNum">      55 </span>            :  * memory MUCH faster than it stores any smaller values.
+<span class="lineNum">      56 </span>            :  *
+<span class="lineNum">      57 </span>            :  * Rather than passing the context structure to shaCompress, we pass
+<span class="lineNum">      58 </span>            :  * this combined array of H and W values.  We do not pass the address
+<span class="lineNum">      59 </span>            :  * of the first element of this array, but rather pass the address of an
+<span class="lineNum">      60 </span>            :  * element in the middle of the array, element X.  Presently X[0] is H[11].
+<span class="lineNum">      61 </span>            :  * So we pass the address of H[11] as the address of array X to shaCompress.
+<span class="lineNum">      62 </span>            :  * Then shaCompress accesses the members of the array using positive AND
+<span class="lineNum">      63 </span>            :  * negative indexes.
+<span class="lineNum">      64 </span>            :  *
+<span class="lineNum">      65 </span>            :  * Pictorially: (each element is 8 bytes)
+<span class="lineNum">      66 </span>            :  * H | H0 H1 H2 H3 H4 W0 W1 W2 W3 W4 W5 W6 W7 W8 W9 Wa Wb Wc Wd We Wf |
+<span class="lineNum">      67 </span>            :  * X |-11-10 -9 -8 -7 -6 -5 -4 -3 -2 -1 X0 X1 X2 X3 X4 X5 X6 X7 X8 X9 |
+<span class="lineNum">      68 </span>            :  *
+<span class="lineNum">      69 </span>            :  * The byte offset from X[0] to any member of H and W is always
+<span class="lineNum">      70 </span>            :  * representable in a signed 8-bit value, which will be encoded
+<span class="lineNum">      71 </span>            :  * as a single byte offset in the X86-64 instruction set.
+<span class="lineNum">      72 </span>            :  * If we didn't pass the address of H[11], and instead passed the
+<span class="lineNum">      73 </span>            :  * address of H[0], the offsets to elements H[16] and above would be
+<span class="lineNum">      74 </span>            :  * greater than 127, not representable in a signed 8-bit value, and the
+<span class="lineNum">      75 </span>            :  * x86-64 instruction set would encode every such offset as a 32-bit
+<span class="lineNum">      76 </span>            :  * signed number in each instruction that accessed element H[16] or
+<span class="lineNum">      77 </span>            :  * higher.  This results in much bigger and slower code.
+<span class="lineNum">      78 </span>            :  */
+<span class="lineNum">      79 </span>            : #if !defined(SHA_PUT_W_IN_STACK)
+<span class="lineNum">      80 </span>            : #define H2X 11 /* X[0] is H[11], and H[0] is X[-11] */
+<span class="lineNum">      81 </span>            : #define W2X 6  /* X[0] is W[6],  and W[0] is X[-6]  */
+<span class="lineNum">      82 </span>            : #else
+<span class="lineNum">      83 </span>            : #define H2X 0
+<span class="lineNum">      84 </span>            : #endif
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span>            : /*
+<span class="lineNum">      87 </span>            :  *  SHA: Add data to context.
+<a name="88"><span class="lineNum">      88 </span>            :  */</a>
+<span class="lineNum">      89 </span>            : void
+<span class="lineNum">      90 </span><span class="lineCov">          1 : SHA1_Update(SHA1Context *ctx, const unsigned char *dataIn, unsigned int len)</span>
+<span class="lineNum">      91 </span>            : {
+<span class="lineNum">      92 </span>            :     register unsigned int lenB;
+<span class="lineNum">      93 </span>            :     register unsigned int togo;
+<span class="lineNum">      94 </span>            : 
+<span class="lineNum">      95 </span><span class="lineCov">          1 :     if (!len)</span>
+<span class="lineNum">      96 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">      97 </span>            : 
+<span class="lineNum">      98 </span>            :     /* accumulate the byte count. */
+<span class="lineNum">      99 </span><span class="lineCov">          1 :     lenB = (unsigned int)(ctx-&gt;size) &amp; 63U;</span>
+<span class="lineNum">     100 </span>            : 
+<span class="lineNum">     101 </span><span class="lineCov">          1 :     ctx-&gt;size += len;</span>
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span>            :     /*
+<span class="lineNum">     104 </span>            :    *  Read the data into W and process blocks as they get full
+<span class="lineNum">     105 </span>            :    */
+<span class="lineNum">     106 </span><span class="lineCov">          1 :     if (lenB &gt; 0) {</span>
+<span class="lineNum">     107 </span><span class="lineCov">          1 :         togo = 64U - lenB;</span>
+<span class="lineNum">     108 </span><span class="lineCov">          1 :         if (len &lt; togo)</span>
+<span class="lineNum">     109 </span><span class="lineCov">          1 :             togo = len;</span>
+<span class="lineNum">     110 </span><span class="lineCov">          1 :         memcpy(ctx-&gt;B + lenB, dataIn, togo);</span>
+<span class="lineNum">     111 </span><span class="lineCov">          1 :         len -= togo;</span>
+<span class="lineNum">     112 </span><span class="lineCov">          1 :         dataIn += togo;</span>
+<span class="lineNum">     113 </span><span class="lineCov">          1 :         lenB = (lenB + togo) &amp; 63U;</span>
+<span class="lineNum">     114 </span><span class="lineCov">          1 :         if (!lenB) {</span>
+<span class="lineNum">     115 </span><span class="lineCov">          1 :             shaCompress(&amp;ctx-&gt;H[H2X], ctx-&gt;W);</span>
+<span class="lineNum">     116 </span>            :         }
+<span class="lineNum">     117 </span>            :     }
+<span class="lineNum">     118 </span>            : #if !defined(HAVE_UNALIGNED_ACCESS)
+<span class="lineNum">     119 </span>            :     if ((ptrdiff_t)dataIn % sizeof(PRUint32)) {
+<span class="lineNum">     120 </span>            :         while (len &gt;= 64U) {
+<span class="lineNum">     121 </span>            :             memcpy(ctx-&gt;B, dataIn, 64);
+<span class="lineNum">     122 </span>            :             len -= 64U;
+<span class="lineNum">     123 </span>            :             shaCompress(&amp;ctx-&gt;H[H2X], ctx-&gt;W);
+<span class="lineNum">     124 </span>            :             dataIn += 64U;
+<span class="lineNum">     125 </span>            :         }
+<span class="lineNum">     126 </span>            :     } else
+<span class="lineNum">     127 </span>            : #endif
+<span class="lineNum">     128 </span>            :     {
+<span class="lineNum">     129 </span><span class="lineCov">          1 :         while (len &gt;= 64U) {</span>
+<span class="lineNum">     130 </span><span class="lineCov">          1 :             len -= 64U;</span>
+<span class="lineNum">     131 </span><span class="lineCov">          1 :             shaCompress(&amp;ctx-&gt;H[H2X], (PRUint32 *)dataIn);</span>
+<span class="lineNum">     132 </span><span class="lineCov">          1 :             dataIn += 64U;</span>
+<span class="lineNum">     133 </span>            :         }
+<span class="lineNum">     134 </span>            :     }
+<span class="lineNum">     135 </span><span class="lineCov">          1 :     if (len) {</span>
+<span class="lineNum">     136 </span><span class="lineCov">          1 :         memcpy(ctx-&gt;B, dataIn, len);</span>
+<span class="lineNum">     137 </span>            :     }
+<span class="lineNum">     138 </span>            : }
+<span class="lineNum">     139 </span>            : 
+<span class="lineNum">     140 </span>            : /*
+<span class="lineNum">     141 </span>            :  *  SHA: Generate hash value from context
+<a name="142"><span class="lineNum">     142 </span>            :  */</a>
+<span class="lineNum">     143 </span>            : void NO_SANITIZE_ALIGNMENT
+<span class="lineNum">     144 </span><span class="lineCov">          1 : SHA1_End(SHA1Context *ctx, unsigned char *hashout,</span>
+<span class="lineNum">     145 </span>            :          unsigned int *pDigestLen, unsigned int maxDigestLen)
+<span class="lineNum">     146 </span>            : {
+<span class="lineNum">     147 </span>            :     register PRUint64 size;
+<span class="lineNum">     148 </span>            :     register PRUint32 lenB;
+<span class="lineNum">     149 </span>            : 
+<span class="lineNum">     150 </span>            :     static const unsigned char bulk_pad[64] = { 0x80, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+<span class="lineNum">     151 </span>            :                                                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+<span class="lineNum">     152 </span>            :                                                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
+<span class="lineNum">     153 </span>            : #define tmp lenB
+<span class="lineNum">     154 </span>            : 
+<span class="lineNum">     155 </span>            :     PORT_Assert(maxDigestLen &gt;= SHA1_LENGTH);
+<span class="lineNum">     156 </span>            : 
+<span class="lineNum">     157 </span>            :     /*
+<span class="lineNum">     158 </span>            :    *  Pad with a binary 1 (e.g. 0x80), then zeroes, then length in bits
+<span class="lineNum">     159 </span>            :    */
+<span class="lineNum">     160 </span><span class="lineCov">          1 :     size = ctx-&gt;size;</span>
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span><span class="lineCov">          1 :     lenB = (PRUint32)size &amp; 63;</span>
+<span class="lineNum">     163 </span><span class="lineCov">          1 :     SHA1_Update(ctx, bulk_pad, (((55 + 64) - lenB) &amp; 63) + 1);</span>
+<span class="lineNum">     164 </span>            :     PORT_Assert(((PRUint32)ctx-&gt;size &amp; 63) == 56);
+<span class="lineNum">     165 </span>            :     /* Convert size from bytes to bits. */
+<span class="lineNum">     166 </span><span class="lineCov">          1 :     size &lt;&lt;= 3;</span>
+<span class="lineNum">     167 </span><span class="lineCov">          1 :     ctx-&gt;W[14] = SHA_HTONL((PRUint32)(size &gt;&gt; 32));</span>
+<span class="lineNum">     168 </span><span class="lineCov">          1 :     ctx-&gt;W[15] = SHA_HTONL((PRUint32)size);</span>
+<span class="lineNum">     169 </span><span class="lineCov">          1 :     shaCompress(&amp;ctx-&gt;H[H2X], ctx-&gt;W);</span>
+<span class="lineNum">     170 </span>            : 
+<span class="lineNum">     171 </span>            :     /*
+<span class="lineNum">     172 </span>            :      *  Output hash
+<span class="lineNum">     173 </span>            :      */
+<span class="lineNum">     174 </span><span class="lineCov">          1 :     SHA_STORE_RESULT;</span>
+<span class="lineNum">     175 </span><span class="lineCov">          1 :     if (pDigestLen) {</span>
+<span class="lineNum">     176 </span><span class="lineCov">          1 :         *pDigestLen = SHA1_LENGTH;</span>
+<span class="lineNum">     177 </span>            :     }
+<span class="lineNum">     178 </span>            : #undef tmp
+<span class="lineNum">     179 </span><span class="lineCov">          1 : }</span>
+<a name="180"><span class="lineNum">     180 </span>            : </a>
+<span class="lineNum">     181 </span>            : void
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 : SHA1_EndRaw(SHA1Context *ctx, unsigned char *hashout,</span>
+<span class="lineNum">     183 </span>            :             unsigned int *pDigestLen, unsigned int maxDigestLen)
+<span class="lineNum">     184 </span>            : {
+<span class="lineNum">     185 </span>            : #if defined(SHA_NEED_TMP_VARIABLE)
+<span class="lineNum">     186 </span>            :     register PRUint32 tmp;
+<span class="lineNum">     187 </span>            : #endif
+<span class="lineNum">     188 </span>            :     PORT_Assert(maxDigestLen &gt;= SHA1_LENGTH);
+<span class="lineNum">     189 </span>            : 
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :     SHA_STORE_RESULT;</span>
+<span class="lineNum">     191 </span><span class="lineNoCov">          0 :     if (pDigestLen)</span>
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :         *pDigestLen = SHA1_LENGTH;</span>
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span>            : #undef B
+<span class="lineNum">     196 </span>            : /*
+<span class="lineNum">     197 </span>            :  *  SHA: Compression function, unrolled.
+<span class="lineNum">     198 </span>            :  *
+<span class="lineNum">     199 </span>            :  * Some operations in shaCompress are done as 5 groups of 16 operations.
+<span class="lineNum">     200 </span>            :  * Others are done as 4 groups of 20 operations.
+<span class="lineNum">     201 </span>            :  * The code below shows that structure.
+<span class="lineNum">     202 </span>            :  *
+<span class="lineNum">     203 </span>            :  * The functions that compute the new values of the 5 state variables
+<span class="lineNum">     204 </span>            :  * A-E are done in 4 groups of 20 operations (or you may also think
+<span class="lineNum">     205 </span>            :  * of them as being done in 16 groups of 5 operations).  They are
+<span class="lineNum">     206 </span>            :  * done by the SHA_RNDx macros below, in the right column.
+<span class="lineNum">     207 </span>            :  *
+<span class="lineNum">     208 </span>            :  * The functions that set the 16 values of the W array are done in
+<span class="lineNum">     209 </span>            :  * 5 groups of 16 operations.  The first group is done by the
+<span class="lineNum">     210 </span>            :  * LOAD macros below, the latter 4 groups are done by SHA_MIX below,
+<span class="lineNum">     211 </span>            :  * in the left column.
+<span class="lineNum">     212 </span>            :  *
+<span class="lineNum">     213 </span>            :  * gcc's optimizer observes that each member of the W array is assigned
+<span class="lineNum">     214 </span>            :  * a value 5 times in this code.  It reduces the number of store
+<span class="lineNum">     215 </span>            :  * operations done to the W array in the context (that is, in the X array)
+<span class="lineNum">     216 </span>            :  * by creating a W array on the stack, and storing the W values there for
+<span class="lineNum">     217 </span>            :  * the first 4 groups of operations on W, and storing the values in the
+<span class="lineNum">     218 </span>            :  * context's W array only in the fifth group.  This is undesirable.
+<span class="lineNum">     219 </span>            :  * It is MUCH bigger code than simply using the context's W array, because
+<span class="lineNum">     220 </span>            :  * all the offsets to the W array in the stack are 32-bit signed offsets,
+<span class="lineNum">     221 </span>            :  * and it is no faster than storing the values in the context's W array.
+<span class="lineNum">     222 </span>            :  *
+<span class="lineNum">     223 </span>            :  * The original code for sha_fast.c prevented this creation of a separate
+<span class="lineNum">     224 </span>            :  * W array in the stack by creating a W array of 80 members, each of
+<span class="lineNum">     225 </span>            :  * whose elements is assigned only once. It also separated the computations
+<span class="lineNum">     226 </span>            :  * of the W array values and the computations of the values for the 5
+<span class="lineNum">     227 </span>            :  * state variables into two separate passes, W's, then A-E's so that the
+<span class="lineNum">     228 </span>            :  * second pass could be done all in registers (except for accessing the W
+<span class="lineNum">     229 </span>            :  * array) on machines with fewer registers.  The method is suboptimal
+<span class="lineNum">     230 </span>            :  * for machines with enough registers to do it all in one pass, and it
+<span class="lineNum">     231 </span>            :  * necessitates using many instructions with 32-bit offsets.
+<span class="lineNum">     232 </span>            :  *
+<span class="lineNum">     233 </span>            :  * This code eliminates the separate W array on the stack by a completely
+<span class="lineNum">     234 </span>            :  * different means: by declaring the X array volatile.  This prevents
+<span class="lineNum">     235 </span>            :  * the optimizer from trying to reduce the use of the X array by the
+<span class="lineNum">     236 </span>            :  * creation of a MORE expensive W array on the stack. The result is
+<span class="lineNum">     237 </span>            :  * that all instructions use signed 8-bit offsets and not 32-bit offsets.
+<span class="lineNum">     238 </span>            :  *
+<span class="lineNum">     239 </span>            :  * The combination of this code and the -O3 optimizer flag on GCC 3.4.3
+<span class="lineNum">     240 </span>            :  * results in code that is 3 times faster than the previous NSS sha_fast
+<span class="lineNum">     241 </span>            :  * code on AMD64.
+<a name="242"><span class="lineNum">     242 </span>            :  */</a>
+<span class="lineNum">     243 </span>            : static void NO_SANITIZE_ALIGNMENT
+<span class="lineNum">     244 </span><span class="lineCov">          1 : shaCompress(volatile SHA_HW_t *X, const PRUint32 *inbuf)</span>
+<span class="lineNum">     245 </span>            : {
+<span class="lineNum">     246 </span>            :     register SHA_HW_t A, B, C, D, E;
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span>            : #if defined(SHA_NEED_TMP_VARIABLE)
+<span class="lineNum">     249 </span>            :     register PRUint32 tmp;
+<span class="lineNum">     250 </span>            : #endif
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span>            : #if !defined(SHA_PUT_W_IN_STACK)
+<span class="lineNum">     253 </span>            : #define XH(n) X[n - H2X]
+<span class="lineNum">     254 </span>            : #define XW(n) X[n - W2X]
+<span class="lineNum">     255 </span>            : #else
+<span class="lineNum">     256 </span>            :     SHA_HW_t w_0, w_1, w_2, w_3, w_4, w_5, w_6, w_7,
+<span class="lineNum">     257 </span>            :         w_8, w_9, w_10, w_11, w_12, w_13, w_14, w_15;
+<span class="lineNum">     258 </span>            : #define XW(n) w_##n
+<span class="lineNum">     259 </span>            : #define XH(n) X[n]
+<span class="lineNum">     260 </span>            : #endif
+<span class="lineNum">     261 </span>            : 
+<span class="lineNum">     262 </span>            : #define K0 0x5a827999L
+<span class="lineNum">     263 </span>            : #define K1 0x6ed9eba1L
+<span class="lineNum">     264 </span>            : #define K2 0x8f1bbcdcL
+<span class="lineNum">     265 </span>            : #define K3 0xca62c1d6L
+<span class="lineNum">     266 </span>            : 
+<span class="lineNum">     267 </span>            : #define SHA_RND1(a, b, c, d, e, n)                         \
+<span class="lineNum">     268 </span>            :     a = SHA_ROTL(b, 5) + SHA_F1(c, d, e) + a + XW(n) + K0; \
+<span class="lineNum">     269 </span>            :     c = SHA_ROTL(c, 30)
+<span class="lineNum">     270 </span>            : #define SHA_RND2(a, b, c, d, e, n)                         \
+<span class="lineNum">     271 </span>            :     a = SHA_ROTL(b, 5) + SHA_F2(c, d, e) + a + XW(n) + K1; \
+<span class="lineNum">     272 </span>            :     c = SHA_ROTL(c, 30)
+<span class="lineNum">     273 </span>            : #define SHA_RND3(a, b, c, d, e, n)                         \
+<span class="lineNum">     274 </span>            :     a = SHA_ROTL(b, 5) + SHA_F3(c, d, e) + a + XW(n) + K2; \
+<span class="lineNum">     275 </span>            :     c = SHA_ROTL(c, 30)
+<span class="lineNum">     276 </span>            : #define SHA_RND4(a, b, c, d, e, n)                         \
+<span class="lineNum">     277 </span>            :     a = SHA_ROTL(b, 5) + SHA_F4(c, d, e) + a + XW(n) + K3; \
+<span class="lineNum">     278 </span>            :     c = SHA_ROTL(c, 30)
+<span class="lineNum">     279 </span>            : 
+<span class="lineNum">     280 </span>            : #define LOAD(n) XW(n) = SHA_HTONL(inbuf[n])
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span><span class="lineCov">          1 :     A = XH(0);</span>
+<span class="lineNum">     283 </span><span class="lineCov">          1 :     B = XH(1);</span>
+<span class="lineNum">     284 </span><span class="lineCov">          1 :     C = XH(2);</span>
+<span class="lineNum">     285 </span><span class="lineCov">          1 :     D = XH(3);</span>
+<span class="lineNum">     286 </span><span class="lineCov">          1 :     E = XH(4);</span>
+<span class="lineNum">     287 </span>            : 
+<span class="lineNum">     288 </span><span class="lineCov">          1 :     LOAD(0);</span>
+<span class="lineNum">     289 </span><span class="lineCov">          1 :     SHA_RND1(E, A, B, C, D, 0);</span>
+<span class="lineNum">     290 </span><span class="lineCov">          1 :     LOAD(1);</span>
+<span class="lineNum">     291 </span><span class="lineCov">          1 :     SHA_RND1(D, E, A, B, C, 1);</span>
+<span class="lineNum">     292 </span><span class="lineCov">          1 :     LOAD(2);</span>
+<span class="lineNum">     293 </span><span class="lineCov">          1 :     SHA_RND1(C, D, E, A, B, 2);</span>
+<span class="lineNum">     294 </span><span class="lineCov">          1 :     LOAD(3);</span>
+<span class="lineNum">     295 </span><span class="lineCov">          1 :     SHA_RND1(B, C, D, E, A, 3);</span>
+<span class="lineNum">     296 </span><span class="lineCov">          1 :     LOAD(4);</span>
+<span class="lineNum">     297 </span><span class="lineCov">          1 :     SHA_RND1(A, B, C, D, E, 4);</span>
+<span class="lineNum">     298 </span><span class="lineCov">          1 :     LOAD(5);</span>
+<span class="lineNum">     299 </span><span class="lineCov">          1 :     SHA_RND1(E, A, B, C, D, 5);</span>
+<span class="lineNum">     300 </span><span class="lineCov">          1 :     LOAD(6);</span>
+<span class="lineNum">     301 </span><span class="lineCov">          1 :     SHA_RND1(D, E, A, B, C, 6);</span>
+<span class="lineNum">     302 </span><span class="lineCov">          1 :     LOAD(7);</span>
+<span class="lineNum">     303 </span><span class="lineCov">          1 :     SHA_RND1(C, D, E, A, B, 7);</span>
+<span class="lineNum">     304 </span><span class="lineCov">          1 :     LOAD(8);</span>
+<span class="lineNum">     305 </span><span class="lineCov">          1 :     SHA_RND1(B, C, D, E, A, 8);</span>
+<span class="lineNum">     306 </span><span class="lineCov">          1 :     LOAD(9);</span>
+<span class="lineNum">     307 </span><span class="lineCov">          1 :     SHA_RND1(A, B, C, D, E, 9);</span>
+<span class="lineNum">     308 </span><span class="lineCov">          1 :     LOAD(10);</span>
+<span class="lineNum">     309 </span><span class="lineCov">          1 :     SHA_RND1(E, A, B, C, D, 10);</span>
+<span class="lineNum">     310 </span><span class="lineCov">          1 :     LOAD(11);</span>
+<span class="lineNum">     311 </span><span class="lineCov">          1 :     SHA_RND1(D, E, A, B, C, 11);</span>
+<span class="lineNum">     312 </span><span class="lineCov">          1 :     LOAD(12);</span>
+<span class="lineNum">     313 </span><span class="lineCov">          1 :     SHA_RND1(C, D, E, A, B, 12);</span>
+<span class="lineNum">     314 </span><span class="lineCov">          1 :     LOAD(13);</span>
+<span class="lineNum">     315 </span><span class="lineCov">          1 :     SHA_RND1(B, C, D, E, A, 13);</span>
+<span class="lineNum">     316 </span><span class="lineCov">          1 :     LOAD(14);</span>
+<span class="lineNum">     317 </span><span class="lineCov">          1 :     SHA_RND1(A, B, C, D, E, 14);</span>
+<span class="lineNum">     318 </span><span class="lineCov">          1 :     LOAD(15);</span>
+<span class="lineNum">     319 </span><span class="lineCov">          1 :     SHA_RND1(E, A, B, C, D, 15);</span>
+<span class="lineNum">     320 </span>            : 
+<span class="lineNum">     321 </span><span class="lineCov">          1 :     SHA_MIX(0, 13, 8, 2);</span>
+<span class="lineNum">     322 </span><span class="lineCov">          1 :     SHA_RND1(D, E, A, B, C, 0);</span>
+<span class="lineNum">     323 </span><span class="lineCov">          1 :     SHA_MIX(1, 14, 9, 3);</span>
+<span class="lineNum">     324 </span><span class="lineCov">          1 :     SHA_RND1(C, D, E, A, B, 1);</span>
+<span class="lineNum">     325 </span><span class="lineCov">          1 :     SHA_MIX(2, 15, 10, 4);</span>
+<span class="lineNum">     326 </span><span class="lineCov">          1 :     SHA_RND1(B, C, D, E, A, 2);</span>
+<span class="lineNum">     327 </span><span class="lineCov">          1 :     SHA_MIX(3, 0, 11, 5);</span>
+<span class="lineNum">     328 </span><span class="lineCov">          1 :     SHA_RND1(A, B, C, D, E, 3);</span>
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span><span class="lineCov">          1 :     SHA_MIX(4, 1, 12, 6);</span>
+<span class="lineNum">     331 </span><span class="lineCov">          1 :     SHA_RND2(E, A, B, C, D, 4);</span>
+<span class="lineNum">     332 </span><span class="lineCov">          1 :     SHA_MIX(5, 2, 13, 7);</span>
+<span class="lineNum">     333 </span><span class="lineCov">          1 :     SHA_RND2(D, E, A, B, C, 5);</span>
+<span class="lineNum">     334 </span><span class="lineCov">          1 :     SHA_MIX(6, 3, 14, 8);</span>
+<span class="lineNum">     335 </span><span class="lineCov">          1 :     SHA_RND2(C, D, E, A, B, 6);</span>
+<span class="lineNum">     336 </span><span class="lineCov">          1 :     SHA_MIX(7, 4, 15, 9);</span>
+<span class="lineNum">     337 </span><span class="lineCov">          1 :     SHA_RND2(B, C, D, E, A, 7);</span>
+<span class="lineNum">     338 </span><span class="lineCov">          1 :     SHA_MIX(8, 5, 0, 10);</span>
+<span class="lineNum">     339 </span><span class="lineCov">          1 :     SHA_RND2(A, B, C, D, E, 8);</span>
+<span class="lineNum">     340 </span><span class="lineCov">          1 :     SHA_MIX(9, 6, 1, 11);</span>
+<span class="lineNum">     341 </span><span class="lineCov">          1 :     SHA_RND2(E, A, B, C, D, 9);</span>
+<span class="lineNum">     342 </span><span class="lineCov">          1 :     SHA_MIX(10, 7, 2, 12);</span>
+<span class="lineNum">     343 </span><span class="lineCov">          1 :     SHA_RND2(D, E, A, B, C, 10);</span>
+<span class="lineNum">     344 </span><span class="lineCov">          1 :     SHA_MIX(11, 8, 3, 13);</span>
+<span class="lineNum">     345 </span><span class="lineCov">          1 :     SHA_RND2(C, D, E, A, B, 11);</span>
+<span class="lineNum">     346 </span><span class="lineCov">          1 :     SHA_MIX(12, 9, 4, 14);</span>
+<span class="lineNum">     347 </span><span class="lineCov">          1 :     SHA_RND2(B, C, D, E, A, 12);</span>
+<span class="lineNum">     348 </span><span class="lineCov">          1 :     SHA_MIX(13, 10, 5, 15);</span>
+<span class="lineNum">     349 </span><span class="lineCov">          1 :     SHA_RND2(A, B, C, D, E, 13);</span>
+<span class="lineNum">     350 </span><span class="lineCov">          1 :     SHA_MIX(14, 11, 6, 0);</span>
+<span class="lineNum">     351 </span><span class="lineCov">          1 :     SHA_RND2(E, A, B, C, D, 14);</span>
+<span class="lineNum">     352 </span><span class="lineCov">          1 :     SHA_MIX(15, 12, 7, 1);</span>
+<span class="lineNum">     353 </span><span class="lineCov">          1 :     SHA_RND2(D, E, A, B, C, 15);</span>
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span><span class="lineCov">          1 :     SHA_MIX(0, 13, 8, 2);</span>
+<span class="lineNum">     356 </span><span class="lineCov">          1 :     SHA_RND2(C, D, E, A, B, 0);</span>
+<span class="lineNum">     357 </span><span class="lineCov">          1 :     SHA_MIX(1, 14, 9, 3);</span>
+<span class="lineNum">     358 </span><span class="lineCov">          1 :     SHA_RND2(B, C, D, E, A, 1);</span>
+<span class="lineNum">     359 </span><span class="lineCov">          1 :     SHA_MIX(2, 15, 10, 4);</span>
+<span class="lineNum">     360 </span><span class="lineCov">          1 :     SHA_RND2(A, B, C, D, E, 2);</span>
+<span class="lineNum">     361 </span><span class="lineCov">          1 :     SHA_MIX(3, 0, 11, 5);</span>
+<span class="lineNum">     362 </span><span class="lineCov">          1 :     SHA_RND2(E, A, B, C, D, 3);</span>
+<span class="lineNum">     363 </span><span class="lineCov">          1 :     SHA_MIX(4, 1, 12, 6);</span>
+<span class="lineNum">     364 </span><span class="lineCov">          1 :     SHA_RND2(D, E, A, B, C, 4);</span>
+<span class="lineNum">     365 </span><span class="lineCov">          1 :     SHA_MIX(5, 2, 13, 7);</span>
+<span class="lineNum">     366 </span><span class="lineCov">          1 :     SHA_RND2(C, D, E, A, B, 5);</span>
+<span class="lineNum">     367 </span><span class="lineCov">          1 :     SHA_MIX(6, 3, 14, 8);</span>
+<span class="lineNum">     368 </span><span class="lineCov">          1 :     SHA_RND2(B, C, D, E, A, 6);</span>
+<span class="lineNum">     369 </span><span class="lineCov">          1 :     SHA_MIX(7, 4, 15, 9);</span>
+<span class="lineNum">     370 </span><span class="lineCov">          1 :     SHA_RND2(A, B, C, D, E, 7);</span>
+<span class="lineNum">     371 </span>            : 
+<span class="lineNum">     372 </span><span class="lineCov">          1 :     SHA_MIX(8, 5, 0, 10);</span>
+<span class="lineNum">     373 </span><span class="lineCov">          1 :     SHA_RND3(E, A, B, C, D, 8);</span>
+<span class="lineNum">     374 </span><span class="lineCov">          1 :     SHA_MIX(9, 6, 1, 11);</span>
+<span class="lineNum">     375 </span><span class="lineCov">          1 :     SHA_RND3(D, E, A, B, C, 9);</span>
+<span class="lineNum">     376 </span><span class="lineCov">          1 :     SHA_MIX(10, 7, 2, 12);</span>
+<span class="lineNum">     377 </span><span class="lineCov">          1 :     SHA_RND3(C, D, E, A, B, 10);</span>
+<span class="lineNum">     378 </span><span class="lineCov">          1 :     SHA_MIX(11, 8, 3, 13);</span>
+<span class="lineNum">     379 </span><span class="lineCov">          1 :     SHA_RND3(B, C, D, E, A, 11);</span>
+<span class="lineNum">     380 </span><span class="lineCov">          1 :     SHA_MIX(12, 9, 4, 14);</span>
+<span class="lineNum">     381 </span><span class="lineCov">          1 :     SHA_RND3(A, B, C, D, E, 12);</span>
+<span class="lineNum">     382 </span><span class="lineCov">          1 :     SHA_MIX(13, 10, 5, 15);</span>
+<span class="lineNum">     383 </span><span class="lineCov">          1 :     SHA_RND3(E, A, B, C, D, 13);</span>
+<span class="lineNum">     384 </span><span class="lineCov">          1 :     SHA_MIX(14, 11, 6, 0);</span>
+<span class="lineNum">     385 </span><span class="lineCov">          1 :     SHA_RND3(D, E, A, B, C, 14);</span>
+<span class="lineNum">     386 </span><span class="lineCov">          1 :     SHA_MIX(15, 12, 7, 1);</span>
+<span class="lineNum">     387 </span><span class="lineCov">          1 :     SHA_RND3(C, D, E, A, B, 15);</span>
+<span class="lineNum">     388 </span>            : 
+<span class="lineNum">     389 </span><span class="lineCov">          1 :     SHA_MIX(0, 13, 8, 2);</span>
+<span class="lineNum">     390 </span><span class="lineCov">          1 :     SHA_RND3(B, C, D, E, A, 0);</span>
+<span class="lineNum">     391 </span><span class="lineCov">          1 :     SHA_MIX(1, 14, 9, 3);</span>
+<span class="lineNum">     392 </span><span class="lineCov">          1 :     SHA_RND3(A, B, C, D, E, 1);</span>
+<span class="lineNum">     393 </span><span class="lineCov">          1 :     SHA_MIX(2, 15, 10, 4);</span>
+<span class="lineNum">     394 </span><span class="lineCov">          1 :     SHA_RND3(E, A, B, C, D, 2);</span>
+<span class="lineNum">     395 </span><span class="lineCov">          1 :     SHA_MIX(3, 0, 11, 5);</span>
+<span class="lineNum">     396 </span><span class="lineCov">          1 :     SHA_RND3(D, E, A, B, C, 3);</span>
+<span class="lineNum">     397 </span><span class="lineCov">          1 :     SHA_MIX(4, 1, 12, 6);</span>
+<span class="lineNum">     398 </span><span class="lineCov">          1 :     SHA_RND3(C, D, E, A, B, 4);</span>
+<span class="lineNum">     399 </span><span class="lineCov">          1 :     SHA_MIX(5, 2, 13, 7);</span>
+<span class="lineNum">     400 </span><span class="lineCov">          1 :     SHA_RND3(B, C, D, E, A, 5);</span>
+<span class="lineNum">     401 </span><span class="lineCov">          1 :     SHA_MIX(6, 3, 14, 8);</span>
+<span class="lineNum">     402 </span><span class="lineCov">          1 :     SHA_RND3(A, B, C, D, E, 6);</span>
+<span class="lineNum">     403 </span><span class="lineCov">          1 :     SHA_MIX(7, 4, 15, 9);</span>
+<span class="lineNum">     404 </span><span class="lineCov">          1 :     SHA_RND3(E, A, B, C, D, 7);</span>
+<span class="lineNum">     405 </span><span class="lineCov">          1 :     SHA_MIX(8, 5, 0, 10);</span>
+<span class="lineNum">     406 </span><span class="lineCov">          1 :     SHA_RND3(D, E, A, B, C, 8);</span>
+<span class="lineNum">     407 </span><span class="lineCov">          1 :     SHA_MIX(9, 6, 1, 11);</span>
+<span class="lineNum">     408 </span><span class="lineCov">          1 :     SHA_RND3(C, D, E, A, B, 9);</span>
+<span class="lineNum">     409 </span><span class="lineCov">          1 :     SHA_MIX(10, 7, 2, 12);</span>
+<span class="lineNum">     410 </span><span class="lineCov">          1 :     SHA_RND3(B, C, D, E, A, 10);</span>
+<span class="lineNum">     411 </span><span class="lineCov">          1 :     SHA_MIX(11, 8, 3, 13);</span>
+<span class="lineNum">     412 </span><span class="lineCov">          1 :     SHA_RND3(A, B, C, D, E, 11);</span>
+<span class="lineNum">     413 </span>            : 
+<span class="lineNum">     414 </span><span class="lineCov">          1 :     SHA_MIX(12, 9, 4, 14);</span>
+<span class="lineNum">     415 </span><span class="lineCov">          1 :     SHA_RND4(E, A, B, C, D, 12);</span>
+<span class="lineNum">     416 </span><span class="lineCov">          1 :     SHA_MIX(13, 10, 5, 15);</span>
+<span class="lineNum">     417 </span><span class="lineCov">          1 :     SHA_RND4(D, E, A, B, C, 13);</span>
+<span class="lineNum">     418 </span><span class="lineCov">          1 :     SHA_MIX(14, 11, 6, 0);</span>
+<span class="lineNum">     419 </span><span class="lineCov">          1 :     SHA_RND4(C, D, E, A, B, 14);</span>
+<span class="lineNum">     420 </span><span class="lineCov">          1 :     SHA_MIX(15, 12, 7, 1);</span>
+<span class="lineNum">     421 </span><span class="lineCov">          1 :     SHA_RND4(B, C, D, E, A, 15);</span>
+<span class="lineNum">     422 </span>            : 
+<span class="lineNum">     423 </span><span class="lineCov">          1 :     SHA_MIX(0, 13, 8, 2);</span>
+<span class="lineNum">     424 </span><span class="lineCov">          1 :     SHA_RND4(A, B, C, D, E, 0);</span>
+<span class="lineNum">     425 </span><span class="lineCov">          1 :     SHA_MIX(1, 14, 9, 3);</span>
+<span class="lineNum">     426 </span><span class="lineCov">          1 :     SHA_RND4(E, A, B, C, D, 1);</span>
+<span class="lineNum">     427 </span><span class="lineCov">          1 :     SHA_MIX(2, 15, 10, 4);</span>
+<span class="lineNum">     428 </span><span class="lineCov">          1 :     SHA_RND4(D, E, A, B, C, 2);</span>
+<span class="lineNum">     429 </span><span class="lineCov">          1 :     SHA_MIX(3, 0, 11, 5);</span>
+<span class="lineNum">     430 </span><span class="lineCov">          1 :     SHA_RND4(C, D, E, A, B, 3);</span>
+<span class="lineNum">     431 </span><span class="lineCov">          1 :     SHA_MIX(4, 1, 12, 6);</span>
+<span class="lineNum">     432 </span><span class="lineCov">          1 :     SHA_RND4(B, C, D, E, A, 4);</span>
+<span class="lineNum">     433 </span><span class="lineCov">          1 :     SHA_MIX(5, 2, 13, 7);</span>
+<span class="lineNum">     434 </span><span class="lineCov">          1 :     SHA_RND4(A, B, C, D, E, 5);</span>
+<span class="lineNum">     435 </span><span class="lineCov">          1 :     SHA_MIX(6, 3, 14, 8);</span>
+<span class="lineNum">     436 </span><span class="lineCov">          1 :     SHA_RND4(E, A, B, C, D, 6);</span>
+<span class="lineNum">     437 </span><span class="lineCov">          1 :     SHA_MIX(7, 4, 15, 9);</span>
+<span class="lineNum">     438 </span><span class="lineCov">          1 :     SHA_RND4(D, E, A, B, C, 7);</span>
+<span class="lineNum">     439 </span><span class="lineCov">          1 :     SHA_MIX(8, 5, 0, 10);</span>
+<span class="lineNum">     440 </span><span class="lineCov">          1 :     SHA_RND4(C, D, E, A, B, 8);</span>
+<span class="lineNum">     441 </span><span class="lineCov">          1 :     SHA_MIX(9, 6, 1, 11);</span>
+<span class="lineNum">     442 </span><span class="lineCov">          1 :     SHA_RND4(B, C, D, E, A, 9);</span>
+<span class="lineNum">     443 </span><span class="lineCov">          1 :     SHA_MIX(10, 7, 2, 12);</span>
+<span class="lineNum">     444 </span><span class="lineCov">          1 :     SHA_RND4(A, B, C, D, E, 10);</span>
+<span class="lineNum">     445 </span><span class="lineCov">          1 :     SHA_MIX(11, 8, 3, 13);</span>
+<span class="lineNum">     446 </span><span class="lineCov">          1 :     SHA_RND4(E, A, B, C, D, 11);</span>
+<span class="lineNum">     447 </span><span class="lineCov">          1 :     SHA_MIX(12, 9, 4, 14);</span>
+<span class="lineNum">     448 </span><span class="lineCov">          1 :     SHA_RND4(D, E, A, B, C, 12);</span>
+<span class="lineNum">     449 </span><span class="lineCov">          1 :     SHA_MIX(13, 10, 5, 15);</span>
+<span class="lineNum">     450 </span><span class="lineCov">          1 :     SHA_RND4(C, D, E, A, B, 13);</span>
+<span class="lineNum">     451 </span><span class="lineCov">          1 :     SHA_MIX(14, 11, 6, 0);</span>
+<span class="lineNum">     452 </span><span class="lineCov">          1 :     SHA_RND4(B, C, D, E, A, 14);</span>
+<span class="lineNum">     453 </span><span class="lineCov">          1 :     SHA_MIX(15, 12, 7, 1);</span>
+<span class="lineNum">     454 </span><span class="lineCov">          1 :     SHA_RND4(A, B, C, D, E, 15);</span>
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span><span class="lineCov">          1 :     XH(0) += A;</span>
+<span class="lineNum">     457 </span><span class="lineCov">          1 :     XH(1) += B;</span>
+<span class="lineNum">     458 </span><span class="lineCov">          1 :     XH(2) += C;</span>
+<span class="lineNum">     459 </span><span class="lineCov">          1 :     XH(3) += D;</span>
+<span class="lineNum">     460 </span><span class="lineCov">          1 :     XH(4) += E;</span>
+<span class="lineNum">     461 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     462 </span>            : 
+<span class="lineNum">     463 </span>            : /*************************************************************************
+<span class="lineNum">     464 </span>            : ** Code below this line added to make SHA code support BLAPI interface
+<span class="lineNum">     465 </span>            : */
+<a name="466"><span class="lineNum">     466 </span>            : </a>
+<span class="lineNum">     467 </span>            : SHA1Context *
+<span class="lineNum">     468 </span><span class="lineCov">          1 : SHA1_NewContext(void)</span>
+<span class="lineNum">     469 </span>            : {
+<span class="lineNum">     470 </span>            :     SHA1Context *cx;
+<span class="lineNum">     471 </span>            : 
+<span class="lineNum">     472 </span>            :     /* no need to ZNew, SHA1_Begin will init the context */
+<span class="lineNum">     473 </span><span class="lineCov">          1 :     cx = PORT_New(SHA1Context);</span>
+<span class="lineNum">     474 </span><span class="lineCov">          1 :     return cx;</span>
+<span class="lineNum">     475 </span>            : }
+<span class="lineNum">     476 </span>            : 
+<a name="477"><span class="lineNum">     477 </span>            : /* Zero and free the context */</a>
+<span class="lineNum">     478 </span>            : void
+<span class="lineNum">     479 </span><span class="lineCov">          1 : SHA1_DestroyContext(SHA1Context *cx, PRBool freeit)</span>
+<span class="lineNum">     480 </span>            : {
+<span class="lineNum">     481 </span><span class="lineCov">          1 :     memset(cx, 0, sizeof *cx);</span>
+<span class="lineNum">     482 </span><span class="lineCov">          1 :     if (freeit) {</span>
+<span class="lineNum">     483 </span><span class="lineCov">          1 :         PORT_Free(cx);</span>
+<span class="lineNum">     484 </span>            :     }
+<span class="lineNum">     485 </span><span class="lineCov">          1 : }</span>
+<a name="486"><span class="lineNum">     486 </span>            : </a>
+<span class="lineNum">     487 </span>            : SECStatus
+<span class="lineNum">     488 </span><span class="lineCov">          1 : SHA1_HashBuf(unsigned char *dest, const unsigned char *src, PRUint32 src_length)</span>
+<span class="lineNum">     489 </span>            : {
+<span class="lineNum">     490 </span>            :     SHA1Context ctx;
+<span class="lineNum">     491 </span>            :     unsigned int outLen;
+<span class="lineNum">     492 </span>            : 
+<span class="lineNum">     493 </span><span class="lineCov">          1 :     SHA1_Begin(&amp;ctx);</span>
+<span class="lineNum">     494 </span><span class="lineCov">          1 :     SHA1_Update(&amp;ctx, src, src_length);</span>
+<span class="lineNum">     495 </span><span class="lineCov">          1 :     SHA1_End(&amp;ctx, dest, &amp;outLen, SHA1_LENGTH);</span>
+<span class="lineNum">     496 </span><span class="lineCov">          1 :     memset(&amp;ctx, 0, sizeof ctx);</span>
+<span class="lineNum">     497 </span><span class="lineCov">          1 :     return SECSuccess;</span>
+<span class="lineNum">     498 </span>            : }
+<span class="lineNum">     499 </span>            : 
+<a name="500"><span class="lineNum">     500 </span>            : /* Hash a null-terminated character string. */</a>
+<span class="lineNum">     501 </span>            : SECStatus
+<span class="lineNum">     502 </span><span class="lineNoCov">          0 : SHA1_Hash(unsigned char *dest, const char *src)</span>
+<span class="lineNum">     503 </span>            : {
+<span class="lineNum">     504 </span><span class="lineNoCov">          0 :     return SHA1_HashBuf(dest, (const unsigned char *)src, PORT_Strlen(src));</span>
+<span class="lineNum">     505 </span>            : }
+<span class="lineNum">     506 </span>            : 
+<span class="lineNum">     507 </span>            : /*
+<span class="lineNum">     508 </span>            :  * need to support save/restore state in pkcs11. Stores all the info necessary
+<span class="lineNum">     509 </span>            :  * for a structure into just a stream of bytes.
+<a name="510"><span class="lineNum">     510 </span>            :  */</a>
+<span class="lineNum">     511 </span>            : unsigned int
+<span class="lineNum">     512 </span><span class="lineCov">          1 : SHA1_FlattenSize(SHA1Context *cx)</span>
+<span class="lineNum">     513 </span>            : {
+<span class="lineNum">     514 </span><span class="lineCov">          1 :     return sizeof(SHA1Context);</span>
+<span class="lineNum">     515 </span>            : }
+<a name="516"><span class="lineNum">     516 </span>            : </a>
+<span class="lineNum">     517 </span>            : SECStatus
+<span class="lineNum">     518 </span><span class="lineNoCov">          0 : SHA1_Flatten(SHA1Context *cx, unsigned char *space)</span>
+<span class="lineNum">     519 </span>            : {
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 :     PORT_Memcpy(space, cx, sizeof(SHA1Context));</span>
+<span class="lineNum">     521 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     522 </span>            : }
+<a name="523"><span class="lineNum">     523 </span>            : </a>
+<span class="lineNum">     524 </span>            : SHA1Context *
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 : SHA1_Resurrect(unsigned char *space, void *arg)</span>
+<span class="lineNum">     526 </span>            : {
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :     SHA1Context *cx = SHA1_NewContext();</span>
+<span class="lineNum">     528 </span><span class="lineNoCov">          0 :     if (cx == NULL)</span>
+<span class="lineNum">     529 </span>            :         return NULL;
+<span class="lineNum">     530 </span>            : 
+<span class="lineNum">     531 </span><span class="lineNoCov">          0 :     PORT_Memcpy(cx, space, sizeof(SHA1Context));</span>
+<span class="lineNum">     532 </span><span class="lineNoCov">          0 :     return cx;</span>
+<span class="lineNum">     533 </span>            : }
+<a name="534"><span class="lineNum">     534 </span>            : </a>
+<span class="lineNum">     535 </span>            : void
+<span class="lineNum">     536 </span><span class="lineNoCov">          0 : SHA1_Clone(SHA1Context *dest, SHA1Context *src)</span>
+<span class="lineNum">     537 </span>            : {
+<span class="lineNum">     538 </span><span class="lineNoCov">          0 :     memcpy(dest, src, sizeof *dest);</span>
+<span class="lineNum">     539 </span><span class="lineNoCov">          0 : }</span>
+<a name="540"><span class="lineNum">     540 </span>            : </a>
+<span class="lineNum">     541 </span>            : void
+<span class="lineNum">     542 </span><span class="lineNoCov">          0 : SHA1_TraceState(SHA1Context *ctx)</span>
+<span class="lineNum">     543 </span>            : {
+<span class="lineNum">     544 </span><span class="lineNoCov">          0 :     PORT_SetError(PR_NOT_IMPLEMENTED_ERROR);</span>
+<span class="lineNum">     545 </span><span class="lineNoCov">          0 : }</span>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

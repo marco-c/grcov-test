@@ -1,0 +1,550 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/sandbox/chromium/sandbox/linux/bpf_dsl/policy_compiler.cc</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../../index.html">top level</a> - <a href="index.html">security/sandbox/chromium/sandbox/linux/bpf_dsl</a> - policy_compiler.cc<span style="font-size: 80%;"> (source / <a href="policy_compiler.cc.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">119</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">23</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : // Copyright (c) 2012 The Chromium Authors. All rights reserved.</a>
+<span class="lineNum">       2 </span>            : // Use of this source code is governed by a BSD-style license that can be
+<span class="lineNum">       3 </span>            : // found in the LICENSE file.
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : #include &quot;sandbox/linux/bpf_dsl/policy_compiler.h&quot;
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #include &lt;errno.h&gt;
+<span class="lineNum">       8 </span>            : #include &lt;stddef.h&gt;
+<span class="lineNum">       9 </span>            : #include &lt;stdint.h&gt;
+<span class="lineNum">      10 </span>            : #include &lt;sys/syscall.h&gt;
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : #include &lt;limits&gt;
+<span class="lineNum">      13 </span>            : 
+<span class="lineNum">      14 </span>            : #include &quot;base/logging.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;base/macros.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;sandbox/linux/bpf_dsl/bpf_dsl.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;sandbox/linux/bpf_dsl/bpf_dsl_impl.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;sandbox/linux/bpf_dsl/codegen.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;sandbox/linux/bpf_dsl/policy.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;sandbox/linux/bpf_dsl/seccomp_macros.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;sandbox/linux/bpf_dsl/syscall_set.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;sandbox/linux/system_headers/linux_filter.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;sandbox/linux/system_headers/linux_seccomp.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;sandbox/linux/system_headers/linux_syscalls.h&quot;
+<span class="lineNum">      25 </span>            : 
+<span class="lineNum">      26 </span>            : namespace sandbox {
+<span class="lineNum">      27 </span>            : namespace bpf_dsl {
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : namespace {
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : #if defined(__i386__) || defined(__x86_64__)
+<span class="lineNum">      32 </span>            : const bool kIsIntel = true;
+<span class="lineNum">      33 </span>            : #else
+<span class="lineNum">      34 </span>            : const bool kIsIntel = false;
+<span class="lineNum">      35 </span>            : #endif
+<span class="lineNum">      36 </span>            : #if defined(__x86_64__) &amp;&amp; defined(__ILP32__)
+<span class="lineNum">      37 </span>            : const bool kIsX32 = true;
+<span class="lineNum">      38 </span>            : #else
+<span class="lineNum">      39 </span>            : const bool kIsX32 = false;
+<span class="lineNum">      40 </span>            : #endif
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : const int kSyscallsRequiredForUnsafeTraps[] = {
+<span class="lineNum">      43 </span>            :     __NR_rt_sigprocmask,
+<span class="lineNum">      44 </span>            :     __NR_rt_sigreturn,
+<span class="lineNum">      45 </span>            : #if defined(__NR_sigprocmask)
+<span class="lineNum">      46 </span>            :     __NR_sigprocmask,
+<span class="lineNum">      47 </span>            : #endif
+<span class="lineNum">      48 </span>            : #if defined(__NR_sigreturn)
+<span class="lineNum">      49 </span>            :     __NR_sigreturn,
+<span class="lineNum">      50 </span>            : #endif
+<a name="51"><span class="lineNum">      51 </span>            : };</a>
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span><span class="lineNoCov">          0 : bool HasExactlyOneBit(uint64_t x) {</span>
+<span class="lineNum">      54 </span>            :   // Common trick; e.g., see http://stackoverflow.com/a/108329.
+<span class="lineNum">      55 </span><span class="lineNoCov">          0 :   return x != 0 &amp;&amp; (x &amp; (x - 1)) == 0;</span>
+<a name="56"><span class="lineNum">      56 </span>            : }</a>
+<span class="lineNum">      57 </span>            : 
+<span class="lineNum">      58 </span><span class="lineNoCov">          0 : ResultExpr DefaultPanic(const char* error) {</span>
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 :   return Kill();</span>
+<span class="lineNum">      60 </span>            : }
+<span class="lineNum">      61 </span>            : 
+<a name="62"><span class="lineNum">      62 </span>            : // A Trap() handler that returns an &quot;errno&quot; value. The value is encoded</a>
+<span class="lineNum">      63 </span>            : // in the &quot;aux&quot; parameter.
+<span class="lineNum">      64 </span><span class="lineNoCov">          0 : intptr_t ReturnErrno(const struct arch_seccomp_data&amp;, void* aux) {</span>
+<span class="lineNum">      65 </span>            :   // TrapFnc functions report error by following the native kernel convention
+<span class="lineNum">      66 </span>            :   // of returning an exit code in the range of -1..-4096. They do not try to
+<span class="lineNum">      67 </span>            :   // set errno themselves. The glibc wrapper that triggered the SIGSYS will
+<span class="lineNum">      68 </span>            :   // ultimately do so for us.
+<span class="lineNum">      69 </span><span class="lineNoCov">          0 :   int err = reinterpret_cast&lt;intptr_t&gt;(aux) &amp; SECCOMP_RET_DATA;</span>
+<span class="lineNum">      70 </span><span class="lineNoCov">          0 :   return -err;</span>
+<a name="71"><span class="lineNum">      71 </span>            : }</a>
+<span class="lineNum">      72 </span>            : 
+<span class="lineNum">      73 </span><span class="lineNoCov">          0 : bool HasUnsafeTraps(const Policy* policy) {</span>
+<span class="lineNum">      74 </span>            :   DCHECK(policy);
+<span class="lineNum">      75 </span><span class="lineNoCov">          0 :   for (uint32_t sysnum : SyscallSet::ValidOnly()) {</span>
+<span class="lineNum">      76 </span><span class="lineNoCov">          0 :     if (policy-&gt;EvaluateSyscall(sysnum)-&gt;HasUnsafeTraps()) {</span>
+<span class="lineNum">      77 </span><span class="lineNoCov">          0 :       return true;</span>
+<span class="lineNum">      78 </span>            :     }
+<span class="lineNum">      79 </span>            :   }
+<span class="lineNum">      80 </span><span class="lineNoCov">          0 :   return policy-&gt;InvalidSyscall()-&gt;HasUnsafeTraps();</span>
+<span class="lineNum">      81 </span>            : }
+<span class="lineNum">      82 </span>            : 
+<span class="lineNum">      83 </span>            : }  // namespace
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span>            : struct PolicyCompiler::Range {
+<span class="lineNum">      86 </span>            :   uint32_t from;
+<span class="lineNum">      87 </span>            :   CodeGen::Node node;
+<a name="88"><span class="lineNum">      88 </span>            : };</a>
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span><span class="lineNoCov">          0 : PolicyCompiler::PolicyCompiler(const Policy* policy, TrapRegistry* registry)</span>
+<span class="lineNum">      91 </span>            :     : policy_(policy),
+<span class="lineNum">      92 </span>            :       registry_(registry),
+<span class="lineNum">      93 </span>            :       escapepc_(0),
+<span class="lineNum">      94 </span>            :       panic_func_(DefaultPanic),
+<span class="lineNum">      95 </span>            :       gen_(),
+<span class="lineNum">      96 </span><span class="lineNoCov">          0 :       has_unsafe_traps_(HasUnsafeTraps(policy_)) {</span>
+<span class="lineNum">      97 </span>            :   DCHECK(policy);
+<a name="98"><span class="lineNum">      98 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">      99 </span>            : 
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 : PolicyCompiler::~PolicyCompiler() {</span>
+<a name="101"><span class="lineNum">     101 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span><span class="lineNoCov">          0 : CodeGen::Program PolicyCompiler::Compile() {</span>
+<span class="lineNum">     104 </span><span class="lineNoCov">          0 :   CHECK(policy_-&gt;InvalidSyscall()-&gt;IsDeny())</span>
+<span class="lineNum">     105 </span><span class="lineNoCov">          0 :       &lt;&lt; &quot;Policies should deny invalid system calls&quot;;</span>
+<span class="lineNum">     106 </span>            : 
+<span class="lineNum">     107 </span>            :   // If our BPF program has unsafe traps, enable support for them.
+<span class="lineNum">     108 </span><span class="lineNoCov">          0 :   if (has_unsafe_traps_) {</span>
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 :     CHECK_NE(0U, escapepc_) &lt;&lt; &quot;UnsafeTrap() requires a valid escape PC&quot;;</span>
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span><span class="lineNoCov">          0 :     for (int sysnum : kSyscallsRequiredForUnsafeTraps) {</span>
+<span class="lineNum">     112 </span><span class="lineNoCov">          0 :       CHECK(policy_-&gt;EvaluateSyscall(sysnum)-&gt;IsAllow())</span>
+<span class="lineNum">     113 </span>            :           &lt;&lt; &quot;Policies that use UnsafeTrap() must unconditionally allow all &quot;
+<span class="lineNum">     114 </span><span class="lineNoCov">          0 :              &quot;required system calls&quot;;</span>
+<span class="lineNum">     115 </span>            :     }
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span><span class="lineNoCov">          0 :     CHECK(registry_-&gt;EnableUnsafeTraps())</span>
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :         &lt;&lt; &quot;We'd rather die than enable unsafe traps&quot;;</span>
+<span class="lineNum">     119 </span>            :   }
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span>            :   // Assemble the BPF filter program.
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :   return gen_.Compile(AssemblePolicy());</span>
+<a name="123"><span class="lineNum">     123 </span>            : }</a>
+<span class="lineNum">     124 </span>            : 
+<span class="lineNum">     125 </span><span class="lineNoCov">          0 : void PolicyCompiler::DangerousSetEscapePC(uint64_t escapepc) {</span>
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :   escapepc_ = escapepc;</span>
+<a name="127"><span class="lineNum">     127 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     128 </span>            : 
+<span class="lineNum">     129 </span><span class="lineNoCov">          0 : void PolicyCompiler::SetPanicFunc(PanicFunc panic_func) {</span>
+<span class="lineNum">     130 </span><span class="lineNoCov">          0 :   panic_func_ = panic_func;</span>
+<a name="131"><span class="lineNum">     131 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     132 </span>            : 
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 : CodeGen::Node PolicyCompiler::AssemblePolicy() {</span>
+<span class="lineNum">     134 </span>            :   // A compiled policy consists of three logical parts:
+<span class="lineNum">     135 </span>            :   //   1. Check that the &quot;arch&quot; field matches the expected architecture.
+<span class="lineNum">     136 </span>            :   //   2. If the policy involves unsafe traps, check if the syscall was
+<span class="lineNum">     137 </span>            :   //      invoked by Syscall::Call, and then allow it unconditionally.
+<span class="lineNum">     138 </span>            :   //   3. Check the system call number and jump to the appropriate compiled
+<span class="lineNum">     139 </span>            :   //      system call policy number.
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :   return CheckArch(MaybeAddEscapeHatch(DispatchSyscall()));</span>
+<a name="141"><span class="lineNum">     141 </span>            : }</a>
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 : CodeGen::Node PolicyCompiler::CheckArch(CodeGen::Node passed) {</span>
+<span class="lineNum">     144 </span>            :   // If the architecture doesn't match SECCOMP_ARCH, disallow the
+<span class="lineNum">     145 </span>            :   // system call.
+<span class="lineNum">     146 </span>            :   return gen_.MakeInstruction(
+<span class="lineNum">     147 </span>            :       BPF_LD + BPF_W + BPF_ABS, SECCOMP_ARCH_IDX,
+<span class="lineNum">     148 </span>            :       gen_.MakeInstruction(BPF_JMP + BPF_JEQ + BPF_K, SECCOMP_ARCH, passed,
+<span class="lineNum">     149 </span>            :                            CompileResult(panic_func_(
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :                                &quot;Invalid audit architecture in BPF filter&quot;))));</span>
+<a name="151"><span class="lineNum">     151 </span>            : }</a>
+<span class="lineNum">     152 </span>            : 
+<span class="lineNum">     153 </span><span class="lineNoCov">          0 : CodeGen::Node PolicyCompiler::MaybeAddEscapeHatch(CodeGen::Node rest) {</span>
+<span class="lineNum">     154 </span>            :   // If no unsafe traps, then simply return |rest|.
+<span class="lineNum">     155 </span><span class="lineNoCov">          0 :   if (!has_unsafe_traps_) {</span>
+<span class="lineNum">     156 </span>            :     return rest;
+<span class="lineNum">     157 </span>            :   }
+<span class="lineNum">     158 </span>            : 
+<span class="lineNum">     159 </span>            :   // We already enabled unsafe traps in Compile, but enable them again to give
+<span class="lineNum">     160 </span>            :   // the trap registry a second chance to complain before we add the backdoor.
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :   CHECK(registry_-&gt;EnableUnsafeTraps());</span>
+<span class="lineNum">     162 </span>            : 
+<span class="lineNum">     163 </span>            :   // Allow system calls, if they originate from our magic return address.
+<span class="lineNum">     164 </span><span class="lineNoCov">          0 :   const uint32_t lopc = static_cast&lt;uint32_t&gt;(escapepc_);</span>
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 :   const uint32_t hipc = static_cast&lt;uint32_t&gt;(escapepc_ &gt;&gt; 32);</span>
+<span class="lineNum">     166 </span>            : 
+<span class="lineNum">     167 </span>            :   // BPF cannot do native 64-bit comparisons, so we have to compare
+<span class="lineNum">     168 </span>            :   // both 32-bit halves of the instruction pointer. If they match what
+<span class="lineNum">     169 </span>            :   // we expect, we return ERR_ALLOWED. If either or both don't match,
+<span class="lineNum">     170 </span>            :   // we continue evalutating the rest of the sandbox policy.
+<span class="lineNum">     171 </span>            :   //
+<span class="lineNum">     172 </span>            :   // For simplicity, we check the full 64-bit instruction pointer even
+<span class="lineNum">     173 </span>            :   // on 32-bit architectures.
+<span class="lineNum">     174 </span>            :   return gen_.MakeInstruction(
+<span class="lineNum">     175 </span>            :       BPF_LD + BPF_W + BPF_ABS, SECCOMP_IP_LSB_IDX,
+<span class="lineNum">     176 </span>            :       gen_.MakeInstruction(
+<span class="lineNum">     177 </span>            :           BPF_JMP + BPF_JEQ + BPF_K, lopc,
+<span class="lineNum">     178 </span>            :           gen_.MakeInstruction(
+<span class="lineNum">     179 </span>            :               BPF_LD + BPF_W + BPF_ABS, SECCOMP_IP_MSB_IDX,
+<span class="lineNum">     180 </span>            :               gen_.MakeInstruction(BPF_JMP + BPF_JEQ + BPF_K, hipc,
+<span class="lineNum">     181 </span>            :                                    CompileResult(Allow()), rest)),
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :           rest));</span>
+<a name="183"><span class="lineNum">     183 </span>            : }</a>
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 : CodeGen::Node PolicyCompiler::DispatchSyscall() {</span>
+<span class="lineNum">     186 </span>            :   // Evaluate all possible system calls and group their Nodes into
+<span class="lineNum">     187 </span>            :   // ranges of identical codes.
+<span class="lineNum">     188 </span>            :   Ranges ranges;
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 :   FindRanges(&amp;ranges);</span>
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span>            :   // Compile the system call ranges to an optimized BPF jumptable
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :   CodeGen::Node jumptable = AssembleJumpTable(ranges.begin(), ranges.end());</span>
+<span class="lineNum">     193 </span>            : 
+<span class="lineNum">     194 </span>            :   // Grab the system call number, so that we can check it and then
+<span class="lineNum">     195 </span>            :   // execute the jump table.
+<span class="lineNum">     196 </span>            :   return gen_.MakeInstruction(
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :       BPF_LD + BPF_W + BPF_ABS, SECCOMP_NR_IDX, CheckSyscallNumber(jumptable));</span>
+<a name="198"><span class="lineNum">     198 </span>            : }</a>
+<span class="lineNum">     199 </span>            : 
+<span class="lineNum">     200 </span><span class="lineNoCov">          0 : CodeGen::Node PolicyCompiler::CheckSyscallNumber(CodeGen::Node passed) {</span>
+<span class="lineNum">     201 </span>            :   if (kIsIntel) {
+<span class="lineNum">     202 </span>            :     // On Intel architectures, verify that system call numbers are in the
+<span class="lineNum">     203 </span>            :     // expected number range.
+<span class="lineNum">     204 </span>            :     CodeGen::Node invalidX32 =
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :         CompileResult(panic_func_(&quot;Illegal mixing of system call ABIs&quot;));</span>
+<span class="lineNum">     206 </span>            :     if (kIsX32) {
+<span class="lineNum">     207 </span>            :       // The newer x32 API always sets bit 30.
+<span class="lineNum">     208 </span>            :       return gen_.MakeInstruction(
+<span class="lineNum">     209 </span>            :           BPF_JMP + BPF_JSET + BPF_K, 0x40000000, passed, invalidX32);
+<span class="lineNum">     210 </span>            :     } else {
+<span class="lineNum">     211 </span>            :       // The older i386 and x86-64 APIs clear bit 30 on all system calls.
+<span class="lineNum">     212 </span>            :       return gen_.MakeInstruction(
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :           BPF_JMP + BPF_JSET + BPF_K, 0x40000000, invalidX32, passed);</span>
+<span class="lineNum">     214 </span>            :     }
+<span class="lineNum">     215 </span>            :   }
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span>            :   // TODO(mdempsky): Similar validation for other architectures?
+<span class="lineNum">     218 </span>            :   return passed;
+<a name="219"><span class="lineNum">     219 </span>            : }</a>
+<span class="lineNum">     220 </span>            : 
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 : void PolicyCompiler::FindRanges(Ranges* ranges) {</span>
+<span class="lineNum">     222 </span>            :   // Please note that &quot;struct seccomp_data&quot; defines system calls as a signed
+<span class="lineNum">     223 </span>            :   // int32_t, but BPF instructions always operate on unsigned quantities. We
+<span class="lineNum">     224 </span>            :   // deal with this disparity by enumerating from MIN_SYSCALL to MAX_SYSCALL,
+<span class="lineNum">     225 </span>            :   // and then verifying that the rest of the number range (both positive and
+<span class="lineNum">     226 </span>            :   // negative) all return the same Node.
+<span class="lineNum">     227 </span><span class="lineNoCov">          0 :   const CodeGen::Node invalid_node = CompileResult(policy_-&gt;InvalidSyscall());</span>
+<span class="lineNum">     228 </span><span class="lineNoCov">          0 :   uint32_t old_sysnum = 0;</span>
+<span class="lineNum">     229 </span>            :   CodeGen::Node old_node =
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :       SyscallSet::IsValid(old_sysnum)</span>
+<span class="lineNum">     231 </span><span class="lineNoCov">          0 :           ? CompileResult(policy_-&gt;EvaluateSyscall(old_sysnum))</span>
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :           : invalid_node;</span>
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span><span class="lineNoCov">          0 :   for (uint32_t sysnum : SyscallSet::All()) {</span>
+<span class="lineNum">     235 </span>            :     CodeGen::Node node =
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :         SyscallSet::IsValid(sysnum)</span>
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :             ? CompileResult(policy_-&gt;EvaluateSyscall(static_cast&lt;int&gt;(sysnum)))</span>
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :             : invalid_node;</span>
+<span class="lineNum">     239 </span>            :     // N.B., here we rely on CodeGen folding (i.e., returning the same
+<span class="lineNum">     240 </span>            :     // node value for) identical code sequences, otherwise our jump
+<span class="lineNum">     241 </span>            :     // table will blow up in size.
+<span class="lineNum">     242 </span><span class="lineNoCov">          0 :     if (node != old_node) {</span>
+<span class="lineNum">     243 </span><span class="lineNoCov">          0 :       ranges-&gt;push_back(Range{old_sysnum, old_node});</span>
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :       old_sysnum = sysnum;</span>
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :       old_node = node;</span>
+<span class="lineNum">     246 </span>            :     }
+<span class="lineNum">     247 </span>            :   }
+<span class="lineNum">     248 </span><span class="lineNoCov">          0 :   ranges-&gt;push_back(Range{old_sysnum, old_node});</span>
+<a name="249"><span class="lineNum">     249 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 : CodeGen::Node PolicyCompiler::AssembleJumpTable(Ranges::const_iterator start,</span>
+<span class="lineNum">     252 </span>            :                                                 Ranges::const_iterator stop) {
+<span class="lineNum">     253 </span>            :   // We convert the list of system call ranges into jump table that performs
+<span class="lineNum">     254 </span>            :   // a binary search over the ranges.
+<span class="lineNum">     255 </span>            :   // As a sanity check, we need to have at least one distinct ranges for us
+<span class="lineNum">     256 </span>            :   // to be able to build a jump table.
+<span class="lineNum">     257 </span><span class="lineNoCov">          0 :   CHECK(start &lt; stop) &lt;&lt; &quot;Invalid iterator range&quot;;</span>
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 :   const auto n = stop - start;</span>
+<span class="lineNum">     259 </span><span class="lineNoCov">          0 :   if (n == 1) {</span>
+<span class="lineNum">     260 </span>            :     // If we have narrowed things down to a single range object, we can
+<span class="lineNum">     261 </span>            :     // return from the BPF filter program.
+<span class="lineNum">     262 </span><span class="lineNoCov">          0 :     return start-&gt;node;</span>
+<span class="lineNum">     263 </span>            :   }
+<span class="lineNum">     264 </span>            : 
+<span class="lineNum">     265 </span>            :   // Pick the range object that is located at the mid point of our list.
+<span class="lineNum">     266 </span>            :   // We compare our system call number against the lowest valid system call
+<span class="lineNum">     267 </span>            :   // number in this range object. If our number is lower, it is outside of
+<span class="lineNum">     268 </span>            :   // this range object. If it is greater or equal, it might be inside.
+<span class="lineNum">     269 </span><span class="lineNoCov">          0 :   Ranges::const_iterator mid = start + n / 2;</span>
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span>            :   // Sub-divide the list of ranges and continue recursively.
+<span class="lineNum">     272 </span><span class="lineNoCov">          0 :   CodeGen::Node jf = AssembleJumpTable(start, mid);</span>
+<span class="lineNum">     273 </span><span class="lineNoCov">          0 :   CodeGen::Node jt = AssembleJumpTable(mid, stop);</span>
+<span class="lineNum">     274 </span><span class="lineNoCov">          0 :   return gen_.MakeInstruction(BPF_JMP + BPF_JGE + BPF_K, mid-&gt;from, jt, jf);</span>
+<a name="275"><span class="lineNum">     275 </span>            : }</a>
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span><span class="lineNoCov">          0 : CodeGen::Node PolicyCompiler::CompileResult(const ResultExpr&amp; res) {</span>
+<span class="lineNum">     278 </span><span class="lineNoCov">          0 :   return res-&gt;Compile(this);</span>
+<a name="279"><span class="lineNum">     279 </span>            : }</a>
+<span class="lineNum">     280 </span>            : 
+<span class="lineNum">     281 </span><span class="lineNoCov">          0 : CodeGen::Node PolicyCompiler::MaskedEqual(int argno,</span>
+<span class="lineNum">     282 </span>            :                                           size_t width,
+<span class="lineNum">     283 </span>            :                                           uint64_t mask,
+<span class="lineNum">     284 </span>            :                                           uint64_t value,
+<span class="lineNum">     285 </span>            :                                           CodeGen::Node passed,
+<span class="lineNum">     286 </span>            :                                           CodeGen::Node failed) {
+<span class="lineNum">     287 </span>            :   // Sanity check that arguments make sense.
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :   CHECK(argno &gt;= 0 &amp;&amp; argno &lt; 6) &lt;&lt; &quot;Invalid argument number &quot; &lt;&lt; argno;</span>
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :   CHECK(width == 4 || width == 8) &lt;&lt; &quot;Invalid argument width &quot; &lt;&lt; width;</span>
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :   CHECK_NE(0U, mask) &lt;&lt; &quot;Zero mask is invalid&quot;;</span>
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :   CHECK_EQ(value, value &amp; mask) &lt;&lt; &quot;Value contains masked out bits&quot;;</span>
+<span class="lineNum">     292 </span>            :   if (sizeof(void*) == 4) {
+<span class="lineNum">     293 </span>            :     CHECK_EQ(4U, width) &lt;&lt; &quot;Invalid width on 32-bit platform&quot;;
+<span class="lineNum">     294 </span>            :   }
+<span class="lineNum">     295 </span><span class="lineNoCov">          0 :   if (width == 4) {</span>
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :     CHECK_EQ(0U, mask &gt;&gt; 32) &lt;&lt; &quot;Mask exceeds argument size&quot;;</span>
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :     CHECK_EQ(0U, value &gt;&gt; 32) &lt;&lt; &quot;Value exceeds argument size&quot;;</span>
+<span class="lineNum">     298 </span>            :   }
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span>            :   // We want to emit code to check &quot;(arg &amp; mask) == value&quot; where arg, mask, and
+<span class="lineNum">     301 </span>            :   // value are 64-bit values, but the BPF machine is only 32-bit. We implement
+<span class="lineNum">     302 </span>            :   // this by independently testing the upper and lower 32-bits and continuing to
+<span class="lineNum">     303 </span>            :   // |passed| if both evaluate true, or to |failed| if either evaluate false.
+<span class="lineNum">     304 </span>            :   return MaskedEqualHalf(argno, width, mask, value, ArgHalf::UPPER,
+<span class="lineNum">     305 </span>            :                          MaskedEqualHalf(argno, width, mask, value,
+<span class="lineNum">     306 </span>            :                                          ArgHalf::LOWER, passed, failed),
+<span class="lineNum">     307 </span><span class="lineNoCov">          0 :                          failed);</span>
+<a name="308"><span class="lineNum">     308 </span>            : }</a>
+<span class="lineNum">     309 </span>            : 
+<span class="lineNum">     310 </span><span class="lineNoCov">          0 : CodeGen::Node PolicyCompiler::MaskedEqualHalf(int argno,</span>
+<span class="lineNum">     311 </span>            :                                               size_t width,
+<span class="lineNum">     312 </span>            :                                               uint64_t full_mask,
+<span class="lineNum">     313 </span>            :                                               uint64_t full_value,
+<span class="lineNum">     314 </span>            :                                               ArgHalf half,
+<span class="lineNum">     315 </span>            :                                               CodeGen::Node passed,
+<span class="lineNum">     316 </span>            :                                               CodeGen::Node failed) {
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :   if (width == 4 &amp;&amp; half == ArgHalf::UPPER) {</span>
+<span class="lineNum">     318 </span>            :     // Special logic for sanity checking the upper 32-bits of 32-bit system
+<span class="lineNum">     319 </span>            :     // call arguments.
+<span class="lineNum">     320 </span>            : 
+<span class="lineNum">     321 </span>            :     // TODO(mdempsky): Compile Unexpected64bitArgument() just per program.
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 :     CodeGen::Node invalid_64bit = Unexpected64bitArgument();</span>
+<span class="lineNum">     323 </span>            : 
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 :     const uint32_t upper = SECCOMP_ARG_MSB_IDX(argno);</span>
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :     const uint32_t lower = SECCOMP_ARG_LSB_IDX(argno);</span>
+<span class="lineNum">     326 </span>            : 
+<span class="lineNum">     327 </span>            :     if (sizeof(void*) == 4) {
+<span class="lineNum">     328 </span>            :       // On 32-bit platforms, the upper 32-bits should always be 0:
+<span class="lineNum">     329 </span>            :       //   LDW  [upper]
+<span class="lineNum">     330 </span>            :       //   JEQ  0, passed, invalid
+<span class="lineNum">     331 </span>            :       return gen_.MakeInstruction(
+<span class="lineNum">     332 </span>            :           BPF_LD + BPF_W + BPF_ABS,
+<span class="lineNum">     333 </span>            :           upper,
+<span class="lineNum">     334 </span>            :           gen_.MakeInstruction(
+<span class="lineNum">     335 </span>            :               BPF_JMP + BPF_JEQ + BPF_K, 0, passed, invalid_64bit));
+<span class="lineNum">     336 </span>            :     }
+<span class="lineNum">     337 </span>            : 
+<span class="lineNum">     338 </span>            :     // On 64-bit platforms, the upper 32-bits may be 0 or ~0; but we only allow
+<span class="lineNum">     339 </span>            :     // ~0 if the sign bit of the lower 32-bits is set too:
+<span class="lineNum">     340 </span>            :     //   LDW  [upper]
+<span class="lineNum">     341 </span>            :     //   JEQ  0, passed, (next)
+<span class="lineNum">     342 </span>            :     //   JEQ  ~0, (next), invalid
+<span class="lineNum">     343 </span>            :     //   LDW  [lower]
+<span class="lineNum">     344 </span>            :     //   JSET (1&lt;&lt;31), passed, invalid
+<span class="lineNum">     345 </span>            :     //
+<span class="lineNum">     346 </span>            :     // TODO(mdempsky): The JSET instruction could perhaps jump to passed-&gt;next
+<span class="lineNum">     347 </span>            :     // instead, as the first instruction of passed should be &quot;LDW [lower]&quot;.
+<span class="lineNum">     348 </span>            :     return gen_.MakeInstruction(
+<span class="lineNum">     349 </span>            :         BPF_LD + BPF_W + BPF_ABS,
+<span class="lineNum">     350 </span>            :         upper,
+<span class="lineNum">     351 </span>            :         gen_.MakeInstruction(
+<span class="lineNum">     352 </span>            :             BPF_JMP + BPF_JEQ + BPF_K,
+<span class="lineNum">     353 </span>            :             0,
+<span class="lineNum">     354 </span>            :             passed,
+<span class="lineNum">     355 </span>            :             gen_.MakeInstruction(
+<span class="lineNum">     356 </span>            :                 BPF_JMP + BPF_JEQ + BPF_K,
+<span class="lineNum">     357 </span>            :                 std::numeric_limits&lt;uint32_t&gt;::max(),
+<span class="lineNum">     358 </span>            :                 gen_.MakeInstruction(
+<span class="lineNum">     359 </span>            :                     BPF_LD + BPF_W + BPF_ABS,
+<span class="lineNum">     360 </span>            :                     lower,
+<span class="lineNum">     361 </span>            :                     gen_.MakeInstruction(BPF_JMP + BPF_JSET + BPF_K,
+<span class="lineNum">     362 </span>            :                                          1U &lt;&lt; 31,
+<span class="lineNum">     363 </span>            :                                          passed,
+<span class="lineNum">     364 </span>            :                                          invalid_64bit)),
+<span class="lineNum">     365 </span><span class="lineNoCov">          0 :                 invalid_64bit)));</span>
+<span class="lineNum">     366 </span>            :   }
+<span class="lineNum">     367 </span>            : 
+<span class="lineNum">     368 </span><span class="lineNoCov">          0 :   const uint32_t idx = (half == ArgHalf::UPPER) ? SECCOMP_ARG_MSB_IDX(argno)</span>
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :                                                 : SECCOMP_ARG_LSB_IDX(argno);</span>
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :   const uint32_t mask = (half == ArgHalf::UPPER) ? full_mask &gt;&gt; 32 : full_mask;</span>
+<span class="lineNum">     371 </span>            :   const uint32_t value =
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :       (half == ArgHalf::UPPER) ? full_value &gt;&gt; 32 : full_value;</span>
+<span class="lineNum">     373 </span>            : 
+<span class="lineNum">     374 </span>            :   // Emit a suitable instruction sequence for (arg &amp; mask) == value.
+<span class="lineNum">     375 </span>            : 
+<span class="lineNum">     376 </span>            :   // For (arg &amp; 0) == 0, just return passed.
+<span class="lineNum">     377 </span><span class="lineNoCov">          0 :   if (mask == 0) {</span>
+<span class="lineNum">     378 </span><span class="lineNoCov">          0 :     CHECK_EQ(0U, value);</span>
+<span class="lineNum">     379 </span><span class="lineNoCov">          0 :     return passed;</span>
+<span class="lineNum">     380 </span>            :   }
+<span class="lineNum">     381 </span>            : 
+<span class="lineNum">     382 </span>            :   // For (arg &amp; ~0) == value, emit:
+<span class="lineNum">     383 </span>            :   //   LDW  [idx]
+<span class="lineNum">     384 </span>            :   //   JEQ  value, passed, failed
+<span class="lineNum">     385 </span><span class="lineNoCov">          0 :   if (mask == std::numeric_limits&lt;uint32_t&gt;::max()) {</span>
+<span class="lineNum">     386 </span>            :     return gen_.MakeInstruction(
+<span class="lineNum">     387 </span>            :         BPF_LD + BPF_W + BPF_ABS,
+<span class="lineNum">     388 </span>            :         idx,
+<span class="lineNum">     389 </span><span class="lineNoCov">          0 :         gen_.MakeInstruction(BPF_JMP + BPF_JEQ + BPF_K, value, passed, failed));</span>
+<span class="lineNum">     390 </span>            :   }
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span>            :   // For (arg &amp; mask) == 0, emit:
+<span class="lineNum">     393 </span>            :   //   LDW  [idx]
+<span class="lineNum">     394 </span>            :   //   JSET mask, failed, passed
+<span class="lineNum">     395 </span>            :   // (Note: failed and passed are intentionally swapped.)
+<span class="lineNum">     396 </span><span class="lineNoCov">          0 :   if (value == 0) {</span>
+<span class="lineNum">     397 </span>            :     return gen_.MakeInstruction(
+<span class="lineNum">     398 </span>            :         BPF_LD + BPF_W + BPF_ABS,
+<span class="lineNum">     399 </span>            :         idx,
+<span class="lineNum">     400 </span><span class="lineNoCov">          0 :         gen_.MakeInstruction(BPF_JMP + BPF_JSET + BPF_K, mask, failed, passed));</span>
+<span class="lineNum">     401 </span>            :   }
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span>            :   // For (arg &amp; x) == x where x is a single-bit value, emit:
+<span class="lineNum">     404 </span>            :   //   LDW  [idx]
+<span class="lineNum">     405 </span>            :   //   JSET mask, passed, failed
+<span class="lineNum">     406 </span><span class="lineNoCov">          0 :   if (mask == value &amp;&amp; HasExactlyOneBit(mask)) {</span>
+<span class="lineNum">     407 </span>            :     return gen_.MakeInstruction(
+<span class="lineNum">     408 </span>            :         BPF_LD + BPF_W + BPF_ABS,
+<span class="lineNum">     409 </span>            :         idx,
+<span class="lineNum">     410 </span><span class="lineNoCov">          0 :         gen_.MakeInstruction(BPF_JMP + BPF_JSET + BPF_K, mask, passed, failed));</span>
+<span class="lineNum">     411 </span>            :   }
+<span class="lineNum">     412 </span>            : 
+<span class="lineNum">     413 </span>            :   // Generic fallback:
+<span class="lineNum">     414 </span>            :   //   LDW  [idx]
+<span class="lineNum">     415 </span>            :   //   AND  mask
+<span class="lineNum">     416 </span>            :   //   JEQ  value, passed, failed
+<span class="lineNum">     417 </span>            :   return gen_.MakeInstruction(
+<span class="lineNum">     418 </span>            :       BPF_LD + BPF_W + BPF_ABS,
+<span class="lineNum">     419 </span>            :       idx,
+<span class="lineNum">     420 </span>            :       gen_.MakeInstruction(
+<span class="lineNum">     421 </span>            :           BPF_ALU + BPF_AND + BPF_K,
+<span class="lineNum">     422 </span>            :           mask,
+<span class="lineNum">     423 </span>            :           gen_.MakeInstruction(
+<span class="lineNum">     424 </span><span class="lineNoCov">          0 :               BPF_JMP + BPF_JEQ + BPF_K, value, passed, failed)));</span>
+<a name="425"><span class="lineNum">     425 </span>            : }</a>
+<span class="lineNum">     426 </span>            : 
+<span class="lineNum">     427 </span><span class="lineNoCov">          0 : CodeGen::Node PolicyCompiler::Unexpected64bitArgument() {</span>
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :   return CompileResult(panic_func_(&quot;Unexpected 64bit argument detected&quot;));</span>
+<a name="429"><span class="lineNum">     429 </span>            : }</a>
+<span class="lineNum">     430 </span>            : 
+<span class="lineNum">     431 </span><span class="lineNoCov">          0 : CodeGen::Node PolicyCompiler::Return(uint32_t ret) {</span>
+<span class="lineNum">     432 </span><span class="lineNoCov">          0 :   if (has_unsafe_traps_ &amp;&amp; (ret &amp; SECCOMP_RET_ACTION) == SECCOMP_RET_ERRNO) {</span>
+<span class="lineNum">     433 </span>            :     // When inside an UnsafeTrap() callback, we want to allow all system calls.
+<span class="lineNum">     434 </span>            :     // This means, we must conditionally disable the sandbox -- and that's not
+<span class="lineNum">     435 </span>            :     // something that kernel-side BPF filters can do, as they cannot inspect
+<span class="lineNum">     436 </span>            :     // any state other than the syscall arguments.
+<span class="lineNum">     437 </span>            :     // But if we redirect all error handlers to user-space, then we can easily
+<span class="lineNum">     438 </span>            :     // make this decision.
+<span class="lineNum">     439 </span>            :     // The performance penalty for this extra round-trip to user-space is not
+<span class="lineNum">     440 </span>            :     // actually that bad, as we only ever pay it for denied system calls; and a
+<span class="lineNum">     441 </span>            :     // typical program has very few of these.
+<span class="lineNum">     442 </span>            :     return Trap(ReturnErrno, reinterpret_cast&lt;void*&gt;(ret &amp; SECCOMP_RET_DATA),
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :                 true);</span>
+<span class="lineNum">     444 </span>            :   }
+<span class="lineNum">     445 </span>            : 
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :   return gen_.MakeInstruction(BPF_RET + BPF_K, ret);</span>
+<a name="447"><span class="lineNum">     447 </span>            : }</a>
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span><span class="lineNoCov">          0 : CodeGen::Node PolicyCompiler::Trap(TrapRegistry::TrapFnc fnc,</span>
+<span class="lineNum">     450 </span>            :                                    const void* aux,
+<span class="lineNum">     451 </span>            :                                    bool safe) {
+<span class="lineNum">     452 </span><span class="lineNoCov">          0 :   uint16_t trap_id = registry_-&gt;Add(fnc, aux, safe);</span>
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :   return gen_.MakeInstruction(BPF_RET + BPF_K, SECCOMP_RET_TRAP + trap_id);</span>
+<a name="454"><span class="lineNum">     454 </span>            : }</a>
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span><span class="lineNoCov">          0 : bool PolicyCompiler::IsRequiredForUnsafeTrap(int sysno) {</span>
+<span class="lineNum">     457 </span><span class="lineNoCov">          0 :   for (size_t i = 0; i &lt; arraysize(kSyscallsRequiredForUnsafeTraps); ++i) {</span>
+<span class="lineNum">     458 </span><span class="lineNoCov">          0 :     if (sysno == kSyscallsRequiredForUnsafeTraps[i]) {</span>
+<span class="lineNum">     459 </span>            :       return true;
+<span class="lineNum">     460 </span>            :     }
+<span class="lineNum">     461 </span>            :   }
+<span class="lineNum">     462 </span>            :   return false;
+<span class="lineNum">     463 </span>            : }
+<span class="lineNum">     464 </span>            : 
+<span class="lineNum">     465 </span>            : }  // namespace bpf_dsl
+<span class="lineNum">     466 </span>            : }  // namespace sandbox
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

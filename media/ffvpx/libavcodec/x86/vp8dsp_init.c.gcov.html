@@ -1,0 +1,548 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - media/ffvpx/libavcodec/x86/vp8dsp_init.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">media/ffvpx/libavcodec/x86</a> - vp8dsp_init.c<span style="font-size: 80%;"> (source / <a href="vp8dsp_init.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">89</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">34</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  * VP8 DSP functions x86-optimized
+<span class="lineNum">       3 </span>            :  * Copyright (c) 2010 Ronald S. Bultje &lt;rsbultje@gmail.com&gt;
+<span class="lineNum">       4 </span>            :  * Copyright (c) 2010 Fiona Glaser &lt;fiona@x264.com&gt;
+<span class="lineNum">       5 </span>            :  *
+<span class="lineNum">       6 </span>            :  * This file is part of FFmpeg.
+<span class="lineNum">       7 </span>            :  *
+<span class="lineNum">       8 </span>            :  * FFmpeg is free software; you can redistribute it and/or
+<span class="lineNum">       9 </span>            :  * modify it under the terms of the GNU Lesser General Public
+<span class="lineNum">      10 </span>            :  * License as published by the Free Software Foundation; either
+<span class="lineNum">      11 </span>            :  * version 2.1 of the License, or (at your option) any later version.
+<span class="lineNum">      12 </span>            :  *
+<span class="lineNum">      13 </span>            :  * FFmpeg is distributed in the hope that it will be useful,
+<span class="lineNum">      14 </span>            :  * but WITHOUT ANY WARRANTY; without even the implied warranty of
+<span class="lineNum">      15 </span>            :  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+<span class="lineNum">      16 </span>            :  * Lesser General Public License for more details.
+<span class="lineNum">      17 </span>            :  *
+<span class="lineNum">      18 </span>            :  * You should have received a copy of the GNU Lesser General Public
+<span class="lineNum">      19 </span>            :  * License along with FFmpeg; if not, write to the Free Software
+<span class="lineNum">      20 </span>            :  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA
+<span class="lineNum">      21 </span>            :  */
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : #include &quot;libavutil/attributes.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;libavutil/cpu.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;libavutil/mem.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;libavutil/x86/cpu.h&quot;
+<span class="lineNum">      27 </span>            : #include &quot;libavcodec/vp8dsp.h&quot;
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : #if HAVE_YASM
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : /*
+<span class="lineNum">      32 </span>            :  * MC functions
+<span class="lineNum">      33 </span>            :  */
+<span class="lineNum">      34 </span>            : void ff_put_vp8_epel4_h4_mmxext(uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      35 </span>            :                                 uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      36 </span>            :                                 int height, int mx, int my);
+<span class="lineNum">      37 </span>            : void ff_put_vp8_epel4_h6_mmxext(uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      38 </span>            :                                 uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      39 </span>            :                                 int height, int mx, int my);
+<span class="lineNum">      40 </span>            : void ff_put_vp8_epel4_v4_mmxext(uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      41 </span>            :                                 uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      42 </span>            :                                 int height, int mx, int my);
+<span class="lineNum">      43 </span>            : void ff_put_vp8_epel4_v6_mmxext(uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      44 </span>            :                                 uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      45 </span>            :                                 int height, int mx, int my);
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span>            : void ff_put_vp8_epel8_h4_sse2  (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      48 </span>            :                                 uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      49 </span>            :                                 int height, int mx, int my);
+<span class="lineNum">      50 </span>            : void ff_put_vp8_epel8_h6_sse2  (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      51 </span>            :                                 uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      52 </span>            :                                 int height, int mx, int my);
+<span class="lineNum">      53 </span>            : void ff_put_vp8_epel8_v4_sse2  (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      54 </span>            :                                 uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      55 </span>            :                                 int height, int mx, int my);
+<span class="lineNum">      56 </span>            : void ff_put_vp8_epel8_v6_sse2  (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      57 </span>            :                                 uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      58 </span>            :                                 int height, int mx, int my);
+<span class="lineNum">      59 </span>            : 
+<span class="lineNum">      60 </span>            : void ff_put_vp8_epel4_h4_ssse3 (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      61 </span>            :                                 uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      62 </span>            :                                 int height, int mx, int my);
+<span class="lineNum">      63 </span>            : void ff_put_vp8_epel4_h6_ssse3 (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      64 </span>            :                                 uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      65 </span>            :                                 int height, int mx, int my);
+<span class="lineNum">      66 </span>            : void ff_put_vp8_epel4_v4_ssse3 (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      67 </span>            :                                 uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      68 </span>            :                                 int height, int mx, int my);
+<span class="lineNum">      69 </span>            : void ff_put_vp8_epel4_v6_ssse3 (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      70 </span>            :                                 uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      71 </span>            :                                 int height, int mx, int my);
+<span class="lineNum">      72 </span>            : void ff_put_vp8_epel8_h4_ssse3 (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      73 </span>            :                                 uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      74 </span>            :                                 int height, int mx, int my);
+<span class="lineNum">      75 </span>            : void ff_put_vp8_epel8_h6_ssse3 (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      76 </span>            :                                 uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      77 </span>            :                                 int height, int mx, int my);
+<span class="lineNum">      78 </span>            : void ff_put_vp8_epel8_v4_ssse3 (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      79 </span>            :                                 uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      80 </span>            :                                 int height, int mx, int my);
+<span class="lineNum">      81 </span>            : void ff_put_vp8_epel8_v6_ssse3 (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      82 </span>            :                                 uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      83 </span>            :                                 int height, int mx, int my);
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span>            : void ff_put_vp8_bilinear4_h_mmxext(uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      86 </span>            :                                    uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      87 </span>            :                                    int height, int mx, int my);
+<span class="lineNum">      88 </span>            : void ff_put_vp8_bilinear8_h_sse2  (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      89 </span>            :                                    uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      90 </span>            :                                    int height, int mx, int my);
+<span class="lineNum">      91 </span>            : void ff_put_vp8_bilinear4_h_ssse3 (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      92 </span>            :                                    uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      93 </span>            :                                    int height, int mx, int my);
+<span class="lineNum">      94 </span>            : void ff_put_vp8_bilinear8_h_ssse3 (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      95 </span>            :                                    uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">      96 </span>            :                                    int height, int mx, int my);
+<span class="lineNum">      97 </span>            : 
+<span class="lineNum">      98 </span>            : void ff_put_vp8_bilinear4_v_mmxext(uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">      99 </span>            :                                    uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">     100 </span>            :                                    int height, int mx, int my);
+<span class="lineNum">     101 </span>            : void ff_put_vp8_bilinear8_v_sse2  (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">     102 </span>            :                                    uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">     103 </span>            :                                    int height, int mx, int my);
+<span class="lineNum">     104 </span>            : void ff_put_vp8_bilinear4_v_ssse3 (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">     105 </span>            :                                    uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">     106 </span>            :                                    int height, int mx, int my);
+<span class="lineNum">     107 </span>            : void ff_put_vp8_bilinear8_v_ssse3 (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">     108 </span>            :                                    uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">     109 </span>            :                                    int height, int mx, int my);
+<span class="lineNum">     110 </span>            : 
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span>            : void ff_put_vp8_pixels8_mmx (uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">     113 </span>            :                              uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">     114 </span>            :                              int height, int mx, int my);
+<span class="lineNum">     115 </span>            : void ff_put_vp8_pixels16_mmx(uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">     116 </span>            :                              uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">     117 </span>            :                              int height, int mx, int my);
+<span class="lineNum">     118 </span>            : void ff_put_vp8_pixels16_sse(uint8_t *dst, ptrdiff_t dststride,
+<span class="lineNum">     119 </span>            :                              uint8_t *src, ptrdiff_t srcstride,
+<span class="lineNum">     120 </span>            :                              int height, int mx, int my);
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span>            : #define TAP_W16(OPT, FILTERTYPE, TAPTYPE) \
+<span class="lineNum">     123 </span>            : static void ff_put_vp8_ ## FILTERTYPE ## 16_ ## TAPTYPE ## _ ## OPT( \
+<span class="lineNum">     124 </span>            :     uint8_t *dst,  ptrdiff_t dststride, uint8_t *src, \
+<span class="lineNum">     125 </span>            :     ptrdiff_t srcstride, int height, int mx, int my) \
+<span class="lineNum">     126 </span>            : { \
+<span class="lineNum">     127 </span>            :     ff_put_vp8_ ## FILTERTYPE ## 8_ ## TAPTYPE ## _ ## OPT( \
+<span class="lineNum">     128 </span>            :         dst,     dststride, src,     srcstride, height, mx, my); \
+<span class="lineNum">     129 </span>            :     ff_put_vp8_ ## FILTERTYPE ## 8_ ## TAPTYPE ## _ ## OPT( \
+<span class="lineNum">     130 </span>            :         dst + 8, dststride, src + 8, srcstride, height, mx, my); \
+<span class="lineNum">     131 </span>            : }
+<span class="lineNum">     132 </span>            : #define TAP_W8(OPT, FILTERTYPE, TAPTYPE) \
+<span class="lineNum">     133 </span>            : static void ff_put_vp8_ ## FILTERTYPE ## 8_ ## TAPTYPE ## _ ## OPT( \
+<span class="lineNum">     134 </span>            :     uint8_t *dst,  ptrdiff_t dststride, uint8_t *src, \
+<span class="lineNum">     135 </span>            :     ptrdiff_t srcstride, int height, int mx, int my) \
+<span class="lineNum">     136 </span>            : { \
+<span class="lineNum">     137 </span>            :     ff_put_vp8_ ## FILTERTYPE ## 4_ ## TAPTYPE ## _ ## OPT( \
+<span class="lineNum">     138 </span>            :         dst,     dststride, src,     srcstride, height, mx, my); \
+<span class="lineNum">     139 </span>            :     ff_put_vp8_ ## FILTERTYPE ## 4_ ## TAPTYPE ## _ ## OPT( \
+<span class="lineNum">     140 </span>            :         dst + 4, dststride, src + 4, srcstride, height, mx, my); \
+<span class="lineNum">     141 </span>            : }
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span>            : #if ARCH_X86_32
+<span class="lineNum">     144 </span>            : TAP_W8 (mmxext, epel, h4)
+<span class="lineNum">     145 </span>            : TAP_W8 (mmxext, epel, h6)
+<span class="lineNum">     146 </span>            : TAP_W16(mmxext, epel, h6)
+<span class="lineNum">     147 </span>            : TAP_W8 (mmxext, epel, v4)
+<span class="lineNum">     148 </span>            : TAP_W8 (mmxext, epel, v6)
+<span class="lineNum">     149 </span>            : TAP_W16(mmxext, epel, v6)
+<span class="lineNum">     150 </span>            : TAP_W8 (mmxext, bilinear, h)
+<span class="lineNum">     151 </span>            : TAP_W16(mmxext, bilinear, h)
+<span class="lineNum">     152 </span>            : TAP_W8 (mmxext, bilinear, v)
+<span class="lineNum">     153 </span>            : TAP_W16(mmxext, bilinear, v)
+<a name="154"><span class="lineNum">     154 </span>            : #endif</a>
+<a name="155"><span class="lineNum">     155 </span>            : </a>
+<a name="156"><span class="lineNum">     156 </span><span class="lineNoCov">          0 : TAP_W16(sse2,  epel, h6)</span></a>
+<a name="157"><span class="lineNum">     157 </span><span class="lineNoCov">          0 : TAP_W16(sse2,  epel, v6)</span></a>
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 : TAP_W16(sse2,  bilinear, h)</span>
+<a name="159"><span class="lineNum">     159 </span><span class="lineNoCov">          0 : TAP_W16(sse2,  bilinear, v)</span></a>
+<a name="160"><span class="lineNum">     160 </span>            : </a>
+<a name="161"><span class="lineNum">     161 </span><span class="lineNoCov">          0 : TAP_W16(ssse3, epel, h6)</span></a>
+<a name="162"><span class="lineNum">     162 </span><span class="lineNoCov">          0 : TAP_W16(ssse3, epel, v6)</span></a>
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 : TAP_W16(ssse3, bilinear, h)</span>
+<span class="lineNum">     164 </span><span class="lineNoCov">          0 : TAP_W16(ssse3, bilinear, v)</span>
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span>            : #define HVTAP(OPT, ALIGN, TAPNUMX, TAPNUMY, SIZE, MAXHEIGHT) \
+<span class="lineNum">     167 </span>            : static void ff_put_vp8_epel ## SIZE ## _h ## TAPNUMX ## v ## TAPNUMY ## _ ## OPT( \
+<span class="lineNum">     168 </span>            :     uint8_t *dst, ptrdiff_t dststride, uint8_t *src, \
+<span class="lineNum">     169 </span>            :     ptrdiff_t srcstride, int height, int mx, int my) \
+<span class="lineNum">     170 </span>            : { \
+<span class="lineNum">     171 </span>            :     LOCAL_ALIGNED(ALIGN, uint8_t, tmp, [SIZE * (MAXHEIGHT + TAPNUMY - 1)]); \
+<span class="lineNum">     172 </span>            :     uint8_t *tmpptr = tmp + SIZE * (TAPNUMY / 2 - 1); \
+<span class="lineNum">     173 </span>            :     src -= srcstride * (TAPNUMY / 2 - 1); \
+<span class="lineNum">     174 </span>            :     ff_put_vp8_epel ## SIZE ## _h ## TAPNUMX ## _ ## OPT( \
+<span class="lineNum">     175 </span>            :         tmp, SIZE,      src,    srcstride, height + TAPNUMY - 1, mx, my); \
+<span class="lineNum">     176 </span>            :     ff_put_vp8_epel ## SIZE ## _v ## TAPNUMY ## _ ## OPT( \
+<span class="lineNum">     177 </span>            :         dst, dststride, tmpptr, SIZE,      height,               mx, my); \
+<span class="lineNum">     178 </span>            : }
+<span class="lineNum">     179 </span>            : 
+<span class="lineNum">     180 </span>            : #if ARCH_X86_32
+<span class="lineNum">     181 </span>            : #define HVTAPMMX(x, y) \
+<span class="lineNum">     182 </span>            : HVTAP(mmxext, 8, x, y,  4,  8) \
+<span class="lineNum">     183 </span>            : HVTAP(mmxext, 8, x, y,  8, 16)
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span>            : HVTAP(mmxext, 8, 6, 6, 16, 16)
+<span class="lineNum">     186 </span>            : #else
+<span class="lineNum">     187 </span>            : #define HVTAPMMX(x, y) \
+<span class="lineNum">     188 </span>            : HVTAP(mmxext, 8, x, y,  4,  8)
+<a name="189"><span class="lineNum">     189 </span>            : #endif</a>
+<a name="190"><span class="lineNum">     190 </span>            : </a>
+<a name="191"><span class="lineNum">     191 </span><span class="lineNoCov">          0 : HVTAPMMX(4, 4)</span></a>
+<a name="192"><span class="lineNum">     192 </span><span class="lineNoCov">          0 : HVTAPMMX(4, 6)</span></a>
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 : HVTAPMMX(6, 4)</span>
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 : HVTAPMMX(6, 6)</span>
+<span class="lineNum">     195 </span>            : 
+<span class="lineNum">     196 </span>            : #define HVTAPSSE2(x, y, w) \
+<span class="lineNum">     197 </span>            : HVTAP(sse2,  16, x, y, w, 16) \
+<a name="198"><span class="lineNum">     198 </span>            : HVTAP(ssse3, 16, x, y, w, 16)</a>
+<a name="199"><span class="lineNum">     199 </span>            : </a>
+<a name="200"><span class="lineNum">     200 </span><span class="lineNoCov">          0 : HVTAPSSE2(4, 4, 8)</span></a>
+<a name="201"><span class="lineNum">     201 </span><span class="lineNoCov">          0 : HVTAPSSE2(4, 6, 8)</span></a>
+<a name="202"><span class="lineNum">     202 </span><span class="lineNoCov">          0 : HVTAPSSE2(6, 4, 8)</span></a>
+<span class="lineNum">     203 </span><span class="lineNoCov">          0 : HVTAPSSE2(6, 6, 8)</span>
+<a name="204"><span class="lineNum">     204 </span><span class="lineNoCov">          0 : HVTAPSSE2(6, 6, 16)</span></a>
+<a name="205"><span class="lineNum">     205 </span>            : </a>
+<a name="206"><span class="lineNum">     206 </span><span class="lineNoCov">          0 : HVTAP(ssse3, 16, 4, 4, 4, 8)</span></a>
+<a name="207"><span class="lineNum">     207 </span><span class="lineNoCov">          0 : HVTAP(ssse3, 16, 4, 6, 4, 8)</span></a>
+<span class="lineNum">     208 </span><span class="lineNoCov">          0 : HVTAP(ssse3, 16, 6, 4, 4, 8)</span>
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 : HVTAP(ssse3, 16, 6, 6, 4, 8)</span>
+<span class="lineNum">     210 </span>            : 
+<span class="lineNum">     211 </span>            : #define HVBILIN(OPT, ALIGN, SIZE, MAXHEIGHT) \
+<span class="lineNum">     212 </span>            : static void ff_put_vp8_bilinear ## SIZE ## _hv_ ## OPT( \
+<span class="lineNum">     213 </span>            :     uint8_t *dst, ptrdiff_t dststride, uint8_t *src, \
+<span class="lineNum">     214 </span>            :     ptrdiff_t srcstride, int height, int mx, int my) \
+<span class="lineNum">     215 </span>            : { \
+<span class="lineNum">     216 </span>            :     LOCAL_ALIGNED(ALIGN, uint8_t, tmp, [SIZE * (MAXHEIGHT + 2)]); \
+<span class="lineNum">     217 </span>            :     ff_put_vp8_bilinear ## SIZE ## _h_ ## OPT( \
+<span class="lineNum">     218 </span>            :         tmp, SIZE,      src, srcstride, height + 1, mx, my); \
+<span class="lineNum">     219 </span>            :     ff_put_vp8_bilinear ## SIZE ## _v_ ## OPT( \
+<span class="lineNum">     220 </span>            :         dst, dststride, tmp, SIZE,      height,     mx, my); \
+<a name="221"><span class="lineNum">     221 </span>            : }</a>
+<span class="lineNum">     222 </span>            : 
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 : HVBILIN(mmxext,  8,  4,  8)</span>
+<span class="lineNum">     224 </span>            : #if ARCH_X86_32
+<span class="lineNum">     225 </span>            : HVBILIN(mmxext,  8,  8, 16)
+<a name="226"><span class="lineNum">     226 </span>            : HVBILIN(mmxext,  8, 16, 16)</a>
+<a name="227"><span class="lineNum">     227 </span>            : #endif</a>
+<a name="228"><span class="lineNum">     228 </span><span class="lineNoCov">          0 : HVBILIN(sse2,  8,  8, 16)</span></a>
+<a name="229"><span class="lineNum">     229 </span><span class="lineNoCov">          0 : HVBILIN(sse2,  8, 16, 16)</span></a>
+<a name="230"><span class="lineNum">     230 </span><span class="lineNoCov">          0 : HVBILIN(ssse3, 8,  4,  8)</span></a>
+<span class="lineNum">     231 </span><span class="lineNoCov">          0 : HVBILIN(ssse3, 8,  8, 16)</span>
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 : HVBILIN(ssse3, 8, 16, 16)</span>
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span>            : void ff_vp8_idct_dc_add_mmx(uint8_t *dst, int16_t block[16],
+<span class="lineNum">     235 </span>            :                             ptrdiff_t stride);
+<span class="lineNum">     236 </span>            : void ff_vp8_idct_dc_add_sse4(uint8_t *dst, int16_t block[16],
+<span class="lineNum">     237 </span>            :                              ptrdiff_t stride);
+<span class="lineNum">     238 </span>            : void ff_vp8_idct_dc_add4y_mmx(uint8_t *dst, int16_t block[4][16],
+<span class="lineNum">     239 </span>            :                                ptrdiff_t stride);
+<span class="lineNum">     240 </span>            : void ff_vp8_idct_dc_add4y_sse2(uint8_t *dst, int16_t block[4][16],
+<span class="lineNum">     241 </span>            :                                ptrdiff_t stride);
+<span class="lineNum">     242 </span>            : void ff_vp8_idct_dc_add4uv_mmx(uint8_t *dst, int16_t block[2][16],
+<span class="lineNum">     243 </span>            :                                ptrdiff_t stride);
+<span class="lineNum">     244 </span>            : void ff_vp8_luma_dc_wht_mmx(int16_t block[4][4][16], int16_t dc[16]);
+<span class="lineNum">     245 </span>            : void ff_vp8_luma_dc_wht_sse(int16_t block[4][4][16], int16_t dc[16]);
+<span class="lineNum">     246 </span>            : void ff_vp8_idct_add_mmx(uint8_t *dst, int16_t block[16], ptrdiff_t stride);
+<span class="lineNum">     247 </span>            : void ff_vp8_idct_add_sse(uint8_t *dst, int16_t block[16], ptrdiff_t stride);
+<span class="lineNum">     248 </span>            : 
+<span class="lineNum">     249 </span>            : #define DECLARE_LOOP_FILTER(NAME)                                       \
+<span class="lineNum">     250 </span>            : void ff_vp8_v_loop_filter_simple_ ## NAME(uint8_t *dst,                 \
+<span class="lineNum">     251 </span>            :                                           ptrdiff_t stride,             \
+<span class="lineNum">     252 </span>            :                                           int flim);                    \
+<span class="lineNum">     253 </span>            : void ff_vp8_h_loop_filter_simple_ ## NAME(uint8_t *dst,                 \
+<span class="lineNum">     254 </span>            :                                           ptrdiff_t stride,             \
+<span class="lineNum">     255 </span>            :                                           int flim);                    \
+<span class="lineNum">     256 </span>            : void ff_vp8_v_loop_filter16y_inner_ ## NAME (uint8_t *dst,              \
+<span class="lineNum">     257 </span>            :                                              ptrdiff_t stride,          \
+<span class="lineNum">     258 </span>            :                                              int e, int i, int hvt);    \
+<span class="lineNum">     259 </span>            : void ff_vp8_h_loop_filter16y_inner_ ## NAME (uint8_t *dst,              \
+<span class="lineNum">     260 </span>            :                                              ptrdiff_t stride,          \
+<span class="lineNum">     261 </span>            :                                              int e, int i, int hvt);    \
+<span class="lineNum">     262 </span>            : void ff_vp8_v_loop_filter8uv_inner_ ## NAME (uint8_t *dstU,             \
+<span class="lineNum">     263 </span>            :                                              uint8_t *dstV,             \
+<span class="lineNum">     264 </span>            :                                              ptrdiff_t s,               \
+<span class="lineNum">     265 </span>            :                                              int e, int i, int hvt);    \
+<span class="lineNum">     266 </span>            : void ff_vp8_h_loop_filter8uv_inner_ ## NAME (uint8_t *dstU,             \
+<span class="lineNum">     267 </span>            :                                              uint8_t *dstV,             \
+<span class="lineNum">     268 </span>            :                                              ptrdiff_t s,               \
+<span class="lineNum">     269 </span>            :                                              int e, int i, int hvt);    \
+<span class="lineNum">     270 </span>            : void ff_vp8_v_loop_filter16y_mbedge_ ## NAME(uint8_t *dst,              \
+<span class="lineNum">     271 </span>            :                                              ptrdiff_t stride,          \
+<span class="lineNum">     272 </span>            :                                              int e, int i, int hvt);    \
+<span class="lineNum">     273 </span>            : void ff_vp8_h_loop_filter16y_mbedge_ ## NAME(uint8_t *dst,              \
+<span class="lineNum">     274 </span>            :                                              ptrdiff_t stride,          \
+<span class="lineNum">     275 </span>            :                                              int e, int i, int hvt);    \
+<span class="lineNum">     276 </span>            : void ff_vp8_v_loop_filter8uv_mbedge_ ## NAME(uint8_t *dstU,             \
+<span class="lineNum">     277 </span>            :                                              uint8_t *dstV,             \
+<span class="lineNum">     278 </span>            :                                              ptrdiff_t s,               \
+<span class="lineNum">     279 </span>            :                                              int e, int i, int hvt);    \
+<span class="lineNum">     280 </span>            : void ff_vp8_h_loop_filter8uv_mbedge_ ## NAME(uint8_t *dstU,             \
+<span class="lineNum">     281 </span>            :                                              uint8_t *dstV,             \
+<span class="lineNum">     282 </span>            :                                              ptrdiff_t s,               \
+<span class="lineNum">     283 </span>            :                                              int e, int i, int hvt);
+<span class="lineNum">     284 </span>            : 
+<span class="lineNum">     285 </span>            : DECLARE_LOOP_FILTER(mmx)
+<span class="lineNum">     286 </span>            : DECLARE_LOOP_FILTER(mmxext)
+<span class="lineNum">     287 </span>            : DECLARE_LOOP_FILTER(sse2)
+<span class="lineNum">     288 </span>            : DECLARE_LOOP_FILTER(ssse3)
+<span class="lineNum">     289 </span>            : DECLARE_LOOP_FILTER(sse4)
+<span class="lineNum">     290 </span>            : 
+<span class="lineNum">     291 </span>            : #endif /* HAVE_YASM */
+<span class="lineNum">     292 </span>            : 
+<span class="lineNum">     293 </span>            : #define VP8_LUMA_MC_FUNC(IDX, SIZE, OPT) \
+<span class="lineNum">     294 </span>            :     c-&gt;put_vp8_epel_pixels_tab[IDX][0][2] = ff_put_vp8_epel ## SIZE ## _h6_ ## OPT; \
+<span class="lineNum">     295 </span>            :     c-&gt;put_vp8_epel_pixels_tab[IDX][2][0] = ff_put_vp8_epel ## SIZE ## _v6_ ## OPT; \
+<span class="lineNum">     296 </span>            :     c-&gt;put_vp8_epel_pixels_tab[IDX][2][2] = ff_put_vp8_epel ## SIZE ## _h6v6_ ## OPT
+<span class="lineNum">     297 </span>            : 
+<span class="lineNum">     298 </span>            : #define VP8_MC_FUNC(IDX, SIZE, OPT) \
+<span class="lineNum">     299 </span>            :     c-&gt;put_vp8_epel_pixels_tab[IDX][0][1] = ff_put_vp8_epel ## SIZE ## _h4_ ## OPT; \
+<span class="lineNum">     300 </span>            :     c-&gt;put_vp8_epel_pixels_tab[IDX][1][0] = ff_put_vp8_epel ## SIZE ## _v4_ ## OPT; \
+<span class="lineNum">     301 </span>            :     c-&gt;put_vp8_epel_pixels_tab[IDX][1][1] = ff_put_vp8_epel ## SIZE ## _h4v4_ ## OPT; \
+<span class="lineNum">     302 </span>            :     c-&gt;put_vp8_epel_pixels_tab[IDX][1][2] = ff_put_vp8_epel ## SIZE ## _h6v4_ ## OPT; \
+<span class="lineNum">     303 </span>            :     c-&gt;put_vp8_epel_pixels_tab[IDX][2][1] = ff_put_vp8_epel ## SIZE ## _h4v6_ ## OPT; \
+<span class="lineNum">     304 </span>            :     VP8_LUMA_MC_FUNC(IDX, SIZE, OPT)
+<span class="lineNum">     305 </span>            : 
+<span class="lineNum">     306 </span>            : #define VP8_BILINEAR_MC_FUNC(IDX, SIZE, OPT) \
+<span class="lineNum">     307 </span>            :     c-&gt;put_vp8_bilinear_pixels_tab[IDX][0][1] = ff_put_vp8_bilinear ## SIZE ## _h_ ## OPT; \
+<span class="lineNum">     308 </span>            :     c-&gt;put_vp8_bilinear_pixels_tab[IDX][0][2] = ff_put_vp8_bilinear ## SIZE ## _h_ ## OPT; \
+<span class="lineNum">     309 </span>            :     c-&gt;put_vp8_bilinear_pixels_tab[IDX][1][0] = ff_put_vp8_bilinear ## SIZE ## _v_ ## OPT; \
+<span class="lineNum">     310 </span>            :     c-&gt;put_vp8_bilinear_pixels_tab[IDX][1][1] = ff_put_vp8_bilinear ## SIZE ## _hv_ ## OPT; \
+<span class="lineNum">     311 </span>            :     c-&gt;put_vp8_bilinear_pixels_tab[IDX][1][2] = ff_put_vp8_bilinear ## SIZE ## _hv_ ## OPT; \
+<span class="lineNum">     312 </span>            :     c-&gt;put_vp8_bilinear_pixels_tab[IDX][2][0] = ff_put_vp8_bilinear ## SIZE ## _v_ ## OPT; \
+<span class="lineNum">     313 </span>            :     c-&gt;put_vp8_bilinear_pixels_tab[IDX][2][1] = ff_put_vp8_bilinear ## SIZE ## _hv_ ## OPT; \
+<span class="lineNum">     314 </span>            :     c-&gt;put_vp8_bilinear_pixels_tab[IDX][2][2] = ff_put_vp8_bilinear ## SIZE ## _hv_ ## OPT
+<a name="315"><span class="lineNum">     315 </span>            : </a>
+<span class="lineNum">     316 </span>            : 
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 : av_cold void ff_vp78dsp_init_x86(VP8DSPContext *c)</span>
+<span class="lineNum">     318 </span>            : {
+<span class="lineNum">     319 </span>            : #if HAVE_YASM
+<span class="lineNum">     320 </span><span class="lineNoCov">          0 :     int cpu_flags = av_get_cpu_flags();</span>
+<span class="lineNum">     321 </span>            : 
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 :     if (EXTERNAL_MMX(cpu_flags)) {</span>
+<span class="lineNum">     323 </span>            : #if ARCH_X86_32
+<span class="lineNum">     324 </span>            :         c-&gt;put_vp8_epel_pixels_tab[0][0][0]     =
+<span class="lineNum">     325 </span>            :         c-&gt;put_vp8_bilinear_pixels_tab[0][0][0] = ff_put_vp8_pixels16_mmx;
+<span class="lineNum">     326 </span>            : #endif
+<span class="lineNum">     327 </span><span class="lineNoCov">          0 :         c-&gt;put_vp8_epel_pixels_tab[1][0][0]     =</span>
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 :         c-&gt;put_vp8_bilinear_pixels_tab[1][0][0] = ff_put_vp8_pixels8_mmx;</span>
+<span class="lineNum">     329 </span>            :     }
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span>            :     /* note that 4-tap width=16 functions are missing because w=16
+<span class="lineNum">     332 </span>            :      * is only used for luma, and luma is always a copy or sixtap. */
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :     if (EXTERNAL_MMXEXT(cpu_flags)) {</span>
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :         VP8_MC_FUNC(2, 4, mmxext);</span>
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :         VP8_BILINEAR_MC_FUNC(2, 4, mmxext);</span>
+<span class="lineNum">     336 </span>            : #if ARCH_X86_32
+<span class="lineNum">     337 </span>            :         VP8_LUMA_MC_FUNC(0, 16, mmxext);
+<span class="lineNum">     338 </span>            :         VP8_MC_FUNC(1, 8, mmxext);
+<span class="lineNum">     339 </span>            :         VP8_BILINEAR_MC_FUNC(0, 16, mmxext);
+<span class="lineNum">     340 </span>            :         VP8_BILINEAR_MC_FUNC(1,  8, mmxext);
+<span class="lineNum">     341 </span>            : #endif
+<span class="lineNum">     342 </span>            :     }
+<span class="lineNum">     343 </span>            : 
+<span class="lineNum">     344 </span><span class="lineNoCov">          0 :     if (EXTERNAL_SSE(cpu_flags)) {</span>
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 :         c-&gt;put_vp8_epel_pixels_tab[0][0][0]     =</span>
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :         c-&gt;put_vp8_bilinear_pixels_tab[0][0][0] = ff_put_vp8_pixels16_sse;</span>
+<span class="lineNum">     347 </span>            :     }
+<span class="lineNum">     348 </span>            : 
+<span class="lineNum">     349 </span><span class="lineNoCov">          0 :     if (HAVE_SSE2_EXTERNAL &amp;&amp; cpu_flags &amp; (AV_CPU_FLAG_SSE2 | AV_CPU_FLAG_SSE2SLOW)) {</span>
+<span class="lineNum">     350 </span><span class="lineNoCov">          0 :         VP8_LUMA_MC_FUNC(0, 16, sse2);</span>
+<span class="lineNum">     351 </span><span class="lineNoCov">          0 :         VP8_MC_FUNC(1, 8, sse2);</span>
+<span class="lineNum">     352 </span><span class="lineNoCov">          0 :         VP8_BILINEAR_MC_FUNC(0, 16, sse2);</span>
+<span class="lineNum">     353 </span><span class="lineNoCov">          0 :         VP8_BILINEAR_MC_FUNC(1, 8, sse2);</span>
+<span class="lineNum">     354 </span>            :     }
+<span class="lineNum">     355 </span>            : 
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :     if (EXTERNAL_SSSE3(cpu_flags)) {</span>
+<span class="lineNum">     357 </span><span class="lineNoCov">          0 :         VP8_LUMA_MC_FUNC(0, 16, ssse3);</span>
+<span class="lineNum">     358 </span><span class="lineNoCov">          0 :         VP8_MC_FUNC(1, 8, ssse3);</span>
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 :         VP8_MC_FUNC(2, 4, ssse3);</span>
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 :         VP8_BILINEAR_MC_FUNC(0, 16, ssse3);</span>
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 :         VP8_BILINEAR_MC_FUNC(1, 8, ssse3);</span>
+<span class="lineNum">     362 </span><span class="lineNoCov">          0 :         VP8_BILINEAR_MC_FUNC(2, 4, ssse3);</span>
+<span class="lineNum">     363 </span>            :     }
+<span class="lineNum">     364 </span>            : #endif /* HAVE_YASM */
+<a name="365"><span class="lineNum">     365 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     366 </span>            : 
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 : av_cold void ff_vp8dsp_init_x86(VP8DSPContext *c)</span>
+<span class="lineNum">     368 </span>            : {
+<span class="lineNum">     369 </span>            : #if HAVE_YASM
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :     int cpu_flags = av_get_cpu_flags();</span>
+<span class="lineNum">     371 </span>            : 
+<span class="lineNum">     372 </span><span class="lineNoCov">          0 :     if (EXTERNAL_MMX(cpu_flags)) {</span>
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :         c-&gt;vp8_idct_dc_add    = ff_vp8_idct_dc_add_mmx;</span>
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :         c-&gt;vp8_idct_dc_add4uv = ff_vp8_idct_dc_add4uv_mmx;</span>
+<span class="lineNum">     375 </span>            : #if ARCH_X86_32
+<span class="lineNum">     376 </span>            :         c-&gt;vp8_idct_dc_add4y  = ff_vp8_idct_dc_add4y_mmx;
+<span class="lineNum">     377 </span>            :         c-&gt;vp8_idct_add       = ff_vp8_idct_add_mmx;
+<span class="lineNum">     378 </span>            :         c-&gt;vp8_luma_dc_wht    = ff_vp8_luma_dc_wht_mmx;
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span>            :         c-&gt;vp8_v_loop_filter_simple = ff_vp8_v_loop_filter_simple_mmx;
+<span class="lineNum">     381 </span>            :         c-&gt;vp8_h_loop_filter_simple = ff_vp8_h_loop_filter_simple_mmx;
+<span class="lineNum">     382 </span>            : 
+<span class="lineNum">     383 </span>            :         c-&gt;vp8_v_loop_filter16y_inner = ff_vp8_v_loop_filter16y_inner_mmx;
+<span class="lineNum">     384 </span>            :         c-&gt;vp8_h_loop_filter16y_inner = ff_vp8_h_loop_filter16y_inner_mmx;
+<span class="lineNum">     385 </span>            :         c-&gt;vp8_v_loop_filter8uv_inner = ff_vp8_v_loop_filter8uv_inner_mmx;
+<span class="lineNum">     386 </span>            :         c-&gt;vp8_h_loop_filter8uv_inner = ff_vp8_h_loop_filter8uv_inner_mmx;
+<span class="lineNum">     387 </span>            : 
+<span class="lineNum">     388 </span>            :         c-&gt;vp8_v_loop_filter16y       = ff_vp8_v_loop_filter16y_mbedge_mmx;
+<span class="lineNum">     389 </span>            :         c-&gt;vp8_h_loop_filter16y       = ff_vp8_h_loop_filter16y_mbedge_mmx;
+<span class="lineNum">     390 </span>            :         c-&gt;vp8_v_loop_filter8uv       = ff_vp8_v_loop_filter8uv_mbedge_mmx;
+<span class="lineNum">     391 </span>            :         c-&gt;vp8_h_loop_filter8uv       = ff_vp8_h_loop_filter8uv_mbedge_mmx;
+<span class="lineNum">     392 </span>            : #endif
+<span class="lineNum">     393 </span>            :     }
+<span class="lineNum">     394 </span>            : 
+<span class="lineNum">     395 </span>            :     /* note that 4-tap width=16 functions are missing because w=16
+<span class="lineNum">     396 </span>            :      * is only used for luma, and luma is always a copy or sixtap. */
+<span class="lineNum">     397 </span>            :     if (EXTERNAL_MMXEXT(cpu_flags)) {
+<span class="lineNum">     398 </span>            : #if ARCH_X86_32
+<span class="lineNum">     399 </span>            :         c-&gt;vp8_v_loop_filter_simple   = ff_vp8_v_loop_filter_simple_mmxext;
+<span class="lineNum">     400 </span>            :         c-&gt;vp8_h_loop_filter_simple   = ff_vp8_h_loop_filter_simple_mmxext;
+<span class="lineNum">     401 </span>            : 
+<span class="lineNum">     402 </span>            :         c-&gt;vp8_v_loop_filter16y_inner = ff_vp8_v_loop_filter16y_inner_mmxext;
+<span class="lineNum">     403 </span>            :         c-&gt;vp8_h_loop_filter16y_inner = ff_vp8_h_loop_filter16y_inner_mmxext;
+<span class="lineNum">     404 </span>            :         c-&gt;vp8_v_loop_filter8uv_inner = ff_vp8_v_loop_filter8uv_inner_mmxext;
+<span class="lineNum">     405 </span>            :         c-&gt;vp8_h_loop_filter8uv_inner = ff_vp8_h_loop_filter8uv_inner_mmxext;
+<span class="lineNum">     406 </span>            : 
+<span class="lineNum">     407 </span>            :         c-&gt;vp8_v_loop_filter16y       = ff_vp8_v_loop_filter16y_mbedge_mmxext;
+<span class="lineNum">     408 </span>            :         c-&gt;vp8_h_loop_filter16y       = ff_vp8_h_loop_filter16y_mbedge_mmxext;
+<span class="lineNum">     409 </span>            :         c-&gt;vp8_v_loop_filter8uv       = ff_vp8_v_loop_filter8uv_mbedge_mmxext;
+<span class="lineNum">     410 </span>            :         c-&gt;vp8_h_loop_filter8uv       = ff_vp8_h_loop_filter8uv_mbedge_mmxext;
+<span class="lineNum">     411 </span>            : #endif
+<span class="lineNum">     412 </span>            :     }
+<span class="lineNum">     413 </span>            : 
+<span class="lineNum">     414 </span><span class="lineNoCov">          0 :     if (EXTERNAL_SSE(cpu_flags)) {</span>
+<span class="lineNum">     415 </span><span class="lineNoCov">          0 :         c-&gt;vp8_idct_add                         = ff_vp8_idct_add_sse;</span>
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :         c-&gt;vp8_luma_dc_wht                      = ff_vp8_luma_dc_wht_sse;</span>
+<span class="lineNum">     417 </span>            :     }
+<span class="lineNum">     418 </span>            : 
+<span class="lineNum">     419 </span><span class="lineNoCov">          0 :     if (HAVE_SSE2_EXTERNAL &amp;&amp; cpu_flags &amp; (AV_CPU_FLAG_SSE2 | AV_CPU_FLAG_SSE2SLOW)) {</span>
+<span class="lineNum">     420 </span><span class="lineNoCov">          0 :         c-&gt;vp8_v_loop_filter_simple = ff_vp8_v_loop_filter_simple_sse2;</span>
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span><span class="lineNoCov">          0 :         c-&gt;vp8_v_loop_filter16y_inner = ff_vp8_v_loop_filter16y_inner_sse2;</span>
+<span class="lineNum">     423 </span><span class="lineNoCov">          0 :         c-&gt;vp8_v_loop_filter8uv_inner = ff_vp8_v_loop_filter8uv_inner_sse2;</span>
+<span class="lineNum">     424 </span>            : 
+<span class="lineNum">     425 </span><span class="lineNoCov">          0 :         c-&gt;vp8_v_loop_filter16y       = ff_vp8_v_loop_filter16y_mbedge_sse2;</span>
+<span class="lineNum">     426 </span><span class="lineNoCov">          0 :         c-&gt;vp8_v_loop_filter8uv       = ff_vp8_v_loop_filter8uv_mbedge_sse2;</span>
+<span class="lineNum">     427 </span>            :     }
+<span class="lineNum">     428 </span>            : 
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 :     if (EXTERNAL_SSE2(cpu_flags)) {</span>
+<span class="lineNum">     430 </span><span class="lineNoCov">          0 :         c-&gt;vp8_idct_dc_add4y          = ff_vp8_idct_dc_add4y_sse2;</span>
+<span class="lineNum">     431 </span>            : 
+<span class="lineNum">     432 </span><span class="lineNoCov">          0 :         c-&gt;vp8_h_loop_filter_simple   = ff_vp8_h_loop_filter_simple_sse2;</span>
+<span class="lineNum">     433 </span>            : 
+<span class="lineNum">     434 </span><span class="lineNoCov">          0 :         c-&gt;vp8_h_loop_filter16y_inner = ff_vp8_h_loop_filter16y_inner_sse2;</span>
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :         c-&gt;vp8_h_loop_filter8uv_inner = ff_vp8_h_loop_filter8uv_inner_sse2;</span>
+<span class="lineNum">     436 </span>            : 
+<span class="lineNum">     437 </span><span class="lineNoCov">          0 :         c-&gt;vp8_h_loop_filter16y       = ff_vp8_h_loop_filter16y_mbedge_sse2;</span>
+<span class="lineNum">     438 </span><span class="lineNoCov">          0 :         c-&gt;vp8_h_loop_filter8uv       = ff_vp8_h_loop_filter8uv_mbedge_sse2;</span>
+<span class="lineNum">     439 </span>            :     }
+<span class="lineNum">     440 </span>            : 
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :     if (EXTERNAL_SSSE3(cpu_flags)) {</span>
+<span class="lineNum">     442 </span><span class="lineNoCov">          0 :         c-&gt;vp8_v_loop_filter_simple = ff_vp8_v_loop_filter_simple_ssse3;</span>
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :         c-&gt;vp8_h_loop_filter_simple = ff_vp8_h_loop_filter_simple_ssse3;</span>
+<span class="lineNum">     444 </span>            : 
+<span class="lineNum">     445 </span><span class="lineNoCov">          0 :         c-&gt;vp8_v_loop_filter16y_inner = ff_vp8_v_loop_filter16y_inner_ssse3;</span>
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :         c-&gt;vp8_h_loop_filter16y_inner = ff_vp8_h_loop_filter16y_inner_ssse3;</span>
+<span class="lineNum">     447 </span><span class="lineNoCov">          0 :         c-&gt;vp8_v_loop_filter8uv_inner = ff_vp8_v_loop_filter8uv_inner_ssse3;</span>
+<span class="lineNum">     448 </span><span class="lineNoCov">          0 :         c-&gt;vp8_h_loop_filter8uv_inner = ff_vp8_h_loop_filter8uv_inner_ssse3;</span>
+<span class="lineNum">     449 </span>            : 
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 :         c-&gt;vp8_v_loop_filter16y       = ff_vp8_v_loop_filter16y_mbedge_ssse3;</span>
+<span class="lineNum">     451 </span><span class="lineNoCov">          0 :         c-&gt;vp8_h_loop_filter16y       = ff_vp8_h_loop_filter16y_mbedge_ssse3;</span>
+<span class="lineNum">     452 </span><span class="lineNoCov">          0 :         c-&gt;vp8_v_loop_filter8uv       = ff_vp8_v_loop_filter8uv_mbedge_ssse3;</span>
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :         c-&gt;vp8_h_loop_filter8uv       = ff_vp8_h_loop_filter8uv_mbedge_ssse3;</span>
+<span class="lineNum">     454 </span>            :     }
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span><span class="lineNoCov">          0 :     if (EXTERNAL_SSE4(cpu_flags)) {</span>
+<span class="lineNum">     457 </span><span class="lineNoCov">          0 :         c-&gt;vp8_idct_dc_add            = ff_vp8_idct_dc_add_sse4;</span>
+<span class="lineNum">     458 </span>            : 
+<span class="lineNum">     459 </span><span class="lineNoCov">          0 :         c-&gt;vp8_h_loop_filter_simple   = ff_vp8_h_loop_filter_simple_sse4;</span>
+<span class="lineNum">     460 </span><span class="lineNoCov">          0 :         c-&gt;vp8_h_loop_filter16y       = ff_vp8_h_loop_filter16y_mbedge_sse4;</span>
+<span class="lineNum">     461 </span><span class="lineNoCov">          0 :         c-&gt;vp8_h_loop_filter8uv       = ff_vp8_h_loop_filter8uv_mbedge_sse4;</span>
+<span class="lineNum">     462 </span>            :     }
+<span class="lineNum">     463 </span>            : #endif /* HAVE_YASM */
+<span class="lineNum">     464 </span><span class="lineNoCov">          0 : }</span>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

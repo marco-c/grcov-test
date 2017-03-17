@@ -1,0 +1,912 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - gfx/skia/skia/src/core/SkBitmapProcState.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">gfx/skia/skia/src/core</a> - SkBitmapProcState.cpp<span style="font-size: 80%;"> (source / <a href="SkBitmapProcState.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">217</td>
+            <td class="headerCovTableEntry">256</td>
+            <td class="headerCovTableEntryMed">84.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntry">16</td>
+            <td class="headerCovTableEntryMed">87.5 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  * Copyright 2011 Google Inc.
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  * Use of this source code is governed by a BSD-style license that can be
+<span class="lineNum">       5 </span>            :  * found in the LICENSE file.
+<span class="lineNum">       6 </span>            :  */
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #include &quot;SkBitmapCache.h&quot;
+<span class="lineNum">       9 </span>            : #include &quot;SkBitmapController.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;SkBitmapProcState.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;SkColorPriv.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;SkFilterProc.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;SkPaint.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;SkShader.h&quot;   // for tilemodes
+<span class="lineNum">      15 </span>            : #include &quot;SkUtilsArm.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;SkBitmapScaler.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;SkMipMap.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;SkPixelRef.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;SkImageEncoder.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;SkResourceCache.h&quot;
+<span class="lineNum">      21 </span>            : 
+<span class="lineNum">      22 </span>            : #if defined(SK_ARM_HAS_NEON) || defined(SK_ARM_HAS_OPTIONAL_NEON)
+<span class="lineNum">      23 </span>            : // These are defined in src/opts/SkBitmapProcState_arm_neon.cpp
+<span class="lineNum">      24 </span>            : extern const SkBitmapProcState::SampleProc32 gSkBitmapProcStateSample32_neon[];
+<span class="lineNum">      25 </span>            : extern void  S16_D16_filter_DX_neon(const SkBitmapProcState&amp;, const uint32_t*, int, uint16_t*);
+<span class="lineNum">      26 </span>            : extern void  Clamp_S16_D16_filter_DX_shaderproc_neon(const void *, int, int, uint16_t*, int);
+<span class="lineNum">      27 </span>            : extern void  Repeat_S16_D16_filter_DX_shaderproc_neon(const void *, int, int, uint16_t*, int);
+<span class="lineNum">      28 </span>            : extern void  SI8_opaque_D32_filter_DX_neon(const SkBitmapProcState&amp;, const uint32_t*, int, SkPMColor*);
+<span class="lineNum">      29 </span>            : extern void  SI8_opaque_D32_filter_DX_shaderproc_neon(const void *, int, int, uint32_t*, int);
+<span class="lineNum">      30 </span>            : extern void  Clamp_SI8_opaque_D32_filter_DX_shaderproc_neon(const void*, int, int, uint32_t*, int);
+<span class="lineNum">      31 </span>            : #endif
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : extern void Clamp_S32_opaque_D32_nofilter_DX_shaderproc(const void*, int, int, uint32_t*, int);
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : #define   NAME_WRAP(x)  x
+<span class="lineNum">      36 </span>            : #include &quot;SkBitmapProcState_filter.h&quot;
+<a name="37"><span class="lineNum">      37 </span>            : #include &quot;SkBitmapProcState_procs.h&quot;</a>
+<span class="lineNum">      38 </span>            : 
+<span class="lineNum">      39 </span><span class="lineCov">          1 : SkBitmapProcInfo::SkBitmapProcInfo(const SkBitmapProvider&amp; provider,</span>
+<span class="lineNum">      40 </span>            :                                    SkShader::TileMode tmx, SkShader::TileMode tmy,
+<span class="lineNum">      41 </span>            :                                    SkSourceGammaTreatment treatment)
+<span class="lineNum">      42 </span>            :     : fProvider(provider)
+<span class="lineNum">      43 </span>            :     , fTileModeX(tmx)
+<span class="lineNum">      44 </span>            :     , fTileModeY(tmy)
+<span class="lineNum">      45 </span>            :     , fSrcGammaTreatment(treatment)
+<span class="lineNum">      46 </span><span class="lineCov">          1 :     , fBMState(nullptr)</span>
+<a name="47"><span class="lineNum">      47 </span><span class="lineCov">          1 : {}</span></a>
+<span class="lineNum">      48 </span>            : 
+<span class="lineNum">      49 </span><span class="lineNoCov">          0 : SkBitmapProcInfo::SkBitmapProcInfo(const SkBitmap&amp; bm,</span>
+<span class="lineNum">      50 </span>            :                                    SkShader::TileMode tmx, SkShader::TileMode tmy,
+<span class="lineNum">      51 </span>            :                                    SkSourceGammaTreatment treatment)
+<span class="lineNum">      52 </span>            :     : fProvider(SkBitmapProvider(bm))
+<span class="lineNum">      53 </span>            :     , fTileModeX(tmx)
+<span class="lineNum">      54 </span>            :     , fTileModeY(tmy)
+<span class="lineNum">      55 </span>            :     , fSrcGammaTreatment(treatment)
+<span class="lineNum">      56 </span><span class="lineNoCov">          0 :     , fBMState(nullptr)</span>
+<a name="57"><span class="lineNum">      57 </span><span class="lineNoCov">          0 : {}</span></a>
+<span class="lineNum">      58 </span>            : 
+<span class="lineNum">      59 </span><span class="lineCov">          1 : SkBitmapProcInfo::~SkBitmapProcInfo() {</span>
+<span class="lineNum">      60 </span><span class="lineCov">          1 :     SkInPlaceDeleteCheck(fBMState, fBMStateStorage.get());</span>
+<span class="lineNum">      61 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span>            : ///////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">      64 </span>            : 
+<span class="lineNum">      65 </span>            : // true iff the matrix contains, at most, scale and translate elements
+<span class="lineNum">      66 </span>            : static bool matrix_only_scale_translate(const SkMatrix&amp; m) {
+<span class="lineNum">      67 </span><span class="lineCov">          1 :     return m.getType() &lt;= (SkMatrix::kScale_Mask | SkMatrix::kTranslate_Mask);</span>
+<span class="lineNum">      68 </span>            : }
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            : /**
+<span class="lineNum">      71 </span>            :  *  For the purposes of drawing bitmaps, if a matrix is &quot;almost&quot; translate
+<a name="72"><span class="lineNum">      72 </span>            :  *  go ahead and treat it as if it were, so that subsequent code can go fast.</a>
+<span class="lineNum">      73 </span>            :  */
+<span class="lineNum">      74 </span><span class="lineCov">          1 : static bool just_trans_clamp(const SkMatrix&amp; matrix, const SkPixmap&amp; pixmap) {</span>
+<span class="lineNum">      75 </span>            :     SkASSERT(matrix_only_scale_translate(matrix));
+<span class="lineNum">      76 </span>            : 
+<span class="lineNum">      77 </span><span class="lineCov">          1 :     if (matrix.getType() &amp; SkMatrix::kScale_Mask) {</span>
+<span class="lineNum">      78 </span>            :         SkRect dst;
+<span class="lineNum">      79 </span><span class="lineCov">          1 :         SkRect src = SkRect::Make(pixmap.bounds());</span>
+<span class="lineNum">      80 </span>            : 
+<span class="lineNum">      81 </span>            :         // Can't call mapRect(), since that will fix up inverted rectangles,
+<span class="lineNum">      82 </span>            :         // e.g. when scale is negative, and we don't want to return true for
+<span class="lineNum">      83 </span>            :         // those.
+<span class="lineNum">      84 </span>            :         matrix.mapPoints(SkTCast&lt;SkPoint*&gt;(&amp;dst),
+<span class="lineNum">      85 </span>            :                          SkTCast&lt;const SkPoint*&gt;(&amp;src),
+<span class="lineNum">      86 </span><span class="lineCov">          1 :                          2);</span>
+<span class="lineNum">      87 </span>            : 
+<span class="lineNum">      88 </span>            :         // Now round all 4 edges to device space, and then compare the device
+<span class="lineNum">      89 </span>            :         // width/height to the original. Note: we must map all 4 and subtract
+<span class="lineNum">      90 </span>            :         // rather than map the &quot;width&quot; and compare, since we care about the
+<span class="lineNum">      91 </span>            :         // phase (in pixel space) that any translate in the matrix might impart.
+<span class="lineNum">      92 </span>            :         SkIRect idst;
+<span class="lineNum">      93 </span><span class="lineCov">          1 :         dst.round(&amp;idst);</span>
+<span class="lineNum">      94 </span><span class="lineCov">          1 :         return idst.width() == pixmap.width() &amp;&amp; idst.height() == pixmap.height();</span>
+<span class="lineNum">      95 </span>            :     }
+<span class="lineNum">      96 </span>            :     // if we got here, we're either kTranslate_Mask or identity
+<span class="lineNum">      97 </span>            :     return true;
+<a name="98"><span class="lineNum">      98 </span>            : }</a>
+<span class="lineNum">      99 </span>            : 
+<span class="lineNum">     100 </span><span class="lineCov">          1 : static bool just_trans_general(const SkMatrix&amp; matrix) {</span>
+<span class="lineNum">     101 </span>            :     SkASSERT(matrix_only_scale_translate(matrix));
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span><span class="lineCov">          1 :     if (matrix.getType() &amp; SkMatrix::kScale_Mask) {</span>
+<span class="lineNum">     104 </span><span class="lineCov">          1 :         const SkScalar tol = SK_Scalar1 / 32768;</span>
+<span class="lineNum">     105 </span>            : 
+<span class="lineNum">     106 </span><span class="lineCov">          1 :         if (!SkScalarNearlyZero(matrix[SkMatrix::kMScaleX] - SK_Scalar1, tol)) {</span>
+<span class="lineNum">     107 </span>            :             return false;
+<span class="lineNum">     108 </span>            :         }
+<span class="lineNum">     109 </span><span class="lineCov">          1 :         if (!SkScalarNearlyZero(matrix[SkMatrix::kMScaleY] - SK_Scalar1, tol)) {</span>
+<span class="lineNum">     110 </span>            :             return false;
+<span class="lineNum">     111 </span>            :         }
+<span class="lineNum">     112 </span>            :     }
+<span class="lineNum">     113 </span>            :     // if we got here, treat us as either kTranslate_Mask or identity
+<span class="lineNum">     114 </span><span class="lineCov">          1 :     return true;</span>
+<span class="lineNum">     115 </span>            : }
+<span class="lineNum">     116 </span>            : 
+<span class="lineNum">     117 </span>            : static bool valid_for_filtering(unsigned dimension) {
+<span class="lineNum">     118 </span>            :     // for filtering, width and height must fit in 14bits, since we use steal
+<span class="lineNum">     119 </span>            :     // 2 bits from each to store our 4bit subpixel data
+<span class="lineNum">     120 </span><span class="lineCov">          1 :     return (dimension &amp; ~0x3FFF) == 0;</span>
+<a name="121"><span class="lineNum">     121 </span>            : }</a>
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span><span class="lineCov">          1 : bool SkBitmapProcInfo::init(const SkMatrix&amp; inv, const SkPaint&amp; paint) {</span>
+<span class="lineNum">     124 </span><span class="lineCov">          1 :     const int origW = fProvider.info().width();</span>
+<span class="lineNum">     125 </span><span class="lineCov">          1 :     const int origH = fProvider.info().height();</span>
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span><span class="lineCov">          1 :     fPixmap.reset();</span>
+<span class="lineNum">     128 </span><span class="lineCov">          1 :     fInvMatrix = inv;</span>
+<span class="lineNum">     129 </span><span class="lineCov">          1 :     fFilterQuality = paint.getFilterQuality();</span>
+<span class="lineNum">     130 </span>            : 
+<span class="lineNum">     131 </span><span class="lineCov">          1 :     bool allow_ignore_fractional_translate = true;  // historical default</span>
+<span class="lineNum">     132 </span><span class="lineCov">          1 :     if (kMedium_SkFilterQuality == fFilterQuality) {</span>
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :         allow_ignore_fractional_translate = false;</span>
+<span class="lineNum">     134 </span>            :     }
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span><span class="lineCov">          1 :     SkDefaultBitmapController controller(fSrcGammaTreatment);</span>
+<span class="lineNum">     137 </span>            :     fBMState = controller.requestBitmap(fProvider, inv, paint.getFilterQuality(),
+<span class="lineNum">     138 </span><span class="lineCov">          1 :                                         fBMStateStorage.get(), fBMStateStorage.size());</span>
+<span class="lineNum">     139 </span>            :     // Note : we allow the controller to return an empty (zero-dimension) result. Should we?
+<span class="lineNum">     140 </span><span class="lineCov">          1 :     if (nullptr == fBMState || fBMState-&gt;pixmap().info().isEmpty()) {</span>
+<span class="lineNum">     141 </span>            :         return false;
+<span class="lineNum">     142 </span>            :     }
+<span class="lineNum">     143 </span><span class="lineCov">          1 :     fPixmap = fBMState-&gt;pixmap();</span>
+<span class="lineNum">     144 </span><span class="lineCov">          1 :     fInvMatrix = fBMState-&gt;invMatrix();</span>
+<span class="lineNum">     145 </span><span class="lineCov">          1 :     fRealInvMatrix = fBMState-&gt;invMatrix();</span>
+<span class="lineNum">     146 </span><span class="lineCov">          1 :     fPaintColor = paint.getColor();</span>
+<span class="lineNum">     147 </span><span class="lineCov">          1 :     fFilterQuality = fBMState-&gt;quality();</span>
+<span class="lineNum">     148 </span>            :     SkASSERT(fPixmap.addr());
+<span class="lineNum">     149 </span>            : 
+<span class="lineNum">     150 </span><span class="lineCov">          1 :     bool trivialMatrix = (fInvMatrix.getType() &amp; ~SkMatrix::kTranslate_Mask) == 0;</span>
+<span class="lineNum">     151 </span><span class="lineCov">          1 :     bool clampClamp = SkShader::kClamp_TileMode == fTileModeX &amp;&amp;</span>
+<span class="lineNum">     152 </span><span class="lineCov">          1 :                       SkShader::kClamp_TileMode == fTileModeY;</span>
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span>            :     // Most of the scanline procs deal with &quot;unit&quot; texture coordinates, as this
+<span class="lineNum">     155 </span>            :     // makes it easy to perform tiling modes (repeat = (x &amp; 0xFFFF)). To generate
+<span class="lineNum">     156 </span>            :     // those, we divide the matrix by its dimensions here.
+<span class="lineNum">     157 </span>            :     //
+<span class="lineNum">     158 </span>            :     // We don't do this if we're either trivial (can ignore the matrix) or clamping
+<span class="lineNum">     159 </span>            :     // in both X and Y since clamping to width,height is just as easy as to 0xFFFF.
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span><span class="lineCov">          1 :     if (!(clampClamp || trivialMatrix)) {</span>
+<span class="lineNum">     162 </span><span class="lineCov">          1 :         fInvMatrix.postIDiv(fPixmap.width(), fPixmap.height());</span>
+<span class="lineNum">     163 </span>            :     }
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span>            :     // Now that all possible changes to the matrix have taken place, check
+<span class="lineNum">     166 </span>            :     // to see if we're really close to a no-scale matrix.  If so, explicitly
+<span class="lineNum">     167 </span>            :     // set it to be so.  Subsequent code may inspect this matrix to choose
+<span class="lineNum">     168 </span>            :     // a faster path in this case.
+<span class="lineNum">     169 </span>            : 
+<span class="lineNum">     170 </span>            :     // This code will only execute if the matrix has some scale component;
+<span class="lineNum">     171 </span>            :     // if it's already pure translate then we won't do this inversion.
+<span class="lineNum">     172 </span>            : 
+<span class="lineNum">     173 </span><span class="lineCov">          1 :     if (matrix_only_scale_translate(fInvMatrix)) {</span>
+<span class="lineNum">     174 </span>            :         SkMatrix forward;
+<span class="lineNum">     175 </span><span class="lineCov">          1 :         if (fInvMatrix.invert(&amp;forward)) {</span>
+<span class="lineNum">     176 </span><span class="lineCov">          1 :             if ((clampClamp &amp;&amp; allow_ignore_fractional_translate)</span>
+<span class="lineNum">     177 </span>            :                 ? just_trans_clamp(forward, fPixmap)
+<span class="lineNum">     178 </span>            :                 : just_trans_general(forward)) {
+<span class="lineNum">     179 </span><span class="lineCov">          1 :                 fInvMatrix.setTranslate(-forward.getTranslateX(), -forward.getTranslateY());</span>
+<span class="lineNum">     180 </span>            :             }
+<span class="lineNum">     181 </span>            :         }
+<span class="lineNum">     182 </span>            :     }
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span><span class="lineCov">          1 :     fInvType = fInvMatrix.getType();</span>
+<span class="lineNum">     185 </span>            : 
+<span class="lineNum">     186 </span>            :     // If our target pixmap is the same as the original, then we revert back to legacy behavior
+<span class="lineNum">     187 </span>            :     // and allow the code to ignore fractional translate.
+<span class="lineNum">     188 </span>            :     //
+<span class="lineNum">     189 </span>            :     // The width/height check allows allow_ignore_fractional_translate to stay false if we
+<span class="lineNum">     190 </span>            :     // previously set it that way (e.g. we started in kMedium).
+<span class="lineNum">     191 </span>            :     //
+<span class="lineNum">     192 </span><span class="lineCov">          1 :     if (fPixmap.width() == origW &amp;&amp; fPixmap.height() == origH) {</span>
+<span class="lineNum">     193 </span><span class="lineCov">          1 :         allow_ignore_fractional_translate = true;</span>
+<span class="lineNum">     194 </span>            :     }
+<span class="lineNum">     195 </span>            : 
+<span class="lineNum">     196 </span><span class="lineCov">          1 :     if (kLow_SkFilterQuality == fFilterQuality &amp;&amp; allow_ignore_fractional_translate) {</span>
+<span class="lineNum">     197 </span>            :         // Only try bilerp if the matrix is &quot;interesting&quot; and
+<span class="lineNum">     198 </span>            :         // the image has a suitable size.
+<span class="lineNum">     199 </span>            : 
+<span class="lineNum">     200 </span><span class="lineCov">          1 :         if (fInvType &lt;= SkMatrix::kTranslate_Mask ||</span>
+<span class="lineNum">     201 </span><span class="lineCov">          1 :             !valid_for_filtering(fPixmap.width() | fPixmap.height()))</span>
+<span class="lineNum">     202 </span>            :         {
+<span class="lineNum">     203 </span><span class="lineCov">          1 :             fFilterQuality = kNone_SkFilterQuality;</span>
+<span class="lineNum">     204 </span>            :         }
+<span class="lineNum">     205 </span>            :     }
+<span class="lineNum">     206 </span>            : 
+<span class="lineNum">     207 </span>            :     return true;
+<span class="lineNum">     208 </span>            : }
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span>            : /*
+<span class="lineNum">     211 </span>            :  *  Analyze filter-quality and matrix, and decide how to implement that.
+<span class="lineNum">     212 </span>            :  *
+<span class="lineNum">     213 </span>            :  *  In general, we cascade down the request level [ High ... None ]
+<span class="lineNum">     214 </span>            :  *  - for a given level, if we can fulfill it, fine, else
+<span class="lineNum">     215 </span>            :  *    - else we downgrade to the next lower level and try again.
+<span class="lineNum">     216 </span>            :  *  We can always fulfill requests for Low and None
+<span class="lineNum">     217 </span>            :  *  - sometimes we will &quot;ignore&quot; Low and give None, but this is likely a legacy perf hack
+<a name="218"><span class="lineNum">     218 </span>            :  *    and may be removed.</a>
+<span class="lineNum">     219 </span>            :  */
+<span class="lineNum">     220 </span><span class="lineCov">          1 : bool SkBitmapProcState::chooseProcs() {</span>
+<span class="lineNum">     221 </span><span class="lineCov">          1 :     fInvProc            = fInvMatrix.getMapXYProc();</span>
+<span class="lineNum">     222 </span><span class="lineCov">          1 :     fInvSx              = SkScalarToFixed(fInvMatrix.getScaleX());</span>
+<span class="lineNum">     223 </span><span class="lineCov">          1 :     fInvSxFractionalInt = SkScalarToFractionalInt(fInvMatrix.getScaleX());</span>
+<span class="lineNum">     224 </span><span class="lineCov">          1 :     fInvKy              = SkScalarToFixed(fInvMatrix.getSkewY());</span>
+<span class="lineNum">     225 </span><span class="lineCov">          1 :     fInvKyFractionalInt = SkScalarToFractionalInt(fInvMatrix.getSkewY());</span>
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span><span class="lineCov">          1 :     fAlphaScale = SkAlpha255To256(SkColorGetA(fPaintColor));</span>
+<span class="lineNum">     228 </span>            : 
+<span class="lineNum">     229 </span><span class="lineCov">          1 :     fShaderProc32 = nullptr;</span>
+<span class="lineNum">     230 </span><span class="lineCov">          1 :     fShaderProc16 = nullptr;</span>
+<span class="lineNum">     231 </span><span class="lineCov">          1 :     fSampleProc32 = nullptr;</span>
+<span class="lineNum">     232 </span>            : 
+<span class="lineNum">     233 </span><span class="lineCov">          1 :     const bool trivialMatrix = (fInvMatrix.getType() &amp; ~SkMatrix::kTranslate_Mask) == 0;</span>
+<span class="lineNum">     234 </span><span class="lineCov">          1 :     const bool clampClamp = SkShader::kClamp_TileMode == fTileModeX &amp;&amp;</span>
+<span class="lineNum">     235 </span><span class="lineCov">          1 :                             SkShader::kClamp_TileMode == fTileModeY;</span>
+<span class="lineNum">     236 </span>            : 
+<span class="lineNum">     237 </span><span class="lineCov">          1 :     return this-&gt;chooseScanlineProcs(trivialMatrix, clampClamp);</span>
+<a name="238"><span class="lineNum">     238 </span>            : }</a>
+<span class="lineNum">     239 </span>            : 
+<span class="lineNum">     240 </span><span class="lineCov">          1 : bool SkBitmapProcState::chooseScanlineProcs(bool trivialMatrix, bool clampClamp) {</span>
+<span class="lineNum">     241 </span><span class="lineCov">          1 :     fMatrixProc = this-&gt;chooseMatrixProc(trivialMatrix);</span>
+<span class="lineNum">     242 </span>            :     // TODO(dominikg): SkASSERT(fMatrixProc) instead? chooseMatrixProc never returns nullptr.
+<span class="lineNum">     243 </span><span class="lineCov">          1 :     if (nullptr == fMatrixProc) {</span>
+<span class="lineNum">     244 </span>            :         return false;
+<span class="lineNum">     245 </span>            :     }
+<span class="lineNum">     246 </span>            : 
+<span class="lineNum">     247 </span>            :     ///////////////////////////////////////////////////////////////////////
+<span class="lineNum">     248 </span>            : 
+<span class="lineNum">     249 </span><span class="lineCov">          1 :     const SkAlphaType at = fPixmap.alphaType();</span>
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span>            :     // No need to do this if we're doing HQ sampling; if filter quality is
+<span class="lineNum">     252 </span>            :     // still set to HQ by the time we get here, then we must have installed
+<span class="lineNum">     253 </span>            :     // the shader procs above and can skip all this.
+<span class="lineNum">     254 </span>            : 
+<span class="lineNum">     255 </span><span class="lineCov">          1 :     if (fFilterQuality &lt; kHigh_SkFilterQuality) {</span>
+<span class="lineNum">     256 </span>            : 
+<span class="lineNum">     257 </span><span class="lineCov">          1 :         int index = 0;</span>
+<span class="lineNum">     258 </span><span class="lineCov">          1 :         if (fAlphaScale &lt; 256) {  // note: this distinction is not used for D16</span>
+<span class="lineNum">     259 </span><span class="lineCov">          1 :             index |= 1;</span>
+<span class="lineNum">     260 </span>            :         }
+<span class="lineNum">     261 </span><span class="lineCov">          1 :         if (fInvType &lt;= (SkMatrix::kTranslate_Mask | SkMatrix::kScale_Mask)) {</span>
+<span class="lineNum">     262 </span><span class="lineCov">          1 :             index |= 2;</span>
+<span class="lineNum">     263 </span>            :         }
+<span class="lineNum">     264 </span><span class="lineCov">          1 :         if (fFilterQuality &gt; kNone_SkFilterQuality) {</span>
+<span class="lineNum">     265 </span><span class="lineCov">          1 :             index |= 4;</span>
+<span class="lineNum">     266 </span>            :         }
+<span class="lineNum">     267 </span>            :         // bits 3,4,5 encoding the source bitmap format
+<span class="lineNum">     268 </span><span class="lineCov">          1 :         switch (fPixmap.colorType()) {</span>
+<span class="lineNum">     269 </span>            :             case kN32_SkColorType:
+<span class="lineNum">     270 </span><span class="lineCov">          1 :                 if (kPremul_SkAlphaType != at &amp;&amp; kOpaque_SkAlphaType != at) {</span>
+<span class="lineNum">     271 </span>            :                     return false;
+<span class="lineNum">     272 </span>            :                 }
+<span class="lineNum">     273 </span>            :                 index |= 0;
+<span class="lineNum">     274 </span>            :                 break;
+<span class="lineNum">     275 </span>            :             case kRGB_565_SkColorType:
+<span class="lineNum">     276 </span><span class="lineNoCov">          0 :                 index |= 8;</span>
+<span class="lineNum">     277 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     278 </span>            :             case kIndex_8_SkColorType:
+<span class="lineNum">     279 </span><span class="lineNoCov">          0 :                 if (kPremul_SkAlphaType != at &amp;&amp; kOpaque_SkAlphaType != at) {</span>
+<span class="lineNum">     280 </span>            :                     return false;
+<span class="lineNum">     281 </span>            :                 }
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 :                 index |= 16;</span>
+<span class="lineNum">     283 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     284 </span>            :             case kARGB_4444_SkColorType:
+<span class="lineNum">     285 </span><span class="lineNoCov">          0 :                 if (kPremul_SkAlphaType != at &amp;&amp; kOpaque_SkAlphaType != at) {</span>
+<span class="lineNum">     286 </span>            :                     return false;
+<span class="lineNum">     287 </span>            :                 }
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :                 index |= 24;</span>
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     290 </span>            :             case kAlpha_8_SkColorType:
+<span class="lineNum">     291 </span><span class="lineCov">          1 :                 index |= 32;</span>
+<span class="lineNum">     292 </span><span class="lineCov">          1 :                 fPaintPMColor = SkPreMultiplyColor(fPaintColor);</span>
+<span class="lineNum">     293 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">     294 </span>            :             case kGray_8_SkColorType:
+<span class="lineNum">     295 </span><span class="lineNoCov">          0 :                 index |= 40;</span>
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :                 fPaintPMColor = SkPreMultiplyColor(fPaintColor);</span>
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     298 </span>            :             default:
+<span class="lineNum">     299 </span>            :                 // TODO(dominikg): Should we ever get here? SkASSERT(false) instead?
+<span class="lineNum">     300 </span>            :                 return false;
+<span class="lineNum">     301 </span>            :         }
+<span class="lineNum">     302 </span>            : 
+<span class="lineNum">     303 </span>            : #if !defined(SK_ARM_HAS_NEON)
+<span class="lineNum">     304 </span>            :         static const SampleProc32 gSkBitmapProcStateSample32[] = {
+<span class="lineNum">     305 </span>            :             S32_opaque_D32_nofilter_DXDY,
+<span class="lineNum">     306 </span>            :             S32_alpha_D32_nofilter_DXDY,
+<span class="lineNum">     307 </span>            :             S32_opaque_D32_nofilter_DX,
+<span class="lineNum">     308 </span>            :             S32_alpha_D32_nofilter_DX,
+<span class="lineNum">     309 </span>            :             S32_opaque_D32_filter_DXDY,
+<span class="lineNum">     310 </span>            :             S32_alpha_D32_filter_DXDY,
+<span class="lineNum">     311 </span>            :             S32_opaque_D32_filter_DX,
+<span class="lineNum">     312 </span>            :             S32_alpha_D32_filter_DX,
+<span class="lineNum">     313 </span>            : 
+<span class="lineNum">     314 </span>            :             S16_opaque_D32_nofilter_DXDY,
+<span class="lineNum">     315 </span>            :             S16_alpha_D32_nofilter_DXDY,
+<span class="lineNum">     316 </span>            :             S16_opaque_D32_nofilter_DX,
+<span class="lineNum">     317 </span>            :             S16_alpha_D32_nofilter_DX,
+<span class="lineNum">     318 </span>            :             S16_opaque_D32_filter_DXDY,
+<span class="lineNum">     319 </span>            :             S16_alpha_D32_filter_DXDY,
+<span class="lineNum">     320 </span>            :             S16_opaque_D32_filter_DX,
+<span class="lineNum">     321 </span>            :             S16_alpha_D32_filter_DX,
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span>            :             SI8_opaque_D32_nofilter_DXDY,
+<span class="lineNum">     324 </span>            :             SI8_alpha_D32_nofilter_DXDY,
+<span class="lineNum">     325 </span>            :             SI8_opaque_D32_nofilter_DX,
+<span class="lineNum">     326 </span>            :             SI8_alpha_D32_nofilter_DX,
+<span class="lineNum">     327 </span>            :             SI8_opaque_D32_filter_DXDY,
+<span class="lineNum">     328 </span>            :             SI8_alpha_D32_filter_DXDY,
+<span class="lineNum">     329 </span>            :             SI8_opaque_D32_filter_DX,
+<span class="lineNum">     330 </span>            :             SI8_alpha_D32_filter_DX,
+<span class="lineNum">     331 </span>            : 
+<span class="lineNum">     332 </span>            :             S4444_opaque_D32_nofilter_DXDY,
+<span class="lineNum">     333 </span>            :             S4444_alpha_D32_nofilter_DXDY,
+<span class="lineNum">     334 </span>            :             S4444_opaque_D32_nofilter_DX,
+<span class="lineNum">     335 </span>            :             S4444_alpha_D32_nofilter_DX,
+<span class="lineNum">     336 </span>            :             S4444_opaque_D32_filter_DXDY,
+<span class="lineNum">     337 </span>            :             S4444_alpha_D32_filter_DXDY,
+<span class="lineNum">     338 </span>            :             S4444_opaque_D32_filter_DX,
+<span class="lineNum">     339 </span>            :             S4444_alpha_D32_filter_DX,
+<span class="lineNum">     340 </span>            : 
+<span class="lineNum">     341 </span>            :             // A8 treats alpha/opaque the same (equally efficient)
+<span class="lineNum">     342 </span>            :             SA8_alpha_D32_nofilter_DXDY,
+<span class="lineNum">     343 </span>            :             SA8_alpha_D32_nofilter_DXDY,
+<span class="lineNum">     344 </span>            :             SA8_alpha_D32_nofilter_DX,
+<span class="lineNum">     345 </span>            :             SA8_alpha_D32_nofilter_DX,
+<span class="lineNum">     346 </span>            :             SA8_alpha_D32_filter_DXDY,
+<span class="lineNum">     347 </span>            :             SA8_alpha_D32_filter_DXDY,
+<span class="lineNum">     348 </span>            :             SA8_alpha_D32_filter_DX,
+<span class="lineNum">     349 </span>            :             SA8_alpha_D32_filter_DX,
+<span class="lineNum">     350 </span>            : 
+<span class="lineNum">     351 </span>            :             // todo: possibly specialize on opaqueness
+<span class="lineNum">     352 </span>            :             SG8_alpha_D32_nofilter_DXDY,
+<span class="lineNum">     353 </span>            :             SG8_alpha_D32_nofilter_DXDY,
+<span class="lineNum">     354 </span>            :             SG8_alpha_D32_nofilter_DX,
+<span class="lineNum">     355 </span>            :             SG8_alpha_D32_nofilter_DX,
+<span class="lineNum">     356 </span>            :             SG8_alpha_D32_filter_DXDY,
+<span class="lineNum">     357 </span>            :             SG8_alpha_D32_filter_DXDY,
+<span class="lineNum">     358 </span>            :             SG8_alpha_D32_filter_DX,
+<span class="lineNum">     359 </span>            :             SG8_alpha_D32_filter_DX
+<span class="lineNum">     360 </span>            :         };
+<span class="lineNum">     361 </span>            : #endif
+<span class="lineNum">     362 </span>            : 
+<span class="lineNum">     363 </span><span class="lineCov">          1 :         fSampleProc32 = SK_ARM_NEON_WRAP(gSkBitmapProcStateSample32)[index];</span>
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span><span class="lineCov">          1 :         fShaderProc32 = this-&gt;chooseShaderProc32();</span>
+<span class="lineNum">     366 </span><span class="lineCov">          1 :         if (nullptr == fShaderProc32) {</span>
+<span class="lineNum">     367 </span>            :             // our special-case shaderprocs
+<span class="lineNum">     368 </span><span class="lineCov">          1 :             if (SK_ARM_NEON_WRAP(SI8_opaque_D32_filter_DX) == fSampleProc32 &amp;&amp; clampClamp) {</span>
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :                 fShaderProc32 = SK_ARM_NEON_WRAP(Clamp_SI8_opaque_D32_filter_DX_shaderproc);</span>
+<span class="lineNum">     370 </span><span class="lineCov">          1 :             } else if (S32_opaque_D32_nofilter_DX == fSampleProc32 &amp;&amp; clampClamp) {</span>
+<span class="lineNum">     371 </span><span class="lineCov">          1 :                 fShaderProc32 = Clamp_S32_opaque_D32_nofilter_DX_shaderproc;</span>
+<span class="lineNum">     372 </span>            :             }
+<span class="lineNum">     373 </span>            :         }
+<span class="lineNum">     374 </span>            :     }
+<span class="lineNum">     375 </span>            : 
+<span class="lineNum">     376 </span>            :     // see if our platform has any accelerated overrides
+<span class="lineNum">     377 </span><span class="lineCov">          1 :     this-&gt;platformProcs();</span>
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span><span class="lineCov">          1 :     return true;</span>
+<a name="380"><span class="lineNum">     380 </span>            : }</a>
+<span class="lineNum">     381 </span>            : 
+<span class="lineNum">     382 </span><span class="lineCov">          1 : static void Clamp_S32_D32_nofilter_trans_shaderproc(const void* sIn,</span>
+<span class="lineNum">     383 </span>            :                                                     int x, int y,
+<span class="lineNum">     384 </span>            :                                                     SkPMColor* SK_RESTRICT colors,
+<span class="lineNum">     385 </span>            :                                                     int count) {
+<span class="lineNum">     386 </span><span class="lineCov">          1 :     const SkBitmapProcState&amp; s = *static_cast&lt;const SkBitmapProcState*&gt;(sIn);</span>
+<span class="lineNum">     387 </span>            :     SkASSERT(((s.fInvType &amp; ~SkMatrix::kTranslate_Mask)) == 0);
+<span class="lineNum">     388 </span>            :     SkASSERT(s.fInvKy == 0);
+<span class="lineNum">     389 </span>            :     SkASSERT(count &gt; 0 &amp;&amp; colors != nullptr);
+<span class="lineNum">     390 </span>            :     SkASSERT(kNone_SkFilterQuality == s.fFilterQuality);
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span><span class="lineCov">          1 :     const int maxX = s.fPixmap.width() - 1;</span>
+<span class="lineNum">     393 </span><span class="lineCov">          1 :     const int maxY = s.fPixmap.height() - 1;</span>
+<span class="lineNum">     394 </span><span class="lineCov">          1 :     int ix = s.fFilterOneX + x;</span>
+<span class="lineNum">     395 </span><span class="lineCov">          1 :     int iy = SkClampMax(s.fFilterOneY + y, maxY);</span>
+<span class="lineNum">     396 </span><span class="lineCov">          1 :     const SkPMColor* row = s.fPixmap.addr32(0, iy);</span>
+<span class="lineNum">     397 </span>            : 
+<span class="lineNum">     398 </span>            :     // clamp to the left
+<span class="lineNum">     399 </span><span class="lineCov">          1 :     if (ix &lt; 0) {</span>
+<span class="lineNum">     400 </span><span class="lineCov">          1 :         int n = SkMin32(-ix, count);</span>
+<span class="lineNum">     401 </span><span class="lineCov">          1 :         sk_memset32(colors, row[0], n);</span>
+<span class="lineNum">     402 </span><span class="lineCov">          1 :         count -= n;</span>
+<span class="lineNum">     403 </span><span class="lineCov">          1 :         if (0 == count) {</span>
+<span class="lineNum">     404 </span>            :             return;
+<span class="lineNum">     405 </span>            :         }
+<span class="lineNum">     406 </span><span class="lineNoCov">          0 :         colors += n;</span>
+<span class="lineNum">     407 </span>            :         SkASSERT(-ix == n);
+<span class="lineNum">     408 </span><span class="lineNoCov">          0 :         ix = 0;</span>
+<span class="lineNum">     409 </span>            :     }
+<span class="lineNum">     410 </span>            :     // copy the middle
+<span class="lineNum">     411 </span><span class="lineCov">          1 :     if (ix &lt;= maxX) {</span>
+<span class="lineNum">     412 </span><span class="lineCov">          1 :         int n = SkMin32(maxX - ix + 1, count);</span>
+<span class="lineNum">     413 </span><span class="lineCov">          1 :         memcpy(colors, row + ix, n * sizeof(SkPMColor));</span>
+<span class="lineNum">     414 </span><span class="lineCov">          1 :         count -= n;</span>
+<span class="lineNum">     415 </span><span class="lineCov">          1 :         if (0 == count) {</span>
+<span class="lineNum">     416 </span>            :             return;
+<span class="lineNum">     417 </span>            :         }
+<span class="lineNum">     418 </span><span class="lineNoCov">          0 :         colors += n;</span>
+<span class="lineNum">     419 </span>            :     }
+<span class="lineNum">     420 </span>            :     SkASSERT(count &gt; 0);
+<span class="lineNum">     421 </span>            :     // clamp to the right
+<span class="lineNum">     422 </span><span class="lineNoCov">          0 :     sk_memset32(colors, row[maxX], count);</span>
+<span class="lineNum">     423 </span>            : }
+<span class="lineNum">     424 </span>            : 
+<span class="lineNum">     425 </span>            : static inline int sk_int_mod(int x, int n) {
+<span class="lineNum">     426 </span>            :     SkASSERT(n &gt; 0);
+<span class="lineNum">     427 </span><span class="lineCov">          1 :     if ((unsigned)x &gt;= (unsigned)n) {</span>
+<span class="lineNum">     428 </span><span class="lineCov">          1 :         if (x &lt; 0) {</span>
+<span class="lineNum">     429 </span><span class="lineCov">          1 :             x = n + ~(~x % n);</span>
+<span class="lineNum">     430 </span>            :         } else {
+<span class="lineNum">     431 </span><span class="lineCov">          1 :             x = x % n;</span>
+<span class="lineNum">     432 </span>            :         }
+<span class="lineNum">     433 </span>            :     }
+<span class="lineNum">     434 </span>            :     return x;
+<span class="lineNum">     435 </span>            : }
+<span class="lineNum">     436 </span>            : 
+<span class="lineNum">     437 </span>            : static inline int sk_int_mirror(int x, int n) {
+<span class="lineNum">     438 </span><span class="lineNoCov">          0 :     x = sk_int_mod(x, 2 * n);</span>
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :     if (x &gt;= n) {</span>
+<span class="lineNum">     440 </span><span class="lineNoCov">          0 :         x = n + ~(x - n);</span>
+<span class="lineNum">     441 </span>            :     }
+<span class="lineNum">     442 </span>            :     return x;
+<a name="443"><span class="lineNum">     443 </span>            : }</a>
+<span class="lineNum">     444 </span>            : 
+<span class="lineNum">     445 </span><span class="lineCov">          1 : static void Repeat_S32_D32_nofilter_trans_shaderproc(const void* sIn,</span>
+<span class="lineNum">     446 </span>            :                                                      int x, int y,
+<span class="lineNum">     447 </span>            :                                                      SkPMColor* SK_RESTRICT colors,
+<span class="lineNum">     448 </span>            :                                                      int count) {
+<span class="lineNum">     449 </span><span class="lineCov">          1 :     const SkBitmapProcState&amp; s = *static_cast&lt;const SkBitmapProcState*&gt;(sIn);</span>
+<span class="lineNum">     450 </span>            :     SkASSERT(((s.fInvType &amp; ~SkMatrix::kTranslate_Mask)) == 0);
+<span class="lineNum">     451 </span>            :     SkASSERT(s.fInvKy == 0);
+<span class="lineNum">     452 </span>            :     SkASSERT(count &gt; 0 &amp;&amp; colors != nullptr);
+<span class="lineNum">     453 </span>            :     SkASSERT(kNone_SkFilterQuality == s.fFilterQuality);
+<span class="lineNum">     454 </span>            : 
+<span class="lineNum">     455 </span><span class="lineCov">          1 :     const int stopX = s.fPixmap.width();</span>
+<span class="lineNum">     456 </span><span class="lineCov">          1 :     const int stopY = s.fPixmap.height();</span>
+<span class="lineNum">     457 </span><span class="lineCov">          1 :     int ix = s.fFilterOneX + x;</span>
+<span class="lineNum">     458 </span><span class="lineCov">          1 :     int iy = sk_int_mod(s.fFilterOneY + y, stopY);</span>
+<span class="lineNum">     459 </span><span class="lineCov">          1 :     const SkPMColor* row = s.fPixmap.addr32(0, iy);</span>
+<span class="lineNum">     460 </span>            : 
+<span class="lineNum">     461 </span><span class="lineCov">          1 :     ix = sk_int_mod(ix, stopX);</span>
+<span class="lineNum">     462 </span>            :     for (;;) {
+<span class="lineNum">     463 </span><span class="lineCov">          1 :         int n = SkMin32(stopX - ix, count);</span>
+<span class="lineNum">     464 </span><span class="lineCov">          1 :         memcpy(colors, row + ix, n * sizeof(SkPMColor));</span>
+<span class="lineNum">     465 </span><span class="lineCov">          1 :         count -= n;</span>
+<span class="lineNum">     466 </span><span class="lineCov">          1 :         if (0 == count) {</span>
+<span class="lineNum">     467 </span><span class="lineCov">          1 :             return;</span>
+<span class="lineNum">     468 </span>            :         }
+<span class="lineNum">     469 </span><span class="lineCov">          1 :         colors += n;</span>
+<span class="lineNum">     470 </span><span class="lineCov">          1 :         ix = 0;</span>
+<span class="lineNum">     471 </span><span class="lineCov">          1 :     }</span>
+<a name="472"><span class="lineNum">     472 </span>            : }</a>
+<span class="lineNum">     473 </span>            : 
+<span class="lineNum">     474 </span><span class="lineCov">          1 : static void S32_D32_constX_shaderproc(const void* sIn,</span>
+<span class="lineNum">     475 </span>            :                                       int x, int y,
+<span class="lineNum">     476 </span>            :                                       SkPMColor* SK_RESTRICT colors,
+<span class="lineNum">     477 </span>            :                                       int count) {
+<span class="lineNum">     478 </span><span class="lineCov">          1 :     const SkBitmapProcState&amp; s = *static_cast&lt;const SkBitmapProcState*&gt;(sIn);</span>
+<span class="lineNum">     479 </span>            :     SkASSERT((s.fInvType &amp; ~(SkMatrix::kTranslate_Mask | SkMatrix::kScale_Mask)) == 0);
+<span class="lineNum">     480 </span>            :     SkASSERT(s.fInvKy == 0);
+<span class="lineNum">     481 </span>            :     SkASSERT(count &gt; 0 &amp;&amp; colors != nullptr);
+<span class="lineNum">     482 </span>            :     SkASSERT(1 == s.fPixmap.width());
+<span class="lineNum">     483 </span>            : 
+<span class="lineNum">     484 </span>            :     int iY0;
+<span class="lineNum">     485 </span><span class="lineCov">          1 :     int iY1   SK_INIT_TO_AVOID_WARNING;</span>
+<span class="lineNum">     486 </span><span class="lineCov">          1 :     int iSubY SK_INIT_TO_AVOID_WARNING;</span>
+<span class="lineNum">     487 </span>            : 
+<span class="lineNum">     488 </span><span class="lineCov">          1 :     if (kNone_SkFilterQuality != s.fFilterQuality) {</span>
+<span class="lineNum">     489 </span><span class="lineCov">          1 :         SkBitmapProcState::MatrixProc mproc = s.getMatrixProc();</span>
+<span class="lineNum">     490 </span>            :         uint32_t xy[2];
+<span class="lineNum">     491 </span>            : 
+<span class="lineNum">     492 </span><span class="lineCov">          1 :         mproc(s, xy, 1, x, y);</span>
+<span class="lineNum">     493 </span>            : 
+<span class="lineNum">     494 </span><span class="lineCov">          1 :         iY0 = xy[0] &gt;&gt; 18;</span>
+<span class="lineNum">     495 </span><span class="lineCov">          1 :         iY1 = xy[0] &amp; 0x3FFF;</span>
+<span class="lineNum">     496 </span><span class="lineCov">          1 :         iSubY = (xy[0] &gt;&gt; 14) &amp; 0xF;</span>
+<span class="lineNum">     497 </span>            :     } else {
+<span class="lineNum">     498 </span>            :         int yTemp;
+<span class="lineNum">     499 </span>            : 
+<span class="lineNum">     500 </span><span class="lineCov">          1 :         if (s.fInvType &gt; SkMatrix::kTranslate_Mask) {</span>
+<span class="lineNum">     501 </span><span class="lineNoCov">          0 :             const SkBitmapProcStateAutoMapper mapper(s, x, y);</span>
+<span class="lineNum">     502 </span>            : 
+<span class="lineNum">     503 </span>            :             // When the matrix has a scale component the setup code in
+<span class="lineNum">     504 </span>            :             // chooseProcs multiples the inverse matrix by the inverse of the
+<span class="lineNum">     505 </span>            :             // bitmap's width and height. Since this method is going to do
+<span class="lineNum">     506 </span>            :             // its own tiling and sampling we need to undo that here.
+<span class="lineNum">     507 </span><span class="lineNoCov">          0 :             if (SkShader::kClamp_TileMode != s.fTileModeX ||</span>
+<span class="lineNum">     508 </span><span class="lineNoCov">          0 :                 SkShader::kClamp_TileMode != s.fTileModeY) {</span>
+<span class="lineNum">     509 </span><span class="lineNoCov">          0 :                 yTemp = SkFractionalIntToInt(mapper.fractionalIntY() * s.fPixmap.height());</span>
+<span class="lineNum">     510 </span>            :             } else {
+<span class="lineNum">     511 </span><span class="lineNoCov">          0 :                 yTemp = mapper.intY();</span>
+<span class="lineNum">     512 </span>            :             }
+<span class="lineNum">     513 </span>            :         } else {
+<span class="lineNum">     514 </span><span class="lineCov">          1 :             yTemp = s.fFilterOneY + y;</span>
+<span class="lineNum">     515 </span>            :         }
+<span class="lineNum">     516 </span>            : 
+<span class="lineNum">     517 </span><span class="lineCov">          1 :         const int stopY = s.fPixmap.height();</span>
+<span class="lineNum">     518 </span><span class="lineCov">          1 :         switch (s.fTileModeY) {</span>
+<span class="lineNum">     519 </span>            :             case SkShader::kClamp_TileMode:
+<span class="lineNum">     520 </span><span class="lineCov">          1 :                 iY0 = SkClampMax(yTemp, stopY-1);</span>
+<span class="lineNum">     521 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">     522 </span>            :             case SkShader::kRepeat_TileMode:
+<span class="lineNum">     523 </span><span class="lineCov">          1 :                 iY0 = sk_int_mod(yTemp, stopY);</span>
+<span class="lineNum">     524 </span><span class="lineCov">          1 :                 break;</span>
+<span class="lineNum">     525 </span>            :             case SkShader::kMirror_TileMode:
+<span class="lineNum">     526 </span>            :             default:
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :                 iY0 = sk_int_mirror(yTemp, stopY);</span>
+<span class="lineNum">     528 </span><span class="lineNoCov">          0 :                 break;</span>
+<span class="lineNum">     529 </span>            :         }
+<span class="lineNum">     530 </span>            : 
+<span class="lineNum">     531 </span>            : #ifdef SK_DEBUG
+<span class="lineNum">     532 </span>            :         {
+<span class="lineNum">     533 </span>            :             const SkBitmapProcStateAutoMapper mapper(s, x, y);
+<span class="lineNum">     534 </span>            :             int iY2;
+<span class="lineNum">     535 </span>            : 
+<span class="lineNum">     536 </span>            :             if (s.fInvType &gt; SkMatrix::kTranslate_Mask &amp;&amp;
+<span class="lineNum">     537 </span>            :                 (SkShader::kClamp_TileMode != s.fTileModeX ||
+<span class="lineNum">     538 </span>            :                  SkShader::kClamp_TileMode != s.fTileModeY)) {
+<span class="lineNum">     539 </span>            :                 iY2 = SkFractionalIntToInt(mapper.fractionalIntY() * s.fPixmap.height());
+<span class="lineNum">     540 </span>            :             } else {
+<span class="lineNum">     541 </span>            :                 iY2 = mapper.intY();
+<span class="lineNum">     542 </span>            :             }
+<span class="lineNum">     543 </span>            : 
+<span class="lineNum">     544 </span>            :             switch (s.fTileModeY) {
+<span class="lineNum">     545 </span>            :             case SkShader::kClamp_TileMode:
+<span class="lineNum">     546 </span>            :                 iY2 = SkClampMax(iY2, stopY-1);
+<span class="lineNum">     547 </span>            :                 break;
+<span class="lineNum">     548 </span>            :             case SkShader::kRepeat_TileMode:
+<span class="lineNum">     549 </span>            :                 iY2 = sk_int_mod(iY2, stopY);
+<span class="lineNum">     550 </span>            :                 break;
+<span class="lineNum">     551 </span>            :             case SkShader::kMirror_TileMode:
+<span class="lineNum">     552 </span>            :             default:
+<span class="lineNum">     553 </span>            :                 iY2 = sk_int_mirror(iY2, stopY);
+<span class="lineNum">     554 </span>            :                 break;
+<span class="lineNum">     555 </span>            :             }
+<span class="lineNum">     556 </span>            : 
+<span class="lineNum">     557 </span>            :             SkASSERT(iY0 == iY2);
+<span class="lineNum">     558 </span>            :         }
+<span class="lineNum">     559 </span>            : #endif
+<span class="lineNum">     560 </span>            :     }
+<span class="lineNum">     561 </span>            : 
+<span class="lineNum">     562 </span><span class="lineCov">          1 :     const SkPMColor* row0 = s.fPixmap.addr32(0, iY0);</span>
+<span class="lineNum">     563 </span>            :     SkPMColor color;
+<span class="lineNum">     564 </span>            : 
+<span class="lineNum">     565 </span><span class="lineCov">          1 :     if (kNone_SkFilterQuality != s.fFilterQuality) {</span>
+<span class="lineNum">     566 </span><span class="lineCov">          1 :         const SkPMColor* row1 = s.fPixmap.addr32(0, iY1);</span>
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span><span class="lineCov">          1 :         if (s.fAlphaScale &lt; 256) {</span>
+<span class="lineNum">     569 </span><span class="lineNoCov">          0 :             Filter_32_alpha(iSubY, *row0, *row1, &amp;color, s.fAlphaScale);</span>
+<span class="lineNum">     570 </span>            :         } else {
+<span class="lineNum">     571 </span><span class="lineCov">          1 :             Filter_32_opaque(iSubY, *row0, *row1, &amp;color);</span>
+<span class="lineNum">     572 </span>            :         }
+<span class="lineNum">     573 </span>            :     } else {
+<span class="lineNum">     574 </span><span class="lineCov">          1 :         if (s.fAlphaScale &lt; 256) {</span>
+<span class="lineNum">     575 </span><span class="lineCov">          1 :             color = SkAlphaMulQ(*row0, s.fAlphaScale);</span>
+<span class="lineNum">     576 </span>            :         } else {
+<span class="lineNum">     577 </span><span class="lineCov">          1 :             color = *row0;</span>
+<span class="lineNum">     578 </span>            :         }
+<span class="lineNum">     579 </span>            :     }
+<span class="lineNum">     580 </span>            : 
+<span class="lineNum">     581 </span><span class="lineCov">          1 :     sk_memset32(colors, color, count);</span>
+<a name="582"><span class="lineNum">     582 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     583 </span>            : 
+<span class="lineNum">     584 </span><span class="lineNoCov">          0 : static void DoNothing_shaderproc(const void*, int x, int y,</span>
+<span class="lineNum">     585 </span>            :                                  SkPMColor* SK_RESTRICT colors, int count) {
+<span class="lineNum">     586 </span>            :     // if we get called, the matrix is too tricky, so we just draw nothing
+<span class="lineNum">     587 </span>            :     sk_memset32(colors, 0, count);
+<a name="588"><span class="lineNum">     588 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     589 </span>            : 
+<span class="lineNum">     590 </span><span class="lineCov">          1 : bool SkBitmapProcState::setupForTranslate() {</span>
+<span class="lineNum">     591 </span>            :     SkPoint pt;
+<span class="lineNum">     592 </span><span class="lineCov">          1 :     const SkBitmapProcStateAutoMapper mapper(*this, 0, 0, &amp;pt);</span>
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span>            :     /*
+<span class="lineNum">     595 </span>            :      *  if the translate is larger than our ints, we can get random results, or
+<span class="lineNum">     596 </span>            :      *  worse, we might get 0x80000000, which wreaks havoc on us, since we can't
+<span class="lineNum">     597 </span>            :      *  negate it.
+<span class="lineNum">     598 </span>            :      */
+<span class="lineNum">     599 </span><span class="lineCov">          1 :     const SkScalar too_big = SkIntToScalar(1 &lt;&lt; 30);</span>
+<span class="lineNum">     600 </span><span class="lineCov">          1 :     if (SkScalarAbs(pt.fX) &gt; too_big || SkScalarAbs(pt.fY) &gt; too_big) {</span>
+<span class="lineNum">     601 </span>            :         return false;
+<span class="lineNum">     602 </span>            :     }
+<span class="lineNum">     603 </span>            : 
+<span class="lineNum">     604 </span>            :     // Since we know we're not filtered, we re-purpose these fields allow
+<span class="lineNum">     605 </span>            :     // us to go from device -&gt; src coordinates w/ just an integer add,
+<span class="lineNum">     606 </span>            :     // rather than running through the inverse-matrix
+<span class="lineNum">     607 </span><span class="lineCov">          1 :     fFilterOneX = mapper.intX();</span>
+<span class="lineNum">     608 </span><span class="lineCov">          1 :     fFilterOneY = mapper.intY();</span>
+<span class="lineNum">     609 </span>            : 
+<span class="lineNum">     610 </span><span class="lineCov">          1 :     return true;</span>
+<a name="611"><span class="lineNum">     611 </span>            : }</a>
+<span class="lineNum">     612 </span>            : 
+<span class="lineNum">     613 </span><span class="lineCov">          1 : SkBitmapProcState::ShaderProc32 SkBitmapProcState::chooseShaderProc32() {</span>
+<span class="lineNum">     614 </span>            : 
+<span class="lineNum">     615 </span><span class="lineCov">          1 :     if (kN32_SkColorType != fPixmap.colorType()) {</span>
+<span class="lineNum">     616 </span>            :         return nullptr;
+<span class="lineNum">     617 </span>            :     }
+<span class="lineNum">     618 </span>            : 
+<span class="lineNum">     619 </span>            :     static const unsigned kMask = SkMatrix::kTranslate_Mask | SkMatrix::kScale_Mask;
+<span class="lineNum">     620 </span>            : 
+<span class="lineNum">     621 </span><span class="lineCov">          1 :     if (1 == fPixmap.width() &amp;&amp; 0 == (fInvType &amp; ~kMask)) {</span>
+<span class="lineNum">     622 </span><span class="lineCov">          1 :         if (kNone_SkFilterQuality == fFilterQuality &amp;&amp;</span>
+<span class="lineNum">     623 </span><span class="lineCov">          1 :             fInvType &lt;= SkMatrix::kTranslate_Mask &amp;&amp;</span>
+<span class="lineNum">     624 </span><span class="lineCov">          1 :             !this-&gt;setupForTranslate()) {</span>
+<span class="lineNum">     625 </span>            :             return DoNothing_shaderproc;
+<span class="lineNum">     626 </span>            :         }
+<span class="lineNum">     627 </span><span class="lineCov">          1 :         return S32_D32_constX_shaderproc;</span>
+<span class="lineNum">     628 </span>            :     }
+<span class="lineNum">     629 </span>            : 
+<span class="lineNum">     630 </span><span class="lineCov">          1 :     if (fAlphaScale &lt; 256) {</span>
+<span class="lineNum">     631 </span>            :         return nullptr;
+<span class="lineNum">     632 </span>            :     }
+<span class="lineNum">     633 </span><span class="lineCov">          1 :     if (fInvType &gt; SkMatrix::kTranslate_Mask) {</span>
+<span class="lineNum">     634 </span>            :         return nullptr;
+<span class="lineNum">     635 </span>            :     }
+<span class="lineNum">     636 </span><span class="lineCov">          1 :     if (kNone_SkFilterQuality != fFilterQuality) {</span>
+<span class="lineNum">     637 </span>            :         return nullptr;
+<span class="lineNum">     638 </span>            :     }
+<span class="lineNum">     639 </span>            : 
+<span class="lineNum">     640 </span><span class="lineCov">          1 :     SkShader::TileMode tx = (SkShader::TileMode)fTileModeX;</span>
+<span class="lineNum">     641 </span><span class="lineCov">          1 :     SkShader::TileMode ty = (SkShader::TileMode)fTileModeY;</span>
+<span class="lineNum">     642 </span>            : 
+<span class="lineNum">     643 </span><span class="lineCov">          1 :     if (SkShader::kClamp_TileMode == tx &amp;&amp; SkShader::kClamp_TileMode == ty) {</span>
+<span class="lineNum">     644 </span><span class="lineCov">          1 :         if (this-&gt;setupForTranslate()) {</span>
+<span class="lineNum">     645 </span>            :             return Clamp_S32_D32_nofilter_trans_shaderproc;
+<span class="lineNum">     646 </span>            :         }
+<span class="lineNum">     647 </span><span class="lineNoCov">          0 :         return DoNothing_shaderproc;</span>
+<span class="lineNum">     648 </span>            :     }
+<span class="lineNum">     649 </span><span class="lineCov">          1 :     if (SkShader::kRepeat_TileMode == tx &amp;&amp; SkShader::kRepeat_TileMode == ty) {</span>
+<span class="lineNum">     650 </span><span class="lineCov">          1 :         if (this-&gt;setupForTranslate()) {</span>
+<span class="lineNum">     651 </span>            :             return Repeat_S32_D32_nofilter_trans_shaderproc;
+<span class="lineNum">     652 </span>            :         }
+<span class="lineNum">     653 </span><span class="lineNoCov">          0 :         return DoNothing_shaderproc;</span>
+<span class="lineNum">     654 </span>            :     }
+<span class="lineNum">     655 </span>            :     return nullptr;
+<span class="lineNum">     656 </span>            : }
+<span class="lineNum">     657 </span>            : 
+<span class="lineNum">     658 </span>            : ///////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">     659 </span>            : 
+<span class="lineNum">     660 </span>            : #ifdef SK_DEBUG
+<span class="lineNum">     661 </span>            : 
+<span class="lineNum">     662 </span>            : static void check_scale_nofilter(uint32_t bitmapXY[], int count,
+<span class="lineNum">     663 </span>            :                                  unsigned mx, unsigned my) {
+<span class="lineNum">     664 </span>            :     unsigned y = *bitmapXY++;
+<span class="lineNum">     665 </span>            :     SkASSERT(y &lt; my);
+<span class="lineNum">     666 </span>            : 
+<span class="lineNum">     667 </span>            :     const uint16_t* xptr = reinterpret_cast&lt;const uint16_t*&gt;(bitmapXY);
+<span class="lineNum">     668 </span>            :     for (int i = 0; i &lt; count; ++i) {
+<span class="lineNum">     669 </span>            :         SkASSERT(xptr[i] &lt; mx);
+<span class="lineNum">     670 </span>            :     }
+<span class="lineNum">     671 </span>            : }
+<span class="lineNum">     672 </span>            : 
+<span class="lineNum">     673 </span>            : static void check_scale_filter(uint32_t bitmapXY[], int count,
+<span class="lineNum">     674 </span>            :                                  unsigned mx, unsigned my) {
+<span class="lineNum">     675 </span>            :     uint32_t YY = *bitmapXY++;
+<span class="lineNum">     676 </span>            :     unsigned y0 = YY &gt;&gt; 18;
+<span class="lineNum">     677 </span>            :     unsigned y1 = YY &amp; 0x3FFF;
+<span class="lineNum">     678 </span>            :     SkASSERT(y0 &lt; my);
+<span class="lineNum">     679 </span>            :     SkASSERT(y1 &lt; my);
+<span class="lineNum">     680 </span>            : 
+<span class="lineNum">     681 </span>            :     for (int i = 0; i &lt; count; ++i) {
+<span class="lineNum">     682 </span>            :         uint32_t XX = bitmapXY[i];
+<span class="lineNum">     683 </span>            :         unsigned x0 = XX &gt;&gt; 18;
+<span class="lineNum">     684 </span>            :         unsigned x1 = XX &amp; 0x3FFF;
+<span class="lineNum">     685 </span>            :         SkASSERT(x0 &lt; mx);
+<span class="lineNum">     686 </span>            :         SkASSERT(x1 &lt; mx);
+<span class="lineNum">     687 </span>            :     }
+<span class="lineNum">     688 </span>            : }
+<span class="lineNum">     689 </span>            : 
+<span class="lineNum">     690 </span>            : static void check_affine_nofilter(uint32_t bitmapXY[], int count,
+<span class="lineNum">     691 </span>            :                                  unsigned mx, unsigned my) {
+<span class="lineNum">     692 </span>            :     for (int i = 0; i &lt; count; ++i) {
+<span class="lineNum">     693 </span>            :         uint32_t XY = bitmapXY[i];
+<span class="lineNum">     694 </span>            :         unsigned x = XY &amp; 0xFFFF;
+<span class="lineNum">     695 </span>            :         unsigned y = XY &gt;&gt; 16;
+<span class="lineNum">     696 </span>            :         SkASSERT(x &lt; mx);
+<span class="lineNum">     697 </span>            :         SkASSERT(y &lt; my);
+<span class="lineNum">     698 </span>            :     }
+<span class="lineNum">     699 </span>            : }
+<span class="lineNum">     700 </span>            : 
+<span class="lineNum">     701 </span>            : static void check_affine_filter(uint32_t bitmapXY[], int count,
+<span class="lineNum">     702 </span>            :                                  unsigned mx, unsigned my) {
+<span class="lineNum">     703 </span>            :     for (int i = 0; i &lt; count; ++i) {
+<span class="lineNum">     704 </span>            :         uint32_t YY = *bitmapXY++;
+<span class="lineNum">     705 </span>            :         unsigned y0 = YY &gt;&gt; 18;
+<span class="lineNum">     706 </span>            :         unsigned y1 = YY &amp; 0x3FFF;
+<span class="lineNum">     707 </span>            :         SkASSERT(y0 &lt; my);
+<span class="lineNum">     708 </span>            :         SkASSERT(y1 &lt; my);
+<span class="lineNum">     709 </span>            : 
+<span class="lineNum">     710 </span>            :         uint32_t XX = *bitmapXY++;
+<span class="lineNum">     711 </span>            :         unsigned x0 = XX &gt;&gt; 18;
+<span class="lineNum">     712 </span>            :         unsigned x1 = XX &amp; 0x3FFF;
+<span class="lineNum">     713 </span>            :         SkASSERT(x0 &lt; mx);
+<span class="lineNum">     714 </span>            :         SkASSERT(x1 &lt; mx);
+<span class="lineNum">     715 </span>            :     }
+<span class="lineNum">     716 </span>            : }
+<span class="lineNum">     717 </span>            : 
+<span class="lineNum">     718 </span>            : void SkBitmapProcState::DebugMatrixProc(const SkBitmapProcState&amp; state,
+<span class="lineNum">     719 </span>            :                                         uint32_t bitmapXY[], int count,
+<span class="lineNum">     720 </span>            :                                         int x, int y) {
+<span class="lineNum">     721 </span>            :     SkASSERT(bitmapXY);
+<span class="lineNum">     722 </span>            :     SkASSERT(count &gt; 0);
+<span class="lineNum">     723 </span>            : 
+<span class="lineNum">     724 </span>            :     state.fMatrixProc(state, bitmapXY, count, x, y);
+<span class="lineNum">     725 </span>            : 
+<span class="lineNum">     726 </span>            :     void (*proc)(uint32_t bitmapXY[], int count, unsigned mx, unsigned my);
+<span class="lineNum">     727 </span>            : 
+<span class="lineNum">     728 </span>            :     // There are four formats possible:
+<span class="lineNum">     729 </span>            :     //  scale -vs- affine
+<span class="lineNum">     730 </span>            :     //  filter -vs- nofilter
+<span class="lineNum">     731 </span>            :     if (state.fInvType &lt;= (SkMatrix::kTranslate_Mask | SkMatrix::kScale_Mask)) {
+<span class="lineNum">     732 </span>            :         proc = state.fFilterQuality != kNone_SkFilterQuality ?
+<span class="lineNum">     733 </span>            :                     check_scale_filter : check_scale_nofilter;
+<span class="lineNum">     734 </span>            :     } else {
+<span class="lineNum">     735 </span>            :         proc = state.fFilterQuality != kNone_SkFilterQuality ?
+<span class="lineNum">     736 </span>            :                     check_affine_filter : check_affine_nofilter;
+<span class="lineNum">     737 </span>            :     }
+<span class="lineNum">     738 </span>            :     proc(bitmapXY, count, state.fPixmap.width(), state.fPixmap.height());
+<span class="lineNum">     739 </span>            : }
+<span class="lineNum">     740 </span>            : 
+<span class="lineNum">     741 </span>            : SkBitmapProcState::MatrixProc SkBitmapProcState::getMatrixProc() const {
+<span class="lineNum">     742 </span>            :     return DebugMatrixProc;
+<span class="lineNum">     743 </span>            : }
+<span class="lineNum">     744 </span>            : 
+<span class="lineNum">     745 </span>            : #endif
+<span class="lineNum">     746 </span>            : 
+<span class="lineNum">     747 </span>            : ///////////////////////////////////////////////////////////////////////////////
+<span class="lineNum">     748 </span>            : /*
+<span class="lineNum">     749 </span>            :     The storage requirements for the different matrix procs are as follows,
+<span class="lineNum">     750 </span>            :     where each X or Y is 2 bytes, and N is the number of pixels/elements:
+<span class="lineNum">     751 </span>            : 
+<span class="lineNum">     752 </span>            :     scale/translate     nofilter      Y(4bytes) + N * X
+<span class="lineNum">     753 </span>            :     affine/perspective  nofilter      N * (X Y)
+<span class="lineNum">     754 </span>            :     scale/translate     filter        Y Y + N * (X X)
+<a name="755"><span class="lineNum">     755 </span>            :     affine/perspective  filter        N * (Y Y X X)</a>
+<span class="lineNum">     756 </span>            :  */
+<span class="lineNum">     757 </span><span class="lineCov">          1 : int SkBitmapProcState::maxCountForBufferSize(size_t bufferSize) const {</span>
+<span class="lineNum">     758 </span><span class="lineCov">          1 :     int32_t size = static_cast&lt;int32_t&gt;(bufferSize);</span>
+<span class="lineNum">     759 </span>            : 
+<span class="lineNum">     760 </span><span class="lineCov">          1 :     size &amp;= ~3; // only care about 4-byte aligned chunks</span>
+<span class="lineNum">     761 </span><span class="lineCov">          1 :     if (fInvType &lt;= (SkMatrix::kTranslate_Mask | SkMatrix::kScale_Mask)) {</span>
+<span class="lineNum">     762 </span><span class="lineCov">          1 :         size -= 4;   // the shared Y (or YY) coordinate</span>
+<span class="lineNum">     763 </span><span class="lineCov">          1 :         if (size &lt; 0) {</span>
+<span class="lineNum">     764 </span><span class="lineNoCov">          0 :             size = 0;</span>
+<span class="lineNum">     765 </span>            :         }
+<span class="lineNum">     766 </span><span class="lineCov">          1 :         size &gt;&gt;= 1;</span>
+<span class="lineNum">     767 </span>            :     } else {
+<span class="lineNum">     768 </span><span class="lineCov">          1 :         size &gt;&gt;= 2;</span>
+<span class="lineNum">     769 </span>            :     }
+<span class="lineNum">     770 </span>            : 
+<span class="lineNum">     771 </span><span class="lineCov">          1 :     if (fFilterQuality != kNone_SkFilterQuality) {</span>
+<span class="lineNum">     772 </span><span class="lineCov">          1 :         size &gt;&gt;= 1;</span>
+<span class="lineNum">     773 </span>            :     }
+<span class="lineNum">     774 </span>            : 
+<span class="lineNum">     775 </span><span class="lineCov">          1 :     return size;</span>
+<span class="lineNum">     776 </span>            : }
+<span class="lineNum">     777 </span>            : 
+<a name="778"><span class="lineNum">     778 </span>            : ///////////////////////</a>
+<span class="lineNum">     779 </span>            : 
+<span class="lineNum">     780 </span><span class="lineCov">          1 : void  Clamp_S32_opaque_D32_nofilter_DX_shaderproc(const void* sIn, int x, int y,</span>
+<span class="lineNum">     781 </span>            :                                                   SkPMColor* SK_RESTRICT dst, int count) {
+<span class="lineNum">     782 </span><span class="lineCov">          1 :     const SkBitmapProcState&amp; s = *static_cast&lt;const SkBitmapProcState*&gt;(sIn);</span>
+<span class="lineNum">     783 </span>            :     SkASSERT((s.fInvType &amp; ~(SkMatrix::kTranslate_Mask |
+<span class="lineNum">     784 </span>            :                              SkMatrix::kScale_Mask)) == 0);
+<span class="lineNum">     785 </span>            : 
+<span class="lineNum">     786 </span><span class="lineCov">          1 :     const unsigned maxX = s.fPixmap.width() - 1;</span>
+<span class="lineNum">     787 </span>            :     SkFractionalInt fx;
+<span class="lineNum">     788 </span>            :     int dstY;
+<span class="lineNum">     789 </span>            :     {
+<span class="lineNum">     790 </span><span class="lineCov">          1 :         const SkBitmapProcStateAutoMapper mapper(s, x, y);</span>
+<span class="lineNum">     791 </span><span class="lineCov">          1 :         const unsigned maxY = s.fPixmap.height() - 1;</span>
+<span class="lineNum">     792 </span><span class="lineCov">          1 :         dstY = SkClampMax(mapper.intY(), maxY);</span>
+<span class="lineNum">     793 </span><span class="lineCov">          1 :         fx = mapper.fractionalIntX();</span>
+<span class="lineNum">     794 </span>            :     }
+<span class="lineNum">     795 </span>            : 
+<span class="lineNum">     796 </span><span class="lineCov">          1 :     const SkPMColor* SK_RESTRICT src = s.fPixmap.addr32(0, dstY);</span>
+<span class="lineNum">     797 </span><span class="lineCov">          1 :     const SkFractionalInt dx = s.fInvSxFractionalInt;</span>
+<span class="lineNum">     798 </span>            : 
+<span class="lineNum">     799 </span>            :     // Check if we're safely inside [0...maxX] so no need to clamp each computed index.
+<span class="lineNum">     800 </span>            :     //
+<span class="lineNum">     801 </span><span class="lineCov">          1 :     if ((uint64_t)SkFractionalIntToInt(fx) &lt;= maxX &amp;&amp;</span>
+<span class="lineNum">     802 </span><span class="lineCov">          1 :         (uint64_t)SkFractionalIntToInt(fx + dx * (count - 1)) &lt;= maxX)</span>
+<span class="lineNum">     803 </span>            :     {
+<span class="lineNum">     804 </span><span class="lineCov">          1 :         int count4 = count &gt;&gt; 2;</span>
+<span class="lineNum">     805 </span><span class="lineCov">          1 :         for (int i = 0; i &lt; count4; ++i) {</span>
+<span class="lineNum">     806 </span><span class="lineCov">          1 :             SkPMColor src0 = src[SkFractionalIntToInt(fx)]; fx += dx;</span>
+<span class="lineNum">     807 </span><span class="lineCov">          1 :             SkPMColor src1 = src[SkFractionalIntToInt(fx)]; fx += dx;</span>
+<span class="lineNum">     808 </span><span class="lineCov">          1 :             SkPMColor src2 = src[SkFractionalIntToInt(fx)]; fx += dx;</span>
+<span class="lineNum">     809 </span><span class="lineCov">          1 :             SkPMColor src3 = src[SkFractionalIntToInt(fx)]; fx += dx;</span>
+<span class="lineNum">     810 </span><span class="lineCov">          1 :             dst[0] = src0;</span>
+<span class="lineNum">     811 </span><span class="lineCov">          1 :             dst[1] = src1;</span>
+<span class="lineNum">     812 </span><span class="lineCov">          1 :             dst[2] = src2;</span>
+<span class="lineNum">     813 </span><span class="lineCov">          1 :             dst[3] = src3;</span>
+<span class="lineNum">     814 </span><span class="lineCov">          1 :             dst += 4;</span>
+<span class="lineNum">     815 </span>            :         }
+<span class="lineNum">     816 </span><span class="lineCov">          1 :         for (int i = (count4 &lt;&lt; 2); i &lt; count; ++i) {</span>
+<span class="lineNum">     817 </span><span class="lineCov">          1 :             unsigned index = SkFractionalIntToInt(fx);</span>
+<span class="lineNum">     818 </span>            :             SkASSERT(index &lt;= maxX);
+<span class="lineNum">     819 </span><span class="lineCov">          1 :             *dst++ = src[index];</span>
+<span class="lineNum">     820 </span><span class="lineCov">          1 :             fx += dx;</span>
+<span class="lineNum">     821 </span>            :         }
+<span class="lineNum">     822 </span>            :     } else {
+<span class="lineNum">     823 </span><span class="lineNoCov">          0 :         for (int i = 0; i &lt; count; ++i) {</span>
+<span class="lineNum">     824 </span><span class="lineNoCov">          0 :             dst[i] = src[SkClampMax(SkFractionalIntToInt(fx), maxX)];</span>
+<span class="lineNum">     825 </span><span class="lineNoCov">          0 :             fx += dx;</span>
+<span class="lineNum">     826 </span>            :         }
+<span class="lineNum">     827 </span>            :     }
+<span class="lineNum">     828 </span><span class="lineCov">          1 : }</span>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

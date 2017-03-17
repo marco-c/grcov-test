@@ -1,0 +1,675 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - dom/media/MP3FrameParser.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">dom/media</a> - MP3FrameParser.cpp<span style="font-size: 80%;"> (source / <a href="MP3FrameParser.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">175</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">21</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* vim:set ts=2 sw=2 sts=2 et cindent: */
+<span class="lineNum">       3 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &quot;nsMemory.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;MP3FrameParser.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;VideoUtils.h&quot;
+<span class="lineNum">      12 </span>            : 
+<span class="lineNum">      13 </span>            : 
+<span class="lineNum">      14 </span>            : #define FROM_BIG_ENDIAN(X) ((uint32_t)((uint8_t)(X)[0] &lt;&lt; 24 | (uint8_t)(X)[1] &lt;&lt; 16 | \
+<span class="lineNum">      15 </span>            :                                        (uint8_t)(X)[2] &lt;&lt; 8 | (uint8_t)(X)[3]))
+<span class="lineNum">      16 </span>            : 
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : namespace mozilla {
+<span class="lineNum">      19 </span>            : 
+<span class="lineNum">      20 </span>            : /*
+<span class="lineNum">      21 </span>            :  * Following code taken from http://www.hydrogenaudio.org/forums/index.php?showtopic=85125
+<span class="lineNum">      22 </span>            :  * with permission from the author, Nick Wallette &lt;sirnickity@gmail.com&gt;.
+<span class="lineNum">      23 </span>            :  */
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : /* BEGIN shameless copy and paste */
+<span class="lineNum">      26 </span>            : 
+<span class="lineNum">      27 </span>            : // Bitrates - use [version][layer][bitrate]
+<span class="lineNum">      28 </span>            : const uint16_t mpeg_bitrates[4][4][16] = {
+<span class="lineNum">      29 </span>            :   { // Version 2.5
+<span class="lineNum">      30 </span>            :     { 0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, 0 }, // Reserved
+<span class="lineNum">      31 </span>            :     { 0,   8,  16,  24,  32,  40,  48,  56,  64,  80,  96, 112, 128, 144, 160, 0 }, // Layer 3
+<span class="lineNum">      32 </span>            :     { 0,   8,  16,  24,  32,  40,  48,  56,  64,  80,  96, 112, 128, 144, 160, 0 }, // Layer 2
+<span class="lineNum">      33 </span>            :     { 0,  32,  48,  56,  64,  80,  96, 112, 128, 144, 160, 176, 192, 224, 256, 0 }  // Layer 1
+<span class="lineNum">      34 </span>            :   },
+<span class="lineNum">      35 </span>            :   { // Reserved
+<span class="lineNum">      36 </span>            :     { 0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, 0 }, // Invalid
+<span class="lineNum">      37 </span>            :     { 0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, 0 }, // Invalid
+<span class="lineNum">      38 </span>            :     { 0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, 0 }, // Invalid
+<span class="lineNum">      39 </span>            :     { 0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, 0 }  // Invalid
+<span class="lineNum">      40 </span>            :   },
+<span class="lineNum">      41 </span>            :   { // Version 2
+<span class="lineNum">      42 </span>            :     { 0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, 0 }, // Reserved
+<span class="lineNum">      43 </span>            :     { 0,   8,  16,  24,  32,  40,  48,  56,  64,  80,  96, 112, 128, 144, 160, 0 }, // Layer 3
+<span class="lineNum">      44 </span>            :     { 0,   8,  16,  24,  32,  40,  48,  56,  64,  80,  96, 112, 128, 144, 160, 0 }, // Layer 2
+<span class="lineNum">      45 </span>            :     { 0,  32,  48,  56,  64,  80,  96, 112, 128, 144, 160, 176, 192, 224, 256, 0 }  // Layer 1
+<span class="lineNum">      46 </span>            :   },
+<span class="lineNum">      47 </span>            :   { // Version 1
+<span class="lineNum">      48 </span>            :     { 0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0, 0 }, // Reserved
+<span class="lineNum">      49 </span>            :     { 0,  32,  40,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320, 0 }, // Layer 3
+<span class="lineNum">      50 </span>            :     { 0,  32,  48,  56,  64,  80,  96, 112, 128, 160, 192, 224, 256, 320, 384, 0 }, // Layer 2
+<span class="lineNum">      51 </span>            :     { 0,  32,  64,  96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448, 0 }, // Layer 1
+<span class="lineNum">      52 </span>            :   }
+<span class="lineNum">      53 </span>            : };
+<span class="lineNum">      54 </span>            : 
+<span class="lineNum">      55 </span>            : // Sample rates - use [version][srate]
+<span class="lineNum">      56 </span>            : const uint16_t mpeg_srates[4][4] = {
+<span class="lineNum">      57 </span>            :     { 11025, 12000,  8000, 0 }, // MPEG 2.5
+<span class="lineNum">      58 </span>            :     {     0,     0,     0, 0 }, // Reserved
+<span class="lineNum">      59 </span>            :     { 22050, 24000, 16000, 0 }, // MPEG 2
+<span class="lineNum">      60 </span>            :     { 44100, 48000, 32000, 0 }  // MPEG 1
+<span class="lineNum">      61 </span>            : };
+<span class="lineNum">      62 </span>            : 
+<span class="lineNum">      63 </span>            : // Samples per frame - use [version][layer]
+<span class="lineNum">      64 </span>            : const uint16_t mpeg_frame_samples[4][4] = {
+<span class="lineNum">      65 </span>            : //    Rsvd     3     2     1  &lt; Layer  v Version
+<span class="lineNum">      66 </span>            :     {    0,  576, 1152,  384 }, //       2.5
+<span class="lineNum">      67 </span>            :     {    0,    0,    0,    0 }, //       Reserved
+<span class="lineNum">      68 </span>            :     {    0,  576, 1152,  384 }, //       2
+<span class="lineNum">      69 </span>            :     {    0, 1152, 1152,  384 }  //       1
+<span class="lineNum">      70 </span>            : };
+<span class="lineNum">      71 </span>            : 
+<span class="lineNum">      72 </span>            : // Slot size (MPEG unit of measurement) - use [layer]
+<span class="lineNum">      73 </span>            : const uint8_t mpeg_slot_size[4] = { 0, 1, 1, 4 }; // Rsvd, 3, 2, 1
+<a name="74"><span class="lineNum">      74 </span>            : </a>
+<span class="lineNum">      75 </span>            : uint16_t
+<span class="lineNum">      76 </span><span class="lineNoCov">          0 : MP3Frame::CalculateLength()</span>
+<span class="lineNum">      77 </span>            : {
+<span class="lineNum">      78 </span>            :   // Lookup real values of these fields
+<span class="lineNum">      79 </span><span class="lineNoCov">          0 :   uint32_t  bitrate   = mpeg_bitrates[mVersion][mLayer][mBitrate] * 1000;</span>
+<span class="lineNum">      80 </span><span class="lineNoCov">          0 :   uint32_t  samprate  = mpeg_srates[mVersion][mSampleRate];</span>
+<span class="lineNum">      81 </span><span class="lineNoCov">          0 :   uint16_t  samples   = mpeg_frame_samples[mVersion][mLayer];</span>
+<span class="lineNum">      82 </span><span class="lineNoCov">          0 :   uint8_t   slot_size = mpeg_slot_size[mLayer];</span>
+<span class="lineNum">      83 </span>            : 
+<span class="lineNum">      84 </span>            :   // In-between calculations
+<span class="lineNum">      85 </span><span class="lineNoCov">          0 :   float     bps       = (float)samples / 8.0;</span>
+<span class="lineNum">      86 </span><span class="lineNoCov">          0 :   float     fsize     = ( (bps * (float)bitrate) / (float)samprate )</span>
+<span class="lineNum">      87 </span><span class="lineNoCov">          0 :     + ( (mPad) ? slot_size : 0 );</span>
+<span class="lineNum">      88 </span>            : 
+<span class="lineNum">      89 </span>            :   // Frame sizes are truncated integers
+<span class="lineNum">      90 </span><span class="lineNoCov">          0 :   return (uint16_t)fsize;</span>
+<span class="lineNum">      91 </span>            : }
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span>            : /* END shameless copy and paste */
+<span class="lineNum">      94 </span>            : 
+<span class="lineNum">      95 </span>            : 
+<a name="96"><span class="lineNum">      96 </span>            : /** MP3Parser methods **/</a>
+<span class="lineNum">      97 </span>            : 
+<span class="lineNum">      98 </span><span class="lineNoCov">          0 : MP3Parser::MP3Parser()</span>
+<span class="lineNum">      99 </span><span class="lineNoCov">          0 :   : mCurrentChar(0)</span>
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 : { }</span>
+<a name="101"><span class="lineNum">     101 </span>            : </a>
+<span class="lineNum">     102 </span>            : void
+<span class="lineNum">     103 </span><span class="lineNoCov">          0 : MP3Parser::Reset()</span>
+<span class="lineNum">     104 </span>            : {
+<span class="lineNum">     105 </span><span class="lineNoCov">          0 :   mCurrentChar = 0;</span>
+<span class="lineNum">     106 </span><span class="lineNoCov">          0 : }</span>
+<a name="107"><span class="lineNum">     107 </span>            : </a>
+<span class="lineNum">     108 </span>            : uint16_t
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 : MP3Parser::ParseFrameLength(uint8_t ch)</span>
+<span class="lineNum">     110 </span>            : {
+<span class="lineNum">     111 </span><span class="lineNoCov">          0 :   mData.mRaw[mCurrentChar] = ch;</span>
+<span class="lineNum">     112 </span>            : 
+<span class="lineNum">     113 </span><span class="lineNoCov">          0 :   MP3Frame &amp;frame = mData.mFrame;</span>
+<span class="lineNum">     114 </span>            : 
+<span class="lineNum">     115 </span>            :   // Validate MP3 header as we read. We can't mistake the start of an MP3 frame
+<span class="lineNum">     116 </span>            :   // for the middle of another frame due to the sync byte at the beginning
+<span class="lineNum">     117 </span>            :   // of the frame.
+<span class="lineNum">     118 </span>            : 
+<span class="lineNum">     119 </span>            :   // The only valid position for an all-high byte is the sync byte at the
+<span class="lineNum">     120 </span>            :   // beginning of the frame.
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :   if (ch == 0xff) {</span>
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :     mCurrentChar = 0;</span>
+<span class="lineNum">     123 </span>            :   }
+<span class="lineNum">     124 </span>            : 
+<span class="lineNum">     125 </span>            :   // Make sure the current byte is valid in context. If not, reset the parser.
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :   if (mCurrentChar == 2) {</span>
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 :     if (frame.mBitrate == 0x0f) {</span>
+<span class="lineNum">     128 </span>            :       goto fail;
+<span class="lineNum">     129 </span>            :     }
+<span class="lineNum">     130 </span><span class="lineNoCov">          0 :   } else if (mCurrentChar == 1) {</span>
+<span class="lineNum">     131 </span><span class="lineNoCov">          0 :     if (frame.mSync2 != 0x07</span>
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :         || frame.mVersion == 0x01</span>
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :         || frame.mLayer == 0x00) {</span>
+<span class="lineNum">     134 </span>            :       goto fail;
+<span class="lineNum">     135 </span>            :     }
+<span class="lineNum">     136 </span>            :   }
+<span class="lineNum">     137 </span>            : 
+<span class="lineNum">     138 </span>            :   // The only valid character at the beginning of the header is 0xff. Fail if
+<span class="lineNum">     139 </span>            :   // it's different.
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :   if (mCurrentChar == 0 &amp;&amp; frame.mSync1 != 0xff) {</span>
+<span class="lineNum">     141 </span>            :     // Couldn't find the sync byte. Fail.
+<span class="lineNum">     142 </span>            :     return 0;
+<span class="lineNum">     143 </span>            :   }
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span><span class="lineNoCov">          0 :   mCurrentChar++;</span>
+<span class="lineNum">     146 </span>            :   MOZ_ASSERT(mCurrentChar &lt;= sizeof(MP3Frame));
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span>            :   // Don't have a full header yet.
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :   if (mCurrentChar &lt; sizeof(MP3Frame)) {</span>
+<span class="lineNum">     150 </span>            :     return 0;
+<span class="lineNum">     151 </span>            :   }
+<span class="lineNum">     152 </span>            : 
+<span class="lineNum">     153 </span>            :   // Woo, valid header. Return the length.
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :   mCurrentChar = 0;</span>
+<span class="lineNum">     155 </span><span class="lineNoCov">          0 :   return frame.CalculateLength();</span>
+<span class="lineNum">     156 </span>            : 
+<span class="lineNum">     157 </span>            : fail:
+<span class="lineNum">     158 </span>            :   Reset();
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :   return 0;</span>
+<span class="lineNum">     160 </span>            : }
+<a name="161"><span class="lineNum">     161 </span>            : </a>
+<span class="lineNum">     162 </span>            : uint32_t
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 : MP3Parser::GetSampleRate()</span>
+<span class="lineNum">     164 </span>            : {
+<span class="lineNum">     165 </span><span class="lineNoCov">          0 :   MP3Frame &amp;frame = mData.mFrame;</span>
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :   return mpeg_srates[frame.mVersion][frame.mSampleRate];</span>
+<span class="lineNum">     167 </span>            : }
+<a name="168"><span class="lineNum">     168 </span>            : </a>
+<span class="lineNum">     169 </span>            : uint32_t
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 : MP3Parser::GetSamplesPerFrame()</span>
+<span class="lineNum">     171 </span>            : {
+<span class="lineNum">     172 </span><span class="lineNoCov">          0 :   MP3Frame &amp;frame = mData.mFrame;</span>
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 :   return mpeg_frame_samples[frame.mVersion][frame.mLayer];</span>
+<span class="lineNum">     174 </span>            : }
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span>            : 
+<span class="lineNum">     177 </span>            : /** ID3Parser methods **/
+<span class="lineNum">     178 </span>            : 
+<span class="lineNum">     179 </span>            : const char sID3Head[3] = { 'I', 'D', '3' };
+<span class="lineNum">     180 </span>            : const uint32_t ID3_HEADER_LENGTH = 10;
+<span class="lineNum">     181 </span>            : const uint32_t ID3_FOOTER_LENGTH = 10;
+<a name="182"><span class="lineNum">     182 </span>            : const uint8_t ID3_FOOTER_PRESENT = 0x10;</a>
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 : ID3Parser::ID3Parser()</span>
+<span class="lineNum">     185 </span>            :   : mCurrentChar(0)
+<span class="lineNum">     186 </span>            :   , mVersion(0)
+<span class="lineNum">     187 </span>            :   , mFlags(0)
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :   , mHeaderLength(0)</span>
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 : { }</span>
+<a name="190"><span class="lineNum">     190 </span>            : </a>
+<span class="lineNum">     191 </span>            : void
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 : ID3Parser::Reset()</span>
+<span class="lineNum">     193 </span>            : {
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 :   mCurrentChar = mVersion = mFlags = mHeaderLength = 0;</span>
+<span class="lineNum">     195 </span><span class="lineNoCov">          0 : }</span>
+<a name="196"><span class="lineNum">     196 </span>            : </a>
+<span class="lineNum">     197 </span>            : bool
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 : ID3Parser::ParseChar(char ch)</span>
+<span class="lineNum">     199 </span>            : {
+<span class="lineNum">     200 </span><span class="lineNoCov">          0 :   switch (mCurrentChar) {</span>
+<span class="lineNum">     201 </span>            :     // The first three bytes of an ID3v2 header must match the string &quot;ID3&quot;.
+<span class="lineNum">     202 </span>            :     case 0: case 1: case 2:
+<span class="lineNum">     203 </span><span class="lineNoCov">          0 :       if (ch != sID3Head[mCurrentChar]) {</span>
+<span class="lineNum">     204 </span>            :         goto fail;
+<span class="lineNum">     205 </span>            :       }
+<span class="lineNum">     206 </span>            :       break;
+<span class="lineNum">     207 </span>            :     // The fourth and fifth bytes give the version, between 2 and 4.
+<span class="lineNum">     208 </span>            :     case 3:
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 :       if (ch &lt; '\2' || ch &gt; '\4') {</span>
+<span class="lineNum">     210 </span>            :         goto fail;
+<span class="lineNum">     211 </span>            :       }
+<span class="lineNum">     212 </span><span class="lineNoCov">          0 :       mVersion = uint8_t(ch);</span>
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :       break;</span>
+<span class="lineNum">     214 </span>            :     case 4:
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 :       if (ch != '\0') {</span>
+<span class="lineNum">     216 </span>            :         goto fail;
+<span class="lineNum">     217 </span>            :       }
+<span class="lineNum">     218 </span>            :       break;
+<span class="lineNum">     219 </span>            :     // The sixth byte gives the flags; valid flags depend on the version.
+<span class="lineNum">     220 </span>            :     case 5:
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :       if ((ch &amp; (0xff &gt;&gt; mVersion)) != '\0') {</span>
+<span class="lineNum">     222 </span>            :         goto fail;
+<span class="lineNum">     223 </span>            :       }
+<span class="lineNum">     224 </span><span class="lineNoCov">          0 :       mFlags = uint8_t(ch);</span>
+<span class="lineNum">     225 </span><span class="lineNoCov">          0 :       break;</span>
+<span class="lineNum">     226 </span>            :     // Bytes seven through ten give the sum of the byte length of the extended
+<span class="lineNum">     227 </span>            :     // header, the padding and the frames after unsynchronisation.
+<span class="lineNum">     228 </span>            :     // These bytes form a 28-bit integer, with the high bit of each byte unset.
+<span class="lineNum">     229 </span>            :     case 6: case 7: case 8: case 9:
+<span class="lineNum">     230 </span><span class="lineNoCov">          0 :       if (ch &amp; 0x80) {</span>
+<span class="lineNum">     231 </span>            :         goto fail;
+<span class="lineNum">     232 </span>            :       }
+<span class="lineNum">     233 </span><span class="lineNoCov">          0 :       mHeaderLength &lt;&lt;= 7;</span>
+<span class="lineNum">     234 </span><span class="lineNoCov">          0 :       mHeaderLength |= ch;</span>
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :       if (mCurrentChar == 9) {</span>
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :         mHeaderLength += ID3_HEADER_LENGTH;</span>
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :         mHeaderLength += (mFlags &amp; ID3_FOOTER_PRESENT) ? ID3_FOOTER_LENGTH : 0;</span>
+<span class="lineNum">     238 </span>            :       }
+<span class="lineNum">     239 </span>            :       break;
+<span class="lineNum">     240 </span>            :     default:
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :       MOZ_CRASH(&quot;Header already fully parsed!&quot;);</span>
+<span class="lineNum">     242 </span>            :   }
+<span class="lineNum">     243 </span>            : 
+<span class="lineNum">     244 </span><span class="lineNoCov">          0 :   mCurrentChar++;</span>
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span><span class="lineNoCov">          0 :   return IsParsed();</span>
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span>            : fail:
+<span class="lineNum">     249 </span><span class="lineNoCov">          0 :   if (mCurrentChar) {</span>
+<span class="lineNum">     250 </span>            :     Reset();
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 :     return ParseChar(ch);</span>
+<span class="lineNum">     252 </span>            :   }
+<span class="lineNum">     253 </span>            :   Reset();
+<span class="lineNum">     254 </span><span class="lineNoCov">          0 :   return false;</span>
+<span class="lineNum">     255 </span>            : }
+<a name="256"><span class="lineNum">     256 </span>            : </a>
+<span class="lineNum">     257 </span>            : bool
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 : ID3Parser::IsParsed() const</span>
+<span class="lineNum">     259 </span>            : {
+<span class="lineNum">     260 </span><span class="lineNoCov">          0 :   return mCurrentChar &gt;= ID3_HEADER_LENGTH;</span>
+<span class="lineNum">     261 </span>            : }
+<a name="262"><span class="lineNum">     262 </span>            : </a>
+<span class="lineNum">     263 </span>            : uint32_t
+<span class="lineNum">     264 </span><span class="lineNoCov">          0 : ID3Parser::GetHeaderLength() const</span>
+<span class="lineNum">     265 </span>            : {
+<span class="lineNum">     266 </span>            :   MOZ_ASSERT(IsParsed(),
+<span class="lineNum">     267 </span>            :              &quot;Queried length of ID3 header before parsing finished.&quot;);
+<span class="lineNum">     268 </span><span class="lineNoCov">          0 :   return mHeaderLength;</span>
+<span class="lineNum">     269 </span>            : }
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span>            : 
+<span class="lineNum">     272 </span>            : /** VBR header helper stuff **/
+<span class="lineNum">     273 </span>            : 
+<span class="lineNum">     274 </span>            : // Helper function to find a VBR header in an MP3 frame.
+<span class="lineNum">     275 </span>            : // Based on information from
+<span class="lineNum">     276 </span>            : // http://www.codeproject.com/Articles/8295/MPEG-Audio-Frame-Header
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span>            : const uint32_t VBRI_TAG = FROM_BIG_ENDIAN(&quot;VBRI&quot;);
+<span class="lineNum">     279 </span>            : const uint32_t VBRI_OFFSET = 32 - sizeof(MP3Frame);
+<span class="lineNum">     280 </span>            : const uint32_t VBRI_FRAME_COUNT_OFFSET = VBRI_OFFSET + 14;
+<span class="lineNum">     281 </span>            : const uint32_t VBRI_MIN_FRAME_SIZE = VBRI_OFFSET + 26;
+<span class="lineNum">     282 </span>            : 
+<span class="lineNum">     283 </span>            : const uint32_t XING_TAG = FROM_BIG_ENDIAN(&quot;Xing&quot;);
+<span class="lineNum">     284 </span>            : enum XingFlags {
+<span class="lineNum">     285 </span>            :   XING_HAS_NUM_FRAMES = 0x01,
+<span class="lineNum">     286 </span>            :   XING_HAS_NUM_BYTES = 0x02,
+<span class="lineNum">     287 </span>            :   XING_HAS_TOC = 0x04,
+<span class="lineNum">     288 </span>            :   XING_HAS_VBR_SCALE = 0x08
+<span class="lineNum">     289 </span>            : };
+<a name="290"><span class="lineNum">     290 </span>            : </a>
+<span class="lineNum">     291 </span>            : static int64_t
+<span class="lineNum">     292 </span><span class="lineNoCov">          0 : ParseXing(const char *aBuffer)</span>
+<span class="lineNum">     293 </span>            : {
+<span class="lineNum">     294 </span><span class="lineNoCov">          0 :   uint32_t flags = FROM_BIG_ENDIAN(aBuffer + 4);</span>
+<span class="lineNum">     295 </span>            : 
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :   if (!(flags &amp; XING_HAS_NUM_FRAMES)) {</span>
+<span class="lineNum">     297 </span>            :     NS_WARNING(&quot;VBR file without frame count. Duration estimation likely to &quot;
+<span class="lineNum">     298 </span>            :                &quot;be totally wrong.&quot;);
+<span class="lineNum">     299 </span>            :     return -1;
+<span class="lineNum">     300 </span>            :   }
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span><span class="lineNoCov">          0 :   int64_t numFrames = -1;</span>
+<span class="lineNum">     303 </span><span class="lineNoCov">          0 :   if (flags &amp; XING_HAS_NUM_FRAMES) {</span>
+<span class="lineNum">     304 </span><span class="lineNoCov">          0 :     numFrames = FROM_BIG_ENDIAN(aBuffer + 8);</span>
+<span class="lineNum">     305 </span>            :   }
+<span class="lineNum">     306 </span>            : 
+<span class="lineNum">     307 </span><span class="lineNoCov">          0 :   return numFrames;</span>
+<span class="lineNum">     308 </span>            : }
+<a name="309"><span class="lineNum">     309 </span>            : </a>
+<span class="lineNum">     310 </span>            : static int64_t
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 : FindNumVBRFrames(const nsCString&amp; aFrame)</span>
+<span class="lineNum">     312 </span>            : {
+<span class="lineNum">     313 </span><span class="lineNoCov">          0 :   const char *buffer = aFrame.get();</span>
+<span class="lineNum">     314 </span><span class="lineNoCov">          0 :   const char *bufferEnd = aFrame.get() + aFrame.Length();</span>
+<span class="lineNum">     315 </span>            : 
+<span class="lineNum">     316 </span>            :   // VBRI header is nice and well-defined; let's try to find that first.
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :   if (aFrame.Length() &gt; VBRI_MIN_FRAME_SIZE &amp;&amp;</span>
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :       FROM_BIG_ENDIAN(buffer + VBRI_OFFSET) == VBRI_TAG) {</span>
+<span class="lineNum">     319 </span><span class="lineNoCov">          0 :     return FROM_BIG_ENDIAN(buffer + VBRI_FRAME_COUNT_OFFSET);</span>
+<span class="lineNum">     320 </span>            :   }
+<span class="lineNum">     321 </span>            : 
+<span class="lineNum">     322 </span>            :   // We have to search for the Xing header as its position can change.
+<span class="lineNum">     323 </span><span class="lineNoCov">          0 :   for (; buffer + sizeof(XING_TAG) &lt; bufferEnd; buffer++) {</span>
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 :     if (FROM_BIG_ENDIAN(buffer) == XING_TAG) {</span>
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :       return ParseXing(buffer);</span>
+<span class="lineNum">     326 </span>            :     }
+<span class="lineNum">     327 </span>            :   }
+<span class="lineNum">     328 </span>            : 
+<span class="lineNum">     329 </span>            :   return -1;
+<span class="lineNum">     330 </span>            : }
+<span class="lineNum">     331 </span>            : 
+<span class="lineNum">     332 </span>            : 
+<span class="lineNum">     333 </span>            : /** MP3FrameParser methods **/
+<span class="lineNum">     334 </span>            : 
+<span class="lineNum">     335 </span>            : // Some MP3's have large ID3v2 tags, up to 150KB, so we allow lots of
+<span class="lineNum">     336 </span>            : // skipped bytes to be read, just in case, before we give up and assume
+<span class="lineNum">     337 </span>            : // we're not parsing an MP3 stream.
+<span class="lineNum">     338 </span>            : static const uint32_t MAX_SKIPPED_BYTES = 4096;
+<span class="lineNum">     339 </span>            : 
+<span class="lineNum">     340 </span>            : enum {
+<span class="lineNum">     341 </span>            :   MP3_HEADER_LENGTH   = 4,
+<a name="342"><span class="lineNum">     342 </span>            : };</a>
+<span class="lineNum">     343 </span>            : 
+<span class="lineNum">     344 </span><span class="lineNoCov">          0 : MP3FrameParser::MP3FrameParser(int64_t aLength)</span>
+<span class="lineNum">     345 </span>            : : mLock(&quot;MP3FrameParser.mLock&quot;),
+<span class="lineNum">     346 </span>            :   mTotalID3Size(0),
+<span class="lineNum">     347 </span>            :   mTotalFrameSize(0),
+<span class="lineNum">     348 </span>            :   mFrameCount(0),
+<span class="lineNum">     349 </span>            :   mOffset(0),
+<span class="lineNum">     350 </span>            :   mLength(aLength),
+<span class="lineNum">     351 </span>            :   mMP3Offset(-1),
+<span class="lineNum">     352 </span>            :   mSamplesPerSecond(0),
+<span class="lineNum">     353 </span>            :   mFirstFrameEnd(-1),
+<span class="lineNum">     354 </span><span class="lineNoCov">          0 :   mIsMP3(MAYBE_MP3)</span>
+<a name="355"><span class="lineNum">     355 </span><span class="lineNoCov">          0 : { }</span></a>
+<span class="lineNum">     356 </span>            : 
+<span class="lineNum">     357 </span><span class="lineNoCov">          0 : nsresult MP3FrameParser::ParseBuffer(const uint8_t* aBuffer,</span>
+<span class="lineNum">     358 </span>            :                                      uint32_t aLength,
+<span class="lineNum">     359 </span>            :                                      int64_t aStreamOffset,
+<span class="lineNum">     360 </span>            :                                      uint32_t* aOutBytesRead)
+<span class="lineNum">     361 </span>            : {
+<span class="lineNum">     362 </span>            :   // Iterate forwards over the buffer, looking for ID3 tag, or MP3
+<span class="lineNum">     363 </span>            :   // Frame headers.
+<span class="lineNum">     364 </span><span class="lineNoCov">          0 :   const uint8_t *buffer = aBuffer;</span>
+<span class="lineNum">     365 </span><span class="lineNoCov">          0 :   const uint8_t *bufferEnd = aBuffer + aLength;</span>
+<span class="lineNum">     366 </span>            : 
+<span class="lineNum">     367 </span>            :   // If we haven't found any MP3 frame data yet, there might be ID3 headers
+<span class="lineNum">     368 </span>            :   // we can skip over.
+<span class="lineNum">     369 </span><span class="lineNoCov">          0 :   if (mMP3Offset &lt; 0) {</span>
+<span class="lineNum">     370 </span><span class="lineNoCov">          0 :     for (const uint8_t *ch = buffer; ch &lt; bufferEnd; ch++) {</span>
+<span class="lineNum">     371 </span><span class="lineNoCov">          0 :       if (mID3Parser.ParseChar(*ch)) {</span>
+<span class="lineNum">     372 </span>            :         // Found an ID3 header. We don't care about the body of the header, so
+<span class="lineNum">     373 </span>            :         // just skip past.
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :         buffer = ch + mID3Parser.GetHeaderLength() - (ID3_HEADER_LENGTH - 1);</span>
+<span class="lineNum">     375 </span>            : 
+<span class="lineNum">     376 </span><span class="lineNoCov">          0 :         if (buffer &lt;= ch) {</span>
+<span class="lineNum">     377 </span>            :           return NS_ERROR_FAILURE;
+<span class="lineNum">     378 </span>            :         }
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span><span class="lineNoCov">          0 :         ch = buffer;</span>
+<span class="lineNum">     381 </span>            : 
+<span class="lineNum">     382 </span><span class="lineNoCov">          0 :         mTotalID3Size += mID3Parser.GetHeaderLength();</span>
+<span class="lineNum">     383 </span>            : 
+<span class="lineNum">     384 </span>            :         // Yes, this is an MP3!
+<span class="lineNum">     385 </span><span class="lineNoCov">          0 :         mIsMP3 = DEFINITELY_MP3;</span>
+<span class="lineNum">     386 </span>            : 
+<span class="lineNum">     387 </span><span class="lineNoCov">          0 :         mID3Parser.Reset();</span>
+<span class="lineNum">     388 </span>            :       }
+<span class="lineNum">     389 </span>            :     }
+<span class="lineNum">     390 </span>            :   }
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span>            :   // The first MP3 frame in a variable bitrate stream can contain metadata
+<span class="lineNum">     393 </span>            :   // for duration estimation and seeking, so we buffer that first frame here.
+<span class="lineNum">     394 </span><span class="lineNoCov">          0 :   if (aStreamOffset &lt; mFirstFrameEnd) {</span>
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 :     uint64_t copyLen = std::min((int64_t)aLength, mFirstFrameEnd - aStreamOffset);</span>
+<span class="lineNum">     396 </span><span class="lineNoCov">          0 :     mFirstFrame.Append((const char *)buffer, copyLen);</span>
+<span class="lineNum">     397 </span><span class="lineNoCov">          0 :     buffer += copyLen;</span>
+<span class="lineNum">     398 </span>            :   }
+<span class="lineNum">     399 </span>            : 
+<span class="lineNum">     400 </span><span class="lineNoCov">          0 :   while (buffer &lt; bufferEnd) {</span>
+<span class="lineNum">     401 </span><span class="lineNoCov">          0 :     uint16_t frameLen = mMP3Parser.ParseFrameLength(*buffer);</span>
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span><span class="lineNoCov">          0 :     if (frameLen) {</span>
+<span class="lineNum">     404 </span>            :       // We've found an MP3 frame!
+<span class="lineNum">     405 </span>            :       // This is the first frame (and the only one we'll bother parsing), so:
+<span class="lineNum">     406 </span>            :       // * Mark this stream as MP3;
+<span class="lineNum">     407 </span>            :       // * Store the offset at which the MP3 data started; and
+<span class="lineNum">     408 </span>            :       // * Start buffering the frame, as it might contain handy metadata.
+<span class="lineNum">     409 </span>            : 
+<span class="lineNum">     410 </span>            :       // We're now sure this is an MP3 stream.
+<span class="lineNum">     411 </span><span class="lineNoCov">          0 :       mIsMP3 = DEFINITELY_MP3;</span>
+<span class="lineNum">     412 </span>            : 
+<span class="lineNum">     413 </span>            :       // We need to know these to convert the number of frames in the stream
+<span class="lineNum">     414 </span>            :       // to the length of the stream in seconds.
+<span class="lineNum">     415 </span><span class="lineNoCov">          0 :       mSamplesPerSecond = mMP3Parser.GetSampleRate();</span>
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :       mSamplesPerFrame = mMP3Parser.GetSamplesPerFrame();</span>
+<span class="lineNum">     417 </span>            : 
+<span class="lineNum">     418 </span>            :       // If the stream has a constant bitrate, we should only need the length
+<span class="lineNum">     419 </span>            :       // of the first frame and the length (in bytes) of the stream to
+<span class="lineNum">     420 </span>            :       // estimate the length (in seconds).
+<span class="lineNum">     421 </span><span class="lineNoCov">          0 :       mTotalFrameSize += frameLen;</span>
+<span class="lineNum">     422 </span><span class="lineNoCov">          0 :       mFrameCount++;</span>
+<span class="lineNum">     423 </span>            : 
+<span class="lineNum">     424 </span>            :       // If |mMP3Offset| isn't set then this is the first MP3 frame we have
+<span class="lineNum">     425 </span>            :       // seen in the stream, which is useful for duration estimation.
+<span class="lineNum">     426 </span><span class="lineNoCov">          0 :       if (mMP3Offset &gt; -1) {</span>
+<span class="lineNum">     427 </span><span class="lineNoCov">          0 :         uint16_t skip = frameLen - sizeof(MP3Frame);</span>
+<span class="lineNum">     428 </span><span class="lineNoCov">          0 :         buffer += skip ? skip : 1;</span>
+<span class="lineNum">     429 </span><span class="lineNoCov">          0 :         continue;</span>
+<span class="lineNum">     430 </span>            :       }
+<span class="lineNum">     431 </span>            : 
+<span class="lineNum">     432 </span>            :       // Remember the offset of the MP3 stream.
+<span class="lineNum">     433 </span>            :       // We're at the last byte of an MP3Frame, so MP3 data started
+<span class="lineNum">     434 </span>            :       // sizeof(MP3Frame) - 1 bytes ago.
+<span class="lineNum">     435 </span>            :       mMP3Offset = aStreamOffset
+<span class="lineNum">     436 </span><span class="lineNoCov">          0 :         + (buffer - aBuffer)</span>
+<span class="lineNum">     437 </span><span class="lineNoCov">          0 :         - (sizeof(MP3Frame) - 1);</span>
+<span class="lineNum">     438 </span>            : 
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :       buffer++;</span>
+<span class="lineNum">     440 </span>            : 
+<span class="lineNum">     441 </span>            :       // If the stream has a variable bitrate, the first frame has metadata
+<span class="lineNum">     442 </span>            :       // we need for duration estimation and seeking. Start buffering it so we
+<span class="lineNum">     443 </span>            :       // can parse it later.
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 :       mFirstFrameEnd = mMP3Offset + frameLen;</span>
+<span class="lineNum">     445 </span><span class="lineNoCov">          0 :       uint64_t currOffset = buffer - aBuffer + aStreamOffset;</span>
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :       uint64_t copyLen = std::min(mFirstFrameEnd - currOffset,</span>
+<span class="lineNum">     447 </span><span class="lineNoCov">          0 :                                   (uint64_t)(bufferEnd - buffer));</span>
+<span class="lineNum">     448 </span><span class="lineNoCov">          0 :       mFirstFrame.Append((const char *)buffer, copyLen);</span>
+<span class="lineNum">     449 </span>            : 
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 :       buffer += copyLen;</span>
+<span class="lineNum">     451 </span>            : 
+<span class="lineNum">     452 </span>            :     } else {
+<span class="lineNum">     453 </span>            :       // Nothing to see here. Move along.
+<span class="lineNum">     454 </span><span class="lineNoCov">          0 :       buffer++;</span>
+<span class="lineNum">     455 </span>            :     }
+<span class="lineNum">     456 </span>            :   }
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span><span class="lineNoCov">          0 :   *aOutBytesRead = buffer - aBuffer;</span>
+<span class="lineNum">     459 </span>            : 
+<span class="lineNum">     460 </span><span class="lineNoCov">          0 :   if (mFirstFrameEnd &gt; -1 &amp;&amp; mFirstFrameEnd &lt;= aStreamOffset + buffer - aBuffer) {</span>
+<span class="lineNum">     461 </span>            :     // We have our whole first frame. Try to find a VBR header.
+<span class="lineNum">     462 </span><span class="lineNoCov">          0 :     mNumFrames = FindNumVBRFrames(mFirstFrame);</span>
+<span class="lineNum">     463 </span><span class="lineNoCov">          0 :     mFirstFrameEnd = -1;</span>
+<span class="lineNum">     464 </span>            :   }
+<span class="lineNum">     465 </span>            : 
+<span class="lineNum">     466 </span>            :   return NS_OK;
+<a name="467"><span class="lineNum">     467 </span>            : }</a>
+<span class="lineNum">     468 </span>            : 
+<span class="lineNum">     469 </span><span class="lineNoCov">          0 : void MP3FrameParser::Parse(const uint8_t* aBuffer, uint32_t aLength, uint64_t aOffset)</span>
+<span class="lineNum">     470 </span>            : {
+<span class="lineNum">     471 </span><span class="lineNoCov">          0 :   MutexAutoLock mon(mLock);</span>
+<span class="lineNum">     472 </span>            : 
+<span class="lineNum">     473 </span><span class="lineNoCov">          0 :   if (HasExactDuration()) {</span>
+<span class="lineNum">     474 </span>            :     // We know the duration; nothing to do here.
+<span class="lineNum">     475 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     476 </span>            :   }
+<span class="lineNum">     477 </span>            : 
+<span class="lineNum">     478 </span><span class="lineNoCov">          0 :   const uint8_t* buffer = aBuffer;</span>
+<span class="lineNum">     479 </span><span class="lineNoCov">          0 :   int32_t length = aLength;</span>
+<span class="lineNum">     480 </span><span class="lineNoCov">          0 :   uint64_t offset = aOffset;</span>
+<span class="lineNum">     481 </span>            : 
+<span class="lineNum">     482 </span>            :   // Got some data we have seen already. Skip forward to what we need.
+<span class="lineNum">     483 </span><span class="lineNoCov">          0 :   if (aOffset &lt; mOffset) {</span>
+<span class="lineNum">     484 </span><span class="lineNoCov">          0 :     buffer += mOffset - aOffset;</span>
+<span class="lineNum">     485 </span><span class="lineNoCov">          0 :     length -= mOffset - aOffset;</span>
+<span class="lineNum">     486 </span><span class="lineNoCov">          0 :     offset = mOffset;</span>
+<span class="lineNum">     487 </span>            : 
+<span class="lineNum">     488 </span><span class="lineNoCov">          0 :     if (length &lt;= 0) {</span>
+<span class="lineNum">     489 </span>            :       return;
+<span class="lineNum">     490 </span>            :     }
+<span class="lineNum">     491 </span>            :   }
+<span class="lineNum">     492 </span>            : 
+<span class="lineNum">     493 </span>            :   // If there is a discontinuity in the input stream, reset the state of the
+<span class="lineNum">     494 </span>            :   // parsers so we don't get any partial headers.
+<span class="lineNum">     495 </span><span class="lineNoCov">          0 :   if (mOffset &lt; aOffset) {</span>
+<span class="lineNum">     496 </span><span class="lineNoCov">          0 :     if (!mID3Parser.IsParsed()) {</span>
+<span class="lineNum">     497 </span>            :       // Only reset this if it hasn't finished yet.
+<span class="lineNum">     498 </span><span class="lineNoCov">          0 :       mID3Parser.Reset();</span>
+<span class="lineNum">     499 </span>            :     }
+<span class="lineNum">     500 </span>            : 
+<span class="lineNum">     501 </span><span class="lineNoCov">          0 :     if (mFirstFrameEnd &gt; -1) {</span>
+<span class="lineNum">     502 </span>            :       NS_WARNING(&quot;Discontinuity in input while buffering first frame.&quot;);
+<span class="lineNum">     503 </span><span class="lineNoCov">          0 :       mFirstFrameEnd = -1;</span>
+<span class="lineNum">     504 </span>            :     }
+<span class="lineNum">     505 </span>            : 
+<span class="lineNum">     506 </span><span class="lineNoCov">          0 :     mMP3Parser.Reset();</span>
+<span class="lineNum">     507 </span>            :   }
+<span class="lineNum">     508 </span>            : 
+<span class="lineNum">     509 </span><span class="lineNoCov">          0 :   uint32_t bytesRead = 0;</span>
+<span class="lineNum">     510 </span><span class="lineNoCov">          0 :   if (NS_FAILED(ParseBuffer(buffer,</span>
+<span class="lineNum">     511 </span>            :                             length,
+<span class="lineNum">     512 </span>            :                             offset,
+<span class="lineNum">     513 </span>            :                             &amp;bytesRead))) {
+<span class="lineNum">     514 </span>            :     return;
+<span class="lineNum">     515 </span>            :   }
+<span class="lineNum">     516 </span>            : 
+<span class="lineNum">     517 </span>            :   MOZ_ASSERT(length &lt;= (int)bytesRead, &quot;All bytes should have been consumed&quot;);
+<span class="lineNum">     518 </span>            : 
+<span class="lineNum">     519 </span>            :   // Update next data offset
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 :   mOffset = offset + bytesRead;</span>
+<span class="lineNum">     521 </span>            : 
+<span class="lineNum">     522 </span>            :   // If we've parsed lots of data and we still have nothing, just give up.
+<span class="lineNum">     523 </span>            :   // We don't count ID3 headers towards the skipped bytes count, as MP3 files
+<span class="lineNum">     524 </span>            :   // can have massive ID3 sections.
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :   if (!mID3Parser.IsParsed() &amp;&amp; mMP3Offset &lt; 0 &amp;&amp;</span>
+<span class="lineNum">     526 </span><span class="lineNoCov">          0 :       mOffset - mTotalID3Size &gt; MAX_SKIPPED_BYTES) {</span>
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :     mIsMP3 = NOT_MP3;</span>
+<span class="lineNum">     528 </span><span class="lineNoCov">          0 :   }</span>
+<a name="529"><span class="lineNum">     529 </span>            : }</a>
+<span class="lineNum">     530 </span>            : 
+<span class="lineNum">     531 </span><span class="lineNoCov">          0 : int64_t MP3FrameParser::GetDuration()</span>
+<span class="lineNum">     532 </span>            : {
+<span class="lineNum">     533 </span><span class="lineNoCov">          0 :   MutexAutoLock mon(mLock);</span>
+<span class="lineNum">     534 </span>            : 
+<span class="lineNum">     535 </span><span class="lineNoCov">          0 :   if (!ParsedHeaders() || !mSamplesPerSecond) {</span>
+<span class="lineNum">     536 </span>            :     // Not a single frame decoded yet.
+<span class="lineNum">     537 </span>            :     return -1;
+<span class="lineNum">     538 </span>            :   }
+<span class="lineNum">     539 </span>            : 
+<span class="lineNum">     540 </span>            :   MOZ_ASSERT(mFrameCount &gt; 0 &amp;&amp; mTotalFrameSize &gt; 0,
+<span class="lineNum">     541 </span>            :              &quot;Frame parser should have seen at least one MP3 frame of positive length.&quot;);
+<span class="lineNum">     542 </span>            : 
+<span class="lineNum">     543 </span><span class="lineNoCov">          0 :   if (!mFrameCount || !mTotalFrameSize) {</span>
+<span class="lineNum">     544 </span>            :     // This should never happen.
+<span class="lineNum">     545 </span>            :     return -1;
+<span class="lineNum">     546 </span>            :   }
+<span class="lineNum">     547 </span>            : 
+<span class="lineNum">     548 </span>            :   double frames;
+<span class="lineNum">     549 </span><span class="lineNoCov">          0 :   if (mNumFrames &lt; 0) {</span>
+<span class="lineNum">     550 </span>            :     // Estimate the number of frames in the stream based on the average frame
+<span class="lineNum">     551 </span>            :     // size and the length of the MP3 file.
+<span class="lineNum">     552 </span><span class="lineNoCov">          0 :     double frameSize = (double)mTotalFrameSize / mFrameCount;</span>
+<span class="lineNum">     553 </span><span class="lineNoCov">          0 :     frames = (double)(mLength - mMP3Offset) / frameSize;</span>
+<span class="lineNum">     554 </span>            :   } else {
+<span class="lineNum">     555 </span>            :     // We know the exact number of frames from the VBR header.
+<span class="lineNum">     556 </span><span class="lineNoCov">          0 :     frames = mNumFrames;</span>
+<span class="lineNum">     557 </span>            :   }
+<span class="lineNum">     558 </span>            : 
+<span class="lineNum">     559 </span>            :   // The duration of each frame is constant over a given stream.
+<span class="lineNum">     560 </span><span class="lineNoCov">          0 :   double usPerFrame = USECS_PER_S * mSamplesPerFrame / mSamplesPerSecond;</span>
+<span class="lineNum">     561 </span>            : 
+<span class="lineNum">     562 </span><span class="lineNoCov">          0 :   return frames * usPerFrame;</span>
+<a name="563"><span class="lineNum">     563 </span>            : }</a>
+<span class="lineNum">     564 </span>            : 
+<span class="lineNum">     565 </span><span class="lineNoCov">          0 : int64_t MP3FrameParser::GetMP3Offset()</span>
+<span class="lineNum">     566 </span>            : {
+<span class="lineNum">     567 </span><span class="lineNoCov">          0 :   MutexAutoLock mon(mLock);</span>
+<span class="lineNum">     568 </span><span class="lineNoCov">          0 :   return mMP3Offset;</span>
+<a name="569"><span class="lineNum">     569 </span>            : }</a>
+<span class="lineNum">     570 </span>            : 
+<span class="lineNum">     571 </span><span class="lineNoCov">          0 : bool MP3FrameParser::ParsedHeaders()</span>
+<span class="lineNum">     572 </span>            : {
+<span class="lineNum">     573 </span>            :   // We have seen both the beginning and the end of the first MP3 frame in the
+<span class="lineNum">     574 </span>            :   // stream.
+<span class="lineNum">     575 </span><span class="lineNoCov">          0 :   return mMP3Offset &gt; -1 &amp;&amp; mFirstFrameEnd &lt; 0;</span>
+<a name="576"><span class="lineNum">     576 </span>            : }</a>
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span><span class="lineNoCov">          0 : bool MP3FrameParser::HasExactDuration()</span>
+<span class="lineNum">     579 </span>            : {
+<span class="lineNum">     580 </span><span class="lineNoCov">          0 :   return ParsedHeaders() &amp;&amp; mNumFrames &gt; -1;</span>
+<a name="581"><span class="lineNum">     581 </span>            : }</a>
+<span class="lineNum">     582 </span>            : 
+<span class="lineNum">     583 </span><span class="lineNoCov">          0 : bool MP3FrameParser::NeedsData()</span>
+<span class="lineNum">     584 </span>            : {
+<span class="lineNum">     585 </span>            :   // If we don't know the duration exactly then either:
+<span class="lineNum">     586 </span>            :   //  - we're still waiting for a VBR header; or
+<span class="lineNum">     587 </span>            :   //  - we look at all frames to constantly update our duration estimate.
+<span class="lineNum">     588 </span><span class="lineNoCov">          0 :   return IsMP3() &amp;&amp; !HasExactDuration();</span>
+<span class="lineNum">     589 </span>            : }
+<span class="lineNum">     590 </span>            : 
+<span class="lineNum">     591 </span>            : } // namespace mozilla
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

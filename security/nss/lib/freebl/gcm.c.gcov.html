@@ -1,0 +1,944 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/nss/lib/freebl/gcm.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">security/nss/lib/freebl</a> - gcm.c<span style="font-size: 80%;"> (source / <a href="gcm.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">182</td>
+            <td class="headerCovTableEntry">234</td>
+            <td class="headerCovTableEntryMed">77.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">15</td>
+            <td class="headerCovTableEntry">15</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public</a>
+<span class="lineNum">       2 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       3 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : #ifdef FREEBL_NO_DEPEND
+<span class="lineNum">       6 </span>            : #include &quot;stubs.h&quot;
+<span class="lineNum">       7 </span>            : #endif
+<span class="lineNum">       8 </span>            : #include &quot;blapii.h&quot;
+<span class="lineNum">       9 </span>            : #include &quot;blapit.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;gcm.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;ctr.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;secerr.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;prtypes.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;pkcs11t.h&quot;
+<span class="lineNum">      15 </span>            : 
+<span class="lineNum">      16 </span>            : #include &lt;limits.h&gt;
+<span class="lineNum">      17 </span>            : 
+<span class="lineNum">      18 </span>            : /**************************************************************************
+<span class="lineNum">      19 </span>            :  *          First implement the Galois hash function of GCM (gcmHash)     *
+<span class="lineNum">      20 </span>            :  **************************************************************************/
+<span class="lineNum">      21 </span>            : #define GCM_HASH_LEN_LEN 8 /* gcm hash defines lengths to be 64 bits */
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : typedef struct gcmHashContextStr gcmHashContext;
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : static SECStatus gcmHash_InitContext(gcmHashContext *hash,
+<span class="lineNum">      26 </span>            :                                      const unsigned char *H,
+<span class="lineNum">      27 </span>            :                                      unsigned int blocksize);
+<span class="lineNum">      28 </span>            : static void gcmHash_DestroyContext(gcmHashContext *ghash, PRBool freeit);
+<span class="lineNum">      29 </span>            : static SECStatus gcmHash_Update(gcmHashContext *ghash,
+<span class="lineNum">      30 </span>            :                                 const unsigned char *buf, unsigned int len,
+<span class="lineNum">      31 </span>            :                                 unsigned int blocksize);
+<span class="lineNum">      32 </span>            : static SECStatus gcmHash_Sync(gcmHashContext *ghash, unsigned int blocksize);
+<span class="lineNum">      33 </span>            : static SECStatus gcmHash_Final(gcmHashContext *gcm, unsigned char *outbuf,
+<span class="lineNum">      34 </span>            :                                unsigned int *outlen, unsigned int maxout,
+<span class="lineNum">      35 </span>            :                                unsigned int blocksize);
+<span class="lineNum">      36 </span>            : static SECStatus gcmHash_Reset(gcmHashContext *ghash,
+<span class="lineNum">      37 </span>            :                                const unsigned char *inbuf,
+<span class="lineNum">      38 </span>            :                                unsigned int inbufLen, unsigned int blocksize);
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : /* compile time defines to select how the GF2 multiply is calculated.
+<span class="lineNum">      41 </span>            :  * There are currently 2 algorithms implemented here: MPI and ALGORITHM_1.
+<span class="lineNum">      42 </span>            :  *
+<span class="lineNum">      43 </span>            :  * MPI uses the GF2m implemented in mpi to support GF2 ECC.
+<span class="lineNum">      44 </span>            :  * ALGORITHM_1 is the Algorithm 1 in both NIST SP 800-38D and
+<span class="lineNum">      45 </span>            :  * &quot;The Galois/Counter Mode of Operation (GCM)&quot;, McGrew &amp; Viega.
+<span class="lineNum">      46 </span>            :  */
+<span class="lineNum">      47 </span>            : #if !defined(GCM_USE_ALGORITHM_1) &amp;&amp; !defined(GCM_USE_MPI)
+<span class="lineNum">      48 </span>            : #define GCM_USE_MPI 1 /* MPI is about 5x faster with the               \
+<span class="lineNum">      49 </span>            :                        * same or less complexity. It's possible to use \
+<span class="lineNum">      50 </span>            :                        * tables to speed things up even more */
+<span class="lineNum">      51 </span>            : #endif
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span>            : /* GCM defines the bit string to be LSB first, which is exactly
+<span class="lineNum">      54 </span>            :  * opposite everyone else, including hardware. build array
+<span class="lineNum">      55 </span>            :  * to reverse everything. */
+<span class="lineNum">      56 </span>            : static const unsigned char gcm_byte_rev[256] = {
+<span class="lineNum">      57 </span>            :     0x00, 0x80, 0x40, 0xc0, 0x20, 0xa0, 0x60, 0xe0,
+<span class="lineNum">      58 </span>            :     0x10, 0x90, 0x50, 0xd0, 0x30, 0xb0, 0x70, 0xf0,
+<span class="lineNum">      59 </span>            :     0x08, 0x88, 0x48, 0xc8, 0x28, 0xa8, 0x68, 0xe8,
+<span class="lineNum">      60 </span>            :     0x18, 0x98, 0x58, 0xd8, 0x38, 0xb8, 0x78, 0xf8,
+<span class="lineNum">      61 </span>            :     0x04, 0x84, 0x44, 0xc4, 0x24, 0xa4, 0x64, 0xe4,
+<span class="lineNum">      62 </span>            :     0x14, 0x94, 0x54, 0xd4, 0x34, 0xb4, 0x74, 0xf4,
+<span class="lineNum">      63 </span>            :     0x0c, 0x8c, 0x4c, 0xcc, 0x2c, 0xac, 0x6c, 0xec,
+<span class="lineNum">      64 </span>            :     0x1c, 0x9c, 0x5c, 0xdc, 0x3c, 0xbc, 0x7c, 0xfc,
+<span class="lineNum">      65 </span>            :     0x02, 0x82, 0x42, 0xc2, 0x22, 0xa2, 0x62, 0xe2,
+<span class="lineNum">      66 </span>            :     0x12, 0x92, 0x52, 0xd2, 0x32, 0xb2, 0x72, 0xf2,
+<span class="lineNum">      67 </span>            :     0x0a, 0x8a, 0x4a, 0xca, 0x2a, 0xaa, 0x6a, 0xea,
+<span class="lineNum">      68 </span>            :     0x1a, 0x9a, 0x5a, 0xda, 0x3a, 0xba, 0x7a, 0xfa,
+<span class="lineNum">      69 </span>            :     0x06, 0x86, 0x46, 0xc6, 0x26, 0xa6, 0x66, 0xe6,
+<span class="lineNum">      70 </span>            :     0x16, 0x96, 0x56, 0xd6, 0x36, 0xb6, 0x76, 0xf6,
+<span class="lineNum">      71 </span>            :     0x0e, 0x8e, 0x4e, 0xce, 0x2e, 0xae, 0x6e, 0xee,
+<span class="lineNum">      72 </span>            :     0x1e, 0x9e, 0x5e, 0xde, 0x3e, 0xbe, 0x7e, 0xfe,
+<span class="lineNum">      73 </span>            :     0x01, 0x81, 0x41, 0xc1, 0x21, 0xa1, 0x61, 0xe1,
+<span class="lineNum">      74 </span>            :     0x11, 0x91, 0x51, 0xd1, 0x31, 0xb1, 0x71, 0xf1,
+<span class="lineNum">      75 </span>            :     0x09, 0x89, 0x49, 0xc9, 0x29, 0xa9, 0x69, 0xe9,
+<span class="lineNum">      76 </span>            :     0x19, 0x99, 0x59, 0xd9, 0x39, 0xb9, 0x79, 0xf9,
+<span class="lineNum">      77 </span>            :     0x05, 0x85, 0x45, 0xc5, 0x25, 0xa5, 0x65, 0xe5,
+<span class="lineNum">      78 </span>            :     0x15, 0x95, 0x55, 0xd5, 0x35, 0xb5, 0x75, 0xf5,
+<span class="lineNum">      79 </span>            :     0x0d, 0x8d, 0x4d, 0xcd, 0x2d, 0xad, 0x6d, 0xed,
+<span class="lineNum">      80 </span>            :     0x1d, 0x9d, 0x5d, 0xdd, 0x3d, 0xbd, 0x7d, 0xfd,
+<span class="lineNum">      81 </span>            :     0x03, 0x83, 0x43, 0xc3, 0x23, 0xa3, 0x63, 0xe3,
+<span class="lineNum">      82 </span>            :     0x13, 0x93, 0x53, 0xd3, 0x33, 0xb3, 0x73, 0xf3,
+<span class="lineNum">      83 </span>            :     0x0b, 0x8b, 0x4b, 0xcb, 0x2b, 0xab, 0x6b, 0xeb,
+<span class="lineNum">      84 </span>            :     0x1b, 0x9b, 0x5b, 0xdb, 0x3b, 0xbb, 0x7b, 0xfb,
+<span class="lineNum">      85 </span>            :     0x07, 0x87, 0x47, 0xc7, 0x27, 0xa7, 0x67, 0xe7,
+<span class="lineNum">      86 </span>            :     0x17, 0x97, 0x57, 0xd7, 0x37, 0xb7, 0x77, 0xf7,
+<span class="lineNum">      87 </span>            :     0x0f, 0x8f, 0x4f, 0xcf, 0x2f, 0xaf, 0x6f, 0xef,
+<span class="lineNum">      88 </span>            :     0x1f, 0x9f, 0x5f, 0xdf, 0x3f, 0xbf, 0x7f, 0xff
+<span class="lineNum">      89 </span>            : };
+<span class="lineNum">      90 </span>            : 
+<span class="lineNum">      91 </span>            : #ifdef GCM_TRACE
+<span class="lineNum">      92 </span>            : #include &lt;stdio.h&gt;
+<span class="lineNum">      93 </span>            : 
+<span class="lineNum">      94 </span>            : #define GCM_TRACE_X(ghash, label)         \
+<span class="lineNum">      95 </span>            :     {                                     \
+<span class="lineNum">      96 </span>            :         unsigned char _X[MAX_BLOCK_SIZE]; \
+<span class="lineNum">      97 </span>            :         int i;                            \
+<span class="lineNum">      98 </span>            :         gcm_getX(ghash, _X, blocksize);   \
+<span class="lineNum">      99 </span>            :         printf(label, (ghash)-&gt;m);        \
+<span class="lineNum">     100 </span>            :         for (i = 0; i &lt; blocksize; i++)   \
+<span class="lineNum">     101 </span>            :             printf(&quot;%02x&quot;, _X[i]);        \
+<span class="lineNum">     102 </span>            :         printf(&quot;\n&quot;);                     \
+<span class="lineNum">     103 </span>            :     }
+<span class="lineNum">     104 </span>            : #define GCM_TRACE_BLOCK(label, buf, blocksize) \
+<span class="lineNum">     105 </span>            :     {                                          \
+<span class="lineNum">     106 </span>            :         printf(label);                         \
+<span class="lineNum">     107 </span>            :         for (i = 0; i &lt; blocksize; i++)        \
+<span class="lineNum">     108 </span>            :             printf(&quot;%02x&quot;, buf[i]);            \
+<span class="lineNum">     109 </span>            :         printf(&quot;\n&quot;);                          \
+<span class="lineNum">     110 </span>            :     }
+<span class="lineNum">     111 </span>            : #else
+<span class="lineNum">     112 </span>            : #define GCM_TRACE_X(ghash, label)
+<span class="lineNum">     113 </span>            : #define GCM_TRACE_BLOCK(label, buf, blocksize)
+<span class="lineNum">     114 </span>            : #endif
+<span class="lineNum">     115 </span>            : 
+<span class="lineNum">     116 </span>            : #ifdef GCM_USE_MPI
+<span class="lineNum">     117 </span>            : 
+<span class="lineNum">     118 </span>            : #ifdef GCM_USE_ALGORITHM_1
+<span class="lineNum">     119 </span>            : #error &quot;Only define one of GCM_USE_MPI, GCM_USE_ALGORITHM_1&quot;
+<span class="lineNum">     120 </span>            : #endif
+<span class="lineNum">     121 </span>            : /* use the MPI functions to calculate Xn = (Xn-1^C_i)*H mod poly */
+<span class="lineNum">     122 </span>            : #include &quot;mpi.h&quot;
+<span class="lineNum">     123 </span>            : #include &quot;secmpi.h&quot;
+<span class="lineNum">     124 </span>            : #include &quot;mplogic.h&quot;
+<span class="lineNum">     125 </span>            : #include &quot;mp_gf2m.h&quot;
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span>            : /* state needed to handle GCM Hash function */
+<span class="lineNum">     128 </span>            : struct gcmHashContextStr {
+<span class="lineNum">     129 </span>            :     mp_int H;
+<span class="lineNum">     130 </span>            :     mp_int X;
+<span class="lineNum">     131 </span>            :     mp_int C_i;
+<span class="lineNum">     132 </span>            :     const unsigned int *poly;
+<span class="lineNum">     133 </span>            :     unsigned char buffer[MAX_BLOCK_SIZE];
+<span class="lineNum">     134 </span>            :     unsigned int bufLen;
+<span class="lineNum">     135 </span>            :     int m; /* XXX what is m? */
+<span class="lineNum">     136 </span>            :     unsigned char counterBuf[2 * GCM_HASH_LEN_LEN];
+<span class="lineNum">     137 </span>            :     PRUint64 cLen;
+<span class="lineNum">     138 </span>            : };
+<span class="lineNum">     139 </span>            : 
+<span class="lineNum">     140 </span>            : /* f = x^128 + x^7 + x^2 + x + 1 */
+<span class="lineNum">     141 </span>            : static const unsigned int poly_128[] = { 128, 7, 2, 1, 0 };
+<span class="lineNum">     142 </span>            : 
+<a name="143"><span class="lineNum">     143 </span>            : /* sigh, GCM defines the bit strings exactly backwards from everything else */</a>
+<span class="lineNum">     144 </span>            : static void
+<span class="lineNum">     145 </span><span class="lineCov">          1 : gcm_reverse(unsigned char *target, const unsigned char *src,</span>
+<span class="lineNum">     146 </span>            :             unsigned int blocksize)
+<span class="lineNum">     147 </span>            : {
+<span class="lineNum">     148 </span>            :     unsigned int i;
+<span class="lineNum">     149 </span><span class="lineCov">          1 :     for (i = 0; i &lt; blocksize; i++) {</span>
+<span class="lineNum">     150 </span><span class="lineCov">          1 :         target[blocksize - i - 1] = gcm_byte_rev[src[i]];</span>
+<span class="lineNum">     151 </span>            :     }
+<span class="lineNum">     152 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     153 </span>            : 
+<a name="154"><span class="lineNum">     154 </span>            : /* Initialize a gcmHashContext */</a>
+<span class="lineNum">     155 </span>            : static SECStatus
+<span class="lineNum">     156 </span><span class="lineCov">          1 : gcmHash_InitContext(gcmHashContext *ghash, const unsigned char *H,</span>
+<span class="lineNum">     157 </span>            :                     unsigned int blocksize)
+<span class="lineNum">     158 </span>            : {
+<span class="lineNum">     159 </span><span class="lineCov">          1 :     mp_err err = MP_OKAY;</span>
+<span class="lineNum">     160 </span>            :     unsigned char H_rev[MAX_BLOCK_SIZE];
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span><span class="lineCov">          1 :     MP_DIGITS(&amp;ghash-&gt;H) = 0;</span>
+<span class="lineNum">     163 </span><span class="lineCov">          1 :     MP_DIGITS(&amp;ghash-&gt;X) = 0;</span>
+<span class="lineNum">     164 </span><span class="lineCov">          1 :     MP_DIGITS(&amp;ghash-&gt;C_i) = 0;</span>
+<span class="lineNum">     165 </span><span class="lineCov">          1 :     CHECK_MPI_OK(mp_init(&amp;ghash-&gt;H));</span>
+<span class="lineNum">     166 </span><span class="lineCov">          1 :     CHECK_MPI_OK(mp_init(&amp;ghash-&gt;X));</span>
+<span class="lineNum">     167 </span><span class="lineCov">          1 :     CHECK_MPI_OK(mp_init(&amp;ghash-&gt;C_i));</span>
+<span class="lineNum">     168 </span>            : 
+<span class="lineNum">     169 </span><span class="lineCov">          1 :     mp_zero(&amp;ghash-&gt;X);</span>
+<span class="lineNum">     170 </span><span class="lineCov">          1 :     gcm_reverse(H_rev, H, blocksize);</span>
+<span class="lineNum">     171 </span><span class="lineCov">          1 :     CHECK_MPI_OK(mp_read_unsigned_octets(&amp;ghash-&gt;H, H_rev, blocksize));</span>
+<span class="lineNum">     172 </span>            : 
+<span class="lineNum">     173 </span>            :     /* set the irreducible polynomial. Each blocksize has its own polynomial.
+<span class="lineNum">     174 </span>            :      * for now only blocksize 16 (=128 bits) is defined */
+<span class="lineNum">     175 </span><span class="lineCov">          1 :     switch (blocksize) {</span>
+<span class="lineNum">     176 </span>            :         case 16: /* 128 bits */
+<span class="lineNum">     177 </span><span class="lineCov">          1 :             ghash-&gt;poly = poly_128;</span>
+<span class="lineNum">     178 </span>            :             break;
+<span class="lineNum">     179 </span>            :         default:
+<span class="lineNum">     180 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     181 </span><span class="lineNoCov">          0 :             goto cleanup;</span>
+<span class="lineNum">     182 </span>            :     }
+<span class="lineNum">     183 </span><span class="lineCov">          1 :     ghash-&gt;cLen = 0;</span>
+<span class="lineNum">     184 </span><span class="lineCov">          1 :     ghash-&gt;bufLen = 0;</span>
+<span class="lineNum">     185 </span><span class="lineCov">          1 :     ghash-&gt;m = 0;</span>
+<span class="lineNum">     186 </span><span class="lineCov">          1 :     PORT_Memset(ghash-&gt;counterBuf, 0, sizeof(ghash-&gt;counterBuf));</span>
+<span class="lineNum">     187 </span><span class="lineCov">          1 :     return SECSuccess;</span>
+<span class="lineNum">     188 </span>            : cleanup:
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 :     gcmHash_DestroyContext(ghash, PR_FALSE);</span>
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :     return SECFailure;</span>
+<span class="lineNum">     191 </span>            : }
+<span class="lineNum">     192 </span>            : 
+<span class="lineNum">     193 </span>            : /* Destroy a HashContext (Note we zero the digits so this function
+<a name="194"><span class="lineNum">     194 </span>            :  * is idempotent if called with freeit == PR_FALSE */</a>
+<span class="lineNum">     195 </span>            : static void
+<span class="lineNum">     196 </span><span class="lineCov">          1 : gcmHash_DestroyContext(gcmHashContext *ghash, PRBool freeit)</span>
+<span class="lineNum">     197 </span>            : {
+<span class="lineNum">     198 </span><span class="lineCov">          1 :     mp_clear(&amp;ghash-&gt;H);</span>
+<span class="lineNum">     199 </span><span class="lineCov">          1 :     mp_clear(&amp;ghash-&gt;X);</span>
+<span class="lineNum">     200 </span><span class="lineCov">          1 :     mp_clear(&amp;ghash-&gt;C_i);</span>
+<span class="lineNum">     201 </span><span class="lineCov">          1 :     PORT_Memset(ghash, 0, sizeof(gcmHashContext));</span>
+<span class="lineNum">     202 </span><span class="lineCov">          1 :     if (freeit) {</span>
+<span class="lineNum">     203 </span><span class="lineNoCov">          0 :         PORT_Free(ghash);</span>
+<span class="lineNum">     204 </span>            :     }
+<span class="lineNum">     205 </span><span class="lineCov">          1 : }</span>
+<a name="206"><span class="lineNum">     206 </span>            : </a>
+<span class="lineNum">     207 </span>            : static SECStatus
+<span class="lineNum">     208 </span><span class="lineCov">          1 : gcm_getX(gcmHashContext *ghash, unsigned char *T, unsigned int blocksize)</span>
+<span class="lineNum">     209 </span>            : {
+<span class="lineNum">     210 </span>            :     int len;
+<span class="lineNum">     211 </span>            :     mp_err err;
+<span class="lineNum">     212 </span>            :     unsigned char tmp_buf[MAX_BLOCK_SIZE];
+<span class="lineNum">     213 </span>            :     unsigned char *X;
+<span class="lineNum">     214 </span>            : 
+<span class="lineNum">     215 </span><span class="lineCov">          1 :     len = mp_unsigned_octet_size(&amp;ghash-&gt;X);</span>
+<span class="lineNum">     216 </span><span class="lineCov">          1 :     if (len &lt;= 0) {</span>
+<span class="lineNum">     217 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);</span>
+<span class="lineNum">     218 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     219 </span>            :     }
+<span class="lineNum">     220 </span><span class="lineCov">          1 :     X = tmp_buf;</span>
+<span class="lineNum">     221 </span>            :     PORT_Assert((unsigned int)len &lt;= blocksize);
+<span class="lineNum">     222 </span><span class="lineCov">          1 :     if ((unsigned int)len &gt; blocksize) {</span>
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);</span>
+<span class="lineNum">     224 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     225 </span>            :     }
+<span class="lineNum">     226 </span>            :     /* zero pad the result */
+<span class="lineNum">     227 </span><span class="lineCov">          1 :     if (len != blocksize) {</span>
+<span class="lineNum">     228 </span><span class="lineCov">          1 :         PORT_Memset(X, 0, blocksize - len);</span>
+<span class="lineNum">     229 </span><span class="lineCov">          1 :         X += blocksize - len;</span>
+<span class="lineNum">     230 </span>            :     }
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span><span class="lineCov">          1 :     err = mp_to_unsigned_octets(&amp;ghash-&gt;X, X, len);</span>
+<span class="lineNum">     233 </span><span class="lineCov">          1 :     if (err &lt; 0) {</span>
+<span class="lineNum">     234 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);</span>
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     236 </span>            :     }
+<span class="lineNum">     237 </span><span class="lineCov">          1 :     gcm_reverse(T, tmp_buf, blocksize);</span>
+<span class="lineNum">     238 </span><span class="lineCov">          1 :     return SECSuccess;</span>
+<span class="lineNum">     239 </span>            : }
+<a name="240"><span class="lineNum">     240 </span>            : </a>
+<span class="lineNum">     241 </span>            : static SECStatus
+<span class="lineNum">     242 </span><span class="lineCov">          1 : gcm_HashMult(gcmHashContext *ghash, const unsigned char *buf,</span>
+<span class="lineNum">     243 </span>            :              unsigned int count, unsigned int blocksize)
+<span class="lineNum">     244 </span>            : {
+<span class="lineNum">     245 </span><span class="lineCov">          1 :     SECStatus rv = SECFailure;</span>
+<span class="lineNum">     246 </span><span class="lineCov">          1 :     mp_err err = MP_OKAY;</span>
+<span class="lineNum">     247 </span>            :     unsigned char tmp_buf[MAX_BLOCK_SIZE];
+<span class="lineNum">     248 </span>            :     unsigned int i;
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span><span class="lineCov">          1 :     for (i = 0; i &lt; count; i++, buf += blocksize) {</span>
+<span class="lineNum">     251 </span><span class="lineCov">          1 :         ghash-&gt;m++;</span>
+<span class="lineNum">     252 </span><span class="lineCov">          1 :         gcm_reverse(tmp_buf, buf, blocksize);</span>
+<span class="lineNum">     253 </span><span class="lineCov">          1 :         CHECK_MPI_OK(mp_read_unsigned_octets(&amp;ghash-&gt;C_i, tmp_buf, blocksize));</span>
+<span class="lineNum">     254 </span><span class="lineCov">          1 :         CHECK_MPI_OK(mp_badd(&amp;ghash-&gt;X, &amp;ghash-&gt;C_i, &amp;ghash-&gt;C_i));</span>
+<span class="lineNum">     255 </span>            :         /*
+<span class="lineNum">     256 </span>            :          * Looking to speed up GCM, this the the place to do it.
+<span class="lineNum">     257 </span>            :          * There are two areas that can be exploited to speed up this code.
+<span class="lineNum">     258 </span>            :          *
+<span class="lineNum">     259 </span>            :          * 1) H is a constant in this multiply. We can precompute H * (0 - 255)
+<span class="lineNum">     260 </span>            :          * at init time and this becomes an blockize xors of our table lookup.
+<span class="lineNum">     261 </span>            :          *
+<span class="lineNum">     262 </span>            :          * 2) poly is a constant for each blocksize. We can calculate the
+<span class="lineNum">     263 </span>            :          * modulo reduction by a series of adds and shifts.
+<span class="lineNum">     264 </span>            :          *
+<span class="lineNum">     265 </span>            :          * For now we are after functionality, so we will go ahead and use
+<span class="lineNum">     266 </span>            :          * the builtin bmulmod from mpi
+<span class="lineNum">     267 </span>            :          */
+<span class="lineNum">     268 </span><span class="lineCov">          1 :         CHECK_MPI_OK(mp_bmulmod(&amp;ghash-&gt;C_i, &amp;ghash-&gt;H,</span>
+<span class="lineNum">     269 </span>            :                                 ghash-&gt;poly, &amp;ghash-&gt;X));
+<span class="lineNum">     270 </span>            :         GCM_TRACE_X(ghash, &quot;X%d = &quot;)
+<span class="lineNum">     271 </span>            :     }
+<span class="lineNum">     272 </span>            :     rv = SECSuccess;
+<span class="lineNum">     273 </span>            : cleanup:
+<span class="lineNum">     274 </span><span class="lineCov">          1 :     PORT_Memset(tmp_buf, 0, sizeof(tmp_buf));</span>
+<span class="lineNum">     275 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     276 </span><span class="lineNoCov">          0 :         MP_TO_SEC_ERROR(err);</span>
+<span class="lineNum">     277 </span>            :     }
+<span class="lineNum">     278 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">     279 </span>            : }
+<a name="280"><span class="lineNum">     280 </span>            : </a>
+<span class="lineNum">     281 </span>            : static void
+<span class="lineNum">     282 </span><span class="lineCov">          1 : gcm_zeroX(gcmHashContext *ghash)</span>
+<span class="lineNum">     283 </span>            : {
+<span class="lineNum">     284 </span><span class="lineCov">          1 :     mp_zero(&amp;ghash-&gt;X);</span>
+<span class="lineNum">     285 </span><span class="lineCov">          1 :     ghash-&gt;m = 0;</span>
+<span class="lineNum">     286 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     287 </span>            : 
+<span class="lineNum">     288 </span>            : #endif
+<span class="lineNum">     289 </span>            : 
+<span class="lineNum">     290 </span>            : #ifdef GCM_USE_ALGORITHM_1
+<span class="lineNum">     291 </span>            : /* use algorithm 1 of McGrew &amp; Viega &quot;The Galois/Counter Mode of Operation&quot; */
+<span class="lineNum">     292 </span>            : 
+<span class="lineNum">     293 </span>            : #define GCM_ARRAY_SIZE (MAX_BLOCK_SIZE / sizeof(unsigned long))
+<span class="lineNum">     294 </span>            : 
+<span class="lineNum">     295 </span>            : struct gcmHashContextStr {
+<span class="lineNum">     296 </span>            :     unsigned long H[GCM_ARRAY_SIZE];
+<span class="lineNum">     297 </span>            :     unsigned long X[GCM_ARRAY_SIZE];
+<span class="lineNum">     298 </span>            :     unsigned long R;
+<span class="lineNum">     299 </span>            :     unsigned char buffer[MAX_BLOCK_SIZE];
+<span class="lineNum">     300 </span>            :     unsigned int bufLen;
+<span class="lineNum">     301 </span>            :     int m;
+<span class="lineNum">     302 </span>            :     unsigned char counterBuf[2 * GCM_HASH_LEN_LEN];
+<span class="lineNum">     303 </span>            :     PRUint64 cLen;
+<span class="lineNum">     304 </span>            : };
+<span class="lineNum">     305 </span>            : 
+<span class="lineNum">     306 </span>            : static void
+<span class="lineNum">     307 </span>            : gcm_bytes_to_longs(unsigned long *l, const unsigned char *c, unsigned int len)
+<span class="lineNum">     308 </span>            : {
+<span class="lineNum">     309 </span>            :     int i, j;
+<span class="lineNum">     310 </span>            :     int array_size = len / sizeof(unsigned long);
+<span class="lineNum">     311 </span>            : 
+<span class="lineNum">     312 </span>            :     PORT_Assert(len % sizeof(unsigned long) == 0);
+<span class="lineNum">     313 </span>            :     for (i = 0; i &lt; array_size; i++) {
+<span class="lineNum">     314 </span>            :         unsigned long tmp = 0;
+<span class="lineNum">     315 </span>            :         int byte_offset = i * sizeof(unsigned long);
+<span class="lineNum">     316 </span>            :         for (j = sizeof(unsigned long) - 1; j &gt;= 0; j--) {
+<span class="lineNum">     317 </span>            :             tmp = (tmp &lt;&lt; PR_BITS_PER_BYTE) | gcm_byte_rev[c[byte_offset + j]];
+<span class="lineNum">     318 </span>            :         }
+<span class="lineNum">     319 </span>            :         l[i] = tmp;
+<span class="lineNum">     320 </span>            :     }
+<span class="lineNum">     321 </span>            : }
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span>            : static void
+<span class="lineNum">     324 </span>            : gcm_longs_to_bytes(const unsigned long *l, unsigned char *c, unsigned int len)
+<span class="lineNum">     325 </span>            : {
+<span class="lineNum">     326 </span>            :     int i, j;
+<span class="lineNum">     327 </span>            :     int array_size = len / sizeof(unsigned long);
+<span class="lineNum">     328 </span>            : 
+<span class="lineNum">     329 </span>            :     PORT_Assert(len % sizeof(unsigned long) == 0);
+<span class="lineNum">     330 </span>            :     for (i = 0; i &lt; array_size; i++) {
+<span class="lineNum">     331 </span>            :         unsigned long tmp = l[i];
+<span class="lineNum">     332 </span>            :         int byte_offset = i * sizeof(unsigned long);
+<span class="lineNum">     333 </span>            :         for (j = 0; j &lt; sizeof(unsigned long); j++) {
+<span class="lineNum">     334 </span>            :             c[byte_offset + j] = gcm_byte_rev[tmp &amp; 0xff];
+<span class="lineNum">     335 </span>            :             tmp = (tmp &gt;&gt; PR_BITS_PER_BYTE);
+<span class="lineNum">     336 </span>            :         }
+<span class="lineNum">     337 </span>            :     }
+<span class="lineNum">     338 </span>            : }
+<span class="lineNum">     339 </span>            : 
+<span class="lineNum">     340 </span>            : /* Initialize a gcmHashContext */
+<span class="lineNum">     341 </span>            : static SECStatus
+<span class="lineNum">     342 </span>            : gcmHash_InitContext(gcmHashContext *ghash, const unsigned char *H,
+<span class="lineNum">     343 </span>            :                     unsigned int blocksize)
+<span class="lineNum">     344 </span>            : {
+<span class="lineNum">     345 </span>            :     PORT_Memset(ghash-&gt;X, 0, sizeof(ghash-&gt;X));
+<span class="lineNum">     346 </span>            :     PORT_Memset(ghash-&gt;H, 0, sizeof(ghash-&gt;H));
+<span class="lineNum">     347 </span>            :     gcm_bytes_to_longs(ghash-&gt;H, H, blocksize);
+<span class="lineNum">     348 </span>            : 
+<span class="lineNum">     349 </span>            :     /* set the irreducible polynomial. Each blocksize has its own polynommial
+<span class="lineNum">     350 </span>            :      * for now only blocksize 16 (=128 bits) is defined */
+<span class="lineNum">     351 </span>            :     switch (blocksize) {
+<span class="lineNum">     352 </span>            :         case 16:                            /* 128 bits */
+<span class="lineNum">     353 </span>            :             ghash-&gt;R = (unsigned long)0x87; /* x^7 + x^2 + x +1 */
+<span class="lineNum">     354 </span>            :             break;
+<span class="lineNum">     355 </span>            :         default:
+<span class="lineNum">     356 </span>            :             PORT_SetError(SEC_ERROR_INVALID_ARGS);
+<span class="lineNum">     357 </span>            :             goto cleanup;
+<span class="lineNum">     358 </span>            :     }
+<span class="lineNum">     359 </span>            :     ghash-&gt;cLen = 0;
+<span class="lineNum">     360 </span>            :     ghash-&gt;bufLen = 0;
+<span class="lineNum">     361 </span>            :     ghash-&gt;m = 0;
+<span class="lineNum">     362 </span>            :     PORT_Memset(ghash-&gt;counterBuf, 0, sizeof(ghash-&gt;counterBuf));
+<span class="lineNum">     363 </span>            :     return SECSuccess;
+<span class="lineNum">     364 </span>            : cleanup:
+<span class="lineNum">     365 </span>            :     return SECFailure;
+<span class="lineNum">     366 </span>            : }
+<span class="lineNum">     367 </span>            : 
+<span class="lineNum">     368 </span>            : /* Destroy a HashContext (Note we zero the digits so this function
+<span class="lineNum">     369 </span>            :  * is idempotent if called with freeit == PR_FALSE */
+<span class="lineNum">     370 </span>            : static void
+<span class="lineNum">     371 </span>            : gcmHash_DestroyContext(gcmHashContext *ghash, PRBool freeit)
+<span class="lineNum">     372 </span>            : {
+<span class="lineNum">     373 </span>            :     PORT_Memset(ghash, 0, sizeof(gcmHashContext));
+<span class="lineNum">     374 </span>            :     if (freeit) {
+<span class="lineNum">     375 </span>            :         PORT_Free(ghash);
+<span class="lineNum">     376 </span>            :     }
+<span class="lineNum">     377 </span>            : }
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span>            : static unsigned long
+<span class="lineNum">     380 </span>            : gcm_shift_one(unsigned long *t, unsigned int count)
+<span class="lineNum">     381 </span>            : {
+<span class="lineNum">     382 </span>            :     unsigned long carry = 0;
+<span class="lineNum">     383 </span>            :     unsigned long nextcarry = 0;
+<span class="lineNum">     384 </span>            :     unsigned int i;
+<span class="lineNum">     385 </span>            :     for (i = 0; i &lt; count; i++) {
+<span class="lineNum">     386 </span>            :         nextcarry = t[i] &gt;&gt; ((sizeof(unsigned long) * PR_BITS_PER_BYTE) - 1);
+<span class="lineNum">     387 </span>            :         t[i] = (t[i] &lt;&lt; 1) | carry;
+<span class="lineNum">     388 </span>            :         carry = nextcarry;
+<span class="lineNum">     389 </span>            :     }
+<span class="lineNum">     390 </span>            :     return carry;
+<span class="lineNum">     391 </span>            : }
+<span class="lineNum">     392 </span>            : 
+<span class="lineNum">     393 </span>            : static SECStatus
+<span class="lineNum">     394 </span>            : gcm_getX(gcmHashContext *ghash, unsigned char *T, unsigned int blocksize)
+<span class="lineNum">     395 </span>            : {
+<span class="lineNum">     396 </span>            :     gcm_longs_to_bytes(ghash-&gt;X, T, blocksize);
+<span class="lineNum">     397 </span>            :     return SECSuccess;
+<span class="lineNum">     398 </span>            : }
+<span class="lineNum">     399 </span>            : 
+<span class="lineNum">     400 </span>            : #define GCM_XOR(t, s, len)    \
+<span class="lineNum">     401 </span>            :     for (l = 0; l &lt; len; l++) \
+<span class="lineNum">     402 </span>            :     t[l] ^= s[l]
+<span class="lineNum">     403 </span>            : 
+<span class="lineNum">     404 </span>            : static SECStatus
+<span class="lineNum">     405 </span>            : gcm_HashMult(gcmHashContext *ghash, const unsigned char *buf,
+<span class="lineNum">     406 </span>            :              unsigned int count, unsigned int blocksize)
+<span class="lineNum">     407 </span>            : {
+<span class="lineNum">     408 </span>            :     unsigned long C_i[GCM_ARRAY_SIZE];
+<span class="lineNum">     409 </span>            :     unsigned int arraysize = blocksize / sizeof(unsigned long);
+<span class="lineNum">     410 </span>            :     unsigned int i, j, k, l;
+<span class="lineNum">     411 </span>            : 
+<span class="lineNum">     412 </span>            :     for (i = 0; i &lt; count; i++, buf += blocksize) {
+<span class="lineNum">     413 </span>            :         ghash-&gt;m++;
+<span class="lineNum">     414 </span>            :         gcm_bytes_to_longs(C_i, buf, blocksize);
+<span class="lineNum">     415 </span>            :         GCM_XOR(C_i, ghash-&gt;X, arraysize);
+<span class="lineNum">     416 </span>            :         /* multiply X = C_i * H */
+<span class="lineNum">     417 </span>            :         PORT_Memset(ghash-&gt;X, 0, sizeof(ghash-&gt;X));
+<span class="lineNum">     418 </span>            :         for (j = 0; j &lt; arraysize; j++) {
+<span class="lineNum">     419 </span>            :             unsigned long H = ghash-&gt;H[j];
+<span class="lineNum">     420 </span>            :             for (k = 0; k &lt; sizeof(unsigned long) * PR_BITS_PER_BYTE; k++) {
+<span class="lineNum">     421 </span>            :                 if (H &amp; 1) {
+<span class="lineNum">     422 </span>            :                     GCM_XOR(ghash-&gt;X, C_i, arraysize);
+<span class="lineNum">     423 </span>            :                 }
+<span class="lineNum">     424 </span>            :                 if (gcm_shift_one(C_i, arraysize)) {
+<span class="lineNum">     425 </span>            :                     C_i[0] = C_i[0] ^ ghash-&gt;R;
+<span class="lineNum">     426 </span>            :                 }
+<span class="lineNum">     427 </span>            :                 H = H &gt;&gt; 1;
+<span class="lineNum">     428 </span>            :             }
+<span class="lineNum">     429 </span>            :         }
+<span class="lineNum">     430 </span>            :         GCM_TRACE_X(ghash, &quot;X%d = &quot;)
+<span class="lineNum">     431 </span>            :     }
+<span class="lineNum">     432 </span>            :     PORT_Memset(C_i, 0, sizeof(C_i));
+<span class="lineNum">     433 </span>            :     return SECSuccess;
+<span class="lineNum">     434 </span>            : }
+<span class="lineNum">     435 </span>            : 
+<span class="lineNum">     436 </span>            : static void
+<span class="lineNum">     437 </span>            : gcm_zeroX(gcmHashContext *ghash)
+<span class="lineNum">     438 </span>            : {
+<span class="lineNum">     439 </span>            :     PORT_Memset(ghash-&gt;X, 0, sizeof(ghash-&gt;X));
+<span class="lineNum">     440 </span>            :     ghash-&gt;m = 0;
+<span class="lineNum">     441 </span>            : }
+<span class="lineNum">     442 </span>            : #endif
+<span class="lineNum">     443 </span>            : 
+<span class="lineNum">     444 </span>            : /*
+<span class="lineNum">     445 </span>            :  * implement GCM GHASH using the freebl GHASH function. The gcm_HashMult
+<span class="lineNum">     446 </span>            :  * function always takes blocksize lengths of data. gcmHash_Update will
+<span class="lineNum">     447 </span>            :  * format the data properly.
+<a name="448"><span class="lineNum">     448 </span>            :  */</a>
+<span class="lineNum">     449 </span>            : static SECStatus
+<span class="lineNum">     450 </span><span class="lineCov">          1 : gcmHash_Update(gcmHashContext *ghash, const unsigned char *buf,</span>
+<span class="lineNum">     451 </span>            :                unsigned int len, unsigned int blocksize)
+<span class="lineNum">     452 </span>            : {
+<span class="lineNum">     453 </span>            :     unsigned int blocks;
+<span class="lineNum">     454 </span>            :     SECStatus rv;
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span><span class="lineCov">          1 :     ghash-&gt;cLen += (len * PR_BITS_PER_BYTE);</span>
+<span class="lineNum">     457 </span>            : 
+<span class="lineNum">     458 </span>            :     /* first deal with the current buffer of data. Try to fill it out so
+<span class="lineNum">     459 </span>            :      * we can hash it */
+<span class="lineNum">     460 </span><span class="lineCov">          1 :     if (ghash-&gt;bufLen) {</span>
+<span class="lineNum">     461 </span><span class="lineNoCov">          0 :         unsigned int needed = PR_MIN(len, blocksize - ghash-&gt;bufLen);</span>
+<span class="lineNum">     462 </span><span class="lineNoCov">          0 :         if (needed != 0) {</span>
+<span class="lineNum">     463 </span><span class="lineNoCov">          0 :             PORT_Memcpy(ghash-&gt;buffer + ghash-&gt;bufLen, buf, needed);</span>
+<span class="lineNum">     464 </span>            :         }
+<span class="lineNum">     465 </span><span class="lineNoCov">          0 :         buf += needed;</span>
+<span class="lineNum">     466 </span><span class="lineNoCov">          0 :         len -= needed;</span>
+<span class="lineNum">     467 </span><span class="lineNoCov">          0 :         ghash-&gt;bufLen += needed;</span>
+<span class="lineNum">     468 </span><span class="lineNoCov">          0 :         if (len == 0) {</span>
+<span class="lineNum">     469 </span>            :             /* didn't add enough to hash the data, nothing more do do */
+<span class="lineNum">     470 </span>            :             return SECSuccess;
+<span class="lineNum">     471 </span>            :         }
+<span class="lineNum">     472 </span>            :         PORT_Assert(ghash-&gt;bufLen == blocksize);
+<span class="lineNum">     473 </span>            :         /* hash the buffer and clear it */
+<span class="lineNum">     474 </span><span class="lineNoCov">          0 :         rv = gcm_HashMult(ghash, ghash-&gt;buffer, 1, blocksize);</span>
+<span class="lineNum">     475 </span><span class="lineNoCov">          0 :         PORT_Memset(ghash-&gt;buffer, 0, blocksize);</span>
+<span class="lineNum">     476 </span><span class="lineNoCov">          0 :         ghash-&gt;bufLen = 0;</span>
+<span class="lineNum">     477 </span><span class="lineNoCov">          0 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     478 </span>            :             return SECFailure;
+<span class="lineNum">     479 </span>            :         }
+<span class="lineNum">     480 </span>            :     }
+<span class="lineNum">     481 </span>            :     /* now hash any full blocks remaining in the data stream */
+<span class="lineNum">     482 </span><span class="lineCov">          1 :     blocks = len / blocksize;</span>
+<span class="lineNum">     483 </span><span class="lineCov">          1 :     if (blocks) {</span>
+<span class="lineNum">     484 </span><span class="lineCov">          1 :         rv = gcm_HashMult(ghash, buf, blocks, blocksize);</span>
+<span class="lineNum">     485 </span><span class="lineCov">          1 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     486 </span>            :             return SECFailure;
+<span class="lineNum">     487 </span>            :         }
+<span class="lineNum">     488 </span><span class="lineCov">          1 :         buf += blocks * blocksize;</span>
+<span class="lineNum">     489 </span><span class="lineCov">          1 :         len -= blocks * blocksize;</span>
+<span class="lineNum">     490 </span>            :     }
+<span class="lineNum">     491 </span>            : 
+<span class="lineNum">     492 </span>            :     /* save any remainder in the buffer to be hashed with the next call */
+<span class="lineNum">     493 </span><span class="lineCov">          1 :     if (len != 0) {</span>
+<span class="lineNum">     494 </span><span class="lineCov">          1 :         PORT_Memcpy(ghash-&gt;buffer, buf, len);</span>
+<span class="lineNum">     495 </span><span class="lineCov">          1 :         ghash-&gt;bufLen = len;</span>
+<span class="lineNum">     496 </span>            :     }
+<span class="lineNum">     497 </span>            :     return SECSuccess;
+<span class="lineNum">     498 </span>            : }
+<span class="lineNum">     499 </span>            : 
+<span class="lineNum">     500 </span>            : /*
+<span class="lineNum">     501 </span>            :  * write out any partial blocks zero padded through the GHASH engine,
+<span class="lineNum">     502 </span>            :  * save the lengths for the final completion of the hash
+<a name="503"><span class="lineNum">     503 </span>            :  */</a>
+<span class="lineNum">     504 </span>            : static SECStatus
+<span class="lineNum">     505 </span><span class="lineCov">          1 : gcmHash_Sync(gcmHashContext *ghash, unsigned int blocksize)</span>
+<span class="lineNum">     506 </span>            : {
+<span class="lineNum">     507 </span>            :     int i;
+<span class="lineNum">     508 </span>            :     SECStatus rv;
+<span class="lineNum">     509 </span>            : 
+<span class="lineNum">     510 </span>            :     /* copy the previous counter to the upper block */
+<span class="lineNum">     511 </span><span class="lineCov">          1 :     PORT_Memcpy(ghash-&gt;counterBuf, &amp;ghash-&gt;counterBuf[GCM_HASH_LEN_LEN],</span>
+<span class="lineNum">     512 </span>            :                 GCM_HASH_LEN_LEN);
+<span class="lineNum">     513 </span>            :     /* copy the current counter in the lower block */
+<span class="lineNum">     514 </span><span class="lineCov">          1 :     for (i = 0; i &lt; GCM_HASH_LEN_LEN; i++) {</span>
+<span class="lineNum">     515 </span><span class="lineCov">          1 :         ghash-&gt;counterBuf[GCM_HASH_LEN_LEN + i] =</span>
+<span class="lineNum">     516 </span><span class="lineCov">          1 :             (ghash-&gt;cLen &gt;&gt; ((GCM_HASH_LEN_LEN - 1 - i) * PR_BITS_PER_BYTE)) &amp; 0xff;</span>
+<span class="lineNum">     517 </span>            :     }
+<span class="lineNum">     518 </span><span class="lineCov">          1 :     ghash-&gt;cLen = 0;</span>
+<span class="lineNum">     519 </span>            : 
+<span class="lineNum">     520 </span>            :     /* now zero fill the buffer and hash the last block */
+<span class="lineNum">     521 </span><span class="lineCov">          1 :     if (ghash-&gt;bufLen) {</span>
+<span class="lineNum">     522 </span><span class="lineCov">          1 :         PORT_Memset(ghash-&gt;buffer + ghash-&gt;bufLen, 0, blocksize - ghash-&gt;bufLen);</span>
+<span class="lineNum">     523 </span><span class="lineCov">          1 :         rv = gcm_HashMult(ghash, ghash-&gt;buffer, 1, blocksize);</span>
+<span class="lineNum">     524 </span><span class="lineCov">          1 :         PORT_Memset(ghash-&gt;buffer, 0, blocksize);</span>
+<span class="lineNum">     525 </span><span class="lineCov">          1 :         ghash-&gt;bufLen = 0;</span>
+<span class="lineNum">     526 </span><span class="lineCov">          1 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     527 </span>            :             return SECFailure;
+<span class="lineNum">     528 </span>            :         }
+<span class="lineNum">     529 </span>            :     }
+<span class="lineNum">     530 </span>            :     return SECSuccess;
+<span class="lineNum">     531 </span>            : }
+<span class="lineNum">     532 </span>            : 
+<span class="lineNum">     533 </span>            : /*
+<span class="lineNum">     534 </span>            :  * This does the final sync, hashes the lengths, then returns
+<span class="lineNum">     535 </span>            :  * &quot;T&quot;, the hashed output.
+<a name="536"><span class="lineNum">     536 </span>            :  */</a>
+<span class="lineNum">     537 </span>            : static SECStatus
+<span class="lineNum">     538 </span><span class="lineCov">          1 : gcmHash_Final(gcmHashContext *ghash, unsigned char *outbuf,</span>
+<span class="lineNum">     539 </span>            :               unsigned int *outlen, unsigned int maxout,
+<span class="lineNum">     540 </span>            :               unsigned int blocksize)
+<span class="lineNum">     541 </span>            : {
+<span class="lineNum">     542 </span>            :     unsigned char T[MAX_BLOCK_SIZE];
+<span class="lineNum">     543 </span>            :     SECStatus rv;
+<span class="lineNum">     544 </span>            : 
+<span class="lineNum">     545 </span><span class="lineCov">          1 :     rv = gcmHash_Sync(ghash, blocksize);</span>
+<span class="lineNum">     546 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     547 </span>            :         goto cleanup;
+<span class="lineNum">     548 </span>            :     }
+<span class="lineNum">     549 </span>            : 
+<span class="lineNum">     550 </span><span class="lineCov">          1 :     rv = gcm_HashMult(ghash, ghash-&gt;counterBuf, (GCM_HASH_LEN_LEN * 2) / blocksize,</span>
+<span class="lineNum">     551 </span>            :                       blocksize);
+<span class="lineNum">     552 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     553 </span>            :         goto cleanup;
+<span class="lineNum">     554 </span>            :     }
+<span class="lineNum">     555 </span>            : 
+<span class="lineNum">     556 </span>            :     GCM_TRACE_X(ghash, &quot;GHASH(H,A,C) = &quot;)
+<span class="lineNum">     557 </span>            : 
+<span class="lineNum">     558 </span><span class="lineCov">          1 :     rv = gcm_getX(ghash, T, blocksize);</span>
+<span class="lineNum">     559 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     560 </span>            :         goto cleanup;
+<span class="lineNum">     561 </span>            :     }
+<span class="lineNum">     562 </span>            : 
+<span class="lineNum">     563 </span><span class="lineCov">          1 :     if (maxout &gt; blocksize)</span>
+<span class="lineNum">     564 </span><span class="lineNoCov">          0 :         maxout = blocksize;</span>
+<span class="lineNum">     565 </span><span class="lineCov">          1 :     PORT_Memcpy(outbuf, T, maxout);</span>
+<span class="lineNum">     566 </span><span class="lineCov">          1 :     *outlen = maxout;</span>
+<span class="lineNum">     567 </span><span class="lineCov">          1 :     rv = SECSuccess;</span>
+<span class="lineNum">     568 </span>            : 
+<span class="lineNum">     569 </span>            : cleanup:
+<span class="lineNum">     570 </span><span class="lineCov">          1 :     PORT_Memset(T, 0, sizeof(T));</span>
+<span class="lineNum">     571 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">     572 </span>            : }
+<a name="573"><span class="lineNum">     573 </span>            : </a>
+<span class="lineNum">     574 </span>            : SECStatus
+<span class="lineNum">     575 </span><span class="lineCov">          1 : gcmHash_Reset(gcmHashContext *ghash, const unsigned char *AAD,</span>
+<span class="lineNum">     576 </span>            :               unsigned int AADLen, unsigned int blocksize)
+<span class="lineNum">     577 </span>            : {
+<span class="lineNum">     578 </span>            :     SECStatus rv;
+<span class="lineNum">     579 </span>            : 
+<span class="lineNum">     580 </span><span class="lineCov">          1 :     ghash-&gt;cLen = 0;</span>
+<span class="lineNum">     581 </span><span class="lineCov">          1 :     PORT_Memset(ghash-&gt;counterBuf, 0, GCM_HASH_LEN_LEN * 2);</span>
+<span class="lineNum">     582 </span><span class="lineCov">          1 :     ghash-&gt;bufLen = 0;</span>
+<span class="lineNum">     583 </span><span class="lineCov">          1 :     gcm_zeroX(ghash);</span>
+<span class="lineNum">     584 </span>            : 
+<span class="lineNum">     585 </span>            :     /* now kick things off by hashing the Additional Authenticated Data */
+<span class="lineNum">     586 </span><span class="lineCov">          1 :     if (AADLen != 0) {</span>
+<span class="lineNum">     587 </span><span class="lineCov">          1 :         rv = gcmHash_Update(ghash, AAD, AADLen, blocksize);</span>
+<span class="lineNum">     588 </span><span class="lineCov">          1 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     589 </span>            :             return SECFailure;
+<span class="lineNum">     590 </span>            :         }
+<span class="lineNum">     591 </span><span class="lineCov">          1 :         rv = gcmHash_Sync(ghash, blocksize);</span>
+<span class="lineNum">     592 </span><span class="lineCov">          1 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     593 </span>            :             return SECFailure;
+<span class="lineNum">     594 </span>            :         }
+<span class="lineNum">     595 </span>            :     }
+<span class="lineNum">     596 </span>            :     return SECSuccess;
+<span class="lineNum">     597 </span>            : }
+<span class="lineNum">     598 </span>            : 
+<span class="lineNum">     599 </span>            : /**************************************************************************
+<span class="lineNum">     600 </span>            :  *           Now implement the GCM using gcmHash and CTR                  *
+<span class="lineNum">     601 </span>            :  **************************************************************************/
+<span class="lineNum">     602 </span>            : 
+<span class="lineNum">     603 </span>            : /* state to handle the full GCM operation (hash and counter) */
+<span class="lineNum">     604 </span>            : struct GCMContextStr {
+<span class="lineNum">     605 </span>            :     gcmHashContext ghash_context;
+<span class="lineNum">     606 </span>            :     CTRContext ctr_context;
+<span class="lineNum">     607 </span>            :     unsigned long tagBits;
+<span class="lineNum">     608 </span>            :     unsigned char tagKey[MAX_BLOCK_SIZE];
+<span class="lineNum">     609 </span>            : };
+<a name="610"><span class="lineNum">     610 </span>            : </a>
+<span class="lineNum">     611 </span>            : GCMContext *
+<span class="lineNum">     612 </span><span class="lineCov">          1 : GCM_CreateContext(void *context, freeblCipherFunc cipher,</span>
+<span class="lineNum">     613 </span>            :                   const unsigned char *params, unsigned int blocksize)
+<span class="lineNum">     614 </span>            : {
+<span class="lineNum">     615 </span><span class="lineCov">          1 :     GCMContext *gcm = NULL;</span>
+<span class="lineNum">     616 </span>            :     gcmHashContext *ghash;
+<span class="lineNum">     617 </span>            :     unsigned char H[MAX_BLOCK_SIZE];
+<span class="lineNum">     618 </span>            :     unsigned int tmp;
+<span class="lineNum">     619 </span><span class="lineCov">          1 :     PRBool freeCtr = PR_FALSE;</span>
+<span class="lineNum">     620 </span><span class="lineCov">          1 :     PRBool freeHash = PR_FALSE;</span>
+<span class="lineNum">     621 </span><span class="lineCov">          1 :     const CK_GCM_PARAMS *gcmParams = (const CK_GCM_PARAMS *)params;</span>
+<span class="lineNum">     622 </span>            :     CK_AES_CTR_PARAMS ctrParams;
+<span class="lineNum">     623 </span>            :     SECStatus rv;
+<span class="lineNum">     624 </span>            : 
+<span class="lineNum">     625 </span><span class="lineCov">          1 :     if (blocksize &gt; MAX_BLOCK_SIZE || blocksize &gt; sizeof(ctrParams.cb)) {</span>
+<span class="lineNum">     626 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_LIBRARY_FAILURE);</span>
+<span class="lineNum">     627 </span><span class="lineNoCov">          0 :         return NULL;</span>
+<span class="lineNum">     628 </span>            :     }
+<span class="lineNum">     629 </span><span class="lineCov">          1 :     gcm = PORT_ZNew(GCMContext);</span>
+<span class="lineNum">     630 </span><span class="lineCov">          1 :     if (gcm == NULL) {</span>
+<span class="lineNum">     631 </span>            :         return NULL;
+<span class="lineNum">     632 </span>            :     }
+<span class="lineNum">     633 </span>            :     /* first fill in the ghash context */
+<span class="lineNum">     634 </span><span class="lineCov">          1 :     ghash = &amp;gcm-&gt;ghash_context;</span>
+<span class="lineNum">     635 </span><span class="lineCov">          1 :     PORT_Memset(H, 0, blocksize);</span>
+<span class="lineNum">     636 </span><span class="lineCov">          1 :     rv = (*cipher)(context, H, &amp;tmp, blocksize, H, blocksize, blocksize);</span>
+<span class="lineNum">     637 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     638 </span>            :         goto loser;
+<span class="lineNum">     639 </span>            :     }
+<span class="lineNum">     640 </span><span class="lineCov">          1 :     rv = gcmHash_InitContext(ghash, H, blocksize);</span>
+<span class="lineNum">     641 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     642 </span>            :         goto loser;
+<span class="lineNum">     643 </span>            :     }
+<span class="lineNum">     644 </span><span class="lineCov">          1 :     freeHash = PR_TRUE;</span>
+<span class="lineNum">     645 </span>            : 
+<span class="lineNum">     646 </span>            :     /* fill in the Counter context */
+<span class="lineNum">     647 </span><span class="lineCov">          1 :     ctrParams.ulCounterBits = 32;</span>
+<span class="lineNum">     648 </span><span class="lineCov">          1 :     PORT_Memset(ctrParams.cb, 0, sizeof(ctrParams.cb));</span>
+<span class="lineNum">     649 </span><span class="lineCov">          1 :     if ((blocksize == 16) &amp;&amp; (gcmParams-&gt;ulIvLen == 12)) {</span>
+<span class="lineNum">     650 </span><span class="lineCov">          1 :         PORT_Memcpy(ctrParams.cb, gcmParams-&gt;pIv, gcmParams-&gt;ulIvLen);</span>
+<span class="lineNum">     651 </span><span class="lineCov">          1 :         ctrParams.cb[blocksize - 1] = 1;</span>
+<span class="lineNum">     652 </span>            :     } else {
+<span class="lineNum">     653 </span><span class="lineCov">          1 :         rv = gcmHash_Update(ghash, gcmParams-&gt;pIv, gcmParams-&gt;ulIvLen,</span>
+<span class="lineNum">     654 </span>            :                             blocksize);
+<span class="lineNum">     655 </span><span class="lineCov">          1 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     656 </span>            :             goto loser;
+<span class="lineNum">     657 </span>            :         }
+<span class="lineNum">     658 </span><span class="lineCov">          1 :         rv = gcmHash_Final(ghash, ctrParams.cb, &amp;tmp, blocksize, blocksize);</span>
+<span class="lineNum">     659 </span><span class="lineCov">          1 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     660 </span>            :             goto loser;
+<span class="lineNum">     661 </span>            :         }
+<span class="lineNum">     662 </span>            :     }
+<span class="lineNum">     663 </span><span class="lineCov">          1 :     rv = CTR_InitContext(&amp;gcm-&gt;ctr_context, context, cipher,</span>
+<span class="lineNum">     664 </span>            :                          (unsigned char *)&amp;ctrParams, blocksize);
+<span class="lineNum">     665 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     666 </span>            :         goto loser;
+<span class="lineNum">     667 </span>            :     }
+<span class="lineNum">     668 </span><span class="lineCov">          1 :     freeCtr = PR_TRUE;</span>
+<span class="lineNum">     669 </span>            : 
+<span class="lineNum">     670 </span>            :     /* fill in the gcm structure */
+<span class="lineNum">     671 </span><span class="lineCov">          1 :     gcm-&gt;tagBits = gcmParams-&gt;ulTagBits; /* save for final step */</span>
+<span class="lineNum">     672 </span>            :     /* calculate the final tag key. NOTE: gcm-&gt;tagKey is zero to start with.
+<span class="lineNum">     673 </span>            :      * if this assumption changes, we would need to explicitly clear it here */
+<span class="lineNum">     674 </span><span class="lineCov">          1 :     rv = CTR_Update(&amp;gcm-&gt;ctr_context, gcm-&gt;tagKey, &amp;tmp, blocksize,</span>
+<span class="lineNum">     675 </span>            :                     gcm-&gt;tagKey, blocksize, blocksize);
+<span class="lineNum">     676 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     677 </span>            :         goto loser;
+<span class="lineNum">     678 </span>            :     }
+<span class="lineNum">     679 </span>            : 
+<span class="lineNum">     680 </span>            :     /* finally mix in the AAD data */
+<span class="lineNum">     681 </span><span class="lineCov">          1 :     rv = gcmHash_Reset(ghash, gcmParams-&gt;pAAD, gcmParams-&gt;ulAADLen, blocksize);</span>
+<span class="lineNum">     682 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     683 </span>            :         goto loser;
+<span class="lineNum">     684 </span>            :     }
+<span class="lineNum">     685 </span>            : 
+<span class="lineNum">     686 </span>            :     return gcm;
+<span class="lineNum">     687 </span>            : 
+<span class="lineNum">     688 </span>            : loser:
+<span class="lineNum">     689 </span><span class="lineNoCov">          0 :     if (freeCtr) {</span>
+<span class="lineNum">     690 </span><span class="lineNoCov">          0 :         CTR_DestroyContext(&amp;gcm-&gt;ctr_context, PR_FALSE);</span>
+<span class="lineNum">     691 </span>            :     }
+<span class="lineNum">     692 </span><span class="lineNoCov">          0 :     if (freeHash) {</span>
+<span class="lineNum">     693 </span><span class="lineNoCov">          0 :         gcmHash_DestroyContext(&amp;gcm-&gt;ghash_context, PR_FALSE);</span>
+<span class="lineNum">     694 </span>            :     }
+<span class="lineNum">     695 </span><span class="lineNoCov">          0 :     if (gcm) {</span>
+<span class="lineNum">     696 </span><span class="lineNoCov">          0 :         PORT_Free(gcm);</span>
+<span class="lineNum">     697 </span>            :     }
+<span class="lineNum">     698 </span>            :     return NULL;
+<span class="lineNum">     699 </span>            : }
+<a name="700"><span class="lineNum">     700 </span>            : </a>
+<span class="lineNum">     701 </span>            : void
+<span class="lineNum">     702 </span><span class="lineCov">          1 : GCM_DestroyContext(GCMContext *gcm, PRBool freeit)</span>
+<span class="lineNum">     703 </span>            : {
+<span class="lineNum">     704 </span>            :     /* these two are statically allocated and will be freed when we free
+<span class="lineNum">     705 </span>            :      * gcm. call their destroy functions to free up any locally
+<span class="lineNum">     706 </span>            :      * allocated data (like mp_int's) */
+<span class="lineNum">     707 </span><span class="lineCov">          1 :     CTR_DestroyContext(&amp;gcm-&gt;ctr_context, PR_FALSE);</span>
+<span class="lineNum">     708 </span><span class="lineCov">          1 :     gcmHash_DestroyContext(&amp;gcm-&gt;ghash_context, PR_FALSE);</span>
+<span class="lineNum">     709 </span><span class="lineCov">          1 :     PORT_Memset(&amp;gcm-&gt;tagBits, 0, sizeof(gcm-&gt;tagBits));</span>
+<span class="lineNum">     710 </span><span class="lineCov">          1 :     PORT_Memset(gcm-&gt;tagKey, 0, sizeof(gcm-&gt;tagKey));</span>
+<span class="lineNum">     711 </span><span class="lineCov">          1 :     if (freeit) {</span>
+<span class="lineNum">     712 </span><span class="lineCov">          1 :         PORT_Free(gcm);</span>
+<span class="lineNum">     713 </span>            :     }
+<span class="lineNum">     714 </span><span class="lineCov">          1 : }</span>
+<a name="715"><span class="lineNum">     715 </span>            : </a>
+<span class="lineNum">     716 </span>            : static SECStatus
+<span class="lineNum">     717 </span><span class="lineCov">          1 : gcm_GetTag(GCMContext *gcm, unsigned char *outbuf,</span>
+<span class="lineNum">     718 </span>            :            unsigned int *outlen, unsigned int maxout,
+<span class="lineNum">     719 </span>            :            unsigned int blocksize)
+<span class="lineNum">     720 </span>            : {
+<span class="lineNum">     721 </span>            :     unsigned int tagBytes;
+<span class="lineNum">     722 </span>            :     unsigned int extra;
+<span class="lineNum">     723 </span>            :     unsigned int i;
+<span class="lineNum">     724 </span>            :     SECStatus rv;
+<span class="lineNum">     725 </span>            : 
+<span class="lineNum">     726 </span><span class="lineCov">          1 :     tagBytes = (gcm-&gt;tagBits + (PR_BITS_PER_BYTE - 1)) / PR_BITS_PER_BYTE;</span>
+<span class="lineNum">     727 </span><span class="lineCov">          1 :     extra = tagBytes * PR_BITS_PER_BYTE - gcm-&gt;tagBits;</span>
+<span class="lineNum">     728 </span>            : 
+<span class="lineNum">     729 </span><span class="lineCov">          1 :     if (outbuf == NULL) {</span>
+<span class="lineNum">     730 </span><span class="lineNoCov">          0 :         *outlen = tagBytes;</span>
+<span class="lineNum">     731 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_OUTPUT_LEN);</span>
+<span class="lineNum">     732 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     733 </span>            :     }
+<span class="lineNum">     734 </span>            : 
+<span class="lineNum">     735 </span><span class="lineCov">          1 :     if (maxout &lt; tagBytes) {</span>
+<span class="lineNum">     736 </span><span class="lineNoCov">          0 :         *outlen = tagBytes;</span>
+<span class="lineNum">     737 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_OUTPUT_LEN);</span>
+<span class="lineNum">     738 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     739 </span>            :     }
+<span class="lineNum">     740 </span><span class="lineCov">          1 :     maxout = tagBytes;</span>
+<span class="lineNum">     741 </span><span class="lineCov">          1 :     rv = gcmHash_Final(&amp;gcm-&gt;ghash_context, outbuf, outlen, maxout, blocksize);</span>
+<span class="lineNum">     742 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     743 </span>            :         return SECFailure;
+<span class="lineNum">     744 </span>            :     }
+<span class="lineNum">     745 </span>            : 
+<span class="lineNum">     746 </span>            :     GCM_TRACE_BLOCK(&quot;GHASH=&quot;, outbuf, blocksize);
+<span class="lineNum">     747 </span>            :     GCM_TRACE_BLOCK(&quot;Y0=&quot;, gcm-&gt;tagKey, blocksize);
+<span class="lineNum">     748 </span><span class="lineCov">          1 :     for (i = 0; i &lt; *outlen; i++) {</span>
+<span class="lineNum">     749 </span><span class="lineCov">          1 :         outbuf[i] ^= gcm-&gt;tagKey[i];</span>
+<span class="lineNum">     750 </span>            :     }
+<span class="lineNum">     751 </span>            :     GCM_TRACE_BLOCK(&quot;Y0=&quot;, gcm-&gt;tagKey, blocksize);
+<span class="lineNum">     752 </span>            :     GCM_TRACE_BLOCK(&quot;T=&quot;, outbuf, blocksize);
+<span class="lineNum">     753 </span>            :     /* mask off any extra bits we got */
+<span class="lineNum">     754 </span><span class="lineCov">          1 :     if (extra) {</span>
+<span class="lineNum">     755 </span><span class="lineNoCov">          0 :         outbuf[tagBytes - 1] &amp;= ~((1 &lt;&lt; extra) - 1);</span>
+<span class="lineNum">     756 </span>            :     }
+<span class="lineNum">     757 </span>            :     return SECSuccess;
+<span class="lineNum">     758 </span>            : }
+<span class="lineNum">     759 </span>            : 
+<span class="lineNum">     760 </span>            : /*
+<span class="lineNum">     761 </span>            :  * See The Galois/Counter Mode of Operation, McGrew and Viega.
+<span class="lineNum">     762 </span>            :  *  GCM is basically counter mode with a specific initialization and
+<span class="lineNum">     763 </span>            :  *  built in macing operation.
+<a name="764"><span class="lineNum">     764 </span>            :  */</a>
+<span class="lineNum">     765 </span>            : SECStatus
+<span class="lineNum">     766 </span><span class="lineCov">          1 : GCM_EncryptUpdate(GCMContext *gcm, unsigned char *outbuf,</span>
+<span class="lineNum">     767 </span>            :                   unsigned int *outlen, unsigned int maxout,
+<span class="lineNum">     768 </span>            :                   const unsigned char *inbuf, unsigned int inlen,
+<span class="lineNum">     769 </span>            :                   unsigned int blocksize)
+<span class="lineNum">     770 </span>            : {
+<span class="lineNum">     771 </span>            :     SECStatus rv;
+<span class="lineNum">     772 </span>            :     unsigned int tagBytes;
+<span class="lineNum">     773 </span>            :     unsigned int len;
+<span class="lineNum">     774 </span>            : 
+<span class="lineNum">     775 </span><span class="lineCov">          1 :     tagBytes = (gcm-&gt;tagBits + (PR_BITS_PER_BYTE - 1)) / PR_BITS_PER_BYTE;</span>
+<span class="lineNum">     776 </span><span class="lineCov">          1 :     if (UINT_MAX - inlen &lt; tagBytes) {</span>
+<span class="lineNum">     777 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INPUT_LEN);</span>
+<span class="lineNum">     778 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     779 </span>            :     }
+<span class="lineNum">     780 </span><span class="lineCov">          1 :     if (maxout &lt; inlen + tagBytes) {</span>
+<span class="lineNum">     781 </span><span class="lineNoCov">          0 :         *outlen = inlen + tagBytes;</span>
+<span class="lineNum">     782 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_OUTPUT_LEN);</span>
+<span class="lineNum">     783 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     784 </span>            :     }
+<span class="lineNum">     785 </span>            : 
+<span class="lineNum">     786 </span><span class="lineCov">          1 :     rv = CTR_Update(&amp;gcm-&gt;ctr_context, outbuf, outlen, maxout,</span>
+<span class="lineNum">     787 </span>            :                     inbuf, inlen, blocksize);
+<span class="lineNum">     788 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     789 </span>            :         return SECFailure;
+<span class="lineNum">     790 </span>            :     }
+<span class="lineNum">     791 </span><span class="lineCov">          1 :     rv = gcmHash_Update(&amp;gcm-&gt;ghash_context, outbuf, *outlen, blocksize);</span>
+<span class="lineNum">     792 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     793 </span><span class="lineNoCov">          0 :         PORT_Memset(outbuf, 0, *outlen); /* clear the output buffer */</span>
+<span class="lineNum">     794 </span><span class="lineNoCov">          0 :         *outlen = 0;</span>
+<span class="lineNum">     795 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     796 </span>            :     }
+<span class="lineNum">     797 </span><span class="lineCov">          1 :     rv = gcm_GetTag(gcm, outbuf + *outlen, &amp;len, maxout - *outlen, blocksize);</span>
+<span class="lineNum">     798 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     799 </span><span class="lineNoCov">          0 :         PORT_Memset(outbuf, 0, *outlen); /* clear the output buffer */</span>
+<span class="lineNum">     800 </span><span class="lineNoCov">          0 :         *outlen = 0;</span>
+<span class="lineNum">     801 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     802 </span>            :     };
+<span class="lineNum">     803 </span><span class="lineCov">          1 :     *outlen += len;</span>
+<span class="lineNum">     804 </span><span class="lineCov">          1 :     return SECSuccess;</span>
+<span class="lineNum">     805 </span>            : }
+<span class="lineNum">     806 </span>            : 
+<span class="lineNum">     807 </span>            : /*
+<span class="lineNum">     808 </span>            :  * See The Galois/Counter Mode of Operation, McGrew and Viega.
+<span class="lineNum">     809 </span>            :  *  GCM is basically counter mode with a specific initialization and
+<span class="lineNum">     810 </span>            :  *  built in macing operation. NOTE: the only difference between Encrypt
+<span class="lineNum">     811 </span>            :  *  and Decrypt is when we calculate the mac. That is because the mac must
+<span class="lineNum">     812 </span>            :  *  always be calculated on the cipher text, not the plain text, so for
+<span class="lineNum">     813 </span>            :  *  encrypt, we do the CTR update first and for decrypt we do the mac first.
+<a name="814"><span class="lineNum">     814 </span>            :  */</a>
+<span class="lineNum">     815 </span>            : SECStatus
+<span class="lineNum">     816 </span><span class="lineCov">          1 : GCM_DecryptUpdate(GCMContext *gcm, unsigned char *outbuf,</span>
+<span class="lineNum">     817 </span>            :                   unsigned int *outlen, unsigned int maxout,
+<span class="lineNum">     818 </span>            :                   const unsigned char *inbuf, unsigned int inlen,
+<span class="lineNum">     819 </span>            :                   unsigned int blocksize)
+<span class="lineNum">     820 </span>            : {
+<span class="lineNum">     821 </span>            :     SECStatus rv;
+<span class="lineNum">     822 </span>            :     unsigned int tagBytes;
+<span class="lineNum">     823 </span>            :     unsigned char tag[MAX_BLOCK_SIZE];
+<span class="lineNum">     824 </span>            :     const unsigned char *intag;
+<span class="lineNum">     825 </span>            :     unsigned int len;
+<span class="lineNum">     826 </span>            : 
+<span class="lineNum">     827 </span><span class="lineCov">          1 :     tagBytes = (gcm-&gt;tagBits + (PR_BITS_PER_BYTE - 1)) / PR_BITS_PER_BYTE;</span>
+<span class="lineNum">     828 </span>            : 
+<span class="lineNum">     829 </span>            :     /* get the authentication block */
+<span class="lineNum">     830 </span><span class="lineCov">          1 :     if (inlen &lt; tagBytes) {</span>
+<span class="lineNum">     831 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INPUT_LEN);</span>
+<span class="lineNum">     832 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     833 </span>            :     }
+<span class="lineNum">     834 </span>            : 
+<span class="lineNum">     835 </span><span class="lineCov">          1 :     inlen -= tagBytes;</span>
+<span class="lineNum">     836 </span><span class="lineCov">          1 :     intag = inbuf + inlen;</span>
+<span class="lineNum">     837 </span>            : 
+<span class="lineNum">     838 </span>            :     /* verify the block */
+<span class="lineNum">     839 </span><span class="lineCov">          1 :     rv = gcmHash_Update(&amp;gcm-&gt;ghash_context, inbuf, inlen, blocksize);</span>
+<span class="lineNum">     840 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     841 </span>            :         return SECFailure;
+<span class="lineNum">     842 </span>            :     }
+<span class="lineNum">     843 </span><span class="lineCov">          1 :     rv = gcm_GetTag(gcm, tag, &amp;len, blocksize, blocksize);</span>
+<span class="lineNum">     844 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">     845 </span>            :         return SECFailure;
+<span class="lineNum">     846 </span>            :     }
+<span class="lineNum">     847 </span>            :     /* Don't decrypt if we can't authenticate the encrypted data!
+<span class="lineNum">     848 </span>            :      * This assumes that if tagBits is not a multiple of 8, intag will
+<span class="lineNum">     849 </span>            :      * preserve the masked off missing bits.  */
+<span class="lineNum">     850 </span><span class="lineCov">          1 :     if (NSS_SecureMemcmp(tag, intag, tagBytes) != 0) {</span>
+<span class="lineNum">     851 </span>            :         /* force a CKR_ENCRYPTED_DATA_INVALID error at in softoken */
+<span class="lineNum">     852 </span><span class="lineCov">          1 :         PORT_SetError(SEC_ERROR_BAD_DATA);</span>
+<span class="lineNum">     853 </span><span class="lineCov">          1 :         PORT_Memset(tag, 0, sizeof(tag));</span>
+<span class="lineNum">     854 </span><span class="lineCov">          1 :         return SECFailure;</span>
+<span class="lineNum">     855 </span>            :     }
+<span class="lineNum">     856 </span><span class="lineCov">          1 :     PORT_Memset(tag, 0, sizeof(tag));</span>
+<span class="lineNum">     857 </span>            :     /* finish the decryption */
+<span class="lineNum">     858 </span><span class="lineCov">          1 :     return CTR_Update(&amp;gcm-&gt;ctr_context, outbuf, outlen, maxout,</span>
+<span class="lineNum">     859 </span>            :                       inbuf, inlen, blocksize);
+<span class="lineNum">     860 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

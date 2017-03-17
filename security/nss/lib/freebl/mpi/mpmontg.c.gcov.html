@@ -1,0 +1,1225 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/nss/lib/freebl/mpi/mpmontg.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../index.html">top level</a> - <a href="index.html">security/nss/lib/freebl/mpi</a> - mpmontg.c<span style="font-size: 80%;"> (source / <a href="mpmontg.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">192</td>
+            <td class="headerCovTableEntry">385</td>
+            <td class="headerCovTableEntryLo">49.9 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">7</td>
+            <td class="headerCovTableEntry">9</td>
+            <td class="headerCovTableEntryMed">77.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public</a>
+<span class="lineNum">       2 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       3 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : /* This file implements moduluar exponentiation using Montgomery's
+<span class="lineNum">       6 </span>            :  * method for modular reduction.  This file implements the method
+<span class="lineNum">       7 </span>            :  * described as &quot;Improvement 2&quot; in the paper &quot;A Cryptogrpahic Library for
+<span class="lineNum">       8 </span>            :  * the Motorola DSP56000&quot; by Stephen R. Dusse' and Burton S. Kaliski Jr.
+<span class="lineNum">       9 </span>            :  * published in &quot;Advances in Cryptology: Proceedings of EUROCRYPT '90&quot;
+<span class="lineNum">      10 </span>            :  * &quot;Lecture Notes in Computer Science&quot; volume 473, 1991, pg 230-244,
+<span class="lineNum">      11 </span>            :  * published by Springer Verlag.
+<span class="lineNum">      12 </span>            :  */
+<span class="lineNum">      13 </span>            : 
+<span class="lineNum">      14 </span>            : #define MP_USING_CACHE_SAFE_MOD_EXP 1
+<span class="lineNum">      15 </span>            : #include &lt;string.h&gt;
+<span class="lineNum">      16 </span>            : #include &quot;mpi-priv.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;mplogic.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;mpprime.h&quot;
+<span class="lineNum">      19 </span>            : #ifdef MP_USING_MONT_MULF
+<span class="lineNum">      20 </span>            : #include &quot;montmulf.h&quot;
+<span class="lineNum">      21 </span>            : #endif
+<span class="lineNum">      22 </span>            : #include &lt;stddef.h&gt; /* ptrdiff_t */
+<span class="lineNum">      23 </span>            : #include &lt;assert.h&gt;
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : #define STATIC
+<span class="lineNum">      26 </span>            : 
+<span class="lineNum">      27 </span>            : #define MAX_ODD_INTS 32 /* 2 ** (WINDOW_BITS - 1) */
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : /*! computes T = REDC(T), 2^b == R
+<span class="lineNum">      30 </span>            :     \param T &lt; RN
+<a name="31"><span class="lineNum">      31 </span>            : */</a>
+<span class="lineNum">      32 </span>            : mp_err
+<span class="lineNum">      33 </span><span class="lineCov">          1 : s_mp_redc(mp_int *T, mp_mont_modulus *mmm)</span>
+<span class="lineNum">      34 </span>            : {
+<span class="lineNum">      35 </span>            :     mp_err res;
+<span class="lineNum">      36 </span>            :     mp_size i;
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span><span class="lineCov">          1 :     i = (MP_USED(&amp;mmm-&gt;N) &lt;&lt; 1) + 1;</span>
+<span class="lineNum">      39 </span><span class="lineCov">          1 :     MP_CHECKOK(s_mp_pad(T, i));</span>
+<span class="lineNum">      40 </span><span class="lineCov">          1 :     for (i = 0; i &lt; MP_USED(&amp;mmm-&gt;N); ++i) {</span>
+<span class="lineNum">      41 </span><span class="lineCov">          1 :         mp_digit m_i = MP_DIGIT(T, i) * mmm-&gt;n0prime;</span>
+<span class="lineNum">      42 </span>            :         /* T += N * m_i * (MP_RADIX ** i); */
+<span class="lineNum">      43 </span><span class="lineCov">          1 :         s_mp_mul_d_add_offset(&amp;mmm-&gt;N, m_i, T, i);</span>
+<span class="lineNum">      44 </span>            :     }
+<span class="lineNum">      45 </span><span class="lineCov">          1 :     s_mp_clamp(T);</span>
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span>            :     /* T /= R */
+<span class="lineNum">      48 </span><span class="lineCov">          1 :     s_mp_rshd(T, MP_USED(&amp;mmm-&gt;N));</span>
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span><span class="lineCov">          1 :     if ((res = s_mp_cmp(T, &amp;mmm-&gt;N)) &gt;= 0) {</span>
+<span class="lineNum">      51 </span>            :         /* T = T - N */
+<span class="lineNum">      52 </span><span class="lineCov">          1 :         MP_CHECKOK(s_mp_sub(T, &amp;mmm-&gt;N));</span>
+<span class="lineNum">      53 </span>            : #ifdef DEBUG
+<span class="lineNum">      54 </span>            :         if ((res = mp_cmp(T, &amp;mmm-&gt;N)) &gt;= 0) {
+<span class="lineNum">      55 </span>            :             res = MP_UNDEF;
+<span class="lineNum">      56 </span>            :             goto CLEANUP;
+<span class="lineNum">      57 </span>            :         }
+<span class="lineNum">      58 </span>            : #endif
+<span class="lineNum">      59 </span>            :     }
+<span class="lineNum">      60 </span>            :     res = MP_OKAY;
+<span class="lineNum">      61 </span>            : CLEANUP:
+<span class="lineNum">      62 </span><span class="lineCov">          1 :     return res;</span>
+<span class="lineNum">      63 </span>            : }
+<span class="lineNum">      64 </span>            : 
+<span class="lineNum">      65 </span>            : #if !defined(MP_MONT_USE_MP_MUL)
+<span class="lineNum">      66 </span>            : 
+<span class="lineNum">      67 </span>            : /*! c &lt;- REDC( a * b ) mod N
+<span class="lineNum">      68 </span>            :     \param a &lt; N  i.e. &quot;reduced&quot;
+<span class="lineNum">      69 </span>            :     \param b &lt; N  i.e. &quot;reduced&quot;
+<span class="lineNum">      70 </span>            :     \param mmm modulus N and n0' of N
+<a name="71"><span class="lineNum">      71 </span>            : */</a>
+<span class="lineNum">      72 </span>            : mp_err
+<span class="lineNum">      73 </span><span class="lineCov">          1 : s_mp_mul_mont(const mp_int *a, const mp_int *b, mp_int *c,</span>
+<span class="lineNum">      74 </span>            :               mp_mont_modulus *mmm)
+<span class="lineNum">      75 </span>            : {
+<span class="lineNum">      76 </span>            :     mp_digit *pb;
+<span class="lineNum">      77 </span>            :     mp_digit m_i;
+<span class="lineNum">      78 </span>            :     mp_err res;
+<span class="lineNum">      79 </span>            :     mp_size ib; /* &quot;index b&quot;: index of current digit of B */
+<span class="lineNum">      80 </span>            :     mp_size useda, usedb;
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span><span class="lineCov">          1 :     ARGCHK(a != NULL &amp;&amp; b != NULL &amp;&amp; c != NULL, MP_BADARG);</span>
+<span class="lineNum">      83 </span>            : 
+<span class="lineNum">      84 </span><span class="lineCov">          1 :     if (MP_USED(a) &lt; MP_USED(b)) {</span>
+<span class="lineNum">      85 </span><span class="lineCov">          1 :         const mp_int *xch = b; /* switch a and b, to do fewer outer loops */</span>
+<span class="lineNum">      86 </span><span class="lineCov">          1 :         b = a;</span>
+<span class="lineNum">      87 </span><span class="lineCov">          1 :         a = xch;</span>
+<span class="lineNum">      88 </span>            :     }
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span><span class="lineCov">          1 :     MP_USED(c) = 1;</span>
+<span class="lineNum">      91 </span><span class="lineCov">          1 :     MP_DIGIT(c, 0) = 0;</span>
+<span class="lineNum">      92 </span><span class="lineCov">          1 :     ib = (MP_USED(&amp;mmm-&gt;N) &lt;&lt; 1) + 1;</span>
+<span class="lineNum">      93 </span><span class="lineCov">          1 :     if ((res = s_mp_pad(c, ib)) != MP_OKAY)</span>
+<span class="lineNum">      94 </span>            :         goto CLEANUP;
+<span class="lineNum">      95 </span>            : 
+<span class="lineNum">      96 </span><span class="lineCov">          1 :     useda = MP_USED(a);</span>
+<span class="lineNum">      97 </span><span class="lineCov">          1 :     pb = MP_DIGITS(b);</span>
+<span class="lineNum">      98 </span><span class="lineCov">          1 :     s_mpv_mul_d(MP_DIGITS(a), useda, *pb++, MP_DIGITS(c));</span>
+<span class="lineNum">      99 </span><span class="lineCov">          1 :     s_mp_setz(MP_DIGITS(c) + useda + 1, ib - (useda + 1));</span>
+<span class="lineNum">     100 </span><span class="lineCov">          1 :     m_i = MP_DIGIT(c, 0) * mmm-&gt;n0prime;</span>
+<span class="lineNum">     101 </span><span class="lineCov">          1 :     s_mp_mul_d_add_offset(&amp;mmm-&gt;N, m_i, c, 0);</span>
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span>            :     /* Outer loop:  Digits of b */
+<span class="lineNum">     104 </span><span class="lineCov">          1 :     usedb = MP_USED(b);</span>
+<span class="lineNum">     105 </span><span class="lineCov">          1 :     for (ib = 1; ib &lt; usedb; ib++) {</span>
+<span class="lineNum">     106 </span><span class="lineCov">          1 :         mp_digit b_i = *pb++;</span>
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span>            :         /* Inner product:  Digits of a */
+<span class="lineNum">     109 </span><span class="lineCov">          1 :         if (b_i)</span>
+<span class="lineNum">     110 </span><span class="lineCov">          1 :             s_mpv_mul_d_add_prop(MP_DIGITS(a), useda, b_i, MP_DIGITS(c) + ib);</span>
+<span class="lineNum">     111 </span><span class="lineCov">          1 :         m_i = MP_DIGIT(c, ib) * mmm-&gt;n0prime;</span>
+<span class="lineNum">     112 </span><span class="lineCov">          1 :         s_mp_mul_d_add_offset(&amp;mmm-&gt;N, m_i, c, ib);</span>
+<span class="lineNum">     113 </span>            :     }
+<span class="lineNum">     114 </span><span class="lineCov">          1 :     if (usedb &lt; MP_USED(&amp;mmm-&gt;N)) {</span>
+<span class="lineNum">     115 </span><span class="lineCov">          1 :         for (usedb = MP_USED(&amp;mmm-&gt;N); ib &lt; usedb; ++ib) {</span>
+<span class="lineNum">     116 </span><span class="lineCov">          1 :             m_i = MP_DIGIT(c, ib) * mmm-&gt;n0prime;</span>
+<span class="lineNum">     117 </span><span class="lineCov">          1 :             s_mp_mul_d_add_offset(&amp;mmm-&gt;N, m_i, c, ib);</span>
+<span class="lineNum">     118 </span>            :         }
+<span class="lineNum">     119 </span>            :     }
+<span class="lineNum">     120 </span><span class="lineCov">          1 :     s_mp_clamp(c);</span>
+<span class="lineNum">     121 </span><span class="lineCov">          1 :     s_mp_rshd(c, MP_USED(&amp;mmm-&gt;N)); /* c /= R */</span>
+<span class="lineNum">     122 </span><span class="lineCov">          1 :     if (s_mp_cmp(c, &amp;mmm-&gt;N) &gt;= 0) {</span>
+<span class="lineNum">     123 </span><span class="lineCov">          1 :         MP_CHECKOK(s_mp_sub(c, &amp;mmm-&gt;N));</span>
+<span class="lineNum">     124 </span>            :     }
+<span class="lineNum">     125 </span>            :     res = MP_OKAY;
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span>            : CLEANUP:
+<span class="lineNum">     128 </span><span class="lineCov">          1 :     return res;</span>
+<span class="lineNum">     129 </span>            : }
+<span class="lineNum">     130 </span>            : #endif
+<span class="lineNum">     131 </span>            : 
+<a name="132"><span class="lineNum">     132 </span>            : STATIC</a>
+<span class="lineNum">     133 </span>            : mp_err
+<span class="lineNum">     134 </span><span class="lineCov">          1 : s_mp_to_mont(const mp_int *x, mp_mont_modulus *mmm, mp_int *xMont)</span>
+<span class="lineNum">     135 </span>            : {
+<span class="lineNum">     136 </span>            :     mp_err res;
+<span class="lineNum">     137 </span>            : 
+<span class="lineNum">     138 </span>            :     /* xMont = x * R mod N   where  N is modulus */
+<span class="lineNum">     139 </span><span class="lineCov">          1 :     MP_CHECKOK(mp_copy(x, xMont));</span>
+<span class="lineNum">     140 </span><span class="lineCov">          1 :     MP_CHECKOK(s_mp_lshd(xMont, MP_USED(&amp;mmm-&gt;N))); /* xMont = x &lt;&lt; b */</span>
+<span class="lineNum">     141 </span><span class="lineCov">          1 :     MP_CHECKOK(mp_div(xMont, &amp;mmm-&gt;N, 0, xMont));   /*         mod N */</span>
+<span class="lineNum">     142 </span>            : CLEANUP:
+<span class="lineNum">     143 </span><span class="lineCov">          1 :     return res;</span>
+<span class="lineNum">     144 </span>            : }
+<span class="lineNum">     145 </span>            : 
+<span class="lineNum">     146 </span>            : #ifdef MP_USING_MONT_MULF
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span>            : /* the floating point multiply is already cache safe,
+<span class="lineNum">     149 </span>            :  * don't turn on cache safe unless we specifically
+<span class="lineNum">     150 </span>            :  * force it */
+<span class="lineNum">     151 </span>            : #ifndef MP_FORCE_CACHE_SAFE
+<span class="lineNum">     152 </span>            : #undef MP_USING_CACHE_SAFE_MOD_EXP
+<span class="lineNum">     153 </span>            : #endif
+<span class="lineNum">     154 </span>            : 
+<span class="lineNum">     155 </span>            : unsigned int mp_using_mont_mulf = 1;
+<span class="lineNum">     156 </span>            : 
+<span class="lineNum">     157 </span>            : /* computes montgomery square of the integer in mResult */
+<span class="lineNum">     158 </span>            : #define SQR                                              \
+<span class="lineNum">     159 </span>            :     conv_i32_to_d32_and_d16(dm1, d16Tmp, mResult, nLen); \
+<span class="lineNum">     160 </span>            :     mont_mulf_noconv(mResult, dm1, d16Tmp,               \
+<span class="lineNum">     161 </span>            :                      dTmp, dn, MP_DIGITS(modulus), nLen, dn0)
+<span class="lineNum">     162 </span>            : 
+<span class="lineNum">     163 </span>            : /* computes montgomery product of x and the integer in mResult */
+<span class="lineNum">     164 </span>            : #define MUL(x)                                   \
+<span class="lineNum">     165 </span>            :     conv_i32_to_d32(dm1, mResult, nLen);         \
+<span class="lineNum">     166 </span>            :     mont_mulf_noconv(mResult, dm1, oddPowers[x], \
+<span class="lineNum">     167 </span>            :                      dTmp, dn, MP_DIGITS(modulus), nLen, dn0)
+<span class="lineNum">     168 </span>            : 
+<span class="lineNum">     169 </span>            : /* Do modular exponentiation using floating point multiply code. */
+<span class="lineNum">     170 </span>            : mp_err
+<span class="lineNum">     171 </span>            : mp_exptmod_f(const mp_int *montBase,
+<span class="lineNum">     172 </span>            :              const mp_int *exponent,
+<span class="lineNum">     173 </span>            :              const mp_int *modulus,
+<span class="lineNum">     174 </span>            :              mp_int *result,
+<span class="lineNum">     175 </span>            :              mp_mont_modulus *mmm,
+<span class="lineNum">     176 </span>            :              int nLen,
+<span class="lineNum">     177 </span>            :              mp_size bits_in_exponent,
+<span class="lineNum">     178 </span>            :              mp_size window_bits,
+<span class="lineNum">     179 </span>            :              mp_size odd_ints)
+<span class="lineNum">     180 </span>            : {
+<span class="lineNum">     181 </span>            :     mp_digit *mResult;
+<span class="lineNum">     182 </span>            :     double *dBuf = 0, *dm1, *dn, *dSqr, *d16Tmp, *dTmp;
+<span class="lineNum">     183 </span>            :     double dn0;
+<span class="lineNum">     184 </span>            :     mp_size i;
+<span class="lineNum">     185 </span>            :     mp_err res;
+<span class="lineNum">     186 </span>            :     int expOff;
+<span class="lineNum">     187 </span>            :     int dSize = 0, oddPowSize, dTmpSize;
+<span class="lineNum">     188 </span>            :     mp_int accum1;
+<span class="lineNum">     189 </span>            :     double *oddPowers[MAX_ODD_INTS];
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span>            :     /* function for computing n0prime only works if n0 is odd */
+<span class="lineNum">     192 </span>            : 
+<span class="lineNum">     193 </span>            :     MP_DIGITS(&amp;accum1) = 0;
+<span class="lineNum">     194 </span>            : 
+<span class="lineNum">     195 </span>            :     for (i = 0; i &lt; MAX_ODD_INTS; ++i)
+<span class="lineNum">     196 </span>            :         oddPowers[i] = 0;
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span>            :     MP_CHECKOK(mp_init_size(&amp;accum1, 3 * nLen + 2));
+<span class="lineNum">     199 </span>            : 
+<span class="lineNum">     200 </span>            :     mp_set(&amp;accum1, 1);
+<span class="lineNum">     201 </span>            :     MP_CHECKOK(s_mp_to_mont(&amp;accum1, mmm, &amp;accum1));
+<span class="lineNum">     202 </span>            :     MP_CHECKOK(s_mp_pad(&amp;accum1, nLen));
+<span class="lineNum">     203 </span>            : 
+<span class="lineNum">     204 </span>            :     oddPowSize = 2 * nLen + 1;
+<span class="lineNum">     205 </span>            :     dTmpSize = 2 * oddPowSize;
+<span class="lineNum">     206 </span>            :     dSize = sizeof(double) * (nLen * 4 + 1 +
+<span class="lineNum">     207 </span>            :                               ((odd_ints + 1) * oddPowSize) + dTmpSize);
+<span class="lineNum">     208 </span>            :     dBuf = (double *)malloc(dSize);
+<span class="lineNum">     209 </span>            :     dm1 = dBuf;           /* array of d32 */
+<span class="lineNum">     210 </span>            :     dn = dBuf + nLen;     /* array of d32 */
+<span class="lineNum">     211 </span>            :     dSqr = dn + nLen;     /* array of d32 */
+<span class="lineNum">     212 </span>            :     d16Tmp = dSqr + nLen; /* array of d16 */
+<span class="lineNum">     213 </span>            :     dTmp = d16Tmp + oddPowSize;
+<span class="lineNum">     214 </span>            : 
+<span class="lineNum">     215 </span>            :     for (i = 0; i &lt; odd_ints; ++i) {
+<span class="lineNum">     216 </span>            :         oddPowers[i] = dTmp;
+<span class="lineNum">     217 </span>            :         dTmp += oddPowSize;
+<span class="lineNum">     218 </span>            :     }
+<span class="lineNum">     219 </span>            :     mResult = (mp_digit *)(dTmp + dTmpSize); /* size is nLen + 1 */
+<span class="lineNum">     220 </span>            : 
+<span class="lineNum">     221 </span>            :     /* Make dn and dn0 */
+<span class="lineNum">     222 </span>            :     conv_i32_to_d32(dn, MP_DIGITS(modulus), nLen);
+<span class="lineNum">     223 </span>            :     dn0 = (double)(mmm-&gt;n0prime &amp; 0xffff);
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span>            :     /* Make dSqr */
+<span class="lineNum">     226 </span>            :     conv_i32_to_d32_and_d16(dm1, oddPowers[0], MP_DIGITS(montBase), nLen);
+<span class="lineNum">     227 </span>            :     mont_mulf_noconv(mResult, dm1, oddPowers[0],
+<span class="lineNum">     228 </span>            :                      dTmp, dn, MP_DIGITS(modulus), nLen, dn0);
+<span class="lineNum">     229 </span>            :     conv_i32_to_d32(dSqr, mResult, nLen);
+<span class="lineNum">     230 </span>            : 
+<span class="lineNum">     231 </span>            :     for (i = 1; i &lt; odd_ints; ++i) {
+<span class="lineNum">     232 </span>            :         mont_mulf_noconv(mResult, dSqr, oddPowers[i - 1],
+<span class="lineNum">     233 </span>            :                          dTmp, dn, MP_DIGITS(modulus), nLen, dn0);
+<span class="lineNum">     234 </span>            :         conv_i32_to_d16(oddPowers[i], mResult, nLen);
+<span class="lineNum">     235 </span>            :     }
+<span class="lineNum">     236 </span>            : 
+<span class="lineNum">     237 </span>            :     s_mp_copy(MP_DIGITS(&amp;accum1), mResult, nLen); /* from, to, len */
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span>            :     for (expOff = bits_in_exponent - window_bits; expOff &gt;= 0; expOff -= window_bits) {
+<span class="lineNum">     240 </span>            :         mp_size smallExp;
+<span class="lineNum">     241 </span>            :         MP_CHECKOK(mpl_get_bits(exponent, expOff, window_bits));
+<span class="lineNum">     242 </span>            :         smallExp = (mp_size)res;
+<span class="lineNum">     243 </span>            : 
+<span class="lineNum">     244 </span>            :         if (window_bits == 1) {
+<span class="lineNum">     245 </span>            :             if (!smallExp) {
+<span class="lineNum">     246 </span>            :                 SQR;
+<span class="lineNum">     247 </span>            :             } else if (smallExp &amp; 1) {
+<span class="lineNum">     248 </span>            :                 SQR;
+<span class="lineNum">     249 </span>            :                 MUL(0);
+<span class="lineNum">     250 </span>            :             } else {
+<span class="lineNum">     251 </span>            :                 abort();
+<span class="lineNum">     252 </span>            :             }
+<span class="lineNum">     253 </span>            :         } else if (window_bits == 4) {
+<span class="lineNum">     254 </span>            :             if (!smallExp) {
+<span class="lineNum">     255 </span>            :                 SQR;
+<span class="lineNum">     256 </span>            :                 SQR;
+<span class="lineNum">     257 </span>            :                 SQR;
+<span class="lineNum">     258 </span>            :                 SQR;
+<span class="lineNum">     259 </span>            :             } else if (smallExp &amp; 1) {
+<span class="lineNum">     260 </span>            :                 SQR;
+<span class="lineNum">     261 </span>            :                 SQR;
+<span class="lineNum">     262 </span>            :                 SQR;
+<span class="lineNum">     263 </span>            :                 SQR;
+<span class="lineNum">     264 </span>            :                 MUL(smallExp / 2);
+<span class="lineNum">     265 </span>            :             } else if (smallExp &amp; 2) {
+<span class="lineNum">     266 </span>            :                 SQR;
+<span class="lineNum">     267 </span>            :                 SQR;
+<span class="lineNum">     268 </span>            :                 SQR;
+<span class="lineNum">     269 </span>            :                 MUL(smallExp / 4);
+<span class="lineNum">     270 </span>            :                 SQR;
+<span class="lineNum">     271 </span>            :             } else if (smallExp &amp; 4) {
+<span class="lineNum">     272 </span>            :                 SQR;
+<span class="lineNum">     273 </span>            :                 SQR;
+<span class="lineNum">     274 </span>            :                 MUL(smallExp / 8);
+<span class="lineNum">     275 </span>            :                 SQR;
+<span class="lineNum">     276 </span>            :                 SQR;
+<span class="lineNum">     277 </span>            :             } else if (smallExp &amp; 8) {
+<span class="lineNum">     278 </span>            :                 SQR;
+<span class="lineNum">     279 </span>            :                 MUL(smallExp / 16);
+<span class="lineNum">     280 </span>            :                 SQR;
+<span class="lineNum">     281 </span>            :                 SQR;
+<span class="lineNum">     282 </span>            :                 SQR;
+<span class="lineNum">     283 </span>            :             } else {
+<span class="lineNum">     284 </span>            :                 abort();
+<span class="lineNum">     285 </span>            :             }
+<span class="lineNum">     286 </span>            :         } else if (window_bits == 5) {
+<span class="lineNum">     287 </span>            :             if (!smallExp) {
+<span class="lineNum">     288 </span>            :                 SQR;
+<span class="lineNum">     289 </span>            :                 SQR;
+<span class="lineNum">     290 </span>            :                 SQR;
+<span class="lineNum">     291 </span>            :                 SQR;
+<span class="lineNum">     292 </span>            :                 SQR;
+<span class="lineNum">     293 </span>            :             } else if (smallExp &amp; 1) {
+<span class="lineNum">     294 </span>            :                 SQR;
+<span class="lineNum">     295 </span>            :                 SQR;
+<span class="lineNum">     296 </span>            :                 SQR;
+<span class="lineNum">     297 </span>            :                 SQR;
+<span class="lineNum">     298 </span>            :                 SQR;
+<span class="lineNum">     299 </span>            :                 MUL(smallExp / 2);
+<span class="lineNum">     300 </span>            :             } else if (smallExp &amp; 2) {
+<span class="lineNum">     301 </span>            :                 SQR;
+<span class="lineNum">     302 </span>            :                 SQR;
+<span class="lineNum">     303 </span>            :                 SQR;
+<span class="lineNum">     304 </span>            :                 SQR;
+<span class="lineNum">     305 </span>            :                 MUL(smallExp / 4);
+<span class="lineNum">     306 </span>            :                 SQR;
+<span class="lineNum">     307 </span>            :             } else if (smallExp &amp; 4) {
+<span class="lineNum">     308 </span>            :                 SQR;
+<span class="lineNum">     309 </span>            :                 SQR;
+<span class="lineNum">     310 </span>            :                 SQR;
+<span class="lineNum">     311 </span>            :                 MUL(smallExp / 8);
+<span class="lineNum">     312 </span>            :                 SQR;
+<span class="lineNum">     313 </span>            :                 SQR;
+<span class="lineNum">     314 </span>            :             } else if (smallExp &amp; 8) {
+<span class="lineNum">     315 </span>            :                 SQR;
+<span class="lineNum">     316 </span>            :                 SQR;
+<span class="lineNum">     317 </span>            :                 MUL(smallExp / 16);
+<span class="lineNum">     318 </span>            :                 SQR;
+<span class="lineNum">     319 </span>            :                 SQR;
+<span class="lineNum">     320 </span>            :                 SQR;
+<span class="lineNum">     321 </span>            :             } else if (smallExp &amp; 0x10) {
+<span class="lineNum">     322 </span>            :                 SQR;
+<span class="lineNum">     323 </span>            :                 MUL(smallExp / 32);
+<span class="lineNum">     324 </span>            :                 SQR;
+<span class="lineNum">     325 </span>            :                 SQR;
+<span class="lineNum">     326 </span>            :                 SQR;
+<span class="lineNum">     327 </span>            :                 SQR;
+<span class="lineNum">     328 </span>            :             } else {
+<span class="lineNum">     329 </span>            :                 abort();
+<span class="lineNum">     330 </span>            :             }
+<span class="lineNum">     331 </span>            :         } else if (window_bits == 6) {
+<span class="lineNum">     332 </span>            :             if (!smallExp) {
+<span class="lineNum">     333 </span>            :                 SQR;
+<span class="lineNum">     334 </span>            :                 SQR;
+<span class="lineNum">     335 </span>            :                 SQR;
+<span class="lineNum">     336 </span>            :                 SQR;
+<span class="lineNum">     337 </span>            :                 SQR;
+<span class="lineNum">     338 </span>            :                 SQR;
+<span class="lineNum">     339 </span>            :             } else if (smallExp &amp; 1) {
+<span class="lineNum">     340 </span>            :                 SQR;
+<span class="lineNum">     341 </span>            :                 SQR;
+<span class="lineNum">     342 </span>            :                 SQR;
+<span class="lineNum">     343 </span>            :                 SQR;
+<span class="lineNum">     344 </span>            :                 SQR;
+<span class="lineNum">     345 </span>            :                 SQR;
+<span class="lineNum">     346 </span>            :                 MUL(smallExp / 2);
+<span class="lineNum">     347 </span>            :             } else if (smallExp &amp; 2) {
+<span class="lineNum">     348 </span>            :                 SQR;
+<span class="lineNum">     349 </span>            :                 SQR;
+<span class="lineNum">     350 </span>            :                 SQR;
+<span class="lineNum">     351 </span>            :                 SQR;
+<span class="lineNum">     352 </span>            :                 SQR;
+<span class="lineNum">     353 </span>            :                 MUL(smallExp / 4);
+<span class="lineNum">     354 </span>            :                 SQR;
+<span class="lineNum">     355 </span>            :             } else if (smallExp &amp; 4) {
+<span class="lineNum">     356 </span>            :                 SQR;
+<span class="lineNum">     357 </span>            :                 SQR;
+<span class="lineNum">     358 </span>            :                 SQR;
+<span class="lineNum">     359 </span>            :                 SQR;
+<span class="lineNum">     360 </span>            :                 MUL(smallExp / 8);
+<span class="lineNum">     361 </span>            :                 SQR;
+<span class="lineNum">     362 </span>            :                 SQR;
+<span class="lineNum">     363 </span>            :             } else if (smallExp &amp; 8) {
+<span class="lineNum">     364 </span>            :                 SQR;
+<span class="lineNum">     365 </span>            :                 SQR;
+<span class="lineNum">     366 </span>            :                 SQR;
+<span class="lineNum">     367 </span>            :                 MUL(smallExp / 16);
+<span class="lineNum">     368 </span>            :                 SQR;
+<span class="lineNum">     369 </span>            :                 SQR;
+<span class="lineNum">     370 </span>            :                 SQR;
+<span class="lineNum">     371 </span>            :             } else if (smallExp &amp; 0x10) {
+<span class="lineNum">     372 </span>            :                 SQR;
+<span class="lineNum">     373 </span>            :                 SQR;
+<span class="lineNum">     374 </span>            :                 MUL(smallExp / 32);
+<span class="lineNum">     375 </span>            :                 SQR;
+<span class="lineNum">     376 </span>            :                 SQR;
+<span class="lineNum">     377 </span>            :                 SQR;
+<span class="lineNum">     378 </span>            :                 SQR;
+<span class="lineNum">     379 </span>            :             } else if (smallExp &amp; 0x20) {
+<span class="lineNum">     380 </span>            :                 SQR;
+<span class="lineNum">     381 </span>            :                 MUL(smallExp / 64);
+<span class="lineNum">     382 </span>            :                 SQR;
+<span class="lineNum">     383 </span>            :                 SQR;
+<span class="lineNum">     384 </span>            :                 SQR;
+<span class="lineNum">     385 </span>            :                 SQR;
+<span class="lineNum">     386 </span>            :                 SQR;
+<span class="lineNum">     387 </span>            :             } else {
+<span class="lineNum">     388 </span>            :                 abort();
+<span class="lineNum">     389 </span>            :             }
+<span class="lineNum">     390 </span>            :         } else {
+<span class="lineNum">     391 </span>            :             abort();
+<span class="lineNum">     392 </span>            :         }
+<span class="lineNum">     393 </span>            :     }
+<span class="lineNum">     394 </span>            : 
+<span class="lineNum">     395 </span>            :     s_mp_copy(mResult, MP_DIGITS(&amp;accum1), nLen); /* from, to, len */
+<span class="lineNum">     396 </span>            : 
+<span class="lineNum">     397 </span>            :     res = s_mp_redc(&amp;accum1, mmm);
+<span class="lineNum">     398 </span>            :     mp_exch(&amp;accum1, result);
+<span class="lineNum">     399 </span>            : 
+<span class="lineNum">     400 </span>            : CLEANUP:
+<span class="lineNum">     401 </span>            :     mp_clear(&amp;accum1);
+<span class="lineNum">     402 </span>            :     if (dBuf) {
+<span class="lineNum">     403 </span>            :         if (dSize)
+<span class="lineNum">     404 </span>            :             memset(dBuf, 0, dSize);
+<span class="lineNum">     405 </span>            :         free(dBuf);
+<span class="lineNum">     406 </span>            :     }
+<span class="lineNum">     407 </span>            : 
+<span class="lineNum">     408 </span>            :     return res;
+<span class="lineNum">     409 </span>            : }
+<span class="lineNum">     410 </span>            : #undef SQR
+<span class="lineNum">     411 </span>            : #undef MUL
+<span class="lineNum">     412 </span>            : #endif
+<span class="lineNum">     413 </span>            : 
+<span class="lineNum">     414 </span>            : #define SQR(a, b)             \
+<span class="lineNum">     415 </span>            :     MP_CHECKOK(mp_sqr(a, b)); \
+<span class="lineNum">     416 </span>            :     MP_CHECKOK(s_mp_redc(b, mmm))
+<span class="lineNum">     417 </span>            : 
+<span class="lineNum">     418 </span>            : #if defined(MP_MONT_USE_MP_MUL)
+<span class="lineNum">     419 </span>            : #define MUL(x, a, b)                           \
+<span class="lineNum">     420 </span>            :     MP_CHECKOK(mp_mul(a, oddPowers + (x), b)); \
+<span class="lineNum">     421 </span>            :     MP_CHECKOK(s_mp_redc(b, mmm))
+<span class="lineNum">     422 </span>            : #else
+<span class="lineNum">     423 </span>            : #define MUL(x, a, b) \
+<span class="lineNum">     424 </span>            :     MP_CHECKOK(s_mp_mul_mont(a, oddPowers + (x), b, mmm))
+<span class="lineNum">     425 </span>            : #endif
+<span class="lineNum">     426 </span>            : 
+<span class="lineNum">     427 </span>            : #define SWAPPA  \
+<span class="lineNum">     428 </span>            :     ptmp = pa1; \
+<span class="lineNum">     429 </span>            :     pa1 = pa2;  \
+<span class="lineNum">     430 </span>            :     pa2 = ptmp
+<span class="lineNum">     431 </span>            : 
+<a name="432"><span class="lineNum">     432 </span>            : /* Do modular exponentiation using integer multiply code. */</a>
+<span class="lineNum">     433 </span>            : mp_err
+<span class="lineNum">     434 </span><span class="lineNoCov">          0 : mp_exptmod_i(const mp_int *montBase,</span>
+<span class="lineNum">     435 </span>            :              const mp_int *exponent,
+<span class="lineNum">     436 </span>            :              const mp_int *modulus,
+<span class="lineNum">     437 </span>            :              mp_int *result,
+<span class="lineNum">     438 </span>            :              mp_mont_modulus *mmm,
+<span class="lineNum">     439 </span>            :              int nLen,
+<span class="lineNum">     440 </span>            :              mp_size bits_in_exponent,
+<span class="lineNum">     441 </span>            :              mp_size window_bits,
+<span class="lineNum">     442 </span>            :              mp_size odd_ints)
+<span class="lineNum">     443 </span>            : {
+<span class="lineNum">     444 </span>            :     mp_int *pa1, *pa2, *ptmp;
+<span class="lineNum">     445 </span>            :     mp_size i;
+<span class="lineNum">     446 </span>            :     mp_err res;
+<span class="lineNum">     447 </span>            :     int expOff;
+<span class="lineNum">     448 </span>            :     mp_int accum1, accum2, power2, oddPowers[MAX_ODD_INTS];
+<span class="lineNum">     449 </span>            : 
+<span class="lineNum">     450 </span>            :     /* power2 = base ** 2; oddPowers[i] = base ** (2*i + 1); */
+<span class="lineNum">     451 </span>            :     /* oddPowers[i] = base ** (2*i + 1); */
+<span class="lineNum">     452 </span>            : 
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;accum1) = 0;</span>
+<span class="lineNum">     454 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;accum2) = 0;</span>
+<span class="lineNum">     455 </span><span class="lineNoCov">          0 :     MP_DIGITS(&amp;power2) = 0;</span>
+<span class="lineNum">     456 </span><span class="lineNoCov">          0 :     for (i = 0; i &lt; MAX_ODD_INTS; ++i) {</span>
+<span class="lineNum">     457 </span><span class="lineNoCov">          0 :         MP_DIGITS(oddPowers + i) = 0;</span>
+<span class="lineNum">     458 </span>            :     }
+<span class="lineNum">     459 </span>            : 
+<span class="lineNum">     460 </span><span class="lineNoCov">          0 :     MP_CHECKOK(mp_init_size(&amp;accum1, 3 * nLen + 2));</span>
+<span class="lineNum">     461 </span><span class="lineNoCov">          0 :     MP_CHECKOK(mp_init_size(&amp;accum2, 3 * nLen + 2));</span>
+<span class="lineNum">     462 </span>            : 
+<span class="lineNum">     463 </span><span class="lineNoCov">          0 :     MP_CHECKOK(mp_init_copy(&amp;oddPowers[0], montBase));</span>
+<span class="lineNum">     464 </span>            : 
+<span class="lineNum">     465 </span><span class="lineNoCov">          0 :     MP_CHECKOK(mp_init_size(&amp;power2, nLen + 2 * MP_USED(montBase) + 2));</span>
+<span class="lineNum">     466 </span><span class="lineNoCov">          0 :     MP_CHECKOK(mp_sqr(montBase, &amp;power2)); /* power2 = montBase ** 2 */</span>
+<span class="lineNum">     467 </span><span class="lineNoCov">          0 :     MP_CHECKOK(s_mp_redc(&amp;power2, mmm));</span>
+<span class="lineNum">     468 </span>            : 
+<span class="lineNum">     469 </span><span class="lineNoCov">          0 :     for (i = 1; i &lt; odd_ints; ++i) {</span>
+<span class="lineNum">     470 </span><span class="lineNoCov">          0 :         MP_CHECKOK(mp_init_size(oddPowers + i, nLen + 2 * MP_USED(&amp;power2) + 2));</span>
+<span class="lineNum">     471 </span><span class="lineNoCov">          0 :         MP_CHECKOK(mp_mul(oddPowers + (i - 1), &amp;power2, oddPowers + i));</span>
+<span class="lineNum">     472 </span><span class="lineNoCov">          0 :         MP_CHECKOK(s_mp_redc(oddPowers + i, mmm));</span>
+<span class="lineNum">     473 </span>            :     }
+<span class="lineNum">     474 </span>            : 
+<span class="lineNum">     475 </span>            :     /* set accumulator to montgomery residue of 1 */
+<span class="lineNum">     476 </span><span class="lineNoCov">          0 :     mp_set(&amp;accum1, 1);</span>
+<span class="lineNum">     477 </span><span class="lineNoCov">          0 :     MP_CHECKOK(s_mp_to_mont(&amp;accum1, mmm, &amp;accum1));</span>
+<span class="lineNum">     478 </span><span class="lineNoCov">          0 :     pa1 = &amp;accum1;</span>
+<span class="lineNum">     479 </span><span class="lineNoCov">          0 :     pa2 = &amp;accum2;</span>
+<span class="lineNum">     480 </span>            : 
+<span class="lineNum">     481 </span><span class="lineNoCov">          0 :     for (expOff = bits_in_exponent - window_bits; expOff &gt;= 0; expOff -= window_bits) {</span>
+<span class="lineNum">     482 </span>            :         mp_size smallExp;
+<span class="lineNum">     483 </span><span class="lineNoCov">          0 :         MP_CHECKOK(mpl_get_bits(exponent, expOff, window_bits));</span>
+<span class="lineNum">     484 </span><span class="lineNoCov">          0 :         smallExp = (mp_size)res;</span>
+<span class="lineNum">     485 </span>            : 
+<span class="lineNum">     486 </span><span class="lineNoCov">          0 :         if (window_bits == 1) {</span>
+<span class="lineNum">     487 </span><span class="lineNoCov">          0 :             if (!smallExp) {</span>
+<span class="lineNum">     488 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     489 </span>            :                 SWAPPA;
+<span class="lineNum">     490 </span><span class="lineNoCov">          0 :             } else if (smallExp &amp; 1) {</span>
+<span class="lineNum">     491 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     492 </span><span class="lineNoCov">          0 :                 MUL(0, pa2, pa1);</span>
+<span class="lineNum">     493 </span>            :             } else {
+<span class="lineNum">     494 </span><span class="lineNoCov">          0 :                 abort();</span>
+<span class="lineNum">     495 </span>            :             }
+<span class="lineNum">     496 </span><span class="lineNoCov">          0 :         } else if (window_bits == 4) {</span>
+<span class="lineNum">     497 </span><span class="lineNoCov">          0 :             if (!smallExp) {</span>
+<span class="lineNum">     498 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     499 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     500 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     501 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     502 </span><span class="lineNoCov">          0 :             } else if (smallExp &amp; 1) {</span>
+<span class="lineNum">     503 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     504 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     505 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     506 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     507 </span><span class="lineNoCov">          0 :                 MUL(smallExp / 2, pa1, pa2);</span>
+<span class="lineNum">     508 </span>            :                 SWAPPA;
+<span class="lineNum">     509 </span><span class="lineNoCov">          0 :             } else if (smallExp &amp; 2) {</span>
+<span class="lineNum">     510 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     511 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     512 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     513 </span><span class="lineNoCov">          0 :                 MUL(smallExp / 4, pa2, pa1);</span>
+<span class="lineNum">     514 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     515 </span>            :                 SWAPPA;
+<span class="lineNum">     516 </span><span class="lineNoCov">          0 :             } else if (smallExp &amp; 4) {</span>
+<span class="lineNum">     517 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     518 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     519 </span><span class="lineNoCov">          0 :                 MUL(smallExp / 8, pa1, pa2);</span>
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     521 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     522 </span>            :                 SWAPPA;
+<span class="lineNum">     523 </span><span class="lineNoCov">          0 :             } else if (smallExp &amp; 8) {</span>
+<span class="lineNum">     524 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :                 MUL(smallExp / 16, pa2, pa1);</span>
+<span class="lineNum">     526 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     528 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     529 </span>            :                 SWAPPA;
+<span class="lineNum">     530 </span>            :             } else {
+<span class="lineNum">     531 </span><span class="lineNoCov">          0 :                 abort();</span>
+<span class="lineNum">     532 </span>            :             }
+<span class="lineNum">     533 </span><span class="lineNoCov">          0 :         } else if (window_bits == 5) {</span>
+<span class="lineNum">     534 </span><span class="lineNoCov">          0 :             if (!smallExp) {</span>
+<span class="lineNum">     535 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     536 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     537 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     538 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     539 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     540 </span>            :                 SWAPPA;
+<span class="lineNum">     541 </span><span class="lineNoCov">          0 :             } else if (smallExp &amp; 1) {</span>
+<span class="lineNum">     542 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     543 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     544 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     545 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     546 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     547 </span><span class="lineNoCov">          0 :                 MUL(smallExp / 2, pa2, pa1);</span>
+<span class="lineNum">     548 </span><span class="lineNoCov">          0 :             } else if (smallExp &amp; 2) {</span>
+<span class="lineNum">     549 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     550 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     551 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     552 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     553 </span><span class="lineNoCov">          0 :                 MUL(smallExp / 4, pa1, pa2);</span>
+<span class="lineNum">     554 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     555 </span><span class="lineNoCov">          0 :             } else if (smallExp &amp; 4) {</span>
+<span class="lineNum">     556 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     557 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     558 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     559 </span><span class="lineNoCov">          0 :                 MUL(smallExp / 8, pa2, pa1);</span>
+<span class="lineNum">     560 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     561 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     562 </span><span class="lineNoCov">          0 :             } else if (smallExp &amp; 8) {</span>
+<span class="lineNum">     563 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     564 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     565 </span><span class="lineNoCov">          0 :                 MUL(smallExp / 16, pa1, pa2);</span>
+<span class="lineNum">     566 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     567 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     568 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     569 </span><span class="lineNoCov">          0 :             } else if (smallExp &amp; 0x10) {</span>
+<span class="lineNum">     570 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     571 </span><span class="lineNoCov">          0 :                 MUL(smallExp / 32, pa2, pa1);</span>
+<span class="lineNum">     572 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     573 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     574 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     575 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     576 </span>            :             } else {
+<span class="lineNum">     577 </span><span class="lineNoCov">          0 :                 abort();</span>
+<span class="lineNum">     578 </span>            :             }
+<span class="lineNum">     579 </span><span class="lineNoCov">          0 :         } else if (window_bits == 6) {</span>
+<span class="lineNum">     580 </span><span class="lineNoCov">          0 :             if (!smallExp) {</span>
+<span class="lineNum">     581 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     582 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     583 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     584 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     585 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     586 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     587 </span><span class="lineNoCov">          0 :             } else if (smallExp &amp; 1) {</span>
+<span class="lineNum">     588 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     589 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     590 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     591 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     592 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     593 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     594 </span><span class="lineNoCov">          0 :                 MUL(smallExp / 2, pa1, pa2);</span>
+<span class="lineNum">     595 </span>            :                 SWAPPA;
+<span class="lineNum">     596 </span><span class="lineNoCov">          0 :             } else if (smallExp &amp; 2) {</span>
+<span class="lineNum">     597 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     598 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     599 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     600 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     601 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     602 </span><span class="lineNoCov">          0 :                 MUL(smallExp / 4, pa2, pa1);</span>
+<span class="lineNum">     603 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     604 </span>            :                 SWAPPA;
+<span class="lineNum">     605 </span><span class="lineNoCov">          0 :             } else if (smallExp &amp; 4) {</span>
+<span class="lineNum">     606 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     607 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     608 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     609 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     610 </span><span class="lineNoCov">          0 :                 MUL(smallExp / 8, pa1, pa2);</span>
+<span class="lineNum">     611 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     612 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     613 </span>            :                 SWAPPA;
+<span class="lineNum">     614 </span><span class="lineNoCov">          0 :             } else if (smallExp &amp; 8) {</span>
+<span class="lineNum">     615 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     616 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     617 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     618 </span><span class="lineNoCov">          0 :                 MUL(smallExp / 16, pa2, pa1);</span>
+<span class="lineNum">     619 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     620 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     621 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     622 </span>            :                 SWAPPA;
+<span class="lineNum">     623 </span><span class="lineNoCov">          0 :             } else if (smallExp &amp; 0x10) {</span>
+<span class="lineNum">     624 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     625 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     626 </span><span class="lineNoCov">          0 :                 MUL(smallExp / 32, pa1, pa2);</span>
+<span class="lineNum">     627 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     628 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     629 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     630 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     631 </span>            :                 SWAPPA;
+<span class="lineNum">     632 </span><span class="lineNoCov">          0 :             } else if (smallExp &amp; 0x20) {</span>
+<span class="lineNum">     633 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     634 </span><span class="lineNoCov">          0 :                 MUL(smallExp / 64, pa2, pa1);</span>
+<span class="lineNum">     635 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     636 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     637 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     638 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     639 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     640 </span>            :                 SWAPPA;
+<span class="lineNum">     641 </span>            :             } else {
+<span class="lineNum">     642 </span><span class="lineNoCov">          0 :                 abort();</span>
+<span class="lineNum">     643 </span>            :             }
+<span class="lineNum">     644 </span>            :         } else {
+<span class="lineNum">     645 </span><span class="lineNoCov">          0 :             abort();</span>
+<span class="lineNum">     646 </span>            :         }
+<span class="lineNum">     647 </span>            :     }
+<span class="lineNum">     648 </span>            : 
+<span class="lineNum">     649 </span><span class="lineNoCov">          0 :     res = s_mp_redc(pa1, mmm);</span>
+<span class="lineNum">     650 </span><span class="lineNoCov">          0 :     mp_exch(pa1, result);</span>
+<span class="lineNum">     651 </span>            : 
+<span class="lineNum">     652 </span>            : CLEANUP:
+<span class="lineNum">     653 </span><span class="lineNoCov">          0 :     mp_clear(&amp;accum1);</span>
+<span class="lineNum">     654 </span><span class="lineNoCov">          0 :     mp_clear(&amp;accum2);</span>
+<span class="lineNum">     655 </span><span class="lineNoCov">          0 :     mp_clear(&amp;power2);</span>
+<span class="lineNum">     656 </span><span class="lineNoCov">          0 :     for (i = 0; i &lt; odd_ints; ++i) {</span>
+<span class="lineNum">     657 </span><span class="lineNoCov">          0 :         mp_clear(oddPowers + i);</span>
+<span class="lineNum">     658 </span>            :     }
+<span class="lineNum">     659 </span><span class="lineNoCov">          0 :     return res;</span>
+<span class="lineNum">     660 </span>            : }
+<span class="lineNum">     661 </span>            : #undef SQR
+<span class="lineNum">     662 </span>            : #undef MUL
+<span class="lineNum">     663 </span>            : 
+<span class="lineNum">     664 </span>            : #ifdef MP_USING_CACHE_SAFE_MOD_EXP
+<span class="lineNum">     665 </span>            : unsigned int mp_using_cache_safe_exp = 1;
+<span class="lineNum">     666 </span>            : #endif
+<a name="667"><span class="lineNum">     667 </span>            : </a>
+<span class="lineNum">     668 </span>            : mp_err
+<span class="lineNum">     669 </span><span class="lineNoCov">          0 : mp_set_safe_modexp(int value)</span>
+<span class="lineNum">     670 </span>            : {
+<span class="lineNum">     671 </span>            : #ifdef MP_USING_CACHE_SAFE_MOD_EXP
+<span class="lineNum">     672 </span><span class="lineNoCov">          0 :     mp_using_cache_safe_exp = value;</span>
+<span class="lineNum">     673 </span><span class="lineNoCov">          0 :     return MP_OKAY;</span>
+<span class="lineNum">     674 </span>            : #else
+<span class="lineNum">     675 </span>            :     if (value == 0) {
+<span class="lineNum">     676 </span>            :         return MP_OKAY;
+<span class="lineNum">     677 </span>            :     }
+<span class="lineNum">     678 </span>            :     return MP_BADARG;
+<span class="lineNum">     679 </span>            : #endif
+<span class="lineNum">     680 </span>            : }
+<span class="lineNum">     681 </span>            : 
+<span class="lineNum">     682 </span>            : #ifdef MP_USING_CACHE_SAFE_MOD_EXP
+<span class="lineNum">     683 </span>            : #define WEAVE_WORD_SIZE 4
+<span class="lineNum">     684 </span>            : 
+<span class="lineNum">     685 </span>            : /*
+<span class="lineNum">     686 </span>            :  * mpi_to_weave takes an array of bignums, a matrix in which each bignum
+<span class="lineNum">     687 </span>            :  * occupies all the columns of a row, and transposes it into a matrix in
+<span class="lineNum">     688 </span>            :  * which each bignum occupies a column of every row.  The first row of the
+<span class="lineNum">     689 </span>            :  * input matrix becomes the first column of the output matrix.  The n'th
+<span class="lineNum">     690 </span>            :  * row of input becomes the n'th column of output.  The input data is said
+<span class="lineNum">     691 </span>            :  * to be &quot;interleaved&quot; or &quot;woven&quot; into the output matrix.
+<span class="lineNum">     692 </span>            :  *
+<span class="lineNum">     693 </span>            :  * The array of bignums is left in this woven form.  Each time a single
+<span class="lineNum">     694 </span>            :  * bignum value is needed, it is recreated by fetching the n'th column,
+<span class="lineNum">     695 </span>            :  * forming a single row which is the new bignum.
+<span class="lineNum">     696 </span>            :  *
+<span class="lineNum">     697 </span>            :  * The purpose of this interleaving is make it impossible to determine which
+<span class="lineNum">     698 </span>            :  * of the bignums is being used in any one operation by examining the pattern
+<span class="lineNum">     699 </span>            :  * of cache misses.
+<span class="lineNum">     700 </span>            :  *
+<span class="lineNum">     701 </span>            :  * The weaving function does not transpose the entire input matrix in one call.
+<span class="lineNum">     702 </span>            :  * It transposes 4 rows of mp_ints into their respective columns of output.
+<span class="lineNum">     703 </span>            :  *
+<span class="lineNum">     704 </span>            :  * This implementation treats each mp_int bignum as an array of mp_digits,
+<span class="lineNum">     705 </span>            :  * It stores those bytes as a column of mp_digits in the output matrix.  It
+<span class="lineNum">     706 </span>            :  * doesn't care if the machine uses big-endian or little-endian byte ordering
+<span class="lineNum">     707 </span>            :  * within mp_digits.
+<span class="lineNum">     708 </span>            :  *
+<span class="lineNum">     709 </span>            :  * &quot;bignums&quot; is an array of mp_ints.
+<span class="lineNum">     710 </span>            :  * It points to four rows, four mp_ints, a subset of a larger array of mp_ints.
+<span class="lineNum">     711 </span>            :  *
+<span class="lineNum">     712 </span>            :  * &quot;weaved&quot; is the weaved output matrix.
+<span class="lineNum">     713 </span>            :  * The first byte of bignums[0] is stored in weaved[0].
+<span class="lineNum">     714 </span>            :  *
+<span class="lineNum">     715 </span>            :  * &quot;nBignums&quot; is the total number of bignums in the array of which &quot;bignums&quot;
+<span class="lineNum">     716 </span>            :  * is a part.
+<span class="lineNum">     717 </span>            :  *
+<span class="lineNum">     718 </span>            :  * &quot;nDigits&quot; is the size in mp_digits of each mp_int in the &quot;bignums&quot; array.
+<span class="lineNum">     719 </span>            :  * mp_ints that use less than nDigits digits are logically padded with zeros
+<a name="720"><span class="lineNum">     720 </span>            :  * while being stored in the weaved array.</a>
+<span class="lineNum">     721 </span>            :  */
+<span class="lineNum">     722 </span><span class="lineCov">          1 : mp_err mpi_to_weave(const mp_int *bignums,</span>
+<span class="lineNum">     723 </span>            :                     mp_digit *weaved,
+<span class="lineNum">     724 </span>            :                     mp_size nDigits,  /* in each mp_int of input */
+<span class="lineNum">     725 </span>            :                     mp_size nBignums) /* in the entire source array */
+<span class="lineNum">     726 </span>            : {
+<span class="lineNum">     727 </span>            :     mp_size i;
+<span class="lineNum">     728 </span><span class="lineCov">          1 :     mp_digit *endDest = weaved + (nDigits * nBignums);</span>
+<span class="lineNum">     729 </span>            : 
+<span class="lineNum">     730 </span><span class="lineCov">          1 :     for (i = 0; i &lt; WEAVE_WORD_SIZE; i++) {</span>
+<span class="lineNum">     731 </span><span class="lineCov">          1 :         mp_size used = MP_USED(&amp;bignums[i]);</span>
+<span class="lineNum">     732 </span><span class="lineCov">          1 :         mp_digit *pSrc = MP_DIGITS(&amp;bignums[i]);</span>
+<span class="lineNum">     733 </span><span class="lineCov">          1 :         mp_digit *endSrc = pSrc + used;</span>
+<span class="lineNum">     734 </span><span class="lineCov">          1 :         mp_digit *pDest = weaved + i;</span>
+<span class="lineNum">     735 </span>            : 
+<span class="lineNum">     736 </span><span class="lineCov">          1 :         ARGCHK(MP_SIGN(&amp;bignums[i]) == MP_ZPOS, MP_BADARG);</span>
+<span class="lineNum">     737 </span><span class="lineCov">          1 :         ARGCHK(used &lt;= nDigits, MP_BADARG);</span>
+<span class="lineNum">     738 </span>            : 
+<span class="lineNum">     739 </span><span class="lineCov">          1 :         for (; pSrc &lt; endSrc; pSrc++) {</span>
+<span class="lineNum">     740 </span><span class="lineCov">          1 :             *pDest = *pSrc;</span>
+<span class="lineNum">     741 </span><span class="lineCov">          1 :             pDest += nBignums;</span>
+<span class="lineNum">     742 </span>            :         }
+<span class="lineNum">     743 </span><span class="lineCov">          1 :         while (pDest &lt; endDest) {</span>
+<span class="lineNum">     744 </span><span class="lineCov">          1 :             *pDest = 0;</span>
+<span class="lineNum">     745 </span><span class="lineCov">          1 :             pDest += nBignums;</span>
+<span class="lineNum">     746 </span>            :         }
+<span class="lineNum">     747 </span>            :     }
+<span class="lineNum">     748 </span>            : 
+<span class="lineNum">     749 </span>            :     return MP_OKAY;
+<span class="lineNum">     750 </span>            : }
+<span class="lineNum">     751 </span>            : 
+<span class="lineNum">     752 </span>            : /*
+<span class="lineNum">     753 </span>            :  * These functions return 0xffffffff if the output is true, and 0 otherwise.
+<span class="lineNum">     754 </span>            :  */
+<span class="lineNum">     755 </span>            : #define CONST_TIME_MSB(x) (0L - ((x) &gt;&gt; (8 * sizeof(x) - 1)))
+<span class="lineNum">     756 </span>            : #define CONST_TIME_EQ_Z(x) CONST_TIME_MSB(~(x) &amp; ((x)-1))
+<span class="lineNum">     757 </span>            : #define CONST_TIME_EQ(a, b) CONST_TIME_EQ_Z((a) ^ (b))
+<span class="lineNum">     758 </span>            : 
+<span class="lineNum">     759 </span>            : /* Reverse the operation above for one mp_int.
+<span class="lineNum">     760 </span>            :  * Reconstruct one mp_int from its column in the weaved array.
+<span class="lineNum">     761 </span>            :  * Every read accesses every element of the weaved array, in order to
+<a name="762"><span class="lineNum">     762 </span>            :  * avoid timing attacks based on patterns of memory accesses.</a>
+<span class="lineNum">     763 </span>            :  */
+<span class="lineNum">     764 </span><span class="lineCov">          1 : mp_err weave_to_mpi(mp_int *a,              /* out, result */</span>
+<span class="lineNum">     765 </span>            :                     const mp_digit *weaved, /* in, byte matrix */
+<span class="lineNum">     766 </span>            :                     mp_size index,          /* which column to read */
+<span class="lineNum">     767 </span>            :                     mp_size nDigits,        /* number of mp_digits in each bignum */
+<span class="lineNum">     768 </span>            :                     mp_size nBignums)       /* width of the matrix */
+<span class="lineNum">     769 </span>            : {
+<span class="lineNum">     770 </span>            :     /* these are indices, but need to be the same size as mp_digit
+<span class="lineNum">     771 </span>            :      * because of the CONST_TIME operations */
+<span class="lineNum">     772 </span>            :     mp_digit i, j;
+<span class="lineNum">     773 </span>            :     mp_digit d;
+<span class="lineNum">     774 </span><span class="lineCov">          1 :     mp_digit *pDest = MP_DIGITS(a);</span>
+<span class="lineNum">     775 </span>            : 
+<span class="lineNum">     776 </span><span class="lineCov">          1 :     MP_SIGN(a) = MP_ZPOS;</span>
+<span class="lineNum">     777 </span><span class="lineCov">          1 :     MP_USED(a) = nDigits;</span>
+<span class="lineNum">     778 </span>            : 
+<span class="lineNum">     779 </span>            :     assert(weaved != NULL);
+<span class="lineNum">     780 </span>            : 
+<span class="lineNum">     781 </span>            :     /* Fetch the proper column in constant time, indexing over the whole array */
+<span class="lineNum">     782 </span><span class="lineCov">          1 :     for (i = 0; i &lt; nDigits; ++i) {</span>
+<span class="lineNum">     783 </span>            :         d = 0;
+<span class="lineNum">     784 </span><span class="lineCov">          1 :         for (j = 0; j &lt; nBignums; ++j) {</span>
+<span class="lineNum">     785 </span><span class="lineCov">          1 :             d |= weaved[i * nBignums + j] &amp; CONST_TIME_EQ(j, index);</span>
+<span class="lineNum">     786 </span>            :         }
+<span class="lineNum">     787 </span><span class="lineCov">          1 :         pDest[i] = d;</span>
+<span class="lineNum">     788 </span>            :     }
+<span class="lineNum">     789 </span>            : 
+<span class="lineNum">     790 </span><span class="lineCov">          1 :     s_mp_clamp(a);</span>
+<span class="lineNum">     791 </span><span class="lineCov">          1 :     return MP_OKAY;</span>
+<span class="lineNum">     792 </span>            : }
+<span class="lineNum">     793 </span>            : 
+<span class="lineNum">     794 </span>            : #define SQR(a, b)             \
+<span class="lineNum">     795 </span>            :     MP_CHECKOK(mp_sqr(a, b)); \
+<span class="lineNum">     796 </span>            :     MP_CHECKOK(s_mp_redc(b, mmm))
+<span class="lineNum">     797 </span>            : 
+<span class="lineNum">     798 </span>            : #if defined(MP_MONT_USE_MP_MUL)
+<span class="lineNum">     799 </span>            : #define MUL_NOWEAVE(x, a, b)     \
+<span class="lineNum">     800 </span>            :     MP_CHECKOK(mp_mul(a, x, b)); \
+<span class="lineNum">     801 </span>            :     MP_CHECKOK(s_mp_redc(b, mmm))
+<span class="lineNum">     802 </span>            : #else
+<span class="lineNum">     803 </span>            : #define MUL_NOWEAVE(x, a, b) \
+<span class="lineNum">     804 </span>            :     MP_CHECKOK(s_mp_mul_mont(a, x, b, mmm))
+<span class="lineNum">     805 </span>            : #endif
+<span class="lineNum">     806 </span>            : 
+<span class="lineNum">     807 </span>            : #define MUL(x, a, b)                                               \
+<span class="lineNum">     808 </span>            :     MP_CHECKOK(weave_to_mpi(&amp;tmp, powers, (x), nLen, num_powers)); \
+<span class="lineNum">     809 </span>            :     MUL_NOWEAVE(&amp;tmp, a, b)
+<span class="lineNum">     810 </span>            : 
+<span class="lineNum">     811 </span>            : #define SWAPPA  \
+<span class="lineNum">     812 </span>            :     ptmp = pa1; \
+<span class="lineNum">     813 </span>            :     pa1 = pa2;  \
+<span class="lineNum">     814 </span>            :     pa2 = ptmp
+<span class="lineNum">     815 </span>            : #define MP_ALIGN(x, y) ((((ptrdiff_t)(x)) + ((y)-1)) &amp; (((ptrdiff_t)0) - (y)))
+<span class="lineNum">     816 </span>            : 
+<a name="817"><span class="lineNum">     817 </span>            : /* Do modular exponentiation using integer multiply code. */</a>
+<span class="lineNum">     818 </span>            : mp_err
+<span class="lineNum">     819 </span><span class="lineCov">          1 : mp_exptmod_safe_i(const mp_int *montBase,</span>
+<span class="lineNum">     820 </span>            :                   const mp_int *exponent,
+<span class="lineNum">     821 </span>            :                   const mp_int *modulus,
+<span class="lineNum">     822 </span>            :                   mp_int *result,
+<span class="lineNum">     823 </span>            :                   mp_mont_modulus *mmm,
+<span class="lineNum">     824 </span>            :                   int nLen,
+<span class="lineNum">     825 </span>            :                   mp_size bits_in_exponent,
+<span class="lineNum">     826 </span>            :                   mp_size window_bits,
+<span class="lineNum">     827 </span>            :                   mp_size num_powers)
+<span class="lineNum">     828 </span>            : {
+<span class="lineNum">     829 </span>            :     mp_int *pa1, *pa2, *ptmp;
+<span class="lineNum">     830 </span>            :     mp_size i;
+<span class="lineNum">     831 </span>            :     mp_size first_window;
+<span class="lineNum">     832 </span>            :     mp_err res;
+<span class="lineNum">     833 </span>            :     int expOff;
+<span class="lineNum">     834 </span>            :     mp_int accum1, accum2, accum[WEAVE_WORD_SIZE];
+<span class="lineNum">     835 </span>            :     mp_int tmp;
+<span class="lineNum">     836 </span><span class="lineCov">          1 :     mp_digit *powersArray = NULL;</span>
+<span class="lineNum">     837 </span><span class="lineCov">          1 :     mp_digit *powers = NULL;</span>
+<span class="lineNum">     838 </span>            : 
+<span class="lineNum">     839 </span><span class="lineCov">          1 :     MP_DIGITS(&amp;accum1) = 0;</span>
+<span class="lineNum">     840 </span><span class="lineCov">          1 :     MP_DIGITS(&amp;accum2) = 0;</span>
+<span class="lineNum">     841 </span><span class="lineCov">          1 :     MP_DIGITS(&amp;accum[0]) = 0;</span>
+<span class="lineNum">     842 </span><span class="lineCov">          1 :     MP_DIGITS(&amp;accum[1]) = 0;</span>
+<span class="lineNum">     843 </span><span class="lineCov">          1 :     MP_DIGITS(&amp;accum[2]) = 0;</span>
+<span class="lineNum">     844 </span><span class="lineCov">          1 :     MP_DIGITS(&amp;accum[3]) = 0;</span>
+<span class="lineNum">     845 </span><span class="lineCov">          1 :     MP_DIGITS(&amp;tmp) = 0;</span>
+<span class="lineNum">     846 </span>            : 
+<span class="lineNum">     847 </span>            :     /* grab the first window value. This allows us to preload accumulator1
+<span class="lineNum">     848 </span>            :    * and save a conversion, some squares and a multiple*/
+<span class="lineNum">     849 </span><span class="lineCov">          1 :     MP_CHECKOK(mpl_get_bits(exponent,</span>
+<span class="lineNum">     850 </span>            :                             bits_in_exponent - window_bits, window_bits));
+<span class="lineNum">     851 </span><span class="lineCov">          1 :     first_window = (mp_size)res;</span>
+<span class="lineNum">     852 </span>            : 
+<span class="lineNum">     853 </span><span class="lineCov">          1 :     MP_CHECKOK(mp_init_size(&amp;accum1, 3 * nLen + 2));</span>
+<span class="lineNum">     854 </span><span class="lineCov">          1 :     MP_CHECKOK(mp_init_size(&amp;accum2, 3 * nLen + 2));</span>
+<span class="lineNum">     855 </span>            : 
+<span class="lineNum">     856 </span>            :     /* build the first WEAVE_WORD powers inline */
+<span class="lineNum">     857 </span>            :     /* if WEAVE_WORD_SIZE is not 4, this code will have to change */
+<span class="lineNum">     858 </span><span class="lineCov">          1 :     if (num_powers &gt; 2) {</span>
+<span class="lineNum">     859 </span><span class="lineCov">          1 :         MP_CHECKOK(mp_init_size(&amp;accum[0], 3 * nLen + 2));</span>
+<span class="lineNum">     860 </span><span class="lineCov">          1 :         MP_CHECKOK(mp_init_size(&amp;accum[1], 3 * nLen + 2));</span>
+<span class="lineNum">     861 </span><span class="lineCov">          1 :         MP_CHECKOK(mp_init_size(&amp;accum[2], 3 * nLen + 2));</span>
+<span class="lineNum">     862 </span><span class="lineCov">          1 :         MP_CHECKOK(mp_init_size(&amp;accum[3], 3 * nLen + 2));</span>
+<span class="lineNum">     863 </span><span class="lineCov">          1 :         mp_set(&amp;accum[0], 1);</span>
+<span class="lineNum">     864 </span><span class="lineCov">          1 :         MP_CHECKOK(s_mp_to_mont(&amp;accum[0], mmm, &amp;accum[0]));</span>
+<span class="lineNum">     865 </span><span class="lineCov">          1 :         MP_CHECKOK(mp_copy(montBase, &amp;accum[1]));</span>
+<span class="lineNum">     866 </span><span class="lineCov">          1 :         SQR(montBase, &amp;accum[2]);</span>
+<span class="lineNum">     867 </span><span class="lineCov">          1 :         MUL_NOWEAVE(montBase, &amp;accum[2], &amp;accum[3]);</span>
+<span class="lineNum">     868 </span><span class="lineCov">          1 :         powersArray = (mp_digit *)malloc(num_powers * (nLen * sizeof(mp_digit) + 1));</span>
+<span class="lineNum">     869 </span><span class="lineCov">          1 :         if (!powersArray) {</span>
+<span class="lineNum">     870 </span>            :             res = MP_MEM;
+<span class="lineNum">     871 </span>            :             goto CLEANUP;
+<span class="lineNum">     872 </span>            :         }
+<span class="lineNum">     873 </span>            :         /* powers[i] = base ** (i); */
+<span class="lineNum">     874 </span><span class="lineCov">          1 :         powers = (mp_digit *)MP_ALIGN(powersArray, num_powers);</span>
+<span class="lineNum">     875 </span><span class="lineCov">          1 :         MP_CHECKOK(mpi_to_weave(accum, powers, nLen, num_powers));</span>
+<span class="lineNum">     876 </span><span class="lineCov">          1 :         if (first_window &lt; 4) {</span>
+<span class="lineNum">     877 </span><span class="lineCov">          1 :             MP_CHECKOK(mp_copy(&amp;accum[first_window], &amp;accum1));</span>
+<span class="lineNum">     878 </span>            :             first_window = num_powers;
+<span class="lineNum">     879 </span>            :         }
+<span class="lineNum">     880 </span>            :     } else {
+<span class="lineNum">     881 </span><span class="lineCov">          1 :         if (first_window == 0) {</span>
+<span class="lineNum">     882 </span><span class="lineNoCov">          0 :             mp_set(&amp;accum1, 1);</span>
+<span class="lineNum">     883 </span><span class="lineNoCov">          0 :             MP_CHECKOK(s_mp_to_mont(&amp;accum1, mmm, &amp;accum1));</span>
+<span class="lineNum">     884 </span>            :         } else {
+<span class="lineNum">     885 </span>            :             /* assert first_window == 1? */
+<span class="lineNum">     886 </span><span class="lineCov">          1 :             MP_CHECKOK(mp_copy(montBase, &amp;accum1));</span>
+<span class="lineNum">     887 </span>            :         }
+<span class="lineNum">     888 </span>            :     }
+<span class="lineNum">     889 </span>            : 
+<span class="lineNum">     890 </span>            :     /*
+<span class="lineNum">     891 </span>            :      * calculate all the powers in the powers array.
+<span class="lineNum">     892 </span>            :      * this adds 2**(k-1)-2 square operations over just calculating the
+<span class="lineNum">     893 </span>            :      * odd powers where k is the window size in the two other mp_modexpt
+<span class="lineNum">     894 </span>            :      * implementations in this file. We will get some of that
+<span class="lineNum">     895 </span>            :      * back by not needing the first 'k' squares and one multiply for the
+<span class="lineNum">     896 </span>            :      * first window.
+<span class="lineNum">     897 </span>            :      * Given the value of 4 for WEAVE_WORD_SIZE, this loop will only execute if
+<span class="lineNum">     898 </span>            :      * num_powers &gt; 2, in which case powers will have been allocated.
+<span class="lineNum">     899 </span>            :      */
+<span class="lineNum">     900 </span><span class="lineCov">          1 :     for (i = WEAVE_WORD_SIZE; i &lt; num_powers; i++) {</span>
+<span class="lineNum">     901 </span><span class="lineCov">          1 :         int acc_index = i &amp; (WEAVE_WORD_SIZE - 1); /* i % WEAVE_WORD_SIZE */</span>
+<span class="lineNum">     902 </span><span class="lineCov">          1 :         if (i &amp; 1) {</span>
+<span class="lineNum">     903 </span><span class="lineCov">          1 :             MUL_NOWEAVE(montBase, &amp;accum[acc_index - 1], &amp;accum[acc_index]);</span>
+<span class="lineNum">     904 </span>            :             /* we've filled the array do our 'per array' processing */
+<span class="lineNum">     905 </span><span class="lineCov">          1 :             if (acc_index == (WEAVE_WORD_SIZE - 1)) {</span>
+<span class="lineNum">     906 </span><span class="lineCov">          1 :                 MP_CHECKOK(mpi_to_weave(accum, powers + i - (WEAVE_WORD_SIZE - 1),</span>
+<span class="lineNum">     907 </span>            :                                         nLen, num_powers));
+<span class="lineNum">     908 </span>            : 
+<span class="lineNum">     909 </span><span class="lineCov">          1 :                 if (first_window &lt;= i) {</span>
+<span class="lineNum">     910 </span><span class="lineCov">          1 :                     MP_CHECKOK(mp_copy(&amp;accum[first_window &amp; (WEAVE_WORD_SIZE - 1)],</span>
+<span class="lineNum">     911 </span>            :                                        &amp;accum1));
+<span class="lineNum">     912 </span>            :                     first_window = num_powers;
+<span class="lineNum">     913 </span>            :                 }
+<span class="lineNum">     914 </span>            :             }
+<span class="lineNum">     915 </span>            :         } else {
+<span class="lineNum">     916 </span>            :             /* up to 8 we can find 2^i-1 in the accum array, but at 8 we our source
+<span class="lineNum">     917 </span>            :              * and target are the same so we need to copy.. After that, the
+<span class="lineNum">     918 </span>            :              * value is overwritten, so we need to fetch it from the stored
+<span class="lineNum">     919 </span>            :              * weave array */
+<span class="lineNum">     920 </span><span class="lineCov">          1 :             if (i &gt; 2 * WEAVE_WORD_SIZE) {</span>
+<span class="lineNum">     921 </span><span class="lineCov">          1 :                 MP_CHECKOK(weave_to_mpi(&amp;accum2, powers, i / 2, nLen, num_powers));</span>
+<span class="lineNum">     922 </span><span class="lineCov">          1 :                 SQR(&amp;accum2, &amp;accum[acc_index]);</span>
+<span class="lineNum">     923 </span>            :             } else {
+<span class="lineNum">     924 </span><span class="lineCov">          1 :                 int half_power_index = (i / 2) &amp; (WEAVE_WORD_SIZE - 1);</span>
+<span class="lineNum">     925 </span><span class="lineCov">          1 :                 if (half_power_index == acc_index) {</span>
+<span class="lineNum">     926 </span>            :                     /* copy is cheaper than weave_to_mpi */
+<span class="lineNum">     927 </span><span class="lineCov">          1 :                     MP_CHECKOK(mp_copy(&amp;accum[half_power_index], &amp;accum2));</span>
+<span class="lineNum">     928 </span><span class="lineCov">          1 :                     SQR(&amp;accum2, &amp;accum[acc_index]);</span>
+<span class="lineNum">     929 </span>            :                 } else {
+<span class="lineNum">     930 </span><span class="lineCov">          1 :                     SQR(&amp;accum[half_power_index], &amp;accum[acc_index]);</span>
+<span class="lineNum">     931 </span>            :                 }
+<span class="lineNum">     932 </span>            :             }
+<span class="lineNum">     933 </span>            :         }
+<span class="lineNum">     934 </span>            :     }
+<span class="lineNum">     935 </span>            : /* if the accum1 isn't set, Then there is something wrong with our logic
+<span class="lineNum">     936 </span>            :    * above and is an internal programming error.
+<span class="lineNum">     937 </span>            :    */
+<span class="lineNum">     938 </span>            : #if MP_ARGCHK == 2
+<span class="lineNum">     939 </span>            :     assert(MP_USED(&amp;accum1) != 0);
+<span class="lineNum">     940 </span>            : #endif
+<span class="lineNum">     941 </span>            : 
+<span class="lineNum">     942 </span>            :     /* set accumulator to montgomery residue of 1 */
+<span class="lineNum">     943 </span><span class="lineCov">          1 :     pa1 = &amp;accum1;</span>
+<span class="lineNum">     944 </span><span class="lineCov">          1 :     pa2 = &amp;accum2;</span>
+<span class="lineNum">     945 </span>            : 
+<span class="lineNum">     946 </span>            :     /* tmp is not used if window_bits == 1. */
+<span class="lineNum">     947 </span><span class="lineCov">          1 :     if (window_bits != 1) {</span>
+<span class="lineNum">     948 </span><span class="lineCov">          1 :         MP_CHECKOK(mp_init_size(&amp;tmp, 3 * nLen + 2));</span>
+<span class="lineNum">     949 </span>            :     }
+<span class="lineNum">     950 </span>            : 
+<span class="lineNum">     951 </span><span class="lineCov">          1 :     for (expOff = bits_in_exponent - window_bits * 2; expOff &gt;= 0; expOff -= window_bits) {</span>
+<span class="lineNum">     952 </span>            :         mp_size smallExp;
+<span class="lineNum">     953 </span><span class="lineCov">          1 :         MP_CHECKOK(mpl_get_bits(exponent, expOff, window_bits));</span>
+<span class="lineNum">     954 </span><span class="lineCov">          1 :         smallExp = (mp_size)res;</span>
+<span class="lineNum">     955 </span>            : 
+<span class="lineNum">     956 </span>            :         /* handle unroll the loops */
+<span class="lineNum">     957 </span><span class="lineCov">          1 :         switch (window_bits) {</span>
+<span class="lineNum">     958 </span>            :             case 1:
+<span class="lineNum">     959 </span><span class="lineCov">          1 :                 if (!smallExp) {</span>
+<span class="lineNum">     960 </span><span class="lineCov">          1 :                     SQR(pa1, pa2);</span>
+<span class="lineNum">     961 </span>            :                     SWAPPA;
+<span class="lineNum">     962 </span><span class="lineCov">          1 :                 } else if (smallExp &amp; 1) {</span>
+<span class="lineNum">     963 </span><span class="lineCov">          1 :                     SQR(pa1, pa2);</span>
+<span class="lineNum">     964 </span><span class="lineCov">          1 :                     MUL_NOWEAVE(montBase, pa2, pa1);</span>
+<span class="lineNum">     965 </span>            :                 } else {
+<span class="lineNum">     966 </span><span class="lineNoCov">          0 :                     abort();</span>
+<span class="lineNum">     967 </span>            :                 }
+<span class="lineNum">     968 </span>            :                 break;
+<span class="lineNum">     969 </span>            :             case 6:
+<span class="lineNum">     970 </span><span class="lineNoCov">          0 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     971 </span><span class="lineNoCov">          0 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     972 </span>            :             /* fall through */
+<span class="lineNum">     973 </span>            :             case 4:
+<span class="lineNum">     974 </span><span class="lineCov">          1 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     975 </span><span class="lineCov">          1 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     976 </span><span class="lineCov">          1 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     977 </span><span class="lineCov">          1 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     978 </span><span class="lineCov">          1 :                 MUL(smallExp, pa1, pa2);</span>
+<span class="lineNum">     979 </span>            :                 SWAPPA;
+<span class="lineNum">     980 </span>            :                 break;
+<span class="lineNum">     981 </span>            :             case 5:
+<span class="lineNum">     982 </span><span class="lineCov">          1 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     983 </span><span class="lineCov">          1 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     984 </span><span class="lineCov">          1 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     985 </span><span class="lineCov">          1 :                 SQR(pa2, pa1);</span>
+<span class="lineNum">     986 </span><span class="lineCov">          1 :                 SQR(pa1, pa2);</span>
+<span class="lineNum">     987 </span><span class="lineCov">          1 :                 MUL(smallExp, pa2, pa1);</span>
+<span class="lineNum">     988 </span>            :                 break;
+<span class="lineNum">     989 </span>            :             default:
+<span class="lineNum">     990 </span><span class="lineNoCov">          0 :                 abort(); /* could do a loop? */</span>
+<span class="lineNum">     991 </span>            :         }
+<span class="lineNum">     992 </span>            :     }
+<span class="lineNum">     993 </span>            : 
+<span class="lineNum">     994 </span><span class="lineCov">          1 :     res = s_mp_redc(pa1, mmm);</span>
+<span class="lineNum">     995 </span><span class="lineCov">          1 :     mp_exch(pa1, result);</span>
+<span class="lineNum">     996 </span>            : 
+<span class="lineNum">     997 </span>            : CLEANUP:
+<span class="lineNum">     998 </span><span class="lineCov">          1 :     mp_clear(&amp;accum1);</span>
+<span class="lineNum">     999 </span><span class="lineCov">          1 :     mp_clear(&amp;accum2);</span>
+<span class="lineNum">    1000 </span><span class="lineCov">          1 :     mp_clear(&amp;accum[0]);</span>
+<span class="lineNum">    1001 </span><span class="lineCov">          1 :     mp_clear(&amp;accum[1]);</span>
+<span class="lineNum">    1002 </span><span class="lineCov">          1 :     mp_clear(&amp;accum[2]);</span>
+<span class="lineNum">    1003 </span><span class="lineCov">          1 :     mp_clear(&amp;accum[3]);</span>
+<span class="lineNum">    1004 </span><span class="lineCov">          1 :     mp_clear(&amp;tmp);</span>
+<span class="lineNum">    1005 </span>            :     /* PORT_Memset(powers,0,num_powers*nLen*sizeof(mp_digit)); */
+<span class="lineNum">    1006 </span><span class="lineCov">          1 :     free(powersArray);</span>
+<span class="lineNum">    1007 </span><span class="lineCov">          1 :     return res;</span>
+<span class="lineNum">    1008 </span>            : }
+<span class="lineNum">    1009 </span>            : #undef SQR
+<span class="lineNum">    1010 </span>            : #undef MUL
+<span class="lineNum">    1011 </span>            : #endif
+<a name="1012"><span class="lineNum">    1012 </span>            : </a>
+<span class="lineNum">    1013 </span>            : mp_err
+<span class="lineNum">    1014 </span><span class="lineCov">          1 : mp_exptmod(const mp_int *inBase, const mp_int *exponent,</span>
+<span class="lineNum">    1015 </span>            :            const mp_int *modulus, mp_int *result)
+<span class="lineNum">    1016 </span>            : {
+<span class="lineNum">    1017 </span>            :     const mp_int *base;
+<span class="lineNum">    1018 </span>            :     mp_size bits_in_exponent, i, window_bits, odd_ints;
+<span class="lineNum">    1019 </span>            :     mp_err res;
+<span class="lineNum">    1020 </span>            :     int nLen;
+<span class="lineNum">    1021 </span>            :     mp_int montBase, goodBase;
+<span class="lineNum">    1022 </span>            :     mp_mont_modulus mmm;
+<span class="lineNum">    1023 </span>            : #ifdef MP_USING_CACHE_SAFE_MOD_EXP
+<span class="lineNum">    1024 </span>            :     static unsigned int max_window_bits;
+<span class="lineNum">    1025 </span>            : #endif
+<span class="lineNum">    1026 </span>            : 
+<span class="lineNum">    1027 </span>            :     /* function for computing n0prime only works if n0 is odd */
+<span class="lineNum">    1028 </span><span class="lineCov">          1 :     if (!mp_isodd(modulus))</span>
+<span class="lineNum">    1029 </span><span class="lineNoCov">          0 :         return s_mp_exptmod(inBase, exponent, modulus, result);</span>
+<span class="lineNum">    1030 </span>            : 
+<span class="lineNum">    1031 </span><span class="lineCov">          1 :     MP_DIGITS(&amp;montBase) = 0;</span>
+<span class="lineNum">    1032 </span><span class="lineCov">          1 :     MP_DIGITS(&amp;goodBase) = 0;</span>
+<span class="lineNum">    1033 </span>            : 
+<span class="lineNum">    1034 </span><span class="lineCov">          1 :     if (mp_cmp(inBase, modulus) &lt; 0) {</span>
+<span class="lineNum">    1035 </span>            :         base = inBase;
+<span class="lineNum">    1036 </span>            :     } else {
+<span class="lineNum">    1037 </span><span class="lineNoCov">          0 :         MP_CHECKOK(mp_init(&amp;goodBase));</span>
+<span class="lineNum">    1038 </span><span class="lineNoCov">          0 :         base = &amp;goodBase;</span>
+<span class="lineNum">    1039 </span><span class="lineNoCov">          0 :         MP_CHECKOK(mp_mod(inBase, modulus, &amp;goodBase));</span>
+<span class="lineNum">    1040 </span>            :     }
+<span class="lineNum">    1041 </span>            : 
+<span class="lineNum">    1042 </span><span class="lineCov">          1 :     nLen = MP_USED(modulus);</span>
+<span class="lineNum">    1043 </span><span class="lineCov">          1 :     MP_CHECKOK(mp_init_size(&amp;montBase, 2 * nLen + 2));</span>
+<span class="lineNum">    1044 </span>            : 
+<span class="lineNum">    1045 </span><span class="lineCov">          1 :     mmm.N = *modulus; /* a copy of the mp_int struct */</span>
+<span class="lineNum">    1046 </span>            : 
+<span class="lineNum">    1047 </span>            :     /* compute n0', given n0, n0' = -(n0 ** -1) mod MP_RADIX
+<span class="lineNum">    1048 </span>            :     **        where n0 = least significant mp_digit of N, the modulus.
+<span class="lineNum">    1049 </span>            :     */
+<span class="lineNum">    1050 </span><span class="lineCov">          1 :     mmm.n0prime = 0 - s_mp_invmod_radix(MP_DIGIT(modulus, 0));</span>
+<span class="lineNum">    1051 </span>            : 
+<span class="lineNum">    1052 </span><span class="lineCov">          1 :     MP_CHECKOK(s_mp_to_mont(base, &amp;mmm, &amp;montBase));</span>
+<span class="lineNum">    1053 </span>            : 
+<span class="lineNum">    1054 </span><span class="lineCov">          1 :     bits_in_exponent = mpl_significant_bits(exponent);</span>
+<span class="lineNum">    1055 </span>            : #ifdef MP_USING_CACHE_SAFE_MOD_EXP
+<span class="lineNum">    1056 </span><span class="lineCov">          1 :     if (mp_using_cache_safe_exp) {</span>
+<span class="lineNum">    1057 </span><span class="lineCov">          1 :         if (bits_in_exponent &gt; 780)</span>
+<span class="lineNum">    1058 </span>            :             window_bits = 6;
+<span class="lineNum">    1059 </span><span class="lineCov">          1 :         else if (bits_in_exponent &gt; 256)</span>
+<span class="lineNum">    1060 </span>            :             window_bits = 5;
+<span class="lineNum">    1061 </span><span class="lineCov">          1 :         else if (bits_in_exponent &gt; 20)</span>
+<span class="lineNum">    1062 </span>            :             window_bits = 4;
+<span class="lineNum">    1063 </span>            :         /* RSA public key exponents are typically under 20 bits (common values
+<span class="lineNum">    1064 </span>            :          * are: 3, 17, 65537) and a 4-bit window is inefficient
+<span class="lineNum">    1065 </span>            :          */
+<span class="lineNum">    1066 </span>            :         else
+<span class="lineNum">    1067 </span><span class="lineCov">          1 :             window_bits = 1;</span>
+<span class="lineNum">    1068 </span>            :     } else
+<span class="lineNum">    1069 </span>            : #endif
+<span class="lineNum">    1070 </span><span class="lineNoCov">          0 :         if (bits_in_exponent &gt; 480)</span>
+<span class="lineNum">    1071 </span>            :         window_bits = 6;
+<span class="lineNum">    1072 </span><span class="lineNoCov">          0 :     else if (bits_in_exponent &gt; 160)</span>
+<span class="lineNum">    1073 </span>            :         window_bits = 5;
+<span class="lineNum">    1074 </span><span class="lineNoCov">          0 :     else if (bits_in_exponent &gt; 20)</span>
+<span class="lineNum">    1075 </span>            :         window_bits = 4;
+<span class="lineNum">    1076 </span>            :     /* RSA public key exponents are typically under 20 bits (common values
+<span class="lineNum">    1077 </span>            :      * are: 3, 17, 65537) and a 4-bit window is inefficient
+<span class="lineNum">    1078 </span>            :      */
+<span class="lineNum">    1079 </span>            :     else
+<span class="lineNum">    1080 </span><span class="lineNoCov">          0 :         window_bits = 1;</span>
+<span class="lineNum">    1081 </span>            : 
+<span class="lineNum">    1082 </span>            : #ifdef MP_USING_CACHE_SAFE_MOD_EXP
+<span class="lineNum">    1083 </span>            :     /*
+<span class="lineNum">    1084 </span>            :      * clamp the window size based on
+<span class="lineNum">    1085 </span>            :      * the cache line size.
+<span class="lineNum">    1086 </span>            :      */
+<span class="lineNum">    1087 </span><span class="lineCov">          1 :     if (!max_window_bits) {</span>
+<span class="lineNum">    1088 </span><span class="lineCov">          1 :         unsigned long cache_size = s_mpi_getProcessorLineSize();</span>
+<span class="lineNum">    1089 </span>            :         /* processor has no cache, use 'fast' code always */
+<span class="lineNum">    1090 </span><span class="lineCov">          1 :         if (cache_size == 0) {</span>
+<span class="lineNum">    1091 </span><span class="lineNoCov">          0 :             mp_using_cache_safe_exp = 0;</span>
+<span class="lineNum">    1092 </span>            :         }
+<span class="lineNum">    1093 </span><span class="lineCov">          1 :         if ((cache_size == 0) || (cache_size &gt;= 64)) {</span>
+<span class="lineNum">    1094 </span><span class="lineNoCov">          0 :             max_window_bits = 6;</span>
+<span class="lineNum">    1095 </span><span class="lineCov">          1 :         } else if (cache_size &gt;= 32) {</span>
+<span class="lineNum">    1096 </span><span class="lineCov">          1 :             max_window_bits = 5;</span>
+<span class="lineNum">    1097 </span><span class="lineNoCov">          0 :         } else if (cache_size &gt;= 16) {</span>
+<span class="lineNum">    1098 </span><span class="lineNoCov">          0 :             max_window_bits = 4;</span>
+<span class="lineNum">    1099 </span>            :         } else
+<span class="lineNum">    1100 </span><span class="lineNoCov">          0 :             max_window_bits = 1; /* should this be an assert? */</span>
+<span class="lineNum">    1101 </span>            :     }
+<span class="lineNum">    1102 </span>            : 
+<span class="lineNum">    1103 </span>            :     /* clamp the window size down before we caclulate bits_in_exponent */
+<span class="lineNum">    1104 </span><span class="lineCov">          1 :     if (mp_using_cache_safe_exp) {</span>
+<span class="lineNum">    1105 </span><span class="lineCov">          1 :         if (window_bits &gt; max_window_bits) {</span>
+<span class="lineNum">    1106 </span><span class="lineCov">          1 :             window_bits = max_window_bits;</span>
+<span class="lineNum">    1107 </span>            :         }
+<span class="lineNum">    1108 </span>            :     }
+<span class="lineNum">    1109 </span>            : #endif
+<span class="lineNum">    1110 </span>            : 
+<span class="lineNum">    1111 </span><span class="lineCov">          1 :     odd_ints = 1 &lt;&lt; (window_bits - 1);</span>
+<span class="lineNum">    1112 </span><span class="lineCov">          1 :     i = bits_in_exponent % window_bits;</span>
+<span class="lineNum">    1113 </span><span class="lineCov">          1 :     if (i != 0) {</span>
+<span class="lineNum">    1114 </span><span class="lineCov">          1 :         bits_in_exponent += window_bits - i;</span>
+<span class="lineNum">    1115 </span>            :     }
+<span class="lineNum">    1116 </span>            : 
+<span class="lineNum">    1117 </span>            : #ifdef MP_USING_MONT_MULF
+<span class="lineNum">    1118 </span>            :     if (mp_using_mont_mulf) {
+<span class="lineNum">    1119 </span>            :         MP_CHECKOK(s_mp_pad(&amp;montBase, nLen));
+<span class="lineNum">    1120 </span>            :         res = mp_exptmod_f(&amp;montBase, exponent, modulus, result, &amp;mmm, nLen,
+<span class="lineNum">    1121 </span>            :                            bits_in_exponent, window_bits, odd_ints);
+<span class="lineNum">    1122 </span>            :     } else
+<span class="lineNum">    1123 </span>            : #endif
+<span class="lineNum">    1124 </span>            : #ifdef MP_USING_CACHE_SAFE_MOD_EXP
+<span class="lineNum">    1125 </span><span class="lineCov">          1 :         if (mp_using_cache_safe_exp) {</span>
+<span class="lineNum">    1126 </span><span class="lineCov">          1 :         res = mp_exptmod_safe_i(&amp;montBase, exponent, modulus, result, &amp;mmm, nLen,</span>
+<span class="lineNum">    1127 </span><span class="lineCov">          1 :                                 bits_in_exponent, window_bits, 1 &lt;&lt; window_bits);</span>
+<span class="lineNum">    1128 </span>            :     } else
+<span class="lineNum">    1129 </span>            : #endif
+<span class="lineNum">    1130 </span><span class="lineNoCov">          0 :         res = mp_exptmod_i(&amp;montBase, exponent, modulus, result, &amp;mmm, nLen,</span>
+<span class="lineNum">    1131 </span>            :                            bits_in_exponent, window_bits, odd_ints);
+<span class="lineNum">    1132 </span>            : 
+<span class="lineNum">    1133 </span>            : CLEANUP:
+<span class="lineNum">    1134 </span><span class="lineCov">          1 :     mp_clear(&amp;montBase);</span>
+<span class="lineNum">    1135 </span><span class="lineCov">          1 :     mp_clear(&amp;goodBase);</span>
+<span class="lineNum">    1136 </span>            :     /* Don't mp_clear mmm.N because it is merely a copy of modulus.
+<span class="lineNum">    1137 </span>            :     ** Just zap it.
+<span class="lineNum">    1138 </span>            :     */
+<span class="lineNum">    1139 </span><span class="lineCov">          1 :     memset(&amp;mmm, 0, sizeof mmm);</span>
+<span class="lineNum">    1140 </span><span class="lineCov">          1 :     return res;</span>
+<span class="lineNum">    1141 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

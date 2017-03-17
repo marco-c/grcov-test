@@ -1,0 +1,646 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - js/src/vm/RegExpObject.h</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">js/src/vm</a> - RegExpObject.h<span style="font-size: 80%;"> (source / <a href="RegExpObject.h.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">63</td>
+            <td class="headerCovTableEntry">74</td>
+            <td class="headerCovTableEntryMed">85.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">11</td>
+            <td class="headerCovTableEntry">19</td>
+            <td class="headerCovTableEntryLo">57.9 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-</a>
+<span class="lineNum">       2 </span>            :  * vim: set ts=8 sts=4 et sw=4 tw=99:
+<span class="lineNum">       3 </span>            :  * This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : #ifndef vm_RegExpObject_h
+<span class="lineNum">       8 </span>            : #define vm_RegExpObject_h
+<span class="lineNum">       9 </span>            : 
+<span class="lineNum">      10 </span>            : #include &quot;mozilla/Attributes.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;mozilla/MemoryReporting.h&quot;
+<span class="lineNum">      12 </span>            : 
+<span class="lineNum">      13 </span>            : #include &quot;jscntxt.h&quot;
+<span class="lineNum">      14 </span>            : 
+<span class="lineNum">      15 </span>            : #include &quot;builtin/SelfHostingDefines.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;gc/Marking.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;gc/Zone.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;proxy/Proxy.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;vm/ArrayObject.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;vm/Shape.h&quot;
+<span class="lineNum">      21 </span>            : 
+<span class="lineNum">      22 </span>            : /*
+<span class="lineNum">      23 </span>            :  * JavaScript Regular Expressions
+<span class="lineNum">      24 </span>            :  *
+<span class="lineNum">      25 </span>            :  * There are several engine concepts associated with a single logical regexp:
+<span class="lineNum">      26 </span>            :  *
+<span class="lineNum">      27 </span>            :  *   RegExpObject - The JS-visible object whose .[[Class]] equals &quot;RegExp&quot;
+<span class="lineNum">      28 </span>            :  *
+<span class="lineNum">      29 </span>            :  *   RegExpShared - The compiled representation of the regexp.
+<span class="lineNum">      30 </span>            :  *
+<span class="lineNum">      31 </span>            :  *   RegExpCompartment - Owns all RegExpShared instances in a compartment.
+<span class="lineNum">      32 </span>            :  *
+<span class="lineNum">      33 </span>            :  * To save memory, a RegExpShared is not created for a RegExpObject until it is
+<span class="lineNum">      34 </span>            :  * needed for execution. When a RegExpShared needs to be created, it is looked
+<span class="lineNum">      35 </span>            :  * up in a per-compartment table to allow reuse between objects. Lastly, on
+<span class="lineNum">      36 </span>            :  * GC, every RegExpShared (that is not active on the callstack) is discarded.
+<span class="lineNum">      37 </span>            :  * Because of the last point, any code using a RegExpShared (viz., by executing
+<span class="lineNum">      38 </span>            :  * a regexp) must indicate the RegExpShared is active via RegExpGuard.
+<span class="lineNum">      39 </span>            :  */
+<span class="lineNum">      40 </span>            : namespace js {
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : struct MatchPair;
+<span class="lineNum">      43 </span>            : class MatchPairs;
+<span class="lineNum">      44 </span>            : class RegExpShared;
+<span class="lineNum">      45 </span>            : class RegExpStatics;
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span>            : namespace frontend { class TokenStream; }
+<span class="lineNum">      48 </span>            : 
+<span class="lineNum">      49 </span>            : enum RegExpFlag
+<span class="lineNum">      50 </span>            : {
+<span class="lineNum">      51 </span>            :     IgnoreCaseFlag  = 0x01,
+<span class="lineNum">      52 </span>            :     GlobalFlag      = 0x02,
+<span class="lineNum">      53 </span>            :     MultilineFlag   = 0x04,
+<span class="lineNum">      54 </span>            :     StickyFlag      = 0x08,
+<span class="lineNum">      55 </span>            :     UnicodeFlag     = 0x10,
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            :     NoFlags         = 0x00,
+<span class="lineNum">      58 </span>            :     AllFlags        = 0x1f
+<span class="lineNum">      59 </span>            : };
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span>            : static_assert(IgnoreCaseFlag == REGEXP_IGNORECASE_FLAG &amp;&amp;
+<span class="lineNum">      62 </span>            :               GlobalFlag == REGEXP_GLOBAL_FLAG &amp;&amp;
+<span class="lineNum">      63 </span>            :               MultilineFlag == REGEXP_MULTILINE_FLAG &amp;&amp;
+<span class="lineNum">      64 </span>            :               StickyFlag == REGEXP_STICKY_FLAG &amp;&amp;
+<span class="lineNum">      65 </span>            :               UnicodeFlag == REGEXP_UNICODE_FLAG,
+<span class="lineNum">      66 </span>            :               &quot;Flag values should be in sync with self-hosted JS&quot;);
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            : enum RegExpRunStatus
+<span class="lineNum">      69 </span>            : {
+<span class="lineNum">      70 </span>            :     RegExpRunStatus_Error,
+<span class="lineNum">      71 </span>            :     RegExpRunStatus_Success,
+<span class="lineNum">      72 </span>            :     RegExpRunStatus_Success_NotFound
+<span class="lineNum">      73 </span>            : };
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span>            : extern RegExpObject*
+<span class="lineNum">      76 </span>            : RegExpAlloc(JSContext* cx, HandleObject proto = nullptr);
+<span class="lineNum">      77 </span>            : 
+<span class="lineNum">      78 </span>            : // |regexp| is under-typed because this function's used in the JIT.
+<span class="lineNum">      79 </span>            : extern JSObject*
+<span class="lineNum">      80 </span>            : CloneRegExpObject(JSContext* cx, JSObject* regexp);
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span>            : /*
+<span class="lineNum">      83 </span>            :  * A RegExpShared is the compiled representation of a regexp. A RegExpShared is
+<span class="lineNum">      84 </span>            :  * potentially pointed to by multiple RegExpObjects. Additionally, C++ code may
+<span class="lineNum">      85 </span>            :  * have pointers to RegExpShareds on the stack. The RegExpShareds are kept in a
+<span class="lineNum">      86 </span>            :  * table so that they can be reused when compiling the same regex string.
+<span class="lineNum">      87 </span>            :  *
+<span class="lineNum">      88 </span>            :  * During a GC, RegExpShared instances are marked and swept like GC things.
+<span class="lineNum">      89 </span>            :  * Usually, RegExpObjects clear their pointers to their RegExpShareds rather
+<span class="lineNum">      90 </span>            :  * than explicitly tracing them, so that the RegExpShared and any jitcode can
+<span class="lineNum">      91 </span>            :  * be reclaimed quicker. However, the RegExpShareds are traced through by
+<span class="lineNum">      92 </span>            :  * objects when we are preserving jitcode in their zone, to avoid the same
+<span class="lineNum">      93 </span>            :  * recompilation inefficiencies as normal Ion and baseline compilation.
+<span class="lineNum">      94 </span>            :  */
+<span class="lineNum">      95 </span>            : class RegExpShared
+<span class="lineNum">      96 </span>            : {
+<span class="lineNum">      97 </span>            :   public:
+<span class="lineNum">      98 </span>            :     enum CompilationMode {
+<span class="lineNum">      99 </span>            :         Normal,
+<span class="lineNum">     100 </span>            :         MatchOnly
+<span class="lineNum">     101 </span>            :     };
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span>            :     enum ForceByteCodeEnum {
+<span class="lineNum">     104 </span>            :         DontForceByteCode,
+<span class="lineNum">     105 </span>            :         ForceByteCode
+<span class="lineNum">     106 </span>            :     };
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span>            :   private:
+<span class="lineNum">     109 </span>            :     friend class RegExpCompartment;
+<span class="lineNum">     110 </span>            :     friend class RegExpStatics;
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span>            :     typedef frontend::TokenStream TokenStream;
+<span class="lineNum">     113 </span>            : 
+<span class="lineNum">     114 </span>            :     struct RegExpCompilation
+<span class="lineNum">     115 </span>            :     {
+<span class="lineNum">     116 </span>            :         HeapPtr&lt;jit::JitCode*&gt; jitCode;
+<span class="lineNum">     117 </span>            :         uint8_t* byteCode;
+<span class="lineNum">     118 </span>            : 
+<span class="lineNum">     119 </span><span class="lineCov">          1 :         RegExpCompilation() : byteCode(nullptr) {}</span>
+<span class="lineNum">     120 </span><span class="lineCov">          1 :         ~RegExpCompilation() { js_free(byteCode); }</span>
+<span class="lineNum">     121 </span>            : 
+<span class="lineNum">     122 </span>            :         bool compiled(ForceByteCodeEnum force = DontForceByteCode) const {
+<span class="lineNum">     123 </span><span class="lineCov">          1 :             return byteCode || (force == DontForceByteCode &amp;&amp; jitCode);</span>
+<span class="lineNum">     124 </span>            :         }
+<span class="lineNum">     125 </span>            :     };
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span>            :     /* Source to the RegExp, for lazy compilation. */
+<span class="lineNum">     128 </span>            :     HeapPtr&lt;JSAtom*&gt;     source;
+<span class="lineNum">     129 </span>            : 
+<span class="lineNum">     130 </span>            :     RegExpFlag         flags;
+<span class="lineNum">     131 </span>            :     size_t             parenCount;
+<span class="lineNum">     132 </span>            :     bool               canStringMatch;
+<span class="lineNum">     133 </span>            :     bool               marked_;
+<span class="lineNum">     134 </span>            : 
+<a name="135"><span class="lineNum">     135 </span>            :     RegExpCompilation  compilationArray[4];</a>
+<span class="lineNum">     136 </span>            : 
+<span class="lineNum">     137 </span><span class="lineCov">          1 :     static int CompilationIndex(CompilationMode mode, bool latin1) {</span>
+<span class="lineNum">     138 </span><span class="lineCov">          1 :         switch (mode) {</span>
+<span class="lineNum">     139 </span><span class="lineCov">          1 :           case Normal:    return latin1 ? 0 : 1;</span>
+<span class="lineNum">     140 </span><span class="lineCov">          1 :           case MatchOnly: return latin1 ? 2 : 3;</span>
+<span class="lineNum">     141 </span>            :         }
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :         MOZ_CRASH();</span>
+<span class="lineNum">     143 </span>            :     }
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span>            :     // Tables referenced by JIT code.
+<span class="lineNum">     146 </span>            :     Vector&lt;uint8_t*, 0, SystemAllocPolicy&gt; tables;
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span>            :     /* Internal functions. */
+<span class="lineNum">     149 </span>            :     bool compile(JSContext* cx, HandleLinearString input,
+<span class="lineNum">     150 </span>            :                  CompilationMode mode, ForceByteCodeEnum force);
+<span class="lineNum">     151 </span>            :     bool compile(JSContext* cx, HandleAtom pattern, HandleLinearString input,
+<span class="lineNum">     152 </span>            :                  CompilationMode mode, ForceByteCodeEnum force);
+<span class="lineNum">     153 </span>            : 
+<span class="lineNum">     154 </span>            :     bool compileIfNecessary(JSContext* cx, HandleLinearString input,
+<span class="lineNum">     155 </span>            :                             CompilationMode mode, ForceByteCodeEnum force);
+<span class="lineNum">     156 </span>            : 
+<span class="lineNum">     157 </span>            :     const RegExpCompilation&amp; compilation(CompilationMode mode, bool latin1) const {
+<span class="lineNum">     158 </span><span class="lineCov">          1 :         return compilationArray[CompilationIndex(mode, latin1)];</span>
+<span class="lineNum">     159 </span>            :     }
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span>            :     RegExpCompilation&amp; compilation(CompilationMode mode, bool latin1) {
+<span class="lineNum">     162 </span><span class="lineCov">          1 :         return compilationArray[CompilationIndex(mode, latin1)];</span>
+<span class="lineNum">     163 </span>            :     }
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span>            :   public:
+<span class="lineNum">     166 </span>            :     RegExpShared(JSAtom* source, RegExpFlag flags);
+<span class="lineNum">     167 </span>            :     ~RegExpShared();
+<span class="lineNum">     168 </span>            : 
+<span class="lineNum">     169 </span>            :     // Execute this RegExp on input starting from searchIndex, filling in
+<span class="lineNum">     170 </span>            :     // matches if specified and otherwise only determining if there is a match.
+<span class="lineNum">     171 </span>            :     RegExpRunStatus execute(JSContext* cx, HandleLinearString input, size_t searchIndex,
+<span class="lineNum">     172 </span>            :                             MatchPairs* matches, size_t* endIndex);
+<a name="173"><span class="lineNum">     173 </span>            : </a>
+<span class="lineNum">     174 </span>            :     // Register a table with this RegExpShared, and take ownership.
+<span class="lineNum">     175 </span><span class="lineCov">          1 :     bool addTable(uint8_t* table) {</span>
+<span class="lineNum">     176 </span><span class="lineCov">          1 :         return tables.append(table);</span>
+<span class="lineNum">     177 </span>            :     }
+<span class="lineNum">     178 </span>            : 
+<span class="lineNum">     179 </span>            :     /* Accessors */
+<span class="lineNum">     180 </span>            : 
+<span class="lineNum">     181 </span>            :     size_t getParenCount() const {
+<span class="lineNum">     182 </span>            :         MOZ_ASSERT(isCompiled());
+<span class="lineNum">     183 </span>            :         return parenCount;
+<span class="lineNum">     184 </span>            :     }
+<span class="lineNum">     185 </span>            : 
+<span class="lineNum">     186 </span>            :     /* Accounts for the &quot;0&quot; (whole match) pair. */
+<a name="187"><span class="lineNum">     187 </span><span class="lineCov">          1 :     size_t pairCount() const            { return getParenCount() + 1; }</span></a>
+<a name="188"><span class="lineNum">     188 </span>            : </a>
+<span class="lineNum">     189 </span><span class="lineCov">          1 :     JSAtom* getSource() const           { return source; }</span>
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :     RegExpFlag getFlags() const         { return flags; }</span>
+<span class="lineNum">     191 </span><span class="lineCov">          1 :     bool ignoreCase() const             { return flags &amp; IgnoreCaseFlag; }</span>
+<span class="lineNum">     192 </span><span class="lineCov">          1 :     bool global() const                 { return flags &amp; GlobalFlag; }</span>
+<span class="lineNum">     193 </span><span class="lineCov">          1 :     bool multiline() const              { return flags &amp; MultilineFlag; }</span>
+<span class="lineNum">     194 </span><span class="lineCov">          1 :     bool sticky() const                 { return flags &amp; StickyFlag; }</span>
+<a name="195"><span class="lineNum">     195 </span><span class="lineCov">          1 :     bool unicode() const                { return flags &amp; UnicodeFlag; }</span></a>
+<span class="lineNum">     196 </span>            : 
+<span class="lineNum">     197 </span><span class="lineCov">          1 :     bool isCompiled(CompilationMode mode, bool latin1,</span>
+<span class="lineNum">     198 </span>            :                     ForceByteCodeEnum force = DontForceByteCode) const {
+<span class="lineNum">     199 </span><span class="lineCov">          1 :         return compilation(mode, latin1).compiled(force);</span>
+<span class="lineNum">     200 </span>            :     }
+<span class="lineNum">     201 </span>            :     bool isCompiled() const {
+<span class="lineNum">     202 </span>            :         return isCompiled(Normal, true) || isCompiled(Normal, false)
+<span class="lineNum">     203 </span>            :             || isCompiled(MatchOnly, true) || isCompiled(MatchOnly, false);
+<span class="lineNum">     204 </span>            :     }
+<span class="lineNum">     205 </span>            : 
+<span class="lineNum">     206 </span>            :     void trace(JSTracer* trc);
+<span class="lineNum">     207 </span>            :     bool needsSweep(JSRuntime* rt);
+<span class="lineNum">     208 </span>            :     void discardJitCode();
+<span class="lineNum">     209 </span>            : 
+<span class="lineNum">     210 </span>            :     bool marked() const { return marked_; }
+<span class="lineNum">     211 </span><span class="lineCov">          1 :     void clearMarked() { marked_ = false; }</span>
+<span class="lineNum">     212 </span>            : 
+<span class="lineNum">     213 </span>            :     bool isMarkedGray() const;
+<span class="lineNum">     214 </span>            :     void unmarkGray();
+<span class="lineNum">     215 </span>            : 
+<span class="lineNum">     216 </span>            :     static size_t offsetOfSource() {
+<span class="lineNum">     217 </span>            :         return offsetof(RegExpShared, source);
+<span class="lineNum">     218 </span>            :     }
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span>            :     static size_t offsetOfFlags() {
+<span class="lineNum">     221 </span>            :         return offsetof(RegExpShared, flags);
+<span class="lineNum">     222 </span>            :     }
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span>            :     static size_t offsetOfParenCount() {
+<span class="lineNum">     225 </span>            :         return offsetof(RegExpShared, parenCount);
+<span class="lineNum">     226 </span>            :     }
+<span class="lineNum">     227 </span>            : 
+<span class="lineNum">     228 </span>            :     static size_t offsetOfLatin1JitCode(CompilationMode mode) {
+<span class="lineNum">     229 </span>            :         return offsetof(RegExpShared, compilationArray)
+<span class="lineNum">     230 </span><span class="lineCov">          1 :              + (CompilationIndex(mode, true) * sizeof(RegExpCompilation))</span>
+<span class="lineNum">     231 </span><span class="lineCov">          1 :              + offsetof(RegExpCompilation, jitCode);</span>
+<span class="lineNum">     232 </span>            :     }
+<span class="lineNum">     233 </span>            :     static size_t offsetOfTwoByteJitCode(CompilationMode mode) {
+<span class="lineNum">     234 </span>            :         return offsetof(RegExpShared, compilationArray)
+<span class="lineNum">     235 </span><span class="lineCov">          1 :              + (CompilationIndex(mode, false) * sizeof(RegExpCompilation))</span>
+<span class="lineNum">     236 </span><span class="lineCov">          1 :              + offsetof(RegExpCompilation, jitCode);</span>
+<span class="lineNum">     237 </span>            :     }
+<span class="lineNum">     238 </span>            : 
+<span class="lineNum">     239 </span>            :     size_t sizeOfIncludingThis(mozilla::MallocSizeOf mallocSizeOf);
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span>            : #ifdef DEBUG
+<span class="lineNum">     242 </span>            :     bool dumpBytecode(JSContext* cx, bool match_only, HandleLinearString input);
+<span class="lineNum">     243 </span>            : #endif
+<span class="lineNum">     244 </span>            : };
+<span class="lineNum">     245 </span>            : 
+<span class="lineNum">     246 </span>            : /*
+<span class="lineNum">     247 </span>            :  * Extend the lifetime of a given RegExpShared to at least the lifetime of
+<span class="lineNum">     248 </span>            :  * the guard object. See Regular Expression comment at the top.
+<span class="lineNum">     249 </span>            :  */
+<span class="lineNum">     250 </span>            : class RegExpGuard : public JS::CustomAutoRooter
+<span class="lineNum">     251 </span>            : {
+<span class="lineNum">     252 </span>            :     RegExpShared* re_;
+<span class="lineNum">     253 </span>            : 
+<span class="lineNum">     254 </span>            :     RegExpGuard(const RegExpGuard&amp;) = delete;
+<span class="lineNum">     255 </span>            :     void operator=(const RegExpGuard&amp;) = delete;
+<a name="256"><span class="lineNum">     256 </span>            : </a>
+<span class="lineNum">     257 </span>            :   public:
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 :     explicit RegExpGuard(JSContext* cx)</span>
+<span class="lineNum">     259 </span><span class="lineCov">          1 :       : CustomAutoRooter(cx), re_(nullptr)</span>
+<span class="lineNum">     260 </span><span class="lineNoCov">          0 :     {}</span>
+<span class="lineNum">     261 </span>            : 
+<span class="lineNum">     262 </span>            :     RegExpGuard(JSContext* cx, RegExpShared&amp; re)
+<span class="lineNum">     263 </span>            :       : CustomAutoRooter(cx), re_(nullptr)
+<span class="lineNum">     264 </span>            :     {
+<span class="lineNum">     265 </span>            :         init(re);
+<a name="266"><span class="lineNum">     266 </span>            :     }</a>
+<span class="lineNum">     267 </span>            : 
+<span class="lineNum">     268 </span><span class="lineCov">          1 :     ~RegExpGuard() {</span>
+<span class="lineNum">     269 </span><span class="lineCov">          1 :         release();</span>
+<span class="lineNum">     270 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     271 </span>            : 
+<span class="lineNum">     272 </span>            :   public:
+<span class="lineNum">     273 </span>            :     void init(RegExpShared&amp; re) {
+<span class="lineNum">     274 </span>            :         MOZ_ASSERT(!initialized());
+<span class="lineNum">     275 </span><span class="lineCov">          1 :         re_ = &amp;re;</span>
+<span class="lineNum">     276 </span>            :     }
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span>            :     void release() {
+<span class="lineNum">     279 </span><span class="lineCov">          1 :         re_ = nullptr;</span>
+<a name="280"><span class="lineNum">     280 </span>            :     }</a>
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 :     virtual void trace(JSTracer* trc) {</span>
+<span class="lineNum">     283 </span><span class="lineNoCov">          0 :         if (re_)</span>
+<span class="lineNum">     284 </span><span class="lineNoCov">          0 :             re_-&gt;trace(trc);</span>
+<span class="lineNum">     285 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     286 </span>            : 
+<a name="287"><span class="lineNum">     287 </span>            :     bool initialized() const { return !!re_; }</a>
+<span class="lineNum">     288 </span>            :     RegExpShared* re() const { MOZ_ASSERT(initialized()); return re_; }
+<span class="lineNum">     289 </span><span class="lineCov">          1 :     RegExpShared* operator-&gt;() { return re(); }</span>
+<span class="lineNum">     290 </span><span class="lineCov">          1 :     RegExpShared&amp; operator*() { return *re(); }</span>
+<span class="lineNum">     291 </span>            : };
+<span class="lineNum">     292 </span>            : 
+<span class="lineNum">     293 </span>            : class RegExpCompartment
+<span class="lineNum">     294 </span>            : {
+<span class="lineNum">     295 </span>            :     struct Key {
+<span class="lineNum">     296 </span>            :         JSAtom* atom;
+<span class="lineNum">     297 </span>            :         uint16_t flag;
+<span class="lineNum">     298 </span>            : 
+<span class="lineNum">     299 </span>            :         Key() {}
+<span class="lineNum">     300 </span>            :         Key(JSAtom* atom, RegExpFlag flag)
+<span class="lineNum">     301 </span><span class="lineCov">          1 :           : atom(atom), flag(flag)</span>
+<span class="lineNum">     302 </span>            :         { }
+<span class="lineNum">     303 </span>            :         MOZ_IMPLICIT Key(RegExpShared* shared)
+<span class="lineNum">     304 </span><span class="lineCov">          1 :           : atom(shared-&gt;getSource()), flag(shared-&gt;getFlags())</span>
+<span class="lineNum">     305 </span>            :         { }
+<span class="lineNum">     306 </span>            : 
+<span class="lineNum">     307 </span>            :         typedef Key Lookup;
+<span class="lineNum">     308 </span>            :         static HashNumber hash(const Lookup&amp; l) {
+<span class="lineNum">     309 </span><span class="lineCov">          1 :             return DefaultHasher&lt;JSAtom*&gt;::hash(l.atom) ^ (l.flag &lt;&lt; 1);</span>
+<span class="lineNum">     310 </span>            :         }
+<span class="lineNum">     311 </span>            :         static bool match(Key l, Key r) {
+<span class="lineNum">     312 </span><span class="lineCov">          1 :             return l.atom == r.atom &amp;&amp; l.flag == r.flag;</span>
+<span class="lineNum">     313 </span>            :         }
+<span class="lineNum">     314 </span>            :     };
+<span class="lineNum">     315 </span>            : 
+<span class="lineNum">     316 </span>            :     /*
+<span class="lineNum">     317 </span>            :      * The set of all RegExpShareds in the compartment. On every GC, every
+<span class="lineNum">     318 </span>            :      * RegExpShared that was not marked is deleted and removed from the set.
+<span class="lineNum">     319 </span>            :      */
+<span class="lineNum">     320 </span>            :     typedef HashSet&lt;RegExpShared*, Key, RuntimeAllocPolicy&gt; Set;
+<span class="lineNum">     321 </span>            :     Set set_;
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span>            :     /*
+<span class="lineNum">     324 </span>            :      * This is the template object where the result of re.exec() is based on,
+<span class="lineNum">     325 </span>            :      * if there is a result. This is used in CreateRegExpMatchResult to set
+<span class="lineNum">     326 </span>            :      * the input/index properties faster.
+<span class="lineNum">     327 </span>            :      */
+<span class="lineNum">     328 </span>            :     ReadBarriered&lt;ArrayObject*&gt; matchResultTemplateObject_;
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span>            :     /*
+<span class="lineNum">     331 </span>            :      * The shape of RegExp.prototype object that satisfies following:
+<span class="lineNum">     332 </span>            :      *   * RegExp.prototype.flags getter is not modified
+<span class="lineNum">     333 </span>            :      *   * RegExp.prototype.global getter is not modified
+<span class="lineNum">     334 </span>            :      *   * RegExp.prototype.ignoreCase getter is not modified
+<span class="lineNum">     335 </span>            :      *   * RegExp.prototype.multiline getter is not modified
+<span class="lineNum">     336 </span>            :      *   * RegExp.prototype.sticky getter is not modified
+<span class="lineNum">     337 </span>            :      *   * RegExp.prototype.unicode getter is not modified
+<span class="lineNum">     338 </span>            :      *   * RegExp.prototype.exec is an own data property
+<span class="lineNum">     339 </span>            :      *   * RegExp.prototype[@@match] is an own data property
+<span class="lineNum">     340 </span>            :      *   * RegExp.prototype[@@search] is an own data property
+<span class="lineNum">     341 </span>            :      */
+<span class="lineNum">     342 </span>            :     ReadBarriered&lt;Shape*&gt; optimizableRegExpPrototypeShape_;
+<span class="lineNum">     343 </span>            : 
+<span class="lineNum">     344 </span>            :     /*
+<span class="lineNum">     345 </span>            :      * The shape of RegExp instance that satisfies following:
+<span class="lineNum">     346 </span>            :      *   * lastProperty is lastIndex
+<span class="lineNum">     347 </span>            :      *   * prototype is RegExp.prototype
+<span class="lineNum">     348 </span>            :      */
+<span class="lineNum">     349 </span>            :     ReadBarriered&lt;Shape*&gt; optimizableRegExpInstanceShape_;
+<span class="lineNum">     350 </span>            : 
+<span class="lineNum">     351 </span>            :     ArrayObject* createMatchResultTemplateObject(JSContext* cx);
+<span class="lineNum">     352 </span>            : 
+<span class="lineNum">     353 </span>            :   public:
+<span class="lineNum">     354 </span>            :     explicit RegExpCompartment(JSRuntime* rt);
+<span class="lineNum">     355 </span>            :     ~RegExpCompartment();
+<span class="lineNum">     356 </span>            : 
+<span class="lineNum">     357 </span>            :     bool init(JSContext* cx);
+<span class="lineNum">     358 </span>            :     void sweep(JSRuntime* rt);
+<span class="lineNum">     359 </span>            : 
+<span class="lineNum">     360 </span>            :     bool empty() { return set_.empty(); }
+<span class="lineNum">     361 </span>            : 
+<span class="lineNum">     362 </span>            :     bool get(JSContext* cx, JSAtom* source, RegExpFlag flags, RegExpGuard* g);
+<span class="lineNum">     363 </span>            : 
+<span class="lineNum">     364 </span>            :     /* Like 'get', but compile 'maybeOpt' (if non-null). */
+<span class="lineNum">     365 </span>            :     bool get(JSContext* cx, HandleAtom source, JSString* maybeOpt, RegExpGuard* g);
+<a name="366"><span class="lineNum">     366 </span>            : </a>
+<span class="lineNum">     367 </span>            :     /* Get or create template object used to base the result of .exec() on. */
+<span class="lineNum">     368 </span><span class="lineCov">          1 :     ArrayObject* getOrCreateMatchResultTemplateObject(JSContext* cx) {</span>
+<span class="lineNum">     369 </span><span class="lineCov">          1 :         if (matchResultTemplateObject_)</span>
+<span class="lineNum">     370 </span><span class="lineCov">          1 :             return matchResultTemplateObject_;</span>
+<span class="lineNum">     371 </span><span class="lineCov">          1 :         return createMatchResultTemplateObject(cx);</span>
+<span class="lineNum">     372 </span>            :     }
+<span class="lineNum">     373 </span>            : 
+<span class="lineNum">     374 </span>            :     Shape* getOptimizableRegExpPrototypeShape() {
+<span class="lineNum">     375 </span><span class="lineCov">          1 :         return optimizableRegExpPrototypeShape_;</span>
+<span class="lineNum">     376 </span>            :     }
+<span class="lineNum">     377 </span>            :     void setOptimizableRegExpPrototypeShape(Shape* shape) {
+<span class="lineNum">     378 </span><span class="lineCov">          1 :         optimizableRegExpPrototypeShape_ = shape;</span>
+<span class="lineNum">     379 </span>            :     }
+<span class="lineNum">     380 </span>            :     Shape* getOptimizableRegExpInstanceShape() {
+<span class="lineNum">     381 </span><span class="lineCov">          1 :         return optimizableRegExpInstanceShape_;</span>
+<span class="lineNum">     382 </span>            :     }
+<span class="lineNum">     383 </span>            :     void setOptimizableRegExpInstanceShape(Shape* shape) {
+<span class="lineNum">     384 </span><span class="lineCov">          1 :         optimizableRegExpInstanceShape_ = shape;</span>
+<span class="lineNum">     385 </span>            :     }
+<span class="lineNum">     386 </span>            : 
+<span class="lineNum">     387 </span>            :     static size_t offsetOfOptimizableRegExpPrototypeShape() {
+<span class="lineNum">     388 </span>            :         return offsetof(RegExpCompartment, optimizableRegExpPrototypeShape_);
+<span class="lineNum">     389 </span>            :     }
+<span class="lineNum">     390 </span>            :     static size_t offsetOfOptimizableRegExpInstanceShape() {
+<span class="lineNum">     391 </span>            :         return offsetof(RegExpCompartment, optimizableRegExpInstanceShape_);
+<span class="lineNum">     392 </span>            :     }
+<span class="lineNum">     393 </span>            : 
+<span class="lineNum">     394 </span>            :     size_t sizeOfExcludingThis(mozilla::MallocSizeOf mallocSizeOf);
+<span class="lineNum">     395 </span>            : };
+<span class="lineNum">     396 </span>            : 
+<span class="lineNum">     397 </span>            : class RegExpObject : public NativeObject
+<span class="lineNum">     398 </span>            : {
+<span class="lineNum">     399 </span>            :     static const unsigned LAST_INDEX_SLOT          = 0;
+<span class="lineNum">     400 </span>            :     static const unsigned SOURCE_SLOT              = 1;
+<span class="lineNum">     401 </span>            :     static const unsigned FLAGS_SLOT               = 2;
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span>            :     static_assert(RegExpObject::FLAGS_SLOT == REGEXP_FLAGS_SLOT,
+<span class="lineNum">     404 </span>            :                   &quot;FLAGS_SLOT values should be in sync with self-hosted JS&quot;);
+<span class="lineNum">     405 </span>            : 
+<span class="lineNum">     406 </span>            :   public:
+<span class="lineNum">     407 </span>            :     static const unsigned RESERVED_SLOTS = 3;
+<span class="lineNum">     408 </span>            :     static const unsigned PRIVATE_SLOT = 3;
+<span class="lineNum">     409 </span>            : 
+<span class="lineNum">     410 </span>            :     static const Class class_;
+<span class="lineNum">     411 </span>            :     static const Class protoClass_;
+<span class="lineNum">     412 </span>            : 
+<span class="lineNum">     413 </span>            :     // The maximum number of pairs a MatchResult can have, without having to
+<span class="lineNum">     414 </span>            :     // allocate a bigger MatchResult.
+<span class="lineNum">     415 </span>            :     static const size_t MaxPairCount = 14;
+<span class="lineNum">     416 </span>            : 
+<span class="lineNum">     417 </span>            :     static RegExpObject*
+<span class="lineNum">     418 </span>            :     create(JSContext* cx, const char16_t* chars, size_t length, RegExpFlag flags,
+<span class="lineNum">     419 </span>            :            frontend::TokenStream* ts, LifoAlloc&amp; alloc);
+<span class="lineNum">     420 </span>            : 
+<span class="lineNum">     421 </span>            :     static RegExpObject*
+<span class="lineNum">     422 </span>            :     create(JSContext* cx, HandleAtom atom, RegExpFlag flags,
+<span class="lineNum">     423 </span>            :            frontend::TokenStream* ts, LifoAlloc&amp; alloc);
+<span class="lineNum">     424 </span>            : 
+<span class="lineNum">     425 </span>            :     /*
+<span class="lineNum">     426 </span>            :      * Compute the initial shape to associate with fresh RegExp objects,
+<span class="lineNum">     427 </span>            :      * encoding their initial properties. Return the shape after
+<span class="lineNum">     428 </span>            :      * changing |obj|'s last property to it.
+<span class="lineNum">     429 </span>            :      */
+<span class="lineNum">     430 </span>            :     static Shape*
+<span class="lineNum">     431 </span>            :     assignInitialShape(JSContext* cx, Handle&lt;RegExpObject*&gt; obj);
+<span class="lineNum">     432 </span>            : 
+<span class="lineNum">     433 </span>            :     /* Accessors. */
+<span class="lineNum">     434 </span>            : 
+<span class="lineNum">     435 </span>            :     static unsigned lastIndexSlot() { return LAST_INDEX_SLOT; }
+<span class="lineNum">     436 </span>            : 
+<span class="lineNum">     437 </span>            :     static bool isInitialShape(RegExpObject* rx) {
+<span class="lineNum">     438 </span><span class="lineCov">          1 :         Shape* shape = rx-&gt;lastProperty();</span>
+<span class="lineNum">     439 </span><span class="lineCov">          1 :         if (!shape-&gt;hasSlot())</span>
+<span class="lineNum">     440 </span>            :             return false;
+<span class="lineNum">     441 </span><span class="lineCov">          1 :         if (shape-&gt;maybeSlot() != LAST_INDEX_SLOT)</span>
+<span class="lineNum">     442 </span>            :             return false;
+<span class="lineNum">     443 </span>            :         return true;
+<span class="lineNum">     444 </span>            :     }
+<span class="lineNum">     445 </span>            : 
+<span class="lineNum">     446 </span>            :     const Value&amp; getLastIndex() const { return getSlot(LAST_INDEX_SLOT); }
+<span class="lineNum">     447 </span>            : 
+<span class="lineNum">     448 </span>            :     void setLastIndex(double d) {
+<span class="lineNum">     449 </span>            :         setSlot(LAST_INDEX_SLOT, NumberValue(d));
+<a name="450"><span class="lineNum">     450 </span>            :     }</a>
+<span class="lineNum">     451 </span>            : 
+<span class="lineNum">     452 </span><span class="lineNoCov">          0 :     void zeroLastIndex(JSContext* cx) {</span>
+<span class="lineNum">     453 </span>            :         MOZ_ASSERT(lookupPure(cx-&gt;names().lastIndex)-&gt;writable(),
+<span class="lineNum">     454 </span>            :                    &quot;can't infallibly zero a non-writable lastIndex on a &quot;
+<span class="lineNum">     455 </span>            :                    &quot;RegExp that's been exposed to script&quot;);
+<span class="lineNum">     456 </span><span class="lineCov">          1 :         setSlot(LAST_INDEX_SLOT, Int32Value(0));</span>
+<span class="lineNum">     457 </span><span class="lineNoCov">          0 :     }</span>
+<span class="lineNum">     458 </span>            : 
+<a name="459"><span class="lineNum">     459 </span>            :     JSFlatString* toString(JSContext* cx) const;</a>
+<span class="lineNum">     460 </span>            : 
+<span class="lineNum">     461 </span><span class="lineCov">          1 :     JSAtom* getSource() const { return &amp;getSlot(SOURCE_SLOT).toString()-&gt;asAtom(); }</span>
+<span class="lineNum">     462 </span>            : 
+<span class="lineNum">     463 </span>            :     void setSource(JSAtom* source) {
+<span class="lineNum">     464 </span><span class="lineCov">          1 :         setSlot(SOURCE_SLOT, StringValue(source));</span>
+<span class="lineNum">     465 </span>            :     }
+<span class="lineNum">     466 </span>            : 
+<span class="lineNum">     467 </span>            :     /* Flags. */
+<span class="lineNum">     468 </span>            : 
+<span class="lineNum">     469 </span>            :     static unsigned flagsSlot() { return FLAGS_SLOT; }
+<span class="lineNum">     470 </span>            : 
+<span class="lineNum">     471 </span>            :     RegExpFlag getFlags() const {
+<span class="lineNum">     472 </span><span class="lineCov">          1 :         return RegExpFlag(getFixedSlot(FLAGS_SLOT).toInt32());</span>
+<span class="lineNum">     473 </span>            :     }
+<span class="lineNum">     474 </span>            :     void setFlags(RegExpFlag flags) {
+<span class="lineNum">     475 </span><span class="lineCov">          1 :         setSlot(FLAGS_SLOT, Int32Value(flags));</span>
+<a name="476"><span class="lineNum">     476 </span>            :     }</a>
+<a name="477"><span class="lineNum">     477 </span>            : </a>
+<a name="478"><span class="lineNum">     478 </span><span class="lineCov">          1 :     bool ignoreCase() const { return getFlags() &amp; IgnoreCaseFlag; }</span></a>
+<a name="479"><span class="lineNum">     479 </span><span class="lineCov">          1 :     bool global() const     { return getFlags() &amp; GlobalFlag; }</span></a>
+<a name="480"><span class="lineNum">     480 </span><span class="lineCov">          1 :     bool multiline() const  { return getFlags() &amp; MultilineFlag; }</span></a>
+<span class="lineNum">     481 </span><span class="lineCov">          1 :     bool sticky() const     { return getFlags() &amp; StickyFlag; }</span>
+<span class="lineNum">     482 </span><span class="lineCov">          1 :     bool unicode() const    { return getFlags() &amp; UnicodeFlag; }</span>
+<span class="lineNum">     483 </span>            : 
+<span class="lineNum">     484 </span>            :     static bool isOriginalFlagGetter(JSNative native, RegExpFlag* mask);
+<span class="lineNum">     485 </span>            : 
+<span class="lineNum">     486 </span>            :     static MOZ_MUST_USE bool getShared(JSContext* cx, Handle&lt;RegExpObject*&gt; regexp,
+<span class="lineNum">     487 </span>            :                                        RegExpGuard* g);
+<span class="lineNum">     488 </span>            : 
+<span class="lineNum">     489 </span>            :     void setShared(RegExpShared&amp; shared) {
+<span class="lineNum">     490 </span>            :         MOZ_ASSERT(!maybeShared());
+<span class="lineNum">     491 </span><span class="lineCov">          1 :         NativeObject::setPrivate(&amp;shared);</span>
+<span class="lineNum">     492 </span>            :     }
+<span class="lineNum">     493 </span>            : 
+<span class="lineNum">     494 </span>            :     static void trace(JSTracer* trc, JSObject* obj);
+<span class="lineNum">     495 </span>            : 
+<span class="lineNum">     496 </span>            :     void initIgnoringLastIndex(HandleAtom source, RegExpFlag flags);
+<span class="lineNum">     497 </span>            : 
+<span class="lineNum">     498 </span>            :     // NOTE: This method is *only* safe to call on RegExps that haven't been
+<span class="lineNum">     499 </span>            :     //       exposed to script, because it requires that the &quot;lastIndex&quot;
+<span class="lineNum">     500 </span>            :     //       property be writable.
+<span class="lineNum">     501 </span>            :     void initAndZeroLastIndex(HandleAtom source, RegExpFlag flags, JSContext* cx);
+<span class="lineNum">     502 </span>            : 
+<span class="lineNum">     503 </span>            : #ifdef DEBUG
+<span class="lineNum">     504 </span>            :     static MOZ_MUST_USE bool dumpBytecode(JSContext* cx, Handle&lt;RegExpObject*&gt; regexp,
+<span class="lineNum">     505 </span>            :                                           bool match_only, HandleLinearString input);
+<span class="lineNum">     506 </span>            : #endif
+<span class="lineNum">     507 </span>            : 
+<span class="lineNum">     508 </span>            :   private:
+<span class="lineNum">     509 </span>            :     /*
+<span class="lineNum">     510 </span>            :      * Precondition: the syntax for |source| has already been validated.
+<span class="lineNum">     511 </span>            :      * Side effect: sets the private field.
+<span class="lineNum">     512 </span>            :      */
+<span class="lineNum">     513 </span>            :     static MOZ_MUST_USE bool createShared(JSContext* cx, Handle&lt;RegExpObject*&gt; regexp,
+<span class="lineNum">     514 </span>            :                                           RegExpGuard* g);
+<span class="lineNum">     515 </span>            :     RegExpShared* maybeShared() const {
+<span class="lineNum">     516 </span><span class="lineCov">          1 :         return static_cast&lt;RegExpShared*&gt;(NativeObject::getPrivate(PRIVATE_SLOT));</span>
+<span class="lineNum">     517 </span>            :     }
+<span class="lineNum">     518 </span>            : 
+<span class="lineNum">     519 </span>            :     /* Call setShared in preference to setPrivate. */
+<span class="lineNum">     520 </span>            :     void setPrivate(void* priv) = delete;
+<span class="lineNum">     521 </span>            : };
+<span class="lineNum">     522 </span>            : 
+<span class="lineNum">     523 </span>            : /*
+<span class="lineNum">     524 </span>            :  * Parse regexp flags. Report an error and return false if an invalid
+<span class="lineNum">     525 </span>            :  * sequence of flags is encountered (repeat/invalid flag).
+<span class="lineNum">     526 </span>            :  *
+<span class="lineNum">     527 </span>            :  * N.B. flagStr must be rooted.
+<span class="lineNum">     528 </span>            :  */
+<span class="lineNum">     529 </span>            : bool
+<span class="lineNum">     530 </span>            : ParseRegExpFlags(JSContext* cx, JSString* flagStr, RegExpFlag* flagsOut);
+<span class="lineNum">     531 </span>            : 
+<a name="532"><span class="lineNum">     532 </span>            : /* Assuming GetBuiltinClass(obj) is ESClass::RegExp, return a RegExpShared for obj. */</a>
+<span class="lineNum">     533 </span>            : inline bool
+<span class="lineNum">     534 </span><span class="lineCov">          1 : RegExpToShared(JSContext* cx, HandleObject obj, RegExpGuard* g)</span>
+<span class="lineNum">     535 </span>            : {
+<span class="lineNum">     536 </span><span class="lineCov">          1 :     if (obj-&gt;is&lt;RegExpObject&gt;())</span>
+<span class="lineNum">     537 </span><span class="lineCov">          1 :         return RegExpObject::getShared(cx, obj.as&lt;RegExpObject&gt;(), g);</span>
+<span class="lineNum">     538 </span>            : 
+<span class="lineNum">     539 </span><span class="lineNoCov">          0 :     return Proxy::regexp_toShared(cx, obj, g);</span>
+<span class="lineNum">     540 </span>            : }
+<span class="lineNum">     541 </span>            : 
+<span class="lineNum">     542 </span>            : template&lt;XDRMode mode&gt;
+<span class="lineNum">     543 </span>            : bool
+<span class="lineNum">     544 </span>            : XDRScriptRegExpObject(XDRState&lt;mode&gt;* xdr, MutableHandle&lt;RegExpObject*&gt; objp);
+<span class="lineNum">     545 </span>            : 
+<span class="lineNum">     546 </span>            : extern JSObject*
+<span class="lineNum">     547 </span>            : CloneScriptRegExpObject(JSContext* cx, RegExpObject&amp; re);
+<span class="lineNum">     548 </span>            : 
+<span class="lineNum">     549 </span>            : /* Escape all slashes and newlines in the given string. */
+<span class="lineNum">     550 </span>            : extern JSAtom*
+<span class="lineNum">     551 </span>            : EscapeRegExpPattern(JSContext* cx, HandleAtom src);
+<span class="lineNum">     552 </span>            : 
+<span class="lineNum">     553 </span>            : template &lt;typename CharT&gt;
+<span class="lineNum">     554 </span>            : extern bool
+<span class="lineNum">     555 </span>            : HasRegExpMetaChars(const CharT* chars, size_t length);
+<span class="lineNum">     556 </span>            : 
+<span class="lineNum">     557 </span>            : extern bool
+<span class="lineNum">     558 </span>            : StringHasRegExpMetaChars(JSLinearString* str);
+<span class="lineNum">     559 </span>            : 
+<span class="lineNum">     560 </span>            : } /* namespace js */
+<span class="lineNum">     561 </span>            : 
+<span class="lineNum">     562 </span>            : #endif /* vm_RegExpObject_h */
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

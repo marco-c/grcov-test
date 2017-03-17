@@ -1,0 +1,366 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - media/webrtc/trunk/webrtc/modules/video_coding/codecs/vp8/screenshare_layers.cc</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../../../../index.html">top level</a> - <a href="index.html">media/webrtc/trunk/webrtc/modules/video_coding/codecs/vp8</a> - screenshare_layers.cc<span style="font-size: 80%;"> (source / <a href="screenshare_layers.cc.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">104</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">9</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* Copyright (c) 2013 The WebRTC project authors. All Rights Reserved.</a>
+<span class="lineNum">       2 </span>            : *
+<span class="lineNum">       3 </span>            : *  Use of this source code is governed by a BSD-style license
+<span class="lineNum">       4 </span>            : *  that can be found in the LICENSE file in the root of the source
+<span class="lineNum">       5 </span>            : *  tree. An additional intellectual property rights grant can be found
+<span class="lineNum">       6 </span>            : *  in the file PATENTS.  All contributing project authors may
+<span class="lineNum">       7 </span>            : *  be found in the AUTHORS file in the root of the source tree.
+<span class="lineNum">       8 </span>            : */
+<span class="lineNum">       9 </span>            : 
+<span class="lineNum">      10 </span>            : #include &quot;webrtc/modules/video_coding/codecs/vp8/screenshare_layers.h&quot;
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : #include &lt;stdlib.h&gt;
+<span class="lineNum">      13 </span>            : 
+<span class="lineNum">      14 </span>            : #include &lt;algorithm&gt;
+<span class="lineNum">      15 </span>            : 
+<span class="lineNum">      16 </span>            : #include &quot;webrtc/base/checks.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;vpx/vpx_encoder.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;vpx/vp8cx.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;webrtc/modules/video_coding/include/video_codec_interface.h&quot;
+<span class="lineNum">      20 </span>            : 
+<span class="lineNum">      21 </span>            : namespace webrtc {
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : static const int kOneSecond90Khz = 90000;
+<span class="lineNum">      24 </span>            : static const int kMinTimeBetweenSyncs = kOneSecond90Khz * 5;
+<span class="lineNum">      25 </span>            : static const int kMaxTimeBetweenSyncs = kOneSecond90Khz * 10;
+<span class="lineNum">      26 </span>            : static const int kQpDeltaThresholdForSync = 8;
+<span class="lineNum">      27 </span>            : 
+<span class="lineNum">      28 </span>            : const double ScreenshareLayers::kMaxTL0FpsReduction = 2.5;
+<span class="lineNum">      29 </span>            : const double ScreenshareLayers::kAcceptableTargetOvershoot = 2.0;
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : // Since this is TL0 we only allow updating and predicting from the LAST
+<span class="lineNum">      32 </span>            : // reference frame.
+<span class="lineNum">      33 </span>            : const int ScreenshareLayers::kTl0Flags =
+<span class="lineNum">      34 </span>            :     VP8_EFLAG_NO_UPD_GF | VP8_EFLAG_NO_UPD_ARF | VP8_EFLAG_NO_REF_GF |
+<span class="lineNum">      35 </span>            :     VP8_EFLAG_NO_REF_ARF;
+<span class="lineNum">      36 </span>            : 
+<span class="lineNum">      37 </span>            : // Allow predicting from both TL0 and TL1.
+<span class="lineNum">      38 </span>            : const int ScreenshareLayers::kTl1Flags =
+<span class="lineNum">      39 </span>            :     VP8_EFLAG_NO_REF_ARF | VP8_EFLAG_NO_UPD_ARF | VP8_EFLAG_NO_UPD_LAST;
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span>            : // Allow predicting from only TL0 to allow participants to switch to the high
+<span class="lineNum">      42 </span>            : // bitrate stream. This means predicting only from the LAST reference frame, but
+<span class="lineNum">      43 </span>            : // only updating GF to not corrupt TL0.
+<span class="lineNum">      44 </span>            : const int ScreenshareLayers::kTl1SyncFlags =
+<span class="lineNum">      45 </span>            :     VP8_EFLAG_NO_REF_ARF | VP8_EFLAG_NO_REF_GF | VP8_EFLAG_NO_UPD_ARF |
+<a name="46"><span class="lineNum">      46 </span>            :     VP8_EFLAG_NO_UPD_LAST;</a>
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span><span class="lineNoCov">          0 : ScreenshareLayers::ScreenshareLayers(int num_temporal_layers,</span>
+<span class="lineNum">      49 </span>            :                                      uint8_t initial_tl0_pic_idx)
+<span class="lineNum">      50 </span>            :     : number_of_temporal_layers_(num_temporal_layers),
+<span class="lineNum">      51 </span>            :       last_base_layer_sync_(false),
+<span class="lineNum">      52 </span>            :       tl0_pic_idx_(initial_tl0_pic_idx),
+<span class="lineNum">      53 </span>            :       active_layer_(-1),
+<span class="lineNum">      54 </span>            :       last_timestamp_(-1),
+<span class="lineNum">      55 </span>            :       last_sync_timestamp_(-1),
+<span class="lineNum">      56 </span>            :       min_qp_(-1),
+<span class="lineNum">      57 </span>            :       max_qp_(-1),
+<span class="lineNum">      58 </span>            :       max_debt_bytes_(0),
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 :       frame_rate_(-1) {</span>
+<span class="lineNum">      60 </span>            :   assert(num_temporal_layers &gt; 0);
+<span class="lineNum">      61 </span>            :   assert(num_temporal_layers &lt;= 2);
+<a name="62"><span class="lineNum">      62 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">      63 </span>            : 
+<span class="lineNum">      64 </span><span class="lineNoCov">          0 : int ScreenshareLayers::CurrentLayerId() const {</span>
+<span class="lineNum">      65 </span>            :   // Codec does not use temporal layers for screenshare.
+<span class="lineNum">      66 </span><span class="lineNoCov">          0 :   return 0;</span>
+<a name="67"><span class="lineNum">      67 </span>            : }</a>
+<span class="lineNum">      68 </span>            : 
+<span class="lineNum">      69 </span><span class="lineNoCov">          0 : int ScreenshareLayers::EncodeFlags(uint32_t timestamp) {</span>
+<span class="lineNum">      70 </span><span class="lineNoCov">          0 :   if (number_of_temporal_layers_ &lt;= 1) {</span>
+<span class="lineNum">      71 </span>            :     // No flags needed for 1 layer screenshare.
+<span class="lineNum">      72 </span>            :     return 0;
+<span class="lineNum">      73 </span>            :   }
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span><span class="lineNoCov">          0 :   int64_t unwrapped_timestamp = time_wrap_handler_.Unwrap(timestamp);</span>
+<span class="lineNum">      76 </span><span class="lineNoCov">          0 :   int flags = 0;</span>
+<span class="lineNum">      77 </span>            : 
+<span class="lineNum">      78 </span><span class="lineNoCov">          0 :   if (active_layer_ == -1 ||</span>
+<span class="lineNum">      79 </span><span class="lineNoCov">          0 :       layers_[active_layer_].state != TemporalLayer::State::kDropped) {</span>
+<span class="lineNum">      80 </span><span class="lineNoCov">          0 :     if (layers_[0].debt_bytes_ &gt; max_debt_bytes_) {</span>
+<span class="lineNum">      81 </span>            :       // Must drop TL0, encode TL1 instead.
+<span class="lineNum">      82 </span><span class="lineNoCov">          0 :       if (layers_[1].debt_bytes_ &gt; max_debt_bytes_) {</span>
+<span class="lineNum">      83 </span>            :         // Must drop both TL0 and TL1.
+<span class="lineNum">      84 </span><span class="lineNoCov">          0 :         active_layer_ = -1;</span>
+<span class="lineNum">      85 </span>            :       } else {
+<span class="lineNum">      86 </span><span class="lineNoCov">          0 :         active_layer_ = 1;</span>
+<span class="lineNum">      87 </span>            :       }
+<span class="lineNum">      88 </span>            :     } else {
+<span class="lineNum">      89 </span><span class="lineNoCov">          0 :       active_layer_ = 0;</span>
+<span class="lineNum">      90 </span>            :     }
+<span class="lineNum">      91 </span>            :   }
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span><span class="lineNoCov">          0 :   switch (active_layer_) {</span>
+<span class="lineNum">      94 </span>            :     case 0:
+<span class="lineNum">      95 </span>            :       flags = kTl0Flags;
+<span class="lineNum">      96 </span>            :       break;
+<span class="lineNum">      97 </span>            :     case 1:
+<span class="lineNum">      98 </span><span class="lineNoCov">          0 :       if (TimeToSync(unwrapped_timestamp)) {</span>
+<span class="lineNum">      99 </span><span class="lineNoCov">          0 :         last_sync_timestamp_ = unwrapped_timestamp;</span>
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :         flags = kTl1SyncFlags;</span>
+<span class="lineNum">     101 </span>            :       } else {
+<span class="lineNum">     102 </span>            :         flags = kTl1Flags;
+<span class="lineNum">     103 </span>            :       }
+<span class="lineNum">     104 </span>            :       break;
+<span class="lineNum">     105 </span>            :     case -1:
+<span class="lineNum">     106 </span><span class="lineNoCov">          0 :       flags = -1;</span>
+<span class="lineNum">     107 </span><span class="lineNoCov">          0 :       break;</span>
+<span class="lineNum">     108 </span>            :     default:
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 :       flags = -1;</span>
+<span class="lineNum">     110 </span>            :       RTC_NOTREACHED();
+<span class="lineNum">     111 </span>            :   }
+<span class="lineNum">     112 </span>            : 
+<span class="lineNum">     113 </span>            :   // Make sure both frame droppers leak out bits.
+<span class="lineNum">     114 </span>            :   int64_t ts_diff;
+<span class="lineNum">     115 </span><span class="lineNoCov">          0 :   if (last_timestamp_ == -1) {</span>
+<span class="lineNum">     116 </span><span class="lineNoCov">          0 :     ts_diff = kOneSecond90Khz / (frame_rate_ &lt;= 0 ? 5 : frame_rate_);</span>
+<span class="lineNum">     117 </span>            :   } else {
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :     ts_diff = unwrapped_timestamp - last_timestamp_;</span>
+<span class="lineNum">     119 </span>            :   }
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :   layers_[0].UpdateDebt(ts_diff / 90);</span>
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :   layers_[1].UpdateDebt(ts_diff / 90);</span>
+<span class="lineNum">     123 </span><span class="lineNoCov">          0 :   last_timestamp_ = timestamp;</span>
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :   return flags;</span>
+<a name="125"><span class="lineNum">     125 </span>            : }</a>
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span><span class="lineNoCov">          0 : bool ScreenshareLayers::ConfigureBitrates(int bitrate_kbps,</span>
+<span class="lineNum">     128 </span>            :                                           int max_bitrate_kbps,
+<span class="lineNum">     129 </span>            :                                           int framerate,
+<span class="lineNum">     130 </span>            :                                           vpx_codec_enc_cfg_t* cfg) {
+<span class="lineNum">     131 </span><span class="lineNoCov">          0 :   layers_[0].target_rate_kbps_ = bitrate_kbps;</span>
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :   layers_[1].target_rate_kbps_ = max_bitrate_kbps;</span>
+<span class="lineNum">     133 </span>            : 
+<span class="lineNum">     134 </span><span class="lineNoCov">          0 :   int target_bitrate_kbps = bitrate_kbps;</span>
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span><span class="lineNoCov">          0 :   if (cfg != nullptr) {</span>
+<span class="lineNum">     137 </span><span class="lineNoCov">          0 :     if (number_of_temporal_layers_ &gt; 1) {</span>
+<span class="lineNum">     138 </span>            :       // Calculate a codec target bitrate. This may be higher than TL0, gaining
+<span class="lineNum">     139 </span>            :       // quality at the expense of frame rate at TL0. Constraints:
+<span class="lineNum">     140 </span>            :       // - TL0 frame rate no less than framerate / kMaxTL0FpsReduction.
+<span class="lineNum">     141 </span>            :       // - Target rate * kAcceptableTargetOvershoot should not exceed TL1 rate.
+<span class="lineNum">     142 </span>            :       target_bitrate_kbps =
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :           std::min(bitrate_kbps * kMaxTL0FpsReduction,</span>
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :                    max_bitrate_kbps / kAcceptableTargetOvershoot);</span>
+<span class="lineNum">     145 </span>            : 
+<span class="lineNum">     146 </span><span class="lineNoCov">          0 :       cfg-&gt;rc_target_bitrate = std::max(bitrate_kbps, target_bitrate_kbps);</span>
+<span class="lineNum">     147 </span>            :     }
+<span class="lineNum">     148 </span>            : 
+<span class="lineNum">     149 </span>            :     // Don't reconfigure qp limits during quality boost frames.
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :     if (layers_[active_layer_].state != TemporalLayer::State::kQualityBoost) {</span>
+<span class="lineNum">     151 </span><span class="lineNoCov">          0 :       min_qp_ = cfg-&gt;rc_min_quantizer;</span>
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :       max_qp_ = cfg-&gt;rc_max_quantizer;</span>
+<span class="lineNum">     153 </span>            :       // After a dropped frame, a frame with max qp will be encoded and the
+<span class="lineNum">     154 </span>            :       // quality will then ramp up from there. To boost the speed of recovery,
+<span class="lineNum">     155 </span>            :       // encode the next frame with lower max qp. TL0 is the most important to
+<span class="lineNum">     156 </span>            :       // improve since the errors in this layer will propagate to TL1.
+<span class="lineNum">     157 </span>            :       // Currently, reduce max qp by 20% for TL0 and 15% for TL1.
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :       layers_[0].enhanced_max_qp = min_qp_ + (((max_qp_ - min_qp_) * 80) / 100);</span>
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :       layers_[1].enhanced_max_qp = min_qp_ + (((max_qp_ - min_qp_) * 85) / 100);</span>
+<span class="lineNum">     160 </span>            :     }
+<span class="lineNum">     161 </span>            :   }
+<span class="lineNum">     162 </span>            : 
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :   int avg_frame_size = (target_bitrate_kbps * 1000) / (8 * framerate);</span>
+<span class="lineNum">     164 </span><span class="lineNoCov">          0 :   max_debt_bytes_ = 4 * avg_frame_size;</span>
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :   return true;</span>
+<a name="167"><span class="lineNum">     167 </span>            : }</a>
+<span class="lineNum">     168 </span>            : 
+<span class="lineNum">     169 </span><span class="lineNoCov">          0 : void ScreenshareLayers::FrameEncoded(unsigned int size,</span>
+<span class="lineNum">     170 </span>            :                                      uint32_t timestamp,
+<span class="lineNum">     171 </span>            :                                      int qp) {
+<span class="lineNum">     172 </span><span class="lineNoCov">          0 :   if (size == 0) {</span>
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 :     layers_[active_layer_].state = TemporalLayer::State::kDropped;</span>
+<span class="lineNum">     174 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     175 </span>            :   }
+<span class="lineNum">     176 </span>            : 
+<span class="lineNum">     177 </span><span class="lineNoCov">          0 :   if (layers_[active_layer_].state == TemporalLayer::State::kDropped) {</span>
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :     layers_[active_layer_].state = TemporalLayer::State::kQualityBoost;</span>
+<span class="lineNum">     179 </span>            :   }
+<span class="lineNum">     180 </span>            : 
+<span class="lineNum">     181 </span><span class="lineNoCov">          0 :   if (qp != -1)</span>
+<span class="lineNum">     182 </span><span class="lineNoCov">          0 :     layers_[active_layer_].last_qp = qp;</span>
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :   if (active_layer_ == 0) {</span>
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :     layers_[0].debt_bytes_ += size;</span>
+<span class="lineNum">     186 </span><span class="lineNoCov">          0 :     layers_[1].debt_bytes_ += size;</span>
+<span class="lineNum">     187 </span><span class="lineNoCov">          0 :   } else if (active_layer_ == 1) {</span>
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :     layers_[1].debt_bytes_ += size;</span>
+<span class="lineNum">     189 </span>            :   }
+<a name="190"><span class="lineNum">     190 </span>            : }</a>
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 : void ScreenshareLayers::PopulateCodecSpecific(bool base_layer_sync,</span>
+<span class="lineNum">     193 </span>            :                                               CodecSpecificInfoVP8* vp8_info,
+<span class="lineNum">     194 </span>            :                                               uint32_t timestamp) {
+<span class="lineNum">     195 </span><span class="lineNoCov">          0 :   int64_t unwrapped_timestamp = time_wrap_handler_.Unwrap(timestamp);</span>
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :   if (number_of_temporal_layers_ == 1) {</span>
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :     vp8_info-&gt;temporalIdx = kNoTemporalIdx;</span>
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 :     vp8_info-&gt;layerSync = false;</span>
+<span class="lineNum">     199 </span><span class="lineNoCov">          0 :     vp8_info-&gt;tl0PicIdx = kNoTl0PicIdx;</span>
+<span class="lineNum">     200 </span>            :   } else {
+<span class="lineNum">     201 </span><span class="lineNoCov">          0 :     vp8_info-&gt;temporalIdx = active_layer_;</span>
+<span class="lineNum">     202 </span><span class="lineNoCov">          0 :     if (base_layer_sync) {</span>
+<span class="lineNum">     203 </span><span class="lineNoCov">          0 :       vp8_info-&gt;temporalIdx = 0;</span>
+<span class="lineNum">     204 </span><span class="lineNoCov">          0 :       last_sync_timestamp_ = unwrapped_timestamp;</span>
+<span class="lineNum">     205 </span><span class="lineNoCov">          0 :     } else if (last_base_layer_sync_ &amp;&amp; vp8_info-&gt;temporalIdx != 0) {</span>
+<span class="lineNum">     206 </span>            :       // Regardless of pattern the frame after a base layer sync will always
+<span class="lineNum">     207 </span>            :       // be a layer sync.
+<span class="lineNum">     208 </span><span class="lineNoCov">          0 :       last_sync_timestamp_ = unwrapped_timestamp;</span>
+<span class="lineNum">     209 </span>            :     }
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :     vp8_info-&gt;layerSync = last_sync_timestamp_ != -1 &amp;&amp;</span>
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 :                           last_sync_timestamp_ == unwrapped_timestamp;</span>
+<span class="lineNum">     212 </span><span class="lineNoCov">          0 :     if (vp8_info-&gt;temporalIdx == 0) {</span>
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :       tl0_pic_idx_++;</span>
+<span class="lineNum">     214 </span>            :     }
+<span class="lineNum">     215 </span><span class="lineNoCov">          0 :     last_base_layer_sync_ = base_layer_sync;</span>
+<span class="lineNum">     216 </span><span class="lineNoCov">          0 :     vp8_info-&gt;tl0PicIdx = tl0_pic_idx_;</span>
+<span class="lineNum">     217 </span>            :   }
+<a name="218"><span class="lineNum">     218 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 : bool ScreenshareLayers::TimeToSync(int64_t timestamp) const {</span>
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :   if (active_layer_ != 1) {</span>
+<span class="lineNum">     222 </span>            :     RTC_NOTREACHED();
+<span class="lineNum">     223 </span>            :     return false;
+<span class="lineNum">     224 </span>            :   }
+<span class="lineNum">     225 </span>            :   RTC_DCHECK_NE(-1, layers_[0].last_qp);
+<span class="lineNum">     226 </span><span class="lineNoCov">          0 :   if (layers_[1].last_qp == -1) {</span>
+<span class="lineNum">     227 </span>            :     // First frame in TL1 should only depend on TL0 since there are no
+<span class="lineNum">     228 </span>            :     // previous frames in TL1.
+<span class="lineNum">     229 </span>            :     return true;
+<span class="lineNum">     230 </span>            :   }
+<span class="lineNum">     231 </span>            : 
+<span class="lineNum">     232 </span>            :   RTC_DCHECK_NE(-1, last_sync_timestamp_);
+<span class="lineNum">     233 </span><span class="lineNoCov">          0 :   int64_t timestamp_diff = timestamp - last_sync_timestamp_;</span>
+<span class="lineNum">     234 </span><span class="lineNoCov">          0 :   if (timestamp_diff &gt; kMaxTimeBetweenSyncs) {</span>
+<span class="lineNum">     235 </span>            :     // After a certain time, force a sync frame.
+<span class="lineNum">     236 </span>            :     return true;
+<span class="lineNum">     237 </span><span class="lineNoCov">          0 :   } else if (timestamp_diff &lt; kMinTimeBetweenSyncs) {</span>
+<span class="lineNum">     238 </span>            :     // If too soon from previous sync frame, don't issue a new one.
+<span class="lineNum">     239 </span>            :     return false;
+<span class="lineNum">     240 </span>            :   }
+<span class="lineNum">     241 </span>            :   // Issue a sync frame if difference in quality between TL0 and TL1 isn't too
+<span class="lineNum">     242 </span>            :   // large.
+<span class="lineNum">     243 </span><span class="lineNoCov">          0 :   if (layers_[0].last_qp - layers_[1].last_qp &lt; kQpDeltaThresholdForSync)</span>
+<span class="lineNum">     244 </span>            :     return true;
+<span class="lineNum">     245 </span><span class="lineNoCov">          0 :   return false;</span>
+<a name="246"><span class="lineNum">     246 </span>            : }</a>
+<span class="lineNum">     247 </span>            : 
+<span class="lineNum">     248 </span><span class="lineNoCov">          0 : bool ScreenshareLayers::UpdateConfiguration(vpx_codec_enc_cfg_t* cfg) {</span>
+<span class="lineNum">     249 </span><span class="lineNoCov">          0 :   if (max_qp_ == -1 || number_of_temporal_layers_ &lt;= 1)</span>
+<span class="lineNum">     250 </span>            :     return false;
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span>            :   // If layer is in the quality boost state (following a dropped frame), update
+<span class="lineNum">     253 </span>            :   // the configuration with the adjusted (lower) qp and set the state back to
+<span class="lineNum">     254 </span>            :   // normal.
+<span class="lineNum">     255 </span>            :   unsigned int adjusted_max_qp;
+<span class="lineNum">     256 </span><span class="lineNoCov">          0 :   if (layers_[active_layer_].state == TemporalLayer::State::kQualityBoost &amp;&amp;</span>
+<span class="lineNum">     257 </span><span class="lineNoCov">          0 :       layers_[active_layer_].enhanced_max_qp != -1) {</span>
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 :     adjusted_max_qp = layers_[active_layer_].enhanced_max_qp;</span>
+<span class="lineNum">     259 </span><span class="lineNoCov">          0 :     layers_[active_layer_].state = TemporalLayer::State::kNormal;</span>
+<span class="lineNum">     260 </span>            :   } else {
+<span class="lineNum">     261 </span><span class="lineNoCov">          0 :     if (max_qp_ == -1)</span>
+<span class="lineNum">     262 </span>            :       return false;
+<span class="lineNum">     263 </span><span class="lineNoCov">          0 :     adjusted_max_qp = max_qp_;  // Set the normal max qp.</span>
+<span class="lineNum">     264 </span>            :   }
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span><span class="lineNoCov">          0 :   if (adjusted_max_qp == cfg-&gt;rc_max_quantizer)</span>
+<span class="lineNum">     267 </span>            :     return false;
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span><span class="lineNoCov">          0 :   cfg-&gt;rc_max_quantizer = adjusted_max_qp;</span>
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 :   return true;</span>
+<a name="271"><span class="lineNum">     271 </span>            : }</a>
+<span class="lineNum">     272 </span>            : 
+<span class="lineNum">     273 </span><span class="lineNoCov">          0 : void ScreenshareLayers::TemporalLayer::UpdateDebt(int64_t delta_ms) {</span>
+<span class="lineNum">     274 </span><span class="lineNoCov">          0 :   uint32_t debt_reduction_bytes = target_rate_kbps_ * delta_ms / 8;</span>
+<span class="lineNum">     275 </span><span class="lineNoCov">          0 :   if (debt_reduction_bytes &gt;= debt_bytes_) {</span>
+<span class="lineNum">     276 </span><span class="lineNoCov">          0 :     debt_bytes_ = 0;</span>
+<span class="lineNum">     277 </span>            :   } else {
+<span class="lineNum">     278 </span><span class="lineNoCov">          0 :     debt_bytes_ -= debt_reduction_bytes;</span>
+<span class="lineNum">     279 </span>            :   }
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span>            : }  // namespace webrtc
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

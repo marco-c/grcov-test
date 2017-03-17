@@ -1,0 +1,318 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/sandbox/chromium/base/callback_internal.h</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">security/sandbox/chromium/base</a> - callback_internal.h<span style="font-size: 80%;"> (source / <a href="callback_internal.h.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">2</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">2</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : // Copyright (c) 2012 The Chromium Authors. All rights reserved.</a>
+<span class="lineNum">       2 </span>            : // Use of this source code is governed by a BSD-style license that can be
+<span class="lineNum">       3 </span>            : // found in the LICENSE file.
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : // This file contains utility functions and classes that help the
+<span class="lineNum">       6 </span>            : // implementation, and management of the Callback objects.
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #ifndef BASE_CALLBACK_INTERNAL_H_
+<span class="lineNum">       9 </span>            : #define BASE_CALLBACK_INTERNAL_H_
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &lt;stddef.h&gt;
+<span class="lineNum">      12 </span>            : #include &lt;memory&gt;
+<span class="lineNum">      13 </span>            : #include &lt;type_traits&gt;
+<span class="lineNum">      14 </span>            : 
+<span class="lineNum">      15 </span>            : #include &quot;base/atomic_ref_count.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;base/base_export.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;base/macros.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;base/memory/ref_counted.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;base/memory/scoped_ptr.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;base/template_util.h&quot;
+<span class="lineNum">      21 </span>            : 
+<span class="lineNum">      22 </span>            : namespace base {
+<span class="lineNum">      23 </span>            : namespace internal {
+<span class="lineNum">      24 </span>            : class CallbackBase;
+<span class="lineNum">      25 </span>            : 
+<span class="lineNum">      26 </span>            : // BindStateBase is used to provide an opaque handle that the Callback
+<span class="lineNum">      27 </span>            : // class can use to represent a function object with bound arguments.  It
+<span class="lineNum">      28 </span>            : // behaves as an existential type that is used by a corresponding
+<span class="lineNum">      29 </span>            : // DoInvoke function to perform the function execution.  This allows
+<span class="lineNum">      30 </span>            : // us to shield the Callback class from the types of the bound argument via
+<span class="lineNum">      31 </span>            : // &quot;type erasure.&quot;
+<span class="lineNum">      32 </span>            : // At the base level, the only task is to add reference counting data. Don't use
+<span class="lineNum">      33 </span>            : // RefCountedThreadSafe since it requires the destructor to be a virtual method.
+<span class="lineNum">      34 </span>            : // Creating a vtable for every BindState template instantiation results in a lot
+<span class="lineNum">      35 </span>            : // of bloat. Its only task is to call the destructor which can be done with a
+<span class="lineNum">      36 </span>            : // function pointer.
+<span class="lineNum">      37 </span>            : class BindStateBase {
+<span class="lineNum">      38 </span>            :  protected:
+<span class="lineNum">      39 </span>            :   explicit BindStateBase(void (*destructor)(BindStateBase*))
+<span class="lineNum">      40 </span><span class="lineNoCov">          0 :       : ref_count_(0), destructor_(destructor) {}</span>
+<span class="lineNum">      41 </span>            :   ~BindStateBase() = default;
+<span class="lineNum">      42 </span>            : 
+<span class="lineNum">      43 </span>            :  private:
+<span class="lineNum">      44 </span>            :   friend class scoped_refptr&lt;BindStateBase&gt;;
+<span class="lineNum">      45 </span>            :   friend class CallbackBase;
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span>            :   void AddRef();
+<span class="lineNum">      48 </span>            :   void Release();
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            :   AtomicRefCount ref_count_;
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span>            :   // Pointer to a function that will properly destroy |this|.
+<span class="lineNum">      53 </span>            :   void (*destructor_)(BindStateBase*);
+<span class="lineNum">      54 </span>            : 
+<span class="lineNum">      55 </span>            :   DISALLOW_COPY_AND_ASSIGN(BindStateBase);
+<span class="lineNum">      56 </span>            : };
+<span class="lineNum">      57 </span>            : 
+<a name="58"><span class="lineNum">      58 </span>            : // Holds the Callback methods that don't require specialization to reduce</a>
+<span class="lineNum">      59 </span>            : // template bloat.
+<span class="lineNum">      60 </span><span class="lineNoCov">          0 : class BASE_EXPORT CallbackBase {</span>
+<span class="lineNum">      61 </span>            :  public:
+<span class="lineNum">      62 </span>            :   CallbackBase(const CallbackBase&amp; c);
+<span class="lineNum">      63 </span>            :   CallbackBase&amp; operator=(const CallbackBase&amp; c);
+<span class="lineNum">      64 </span>            : 
+<span class="lineNum">      65 </span>            :   // Returns true if Callback is null (doesn't refer to anything).
+<span class="lineNum">      66 </span>            :   bool is_null() const { return bind_state_.get() == NULL; }
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            :   // Returns the Callback into an uninitialized state.
+<span class="lineNum">      69 </span>            :   void Reset();
+<span class="lineNum">      70 </span>            : 
+<span class="lineNum">      71 </span>            :  protected:
+<span class="lineNum">      72 </span>            :   // In C++, it is safe to cast function pointers to function pointers of
+<span class="lineNum">      73 </span>            :   // another type. It is not okay to use void*. We create a InvokeFuncStorage
+<span class="lineNum">      74 </span>            :   // that that can store our function pointer, and then cast it back to
+<span class="lineNum">      75 </span>            :   // the original type on usage.
+<span class="lineNum">      76 </span>            :   using InvokeFuncStorage = void(*)();
+<span class="lineNum">      77 </span>            : 
+<span class="lineNum">      78 </span>            :   // Returns true if this callback equals |other|. |other| may be null.
+<span class="lineNum">      79 </span>            :   bool Equals(const CallbackBase&amp; other) const;
+<span class="lineNum">      80 </span>            : 
+<span class="lineNum">      81 </span>            :   // Allow initializing of |bind_state_| via the constructor to avoid default
+<span class="lineNum">      82 </span>            :   // initialization of the scoped_refptr.  We do not also initialize
+<span class="lineNum">      83 </span>            :   // |polymorphic_invoke_| here because doing a normal assignment in the
+<span class="lineNum">      84 </span>            :   // derived Callback templates makes for much nicer compiler errors.
+<span class="lineNum">      85 </span>            :   explicit CallbackBase(BindStateBase* bind_state);
+<span class="lineNum">      86 </span>            : 
+<span class="lineNum">      87 </span>            :   // Force the destructor to be instantiated inside this translation unit so
+<span class="lineNum">      88 </span>            :   // that our subclasses will not get inlined versions.  Avoids more template
+<span class="lineNum">      89 </span>            :   // bloat.
+<span class="lineNum">      90 </span>            :   ~CallbackBase();
+<span class="lineNum">      91 </span>            : 
+<span class="lineNum">      92 </span>            :   scoped_refptr&lt;BindStateBase&gt; bind_state_;
+<span class="lineNum">      93 </span>            :   InvokeFuncStorage polymorphic_invoke_;
+<span class="lineNum">      94 </span>            : };
+<span class="lineNum">      95 </span>            : 
+<span class="lineNum">      96 </span>            : // A helper template to determine if given type is non-const move-only-type,
+<span class="lineNum">      97 </span>            : // i.e. if a value of the given type should be passed via std::move() in a
+<span class="lineNum">      98 </span>            : // destructive way. Types are considered to be move-only if they have a
+<span class="lineNum">      99 </span>            : // sentinel MoveOnlyTypeForCPP03 member: a class typically gets this from using
+<span class="lineNum">     100 </span>            : // the DISALLOW_COPY_AND_ASSIGN_WITH_MOVE_FOR_BIND macro.
+<span class="lineNum">     101 </span>            : // It would be easy to generalize this trait to all move-only types... but this
+<span class="lineNum">     102 </span>            : // confuses template deduction in VS2013 with certain types such as
+<span class="lineNum">     103 </span>            : // std::unique_ptr.
+<span class="lineNum">     104 </span>            : // TODO(dcheng): Revisit this when Windows switches to VS2015 by default.
+<span class="lineNum">     105 </span>            : template &lt;typename T&gt; struct IsMoveOnlyType {
+<span class="lineNum">     106 </span>            :   template &lt;typename U&gt;
+<span class="lineNum">     107 </span>            :   static YesType Test(const typename U::MoveOnlyTypeForCPP03*);
+<span class="lineNum">     108 </span>            : 
+<span class="lineNum">     109 </span>            :   template &lt;typename U&gt;
+<span class="lineNum">     110 </span>            :   static NoType Test(...);
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span>            :   static const bool value = sizeof((Test&lt;T&gt;(0))) == sizeof(YesType) &amp;&amp;
+<span class="lineNum">     113 </span>            :                             !is_const&lt;T&gt;::value;
+<span class="lineNum">     114 </span>            : };
+<span class="lineNum">     115 </span>            : 
+<span class="lineNum">     116 </span>            : // Specialization of IsMoveOnlyType so that std::unique_ptr is still considered
+<span class="lineNum">     117 </span>            : // move-only, even without the sentinel member.
+<span class="lineNum">     118 </span>            : template &lt;typename T&gt;
+<span class="lineNum">     119 </span>            : struct IsMoveOnlyType&lt;std::unique_ptr&lt;T&gt;&gt; : std::true_type {};
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span>            : template &lt;typename&gt;
+<span class="lineNum">     122 </span>            : struct CallbackParamTraitsForMoveOnlyType;
+<span class="lineNum">     123 </span>            : 
+<span class="lineNum">     124 </span>            : template &lt;typename&gt;
+<span class="lineNum">     125 </span>            : struct CallbackParamTraitsForNonMoveOnlyType;
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span>            : // TODO(tzik): Use a default parameter once MSVS supports variadic templates
+<span class="lineNum">     128 </span>            : // with default values.
+<span class="lineNum">     129 </span>            : // http://connect.microsoft.com/VisualStudio/feedbackdetail/view/957801/compilation-error-with-variadic-templates
+<span class="lineNum">     130 </span>            : //
+<span class="lineNum">     131 </span>            : // This is a typetraits object that's used to take an argument type, and
+<span class="lineNum">     132 </span>            : // extract a suitable type for storing and forwarding arguments.
+<span class="lineNum">     133 </span>            : //
+<span class="lineNum">     134 </span>            : // In particular, it strips off references, and converts arrays to
+<span class="lineNum">     135 </span>            : // pointers for storage; and it avoids accidentally trying to create a
+<span class="lineNum">     136 </span>            : // &quot;reference of a reference&quot; if the argument is a reference type.
+<span class="lineNum">     137 </span>            : //
+<span class="lineNum">     138 </span>            : // This array type becomes an issue for storage because we are passing bound
+<span class="lineNum">     139 </span>            : // parameters by const reference. In this case, we end up passing an actual
+<span class="lineNum">     140 </span>            : // array type in the initializer list which C++ does not allow.  This will
+<span class="lineNum">     141 </span>            : // break passing of C-string literals.
+<span class="lineNum">     142 </span>            : template &lt;typename T&gt;
+<span class="lineNum">     143 </span>            : struct CallbackParamTraits
+<span class="lineNum">     144 </span>            :     : std::conditional&lt;IsMoveOnlyType&lt;T&gt;::value,
+<span class="lineNum">     145 </span>            :          CallbackParamTraitsForMoveOnlyType&lt;T&gt;,
+<span class="lineNum">     146 </span>            :          CallbackParamTraitsForNonMoveOnlyType&lt;T&gt;&gt;::type {
+<span class="lineNum">     147 </span>            : };
+<span class="lineNum">     148 </span>            : 
+<span class="lineNum">     149 </span>            : template &lt;typename T&gt;
+<span class="lineNum">     150 </span>            : struct CallbackParamTraitsForNonMoveOnlyType {
+<span class="lineNum">     151 </span>            :   using ForwardType = const T&amp;;
+<span class="lineNum">     152 </span>            :   using StorageType = T;
+<span class="lineNum">     153 </span>            : };
+<span class="lineNum">     154 </span>            : 
+<span class="lineNum">     155 </span>            : // The Storage should almost be impossible to trigger unless someone manually
+<span class="lineNum">     156 </span>            : // specifies type of the bind parameters.  However, in case they do,
+<span class="lineNum">     157 </span>            : // this will guard against us accidentally storing a reference parameter.
+<span class="lineNum">     158 </span>            : //
+<span class="lineNum">     159 </span>            : // The ForwardType should only be used for unbound arguments.
+<span class="lineNum">     160 </span>            : template &lt;typename T&gt;
+<span class="lineNum">     161 </span>            : struct CallbackParamTraitsForNonMoveOnlyType&lt;T&amp;&gt; {
+<span class="lineNum">     162 </span>            :   using ForwardType = T&amp;;
+<span class="lineNum">     163 </span>            :   using StorageType = T;
+<span class="lineNum">     164 </span>            : };
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span>            : // Note that for array types, we implicitly add a const in the conversion. This
+<span class="lineNum">     167 </span>            : // means that it is not possible to bind array arguments to functions that take
+<span class="lineNum">     168 </span>            : // a non-const pointer. Trying to specialize the template based on a &quot;const
+<span class="lineNum">     169 </span>            : // T[n]&quot; does not seem to match correctly, so we are stuck with this
+<span class="lineNum">     170 </span>            : // restriction.
+<span class="lineNum">     171 </span>            : template &lt;typename T, size_t n&gt;
+<span class="lineNum">     172 </span>            : struct CallbackParamTraitsForNonMoveOnlyType&lt;T[n]&gt; {
+<span class="lineNum">     173 </span>            :   using ForwardType = const T*;
+<span class="lineNum">     174 </span>            :   using StorageType = const T*;
+<span class="lineNum">     175 </span>            : };
+<span class="lineNum">     176 </span>            : 
+<span class="lineNum">     177 </span>            : // See comment for CallbackParamTraits&lt;T[n]&gt;.
+<span class="lineNum">     178 </span>            : template &lt;typename T&gt;
+<span class="lineNum">     179 </span>            : struct CallbackParamTraitsForNonMoveOnlyType&lt;T[]&gt; {
+<span class="lineNum">     180 </span>            :   using ForwardType = const T*;
+<span class="lineNum">     181 </span>            :   using StorageType = const T*;
+<span class="lineNum">     182 </span>            : };
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span>            : // Parameter traits for movable-but-not-copyable scopers.
+<span class="lineNum">     185 </span>            : //
+<span class="lineNum">     186 </span>            : // Callback&lt;&gt;/Bind() understands movable-but-not-copyable semantics where
+<span class="lineNum">     187 </span>            : // the type cannot be copied but can still have its state destructively
+<span class="lineNum">     188 </span>            : // transferred (aka. moved) to another instance of the same type by calling a
+<span class="lineNum">     189 </span>            : // helper function.  When used with Bind(), this signifies transferal of the
+<span class="lineNum">     190 </span>            : // object's state to the target function.
+<span class="lineNum">     191 </span>            : //
+<span class="lineNum">     192 </span>            : // For these types, the ForwardType must not be a const reference, or a
+<span class="lineNum">     193 </span>            : // reference.  A const reference is inappropriate, and would break const
+<span class="lineNum">     194 </span>            : // correctness, because we are implementing a destructive move.  A non-const
+<span class="lineNum">     195 </span>            : // reference cannot be used with temporaries which means the result of a
+<span class="lineNum">     196 </span>            : // function or a cast would not be usable with Callback&lt;&gt; or Bind().
+<span class="lineNum">     197 </span>            : template &lt;typename T&gt;
+<span class="lineNum">     198 </span>            : struct CallbackParamTraitsForMoveOnlyType {
+<span class="lineNum">     199 </span>            :   using ForwardType = T;
+<span class="lineNum">     200 </span>            :   using StorageType = T;
+<span class="lineNum">     201 </span>            : };
+<span class="lineNum">     202 </span>            : 
+<span class="lineNum">     203 </span>            : // CallbackForward() is a very limited simulation of C++11's std::forward()
+<span class="lineNum">     204 </span>            : // used by the Callback/Bind system for a set of movable-but-not-copyable
+<span class="lineNum">     205 </span>            : // types.  It is needed because forwarding a movable-but-not-copyable
+<span class="lineNum">     206 </span>            : // argument to another function requires us to invoke the proper move
+<span class="lineNum">     207 </span>            : // operator to create a rvalue version of the type.  The supported types are
+<span class="lineNum">     208 </span>            : // whitelisted below as overloads of the CallbackForward() function. The
+<span class="lineNum">     209 </span>            : // default template compiles out to be a no-op.
+<span class="lineNum">     210 </span>            : //
+<span class="lineNum">     211 </span>            : // In C++11, std::forward would replace all uses of this function.  However, it
+<span class="lineNum">     212 </span>            : // is impossible to implement a general std::forward without C++11 due to a lack
+<span class="lineNum">     213 </span>            : // of rvalue references.
+<span class="lineNum">     214 </span>            : //
+<span class="lineNum">     215 </span>            : // In addition to Callback/Bind, this is used by PostTaskAndReplyWithResult to
+<span class="lineNum">     216 </span>            : // simulate std::forward() and forward the result of one Callback as a
+<span class="lineNum">     217 </span>            : // parameter to another callback. This is to support Callbacks that return
+<span class="lineNum">     218 </span>            : // the movable-but-not-copyable types whitelisted above.
+<span class="lineNum">     219 </span>            : template &lt;typename T&gt;
+<span class="lineNum">     220 </span>            : typename std::enable_if&lt;!IsMoveOnlyType&lt;T&gt;::value, T&gt;::type&amp; CallbackForward(
+<span class="lineNum">     221 </span>            :     T&amp; t) {
+<span class="lineNum">     222 </span>            :   return t;
+<span class="lineNum">     223 </span>            : }
+<span class="lineNum">     224 </span>            : 
+<span class="lineNum">     225 </span>            : template &lt;typename T&gt;
+<span class="lineNum">     226 </span>            : typename std::enable_if&lt;IsMoveOnlyType&lt;T&gt;::value, T&gt;::type CallbackForward(
+<span class="lineNum">     227 </span>            :     T&amp; t) {
+<span class="lineNum">     228 </span>            :   return std::move(t);
+<span class="lineNum">     229 </span>            : }
+<span class="lineNum">     230 </span>            : 
+<span class="lineNum">     231 </span>            : }  // namespace internal
+<span class="lineNum">     232 </span>            : }  // namespace base
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span>            : #endif  // BASE_CALLBACK_INTERNAL_H_
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

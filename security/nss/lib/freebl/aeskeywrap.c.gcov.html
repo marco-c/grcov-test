@@ -1,0 +1,473 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/nss/lib/freebl/aeskeywrap.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">security/nss/lib/freebl</a> - aeskeywrap.c<span style="font-size: 80%;"> (source / <a href="aeskeywrap.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">126</td>
+            <td class="headerCovTableEntry">161</td>
+            <td class="headerCovTableEntryMed">78.3 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">9</td>
+            <td class="headerCovTableEntry">9</td>
+            <td class="headerCovTableEntryHi">100.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  * aeskeywrap.c - implement AES Key Wrap algorithm from RFC 3394
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  * This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       5 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       6 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #ifdef FREEBL_NO_DEPEND
+<span class="lineNum">       9 </span>            : #include &quot;stubs.h&quot;
+<span class="lineNum">      10 </span>            : #endif
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : #include &quot;prcpucfg.h&quot;
+<span class="lineNum">      13 </span>            : #if defined(IS_LITTLE_ENDIAN) || defined(SHA_NO_LONG_LONG)
+<span class="lineNum">      14 </span>            : #define BIG_ENDIAN_WITH_64_BIT_REGISTERS 0
+<span class="lineNum">      15 </span>            : #else
+<span class="lineNum">      16 </span>            : #define BIG_ENDIAN_WITH_64_BIT_REGISTERS 1
+<span class="lineNum">      17 </span>            : #endif
+<span class="lineNum">      18 </span>            : #include &quot;prtypes.h&quot; /* for PRUintXX */
+<span class="lineNum">      19 </span>            : #include &quot;secport.h&quot; /* for PORT_XXX */
+<span class="lineNum">      20 </span>            : #include &quot;secerr.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;blapi.h&quot; /* for AES_ functions */
+<span class="lineNum">      22 </span>            : #include &quot;rijndael.h&quot;
+<span class="lineNum">      23 </span>            : 
+<span class="lineNum">      24 </span>            : struct AESKeyWrapContextStr {
+<span class="lineNum">      25 </span>            :     unsigned char iv[AES_KEY_WRAP_IV_BYTES];
+<span class="lineNum">      26 </span>            :     AESContext aescx;
+<span class="lineNum">      27 </span>            : };
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : /******************************************/
+<span class="lineNum">      30 </span>            : /*
+<span class="lineNum">      31 </span>            : ** AES key wrap algorithm, RFC 3394
+<span class="lineNum">      32 </span>            : */
+<a name="33"><span class="lineNum">      33 </span>            : </a>
+<span class="lineNum">      34 </span>            : AESKeyWrapContext *
+<span class="lineNum">      35 </span><span class="lineCov">          1 : AESKeyWrap_AllocateContext(void)</span>
+<span class="lineNum">      36 </span>            : {
+<span class="lineNum">      37 </span><span class="lineCov">          1 :     AESKeyWrapContext *cx = PORT_New(AESKeyWrapContext);</span>
+<span class="lineNum">      38 </span><span class="lineCov">          1 :     return cx;</span>
+<span class="lineNum">      39 </span>            : }
+<a name="40"><span class="lineNum">      40 </span>            : </a>
+<span class="lineNum">      41 </span>            : SECStatus
+<span class="lineNum">      42 </span><span class="lineCov">          1 : AESKeyWrap_InitContext(AESKeyWrapContext *cx,</span>
+<span class="lineNum">      43 </span>            :                        const unsigned char *key,
+<span class="lineNum">      44 </span>            :                        unsigned int keylen,
+<span class="lineNum">      45 </span>            :                        const unsigned char *iv,
+<span class="lineNum">      46 </span>            :                        int x1,
+<span class="lineNum">      47 </span>            :                        unsigned int encrypt,
+<span class="lineNum">      48 </span>            :                        unsigned int x2)
+<span class="lineNum">      49 </span>            : {
+<span class="lineNum">      50 </span><span class="lineCov">          1 :     SECStatus rv = SECFailure;</span>
+<span class="lineNum">      51 </span><span class="lineCov">          1 :     if (!cx) {</span>
+<span class="lineNum">      52 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">      53 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">      54 </span>            :     }
+<span class="lineNum">      55 </span><span class="lineCov">          1 :     if (iv) {</span>
+<span class="lineNum">      56 </span><span class="lineNoCov">          0 :         memcpy(cx-&gt;iv, iv, sizeof cx-&gt;iv);</span>
+<span class="lineNum">      57 </span>            :     } else {
+<span class="lineNum">      58 </span><span class="lineCov">          1 :         memset(cx-&gt;iv, 0xA6, sizeof cx-&gt;iv);</span>
+<span class="lineNum">      59 </span>            :     }
+<span class="lineNum">      60 </span><span class="lineCov">          1 :     rv = AES_InitContext(&amp;cx-&gt;aescx, key, keylen, NULL, NSS_AES, encrypt,</span>
+<span class="lineNum">      61 </span>            :                          AES_BLOCK_SIZE);
+<span class="lineNum">      62 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">      63 </span>            : }
+<span class="lineNum">      64 </span>            : 
+<span class="lineNum">      65 </span>            : /*
+<span class="lineNum">      66 </span>            : ** Create a new AES context suitable for AES encryption/decryption.
+<span class="lineNum">      67 </span>            : **  &quot;key&quot; raw key data
+<span class="lineNum">      68 </span>            : **  &quot;keylen&quot; the number of bytes of key data (16, 24, or 32)
+<a name="69"><span class="lineNum">      69 </span>            : */</a>
+<span class="lineNum">      70 </span>            : extern AESKeyWrapContext *
+<span class="lineNum">      71 </span><span class="lineCov">          1 : AESKeyWrap_CreateContext(const unsigned char *key, const unsigned char *iv,</span>
+<span class="lineNum">      72 </span>            :                          int encrypt, unsigned int keylen)
+<span class="lineNum">      73 </span>            : {
+<span class="lineNum">      74 </span>            :     SECStatus rv;
+<span class="lineNum">      75 </span><span class="lineCov">          1 :     AESKeyWrapContext *cx = AESKeyWrap_AllocateContext();</span>
+<span class="lineNum">      76 </span><span class="lineCov">          1 :     if (!cx)</span>
+<span class="lineNum">      77 </span>            :         return NULL; /* error is already set */
+<span class="lineNum">      78 </span><span class="lineCov">          1 :     rv = AESKeyWrap_InitContext(cx, key, keylen, iv, 0, encrypt, 0);</span>
+<span class="lineNum">      79 </span><span class="lineCov">          1 :     if (rv != SECSuccess) {</span>
+<span class="lineNum">      80 </span><span class="lineNoCov">          0 :         PORT_Free(cx);</span>
+<span class="lineNum">      81 </span><span class="lineNoCov">          0 :         cx = NULL; /* error should already be set */</span>
+<span class="lineNum">      82 </span>            :     }
+<span class="lineNum">      83 </span><span class="lineCov">          1 :     return cx;</span>
+<span class="lineNum">      84 </span>            : }
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span>            : /*
+<span class="lineNum">      87 </span>            : ** Destroy a AES KeyWrap context.
+<span class="lineNum">      88 </span>            : **  &quot;cx&quot; the context
+<span class="lineNum">      89 </span>            : **  &quot;freeit&quot; if PR_TRUE then free the object as well as its sub-objects
+<a name="90"><span class="lineNum">      90 </span>            : */</a>
+<span class="lineNum">      91 </span>            : extern void
+<span class="lineNum">      92 </span><span class="lineCov">          1 : AESKeyWrap_DestroyContext(AESKeyWrapContext *cx, PRBool freeit)</span>
+<span class="lineNum">      93 </span>            : {
+<span class="lineNum">      94 </span><span class="lineCov">          1 :     if (cx) {</span>
+<span class="lineNum">      95 </span><span class="lineCov">          1 :         AES_DestroyContext(&amp;cx-&gt;aescx, PR_FALSE);</span>
+<span class="lineNum">      96 </span>            :         /*  memset(cx, 0, sizeof *cx); */
+<span class="lineNum">      97 </span><span class="lineCov">          1 :         if (freeit)</span>
+<span class="lineNum">      98 </span><span class="lineCov">          1 :             PORT_Free(cx);</span>
+<span class="lineNum">      99 </span>            :     }
+<span class="lineNum">     100 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     101 </span>            : 
+<span class="lineNum">     102 </span>            : #if !BIG_ENDIAN_WITH_64_BIT_REGISTERS
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span>            : /* The AES Key Wrap algorithm has 64-bit values that are ALWAYS big-endian
+<span class="lineNum">     105 </span>            : ** (Most significant byte first) in memory.  The only ALU operations done
+<span class="lineNum">     106 </span>            : ** on them are increment, decrement, and XOR.  So, on little-endian CPUs,
+<span class="lineNum">     107 </span>            : ** and on CPUs that lack 64-bit registers, these big-endian 64-bit operations
+<span class="lineNum">     108 </span>            : ** are simulated in the following code.  This is thought to be faster and
+<span class="lineNum">     109 </span>            : ** simpler than trying to convert the data to little-endian and back.
+<span class="lineNum">     110 </span>            : */
+<span class="lineNum">     111 </span>            : 
+<span class="lineNum">     112 </span>            : /* A and T point to two 64-bit values stored most signficant byte first
+<span class="lineNum">     113 </span>            : ** (big endian).  This function increments the 64-bit value T, and then
+<span class="lineNum">     114 </span>            : ** XORs it with A, changing A.
+<a name="115"><span class="lineNum">     115 </span>            : */</a>
+<span class="lineNum">     116 </span>            : static void
+<span class="lineNum">     117 </span><span class="lineCov">          1 : increment_and_xor(unsigned char *A, unsigned char *T)</span>
+<span class="lineNum">     118 </span>            : {
+<span class="lineNum">     119 </span><span class="lineCov">          1 :     if (!++T[7])</span>
+<span class="lineNum">     120 </span><span class="lineNoCov">          0 :         if (!++T[6])</span>
+<span class="lineNum">     121 </span><span class="lineNoCov">          0 :             if (!++T[5])</span>
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :                 if (!++T[4])</span>
+<span class="lineNum">     123 </span><span class="lineNoCov">          0 :                     if (!++T[3])</span>
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :                         if (!++T[2])</span>
+<span class="lineNum">     125 </span><span class="lineNoCov">          0 :                             if (!++T[1])</span>
+<span class="lineNum">     126 </span><span class="lineNoCov">          0 :                                 ++T[0];</span>
+<span class="lineNum">     127 </span>            : 
+<span class="lineNum">     128 </span><span class="lineCov">          1 :     A[0] ^= T[0];</span>
+<span class="lineNum">     129 </span><span class="lineCov">          1 :     A[1] ^= T[1];</span>
+<span class="lineNum">     130 </span><span class="lineCov">          1 :     A[2] ^= T[2];</span>
+<span class="lineNum">     131 </span><span class="lineCov">          1 :     A[3] ^= T[3];</span>
+<span class="lineNum">     132 </span><span class="lineCov">          1 :     A[4] ^= T[4];</span>
+<span class="lineNum">     133 </span><span class="lineCov">          1 :     A[5] ^= T[5];</span>
+<span class="lineNum">     134 </span><span class="lineCov">          1 :     A[6] ^= T[6];</span>
+<span class="lineNum">     135 </span><span class="lineCov">          1 :     A[7] ^= T[7];</span>
+<span class="lineNum">     136 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     137 </span>            : 
+<span class="lineNum">     138 </span>            : /* A and T point to two 64-bit values stored most signficant byte first
+<span class="lineNum">     139 </span>            : ** (big endian).  This function XORs T with A, giving a new A, then
+<span class="lineNum">     140 </span>            : ** decrements the 64-bit value T.
+<a name="141"><span class="lineNum">     141 </span>            : */</a>
+<span class="lineNum">     142 </span>            : static void
+<span class="lineNum">     143 </span><span class="lineCov">          1 : xor_and_decrement(PRUint64 *A, PRUint64 *T)</span>
+<span class="lineNum">     144 </span>            : {
+<span class="lineNum">     145 </span><span class="lineCov">          1 :     unsigned char *TP = (unsigned char *)T;</span>
+<span class="lineNum">     146 </span><span class="lineCov">          1 :     const PRUint64 mask = 0xFF;</span>
+<span class="lineNum">     147 </span><span class="lineCov">          1 :     *A = ((*A &amp; mask &lt;&lt; 56) ^ (*T &amp; mask &lt;&lt; 56)) |</span>
+<span class="lineNum">     148 </span><span class="lineCov">          1 :          ((*A &amp; mask &lt;&lt; 48) ^ (*T &amp; mask &lt;&lt; 48)) |</span>
+<span class="lineNum">     149 </span><span class="lineCov">          1 :          ((*A &amp; mask &lt;&lt; 40) ^ (*T &amp; mask &lt;&lt; 40)) |</span>
+<span class="lineNum">     150 </span><span class="lineCov">          1 :          ((*A &amp; mask &lt;&lt; 32) ^ (*T &amp; mask &lt;&lt; 32)) |</span>
+<span class="lineNum">     151 </span><span class="lineCov">          1 :          ((*A &amp; mask &lt;&lt; 24) ^ (*T &amp; mask &lt;&lt; 23)) |</span>
+<span class="lineNum">     152 </span><span class="lineCov">          1 :          ((*A &amp; mask &lt;&lt; 16) ^ (*T &amp; mask &lt;&lt; 16)) |</span>
+<span class="lineNum">     153 </span><span class="lineCov">          1 :          ((*A &amp; mask &lt;&lt; 8) ^ (*T &amp; mask &lt;&lt; 8)) |</span>
+<span class="lineNum">     154 </span><span class="lineCov">          1 :          ((*A &amp; mask) ^ (*T &amp; mask));</span>
+<span class="lineNum">     155 </span>            : 
+<span class="lineNum">     156 </span><span class="lineCov">          1 :     if (!TP[7]--)</span>
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :         if (!TP[6]--)</span>
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :             if (!TP[5]--)</span>
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :                 if (!TP[4]--)</span>
+<span class="lineNum">     160 </span><span class="lineNoCov">          0 :                     if (!TP[3]--)</span>
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 :                         if (!TP[2]--)</span>
+<span class="lineNum">     162 </span><span class="lineNoCov">          0 :                             if (!TP[1]--)</span>
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :                                 TP[0]--;</span>
+<span class="lineNum">     164 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span>            : /* Given an unsigned long t (in host byte order), store this value as a
+<span class="lineNum">     167 </span>            : ** 64-bit big-endian value (MSB first) in *pt.
+<a name="168"><span class="lineNum">     168 </span>            : */</a>
+<span class="lineNum">     169 </span>            : static void
+<span class="lineNum">     170 </span><span class="lineCov">          1 : set_t(unsigned char *pt, unsigned long t)</span>
+<span class="lineNum">     171 </span>            : {
+<span class="lineNum">     172 </span><span class="lineCov">          1 :     pt[7] = (unsigned char)t;</span>
+<span class="lineNum">     173 </span><span class="lineCov">          1 :     t &gt;&gt;= 8;</span>
+<span class="lineNum">     174 </span><span class="lineCov">          1 :     pt[6] = (unsigned char)t;</span>
+<span class="lineNum">     175 </span><span class="lineCov">          1 :     t &gt;&gt;= 8;</span>
+<span class="lineNum">     176 </span><span class="lineCov">          1 :     pt[5] = (unsigned char)t;</span>
+<span class="lineNum">     177 </span><span class="lineCov">          1 :     t &gt;&gt;= 8;</span>
+<span class="lineNum">     178 </span><span class="lineCov">          1 :     pt[4] = (unsigned char)t;</span>
+<span class="lineNum">     179 </span><span class="lineCov">          1 :     t &gt;&gt;= 8;</span>
+<span class="lineNum">     180 </span><span class="lineCov">          1 :     pt[3] = (unsigned char)t;</span>
+<span class="lineNum">     181 </span><span class="lineCov">          1 :     t &gt;&gt;= 8;</span>
+<span class="lineNum">     182 </span><span class="lineCov">          1 :     pt[2] = (unsigned char)t;</span>
+<span class="lineNum">     183 </span><span class="lineCov">          1 :     t &gt;&gt;= 8;</span>
+<span class="lineNum">     184 </span><span class="lineCov">          1 :     pt[1] = (unsigned char)t;</span>
+<span class="lineNum">     185 </span><span class="lineCov">          1 :     t &gt;&gt;= 8;</span>
+<span class="lineNum">     186 </span><span class="lineCov">          1 :     pt[0] = (unsigned char)t;</span>
+<span class="lineNum">     187 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     188 </span>            : 
+<span class="lineNum">     189 </span>            : #endif
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span>            : /*
+<span class="lineNum">     192 </span>            : ** Perform AES key wrap.
+<span class="lineNum">     193 </span>            : **  &quot;cx&quot; the context
+<span class="lineNum">     194 </span>            : **  &quot;output&quot; the output buffer to store the encrypted data.
+<span class="lineNum">     195 </span>            : **  &quot;outputLen&quot; how much data is stored in &quot;output&quot;. Set by the routine
+<span class="lineNum">     196 </span>            : **     after some data is stored in output.
+<span class="lineNum">     197 </span>            : **  &quot;maxOutputLen&quot; the maximum amount of data that can ever be
+<span class="lineNum">     198 </span>            : **     stored in &quot;output&quot;
+<span class="lineNum">     199 </span>            : **  &quot;input&quot; the input data
+<span class="lineNum">     200 </span>            : **  &quot;inputLen&quot; the amount of input data
+<a name="201"><span class="lineNum">     201 </span>            : */</a>
+<span class="lineNum">     202 </span>            : extern SECStatus
+<span class="lineNum">     203 </span><span class="lineCov">          1 : AESKeyWrap_Encrypt(AESKeyWrapContext *cx, unsigned char *output,</span>
+<span class="lineNum">     204 </span>            :                    unsigned int *pOutputLen, unsigned int maxOutputLen,
+<span class="lineNum">     205 </span>            :                    const unsigned char *input, unsigned int inputLen)
+<span class="lineNum">     206 </span>            : {
+<span class="lineNum">     207 </span><span class="lineCov">          1 :     PRUint64 *R = NULL;</span>
+<span class="lineNum">     208 </span>            :     unsigned int nBlocks;
+<span class="lineNum">     209 </span>            :     unsigned int i, j;
+<span class="lineNum">     210 </span><span class="lineCov">          1 :     unsigned int aesLen = AES_BLOCK_SIZE;</span>
+<span class="lineNum">     211 </span><span class="lineCov">          1 :     unsigned int outLen = inputLen + AES_KEY_WRAP_BLOCK_SIZE;</span>
+<span class="lineNum">     212 </span><span class="lineCov">          1 :     SECStatus s = SECFailure;</span>
+<span class="lineNum">     213 </span>            :     /* These PRUint64s are ALWAYS big endian, regardless of CPU orientation. */
+<span class="lineNum">     214 </span>            :     PRUint64 t;
+<span class="lineNum">     215 </span>            :     PRUint64 B[2];
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span>            : #define A B[0]
+<span class="lineNum">     218 </span>            : 
+<span class="lineNum">     219 </span>            :     /* Check args */
+<span class="lineNum">     220 </span><span class="lineCov">          1 :     if (!inputLen || 0 != inputLen % AES_KEY_WRAP_BLOCK_SIZE) {</span>
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INPUT_LEN);</span>
+<span class="lineNum">     222 </span><span class="lineNoCov">          0 :         return s;</span>
+<span class="lineNum">     223 </span>            :     }
+<span class="lineNum">     224 </span>            : #ifdef maybe
+<span class="lineNum">     225 </span>            :     if (!output &amp;&amp; pOutputLen) { /* caller is asking for output size */
+<span class="lineNum">     226 </span>            :         *pOutputLen = outLen;
+<span class="lineNum">     227 </span>            :         return SECSuccess;
+<span class="lineNum">     228 </span>            :     }
+<span class="lineNum">     229 </span>            : #endif
+<span class="lineNum">     230 </span><span class="lineCov">          1 :     if (maxOutputLen &lt; outLen) {</span>
+<span class="lineNum">     231 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_OUTPUT_LEN);</span>
+<span class="lineNum">     232 </span><span class="lineNoCov">          0 :         return s;</span>
+<span class="lineNum">     233 </span>            :     }
+<span class="lineNum">     234 </span><span class="lineCov">          1 :     if (cx == NULL || output == NULL || input == NULL) {</span>
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     236 </span><span class="lineNoCov">          0 :         return s;</span>
+<span class="lineNum">     237 </span>            :     }
+<span class="lineNum">     238 </span><span class="lineCov">          1 :     nBlocks = inputLen / AES_KEY_WRAP_BLOCK_SIZE;</span>
+<span class="lineNum">     239 </span><span class="lineCov">          1 :     R = PORT_NewArray(PRUint64, nBlocks + 1);</span>
+<span class="lineNum">     240 </span><span class="lineCov">          1 :     if (!R)</span>
+<span class="lineNum">     241 </span>            :         return s; /* error is already set. */
+<span class="lineNum">     242 </span>            :     /*
+<span class="lineNum">     243 </span>            :     ** 1) Initialize variables.
+<span class="lineNum">     244 </span>            :     */
+<span class="lineNum">     245 </span><span class="lineCov">          1 :     memcpy(&amp;A, cx-&gt;iv, AES_KEY_WRAP_IV_BYTES);</span>
+<span class="lineNum">     246 </span><span class="lineCov">          1 :     memcpy(&amp;R[1], input, inputLen);</span>
+<span class="lineNum">     247 </span>            : #if BIG_ENDIAN_WITH_64_BIT_REGISTERS
+<span class="lineNum">     248 </span>            :     t = 0;
+<span class="lineNum">     249 </span>            : #else
+<span class="lineNum">     250 </span><span class="lineCov">          1 :     memset(&amp;t, 0, sizeof t);</span>
+<span class="lineNum">     251 </span>            : #endif
+<span class="lineNum">     252 </span>            :     /*
+<span class="lineNum">     253 </span>            :     ** 2) Calculate intermediate values.
+<span class="lineNum">     254 </span>            :     */
+<span class="lineNum">     255 </span><span class="lineCov">          1 :     for (j = 0; j &lt; 6; ++j) {</span>
+<span class="lineNum">     256 </span><span class="lineCov">          1 :         for (i = 1; i &lt;= nBlocks; ++i) {</span>
+<span class="lineNum">     257 </span><span class="lineCov">          1 :             B[1] = R[i];</span>
+<span class="lineNum">     258 </span><span class="lineCov">          1 :             s = AES_Encrypt(&amp;cx-&gt;aescx, (unsigned char *)B, &amp;aesLen,</span>
+<span class="lineNum">     259 </span>            :                             sizeof B, (unsigned char *)B, sizeof B);
+<span class="lineNum">     260 </span><span class="lineCov">          1 :             if (s != SECSuccess)</span>
+<span class="lineNum">     261 </span>            :                 break;
+<span class="lineNum">     262 </span><span class="lineCov">          1 :             R[i] = B[1];</span>
+<span class="lineNum">     263 </span>            : /* here, increment t and XOR A with t (in big endian order); */
+<span class="lineNum">     264 </span>            : #if BIG_ENDIAN_WITH_64_BIT_REGISTERS
+<span class="lineNum">     265 </span>            :             A ^= ++t;
+<span class="lineNum">     266 </span>            : #else
+<span class="lineNum">     267 </span><span class="lineCov">          1 :             increment_and_xor((unsigned char *)&amp;A, (unsigned char *)&amp;t);</span>
+<span class="lineNum">     268 </span>            : #endif
+<span class="lineNum">     269 </span>            :         }
+<span class="lineNum">     270 </span>            :     }
+<span class="lineNum">     271 </span>            :     /*
+<span class="lineNum">     272 </span>            :     ** 3) Output the results.
+<span class="lineNum">     273 </span>            :     */
+<span class="lineNum">     274 </span><span class="lineCov">          1 :     if (s == SECSuccess) {</span>
+<span class="lineNum">     275 </span><span class="lineCov">          1 :         R[0] = A;</span>
+<span class="lineNum">     276 </span><span class="lineCov">          1 :         memcpy(output, &amp;R[0], outLen);</span>
+<span class="lineNum">     277 </span><span class="lineCov">          1 :         if (pOutputLen)</span>
+<span class="lineNum">     278 </span><span class="lineCov">          1 :             *pOutputLen = outLen;</span>
+<span class="lineNum">     279 </span><span class="lineNoCov">          0 :     } else if (pOutputLen) {</span>
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 :         *pOutputLen = 0;</span>
+<span class="lineNum">     281 </span>            :     }
+<span class="lineNum">     282 </span><span class="lineCov">          1 :     PORT_ZFree(R, outLen);</span>
+<span class="lineNum">     283 </span><span class="lineCov">          1 :     return s;</span>
+<span class="lineNum">     284 </span>            : }
+<span class="lineNum">     285 </span>            : #undef A
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span>            : /*
+<span class="lineNum">     288 </span>            : ** Perform AES key unwrap.
+<span class="lineNum">     289 </span>            : **  &quot;cx&quot; the context
+<span class="lineNum">     290 </span>            : **  &quot;output&quot; the output buffer to store the decrypted data.
+<span class="lineNum">     291 </span>            : **  &quot;outputLen&quot; how much data is stored in &quot;output&quot;. Set by the routine
+<span class="lineNum">     292 </span>            : **     after some data is stored in output.
+<span class="lineNum">     293 </span>            : **  &quot;maxOutputLen&quot; the maximum amount of data that can ever be
+<span class="lineNum">     294 </span>            : **     stored in &quot;output&quot;
+<span class="lineNum">     295 </span>            : **  &quot;input&quot; the input data
+<span class="lineNum">     296 </span>            : **  &quot;inputLen&quot; the amount of input data
+<a name="297"><span class="lineNum">     297 </span>            : */</a>
+<span class="lineNum">     298 </span>            : extern SECStatus
+<span class="lineNum">     299 </span><span class="lineCov">          1 : AESKeyWrap_Decrypt(AESKeyWrapContext *cx, unsigned char *output,</span>
+<span class="lineNum">     300 </span>            :                    unsigned int *pOutputLen, unsigned int maxOutputLen,
+<span class="lineNum">     301 </span>            :                    const unsigned char *input, unsigned int inputLen)
+<span class="lineNum">     302 </span>            : {
+<span class="lineNum">     303 </span><span class="lineCov">          1 :     PRUint64 *R = NULL;</span>
+<span class="lineNum">     304 </span>            :     unsigned int nBlocks;
+<span class="lineNum">     305 </span>            :     unsigned int i, j;
+<span class="lineNum">     306 </span><span class="lineCov">          1 :     unsigned int aesLen = AES_BLOCK_SIZE;</span>
+<span class="lineNum">     307 </span>            :     unsigned int outLen;
+<span class="lineNum">     308 </span><span class="lineCov">          1 :     SECStatus s = SECFailure;</span>
+<span class="lineNum">     309 </span>            :     /* These PRUint64s are ALWAYS big endian, regardless of CPU orientation. */
+<span class="lineNum">     310 </span>            :     PRUint64 t;
+<span class="lineNum">     311 </span>            :     PRUint64 B[2];
+<span class="lineNum">     312 </span>            : 
+<span class="lineNum">     313 </span>            :     /* Check args */
+<span class="lineNum">     314 </span><span class="lineCov">          1 :     if (inputLen &lt; 3 * AES_KEY_WRAP_BLOCK_SIZE ||</span>
+<span class="lineNum">     315 </span><span class="lineCov">          1 :         0 != inputLen % AES_KEY_WRAP_BLOCK_SIZE) {</span>
+<span class="lineNum">     316 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INPUT_LEN);</span>
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :         return s;</span>
+<span class="lineNum">     318 </span>            :     }
+<span class="lineNum">     319 </span><span class="lineCov">          1 :     outLen = inputLen - AES_KEY_WRAP_BLOCK_SIZE;</span>
+<span class="lineNum">     320 </span>            : #ifdef maybe
+<span class="lineNum">     321 </span>            :     if (!output &amp;&amp; pOutputLen) { /* caller is asking for output size */
+<span class="lineNum">     322 </span>            :         *pOutputLen = outLen;
+<span class="lineNum">     323 </span>            :         return SECSuccess;
+<span class="lineNum">     324 </span>            :     }
+<span class="lineNum">     325 </span>            : #endif
+<span class="lineNum">     326 </span><span class="lineCov">          1 :     if (maxOutputLen &lt; outLen) {</span>
+<span class="lineNum">     327 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_OUTPUT_LEN);</span>
+<span class="lineNum">     328 </span><span class="lineNoCov">          0 :         return s;</span>
+<span class="lineNum">     329 </span>            :     }
+<span class="lineNum">     330 </span><span class="lineCov">          1 :     if (cx == NULL || output == NULL || input == NULL) {</span>
+<span class="lineNum">     331 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :         return s;</span>
+<span class="lineNum">     333 </span>            :     }
+<span class="lineNum">     334 </span><span class="lineCov">          1 :     nBlocks = inputLen / AES_KEY_WRAP_BLOCK_SIZE;</span>
+<span class="lineNum">     335 </span><span class="lineCov">          1 :     R = PORT_NewArray(PRUint64, nBlocks);</span>
+<span class="lineNum">     336 </span><span class="lineCov">          1 :     if (!R)</span>
+<span class="lineNum">     337 </span>            :         return s; /* error is already set. */
+<span class="lineNum">     338 </span><span class="lineCov">          1 :     nBlocks--;</span>
+<span class="lineNum">     339 </span>            :     /*
+<span class="lineNum">     340 </span>            :     ** 1) Initialize variables.
+<span class="lineNum">     341 </span>            :     */
+<span class="lineNum">     342 </span><span class="lineCov">          1 :     memcpy(&amp;R[0], input, inputLen);</span>
+<span class="lineNum">     343 </span><span class="lineCov">          1 :     B[0] = R[0];</span>
+<span class="lineNum">     344 </span>            : #if BIG_ENDIAN_WITH_64_BIT_REGISTERS
+<span class="lineNum">     345 </span>            :     t = 6UL * nBlocks;
+<span class="lineNum">     346 </span>            : #else
+<span class="lineNum">     347 </span><span class="lineCov">          1 :     set_t((unsigned char *)&amp;t, 6UL * nBlocks);</span>
+<span class="lineNum">     348 </span>            : #endif
+<span class="lineNum">     349 </span>            :     /*
+<span class="lineNum">     350 </span>            :     ** 2) Calculate intermediate values.
+<span class="lineNum">     351 </span>            :     */
+<span class="lineNum">     352 </span><span class="lineCov">          1 :     for (j = 0; j &lt; 6; ++j) {</span>
+<span class="lineNum">     353 </span><span class="lineCov">          1 :         for (i = nBlocks; i; --i) {</span>
+<span class="lineNum">     354 </span>            : /* here, XOR A with t (in big endian order) and decrement t; */
+<span class="lineNum">     355 </span>            : #if BIG_ENDIAN_WITH_64_BIT_REGISTERS
+<span class="lineNum">     356 </span>            :             B[0] ^= t--;
+<span class="lineNum">     357 </span>            : #else
+<span class="lineNum">     358 </span><span class="lineCov">          1 :             xor_and_decrement(&amp;B[0], &amp;t);</span>
+<span class="lineNum">     359 </span>            : #endif
+<span class="lineNum">     360 </span><span class="lineCov">          1 :             B[1] = R[i];</span>
+<span class="lineNum">     361 </span><span class="lineCov">          1 :             s = AES_Decrypt(&amp;cx-&gt;aescx, (unsigned char *)B, &amp;aesLen,</span>
+<span class="lineNum">     362 </span>            :                             sizeof B, (unsigned char *)B, sizeof B);
+<span class="lineNum">     363 </span><span class="lineCov">          1 :             if (s != SECSuccess)</span>
+<span class="lineNum">     364 </span>            :                 break;
+<span class="lineNum">     365 </span><span class="lineCov">          1 :             R[i] = B[1];</span>
+<span class="lineNum">     366 </span>            :         }
+<span class="lineNum">     367 </span>            :     }
+<span class="lineNum">     368 </span>            :     /*
+<span class="lineNum">     369 </span>            :     ** 3) Output the results.
+<span class="lineNum">     370 </span>            :     */
+<span class="lineNum">     371 </span><span class="lineCov">          1 :     if (s == SECSuccess) {</span>
+<span class="lineNum">     372 </span><span class="lineCov">          1 :         int bad = memcmp(&amp;B[0], cx-&gt;iv, AES_KEY_WRAP_IV_BYTES);</span>
+<span class="lineNum">     373 </span><span class="lineCov">          1 :         if (!bad) {</span>
+<span class="lineNum">     374 </span><span class="lineCov">          1 :             memcpy(output, &amp;R[1], outLen);</span>
+<span class="lineNum">     375 </span><span class="lineCov">          1 :             if (pOutputLen)</span>
+<span class="lineNum">     376 </span><span class="lineCov">          1 :                 *pOutputLen = outLen;</span>
+<span class="lineNum">     377 </span>            :         } else {
+<span class="lineNum">     378 </span><span class="lineCov">          1 :             s = SECFailure;</span>
+<span class="lineNum">     379 </span><span class="lineCov">          1 :             PORT_SetError(SEC_ERROR_BAD_DATA);</span>
+<span class="lineNum">     380 </span><span class="lineCov">          1 :             if (pOutputLen)</span>
+<span class="lineNum">     381 </span><span class="lineCov">          1 :                 *pOutputLen = 0;</span>
+<span class="lineNum">     382 </span>            :         }
+<span class="lineNum">     383 </span><span class="lineNoCov">          0 :     } else if (pOutputLen) {</span>
+<span class="lineNum">     384 </span><span class="lineNoCov">          0 :         *pOutputLen = 0;</span>
+<span class="lineNum">     385 </span>            :     }
+<span class="lineNum">     386 </span><span class="lineCov">          1 :     PORT_ZFree(R, inputLen);</span>
+<span class="lineNum">     387 </span><span class="lineCov">          1 :     return s;</span>
+<span class="lineNum">     388 </span>            : }
+<span class="lineNum">     389 </span>            : #undef A
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

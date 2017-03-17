@@ -1,0 +1,593 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/nss/lib/freebl/alg2268.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">security/nss/lib/freebl</a> - alg2268.c<span style="font-size: 80%;"> (source / <a href="alg2268.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">82</td>
+            <td class="headerCovTableEntry">169</td>
+            <td class="headerCovTableEntryLo">48.5 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">6</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntryLo">50.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  * alg2268.c - implementation of the algorithm in RFC 2268
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  * This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       5 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       6 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #ifdef FREEBL_NO_DEPEND
+<span class="lineNum">       9 </span>            : #include &quot;stubs.h&quot;
+<span class="lineNum">      10 </span>            : #endif
+<span class="lineNum">      11 </span>            : 
+<span class="lineNum">      12 </span>            : #include &quot;blapi.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;blapii.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;secerr.h&quot;
+<span class="lineNum">      15 </span>            : #ifdef XP_UNIX_XXX
+<span class="lineNum">      16 </span>            : #include &lt;stddef.h&gt; /* for ptrdiff_t */
+<span class="lineNum">      17 </span>            : #endif
+<span class="lineNum">      18 </span>            : 
+<span class="lineNum">      19 </span>            : /*
+<span class="lineNum">      20 </span>            : ** RC2 symmetric block cypher
+<span class="lineNum">      21 </span>            : */
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : typedef SECStatus(rc2Func)(RC2Context *cx, unsigned char *output,
+<span class="lineNum">      24 </span>            :                            const unsigned char *input, unsigned int inputLen);
+<span class="lineNum">      25 </span>            : 
+<span class="lineNum">      26 </span>            : /* forward declarations */
+<span class="lineNum">      27 </span>            : static rc2Func rc2_EncryptECB;
+<span class="lineNum">      28 </span>            : static rc2Func rc2_DecryptECB;
+<span class="lineNum">      29 </span>            : static rc2Func rc2_EncryptCBC;
+<span class="lineNum">      30 </span>            : static rc2Func rc2_DecryptCBC;
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span>            : typedef union {
+<span class="lineNum">      33 </span>            :     PRUint32 l[2];
+<span class="lineNum">      34 </span>            :     PRUint16 s[4];
+<span class="lineNum">      35 </span>            :     PRUint8 b[8];
+<span class="lineNum">      36 </span>            : } RC2Block;
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : struct RC2ContextStr {
+<span class="lineNum">      39 </span>            :     union {
+<span class="lineNum">      40 </span>            :         PRUint8 Kb[128];
+<span class="lineNum">      41 </span>            :         PRUint16 Kw[64];
+<span class="lineNum">      42 </span>            :     } u;
+<span class="lineNum">      43 </span>            :     RC2Block iv;
+<span class="lineNum">      44 </span>            :     rc2Func *enc;
+<span class="lineNum">      45 </span>            :     rc2Func *dec;
+<span class="lineNum">      46 </span>            : };
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span>            : #define B u.Kb
+<span class="lineNum">      49 </span>            : #define K u.Kw
+<span class="lineNum">      50 </span>            : #define BYTESWAP(x) ((x) &lt;&lt; 8 | (x) &gt;&gt; 8)
+<span class="lineNum">      51 </span>            : #define SWAPK(i) cx-&gt;K[i] = (tmpS = cx-&gt;K[i], BYTESWAP(tmpS))
+<span class="lineNum">      52 </span>            : #define RC2_BLOCK_SIZE 8
+<span class="lineNum">      53 </span>            : 
+<span class="lineNum">      54 </span>            : #define LOAD_HARD(R)                           \
+<span class="lineNum">      55 </span>            :     R[0] = (PRUint16)input[1] &lt;&lt; 8 | input[0]; \
+<span class="lineNum">      56 </span>            :     R[1] = (PRUint16)input[3] &lt;&lt; 8 | input[2]; \
+<span class="lineNum">      57 </span>            :     R[2] = (PRUint16)input[5] &lt;&lt; 8 | input[4]; \
+<span class="lineNum">      58 </span>            :     R[3] = (PRUint16)input[7] &lt;&lt; 8 | input[6];
+<span class="lineNum">      59 </span>            : #define LOAD_EASY(R)               \
+<span class="lineNum">      60 </span>            :     R[0] = ((PRUint16 *)input)[0]; \
+<span class="lineNum">      61 </span>            :     R[1] = ((PRUint16 *)input)[1]; \
+<span class="lineNum">      62 </span>            :     R[2] = ((PRUint16 *)input)[2]; \
+<span class="lineNum">      63 </span>            :     R[3] = ((PRUint16 *)input)[3];
+<span class="lineNum">      64 </span>            : #define STORE_HARD(R)                 \
+<span class="lineNum">      65 </span>            :     output[0] = (PRUint8)(R[0]);      \
+<span class="lineNum">      66 </span>            :     output[1] = (PRUint8)(R[0] &gt;&gt; 8); \
+<span class="lineNum">      67 </span>            :     output[2] = (PRUint8)(R[1]);      \
+<span class="lineNum">      68 </span>            :     output[3] = (PRUint8)(R[1] &gt;&gt; 8); \
+<span class="lineNum">      69 </span>            :     output[4] = (PRUint8)(R[2]);      \
+<span class="lineNum">      70 </span>            :     output[5] = (PRUint8)(R[2] &gt;&gt; 8); \
+<span class="lineNum">      71 </span>            :     output[6] = (PRUint8)(R[3]);      \
+<span class="lineNum">      72 </span>            :     output[7] = (PRUint8)(R[3] &gt;&gt; 8);
+<span class="lineNum">      73 </span>            : #define STORE_EASY(R)               \
+<span class="lineNum">      74 </span>            :     ((PRUint16 *)output)[0] = R[0]; \
+<span class="lineNum">      75 </span>            :     ((PRUint16 *)output)[1] = R[1]; \
+<span class="lineNum">      76 </span>            :     ((PRUint16 *)output)[2] = R[2]; \
+<span class="lineNum">      77 </span>            :     ((PRUint16 *)output)[3] = R[3];
+<span class="lineNum">      78 </span>            : 
+<span class="lineNum">      79 </span>            : #if defined(NSS_X86_OR_X64)
+<span class="lineNum">      80 </span>            : #define LOAD(R) LOAD_EASY(R)
+<span class="lineNum">      81 </span>            : #define STORE(R) STORE_EASY(R)
+<span class="lineNum">      82 </span>            : #elif !defined(IS_LITTLE_ENDIAN)
+<span class="lineNum">      83 </span>            : #define LOAD(R) LOAD_HARD(R)
+<span class="lineNum">      84 </span>            : #define STORE(R) STORE_HARD(R)
+<span class="lineNum">      85 </span>            : #else
+<span class="lineNum">      86 </span>            : #define LOAD(R)                 \
+<span class="lineNum">      87 </span>            :     if ((ptrdiff_t)input &amp; 1) { \
+<span class="lineNum">      88 </span>            :         LOAD_HARD(R)            \
+<span class="lineNum">      89 </span>            :     } else {                    \
+<span class="lineNum">      90 </span>            :         LOAD_EASY(R)            \
+<span class="lineNum">      91 </span>            :     }
+<span class="lineNum">      92 </span>            : #define STORE(R)                \
+<span class="lineNum">      93 </span>            :     if ((ptrdiff_t)input &amp; 1) { \
+<span class="lineNum">      94 </span>            :         STORE_HARD(R)           \
+<span class="lineNum">      95 </span>            :     } else {                    \
+<span class="lineNum">      96 </span>            :         STORE_EASY(R)           \
+<span class="lineNum">      97 </span>            :     }
+<span class="lineNum">      98 </span>            : #endif
+<span class="lineNum">      99 </span>            : 
+<span class="lineNum">     100 </span>            : static const PRUint8 S[256] = {
+<span class="lineNum">     101 </span>            :     0331, 0170, 0371, 0304, 0031, 0335, 0265, 0355, 0050, 0351, 0375, 0171, 0112, 0240, 0330, 0235,
+<span class="lineNum">     102 </span>            :     0306, 0176, 0067, 0203, 0053, 0166, 0123, 0216, 0142, 0114, 0144, 0210, 0104, 0213, 0373, 0242,
+<span class="lineNum">     103 </span>            :     0027, 0232, 0131, 0365, 0207, 0263, 0117, 0023, 0141, 0105, 0155, 0215, 0011, 0201, 0175, 0062,
+<span class="lineNum">     104 </span>            :     0275, 0217, 0100, 0353, 0206, 0267, 0173, 0013, 0360, 0225, 0041, 0042, 0134, 0153, 0116, 0202,
+<span class="lineNum">     105 </span>            :     0124, 0326, 0145, 0223, 0316, 0140, 0262, 0034, 0163, 0126, 0300, 0024, 0247, 0214, 0361, 0334,
+<span class="lineNum">     106 </span>            :     0022, 0165, 0312, 0037, 0073, 0276, 0344, 0321, 0102, 0075, 0324, 0060, 0243, 0074, 0266, 0046,
+<span class="lineNum">     107 </span>            :     0157, 0277, 0016, 0332, 0106, 0151, 0007, 0127, 0047, 0362, 0035, 0233, 0274, 0224, 0103, 0003,
+<span class="lineNum">     108 </span>            :     0370, 0021, 0307, 0366, 0220, 0357, 0076, 0347, 0006, 0303, 0325, 0057, 0310, 0146, 0036, 0327,
+<span class="lineNum">     109 </span>            :     0010, 0350, 0352, 0336, 0200, 0122, 0356, 0367, 0204, 0252, 0162, 0254, 0065, 0115, 0152, 0052,
+<span class="lineNum">     110 </span>            :     0226, 0032, 0322, 0161, 0132, 0025, 0111, 0164, 0113, 0237, 0320, 0136, 0004, 0030, 0244, 0354,
+<span class="lineNum">     111 </span>            :     0302, 0340, 0101, 0156, 0017, 0121, 0313, 0314, 0044, 0221, 0257, 0120, 0241, 0364, 0160, 0071,
+<span class="lineNum">     112 </span>            :     0231, 0174, 0072, 0205, 0043, 0270, 0264, 0172, 0374, 0002, 0066, 0133, 0045, 0125, 0227, 0061,
+<span class="lineNum">     113 </span>            :     0055, 0135, 0372, 0230, 0343, 0212, 0222, 0256, 0005, 0337, 0051, 0020, 0147, 0154, 0272, 0311,
+<span class="lineNum">     114 </span>            :     0323, 0000, 0346, 0317, 0341, 0236, 0250, 0054, 0143, 0026, 0001, 0077, 0130, 0342, 0211, 0251,
+<span class="lineNum">     115 </span>            :     0015, 0070, 0064, 0033, 0253, 0063, 0377, 0260, 0273, 0110, 0014, 0137, 0271, 0261, 0315, 0056,
+<span class="lineNum">     116 </span>            :     0305, 0363, 0333, 0107, 0345, 0245, 0234, 0167, 0012, 0246, 0040, 0150, 0376, 0177, 0301, 0255
+<span class="lineNum">     117 </span>            : };
+<a name="118"><span class="lineNum">     118 </span>            : </a>
+<span class="lineNum">     119 </span>            : RC2Context *
+<span class="lineNum">     120 </span><span class="lineNoCov">          0 : RC2_AllocateContext(void)</span>
+<span class="lineNum">     121 </span>            : {
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :     return PORT_ZNew(RC2Context);</span>
+<a name="123"><span class="lineNum">     123 </span>            : }</a>
+<span class="lineNum">     124 </span>            : SECStatus
+<span class="lineNum">     125 </span><span class="lineCov">          1 : RC2_InitContext(RC2Context *cx, const unsigned char *key, unsigned int len,</span>
+<span class="lineNum">     126 </span>            :                 const unsigned char *input, int mode, unsigned int efLen8,
+<span class="lineNum">     127 </span>            :                 unsigned int unused)
+<span class="lineNum">     128 </span>            : {
+<span class="lineNum">     129 </span>            :     PRUint8 *L, *L2;
+<span class="lineNum">     130 </span>            :     int i;
+<span class="lineNum">     131 </span>            : #if !defined(IS_LITTLE_ENDIAN)
+<span class="lineNum">     132 </span>            :     PRUint16 tmpS;
+<span class="lineNum">     133 </span>            : #endif
+<span class="lineNum">     134 </span>            :     PRUint8 tmpB;
+<span class="lineNum">     135 </span>            : 
+<span class="lineNum">     136 </span><span class="lineCov">          1 :     if (!key || !cx || !len || len &gt; (sizeof cx-&gt;B) ||</span>
+<span class="lineNum">     137 </span>            :         efLen8 &gt; (sizeof cx-&gt;B)) {
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     140 </span>            :     }
+<span class="lineNum">     141 </span><span class="lineCov">          1 :     if (mode == NSS_RC2) {</span>
+<span class="lineNum">     142 </span>            :         /* groovy */
+<span class="lineNum">     143 </span><span class="lineCov">          1 :     } else if (mode == NSS_RC2_CBC) {</span>
+<span class="lineNum">     144 </span><span class="lineCov">          1 :         if (!input) {</span>
+<span class="lineNum">     145 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     146 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">     147 </span>            :         }
+<span class="lineNum">     148 </span>            :     } else {
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     151 </span>            :     }
+<span class="lineNum">     152 </span>            : 
+<span class="lineNum">     153 </span><span class="lineCov">          1 :     if (mode == NSS_RC2_CBC) {</span>
+<span class="lineNum">     154 </span><span class="lineCov">          1 :         cx-&gt;enc = &amp;rc2_EncryptCBC;</span>
+<span class="lineNum">     155 </span><span class="lineCov">          1 :         cx-&gt;dec = &amp;rc2_DecryptCBC;</span>
+<span class="lineNum">     156 </span><span class="lineCov">          1 :         LOAD(cx-&gt;iv.s);</span>
+<span class="lineNum">     157 </span>            :     } else {
+<span class="lineNum">     158 </span><span class="lineNoCov">          0 :         cx-&gt;enc = &amp;rc2_EncryptECB;</span>
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :         cx-&gt;dec = &amp;rc2_DecryptECB;</span>
+<span class="lineNum">     160 </span>            :     }
+<span class="lineNum">     161 </span>            : 
+<span class="lineNum">     162 </span>            :     /* Step 0. Copy key into table. */
+<span class="lineNum">     163 </span><span class="lineCov">          1 :     memcpy(cx-&gt;B, key, len);</span>
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span>            :     /* Step 1. Compute all values to the right of the key. */
+<span class="lineNum">     166 </span><span class="lineCov">          1 :     L2 = cx-&gt;B;</span>
+<span class="lineNum">     167 </span><span class="lineCov">          1 :     L = L2 + len;</span>
+<span class="lineNum">     168 </span><span class="lineCov">          1 :     tmpB = L[-1];</span>
+<span class="lineNum">     169 </span><span class="lineCov">          1 :     for (i = (sizeof cx-&gt;B) - len; i &gt; 0; --i) {</span>
+<span class="lineNum">     170 </span><span class="lineCov">          1 :         *L++ = tmpB = S[(PRUint8)(tmpB + *L2++)];</span>
+<span class="lineNum">     171 </span>            :     }
+<span class="lineNum">     172 </span>            : 
+<span class="lineNum">     173 </span>            :     /* step 2. Adjust left most byte of effective key. */
+<span class="lineNum">     174 </span><span class="lineCov">          1 :     i = (sizeof cx-&gt;B) - efLen8;</span>
+<span class="lineNum">     175 </span><span class="lineCov">          1 :     L = cx-&gt;B + i;</span>
+<span class="lineNum">     176 </span><span class="lineCov">          1 :     *L = tmpB = S[*L]; /* mask is always 0xff */</span>
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span>            :     /* step 3. Recompute all values to the left of effective key. */
+<span class="lineNum">     179 </span><span class="lineCov">          1 :     L2 = --L + efLen8;</span>
+<span class="lineNum">     180 </span><span class="lineCov">          1 :     while (L &gt;= cx-&gt;B) {</span>
+<span class="lineNum">     181 </span><span class="lineCov">          1 :         *L-- = tmpB = S[tmpB ^ *L2--];</span>
+<span class="lineNum">     182 </span>            :     }
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span>            : #if !defined(IS_LITTLE_ENDIAN)
+<span class="lineNum">     185 </span>            :     for (i = 63; i &gt;= 0; --i) {
+<span class="lineNum">     186 </span>            :         SWAPK(i); /* candidate for unrolling */
+<span class="lineNum">     187 </span>            :     }
+<span class="lineNum">     188 </span>            : #endif
+<span class="lineNum">     189 </span>            :     return SECSuccess;
+<span class="lineNum">     190 </span>            : }
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span>            : /*
+<span class="lineNum">     193 </span>            : ** Create a new RC2 context suitable for RC2 encryption/decryption.
+<span class="lineNum">     194 </span>            : **  &quot;key&quot; raw key data
+<span class="lineNum">     195 </span>            : **  &quot;len&quot; the number of bytes of key data
+<span class="lineNum">     196 </span>            : **  &quot;iv&quot; is the CBC initialization vector (if mode is NSS_RC2_CBC)
+<span class="lineNum">     197 </span>            : **  &quot;mode&quot; one of NSS_RC2 or NSS_RC2_CBC
+<span class="lineNum">     198 </span>            : **  &quot;effectiveKeyLen&quot; in bytes, not bits.
+<span class="lineNum">     199 </span>            : **
+<span class="lineNum">     200 </span>            : ** When mode is set to NSS_RC2_CBC the RC2 cipher is run in &quot;cipher block
+<span class="lineNum">     201 </span>            : ** chaining&quot; mode.
+<a name="202"><span class="lineNum">     202 </span>            : */</a>
+<span class="lineNum">     203 </span>            : RC2Context *
+<span class="lineNum">     204 </span><span class="lineCov">          1 : RC2_CreateContext(const unsigned char *key, unsigned int len,</span>
+<span class="lineNum">     205 </span>            :                   const unsigned char *iv, int mode, unsigned efLen8)
+<span class="lineNum">     206 </span>            : {
+<span class="lineNum">     207 </span><span class="lineCov">          1 :     RC2Context *cx = PORT_ZNew(RC2Context);</span>
+<span class="lineNum">     208 </span><span class="lineCov">          1 :     if (cx) {</span>
+<span class="lineNum">     209 </span><span class="lineCov">          1 :         SECStatus rv = RC2_InitContext(cx, key, len, iv, mode, efLen8, 0);</span>
+<span class="lineNum">     210 </span><span class="lineCov">          1 :         if (rv != SECSuccess) {</span>
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 :             RC2_DestroyContext(cx, PR_TRUE);</span>
+<span class="lineNum">     212 </span><span class="lineNoCov">          0 :             cx = NULL;</span>
+<span class="lineNum">     213 </span>            :         }
+<span class="lineNum">     214 </span>            :     }
+<span class="lineNum">     215 </span><span class="lineCov">          1 :     return cx;</span>
+<span class="lineNum">     216 </span>            : }
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span>            : /*
+<span class="lineNum">     219 </span>            : ** Destroy an RC2 encryption/decryption context.
+<span class="lineNum">     220 </span>            : **  &quot;cx&quot; the context
+<span class="lineNum">     221 </span>            : **  &quot;freeit&quot; if PR_TRUE then free the object as well as its sub-objects
+<a name="222"><span class="lineNum">     222 </span>            : */</a>
+<span class="lineNum">     223 </span>            : void
+<span class="lineNum">     224 </span><span class="lineCov">          1 : RC2_DestroyContext(RC2Context *cx, PRBool freeit)</span>
+<span class="lineNum">     225 </span>            : {
+<span class="lineNum">     226 </span><span class="lineCov">          1 :     if (cx) {</span>
+<span class="lineNum">     227 </span><span class="lineCov">          1 :         memset(cx, 0, sizeof *cx);</span>
+<span class="lineNum">     228 </span><span class="lineCov">          1 :         if (freeit) {</span>
+<span class="lineNum">     229 </span><span class="lineCov">          1 :             PORT_Free(cx);</span>
+<span class="lineNum">     230 </span>            :         }
+<span class="lineNum">     231 </span>            :     }
+<span class="lineNum">     232 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     233 </span>            : 
+<span class="lineNum">     234 </span>            : #define ROL(x, k) (x &lt;&lt; k | x &gt;&gt; (16 - k))
+<span class="lineNum">     235 </span>            : #define MIX(j)                                           \
+<span class="lineNum">     236 </span>            :     R0 = R0 + cx-&gt;K[4 * j + 0] + (R3 &amp; R2) + (~R3 &amp; R1); \
+<span class="lineNum">     237 </span>            :     R0 = ROL(R0, 1);                                     \
+<span class="lineNum">     238 </span>            :     R1 = R1 + cx-&gt;K[4 * j + 1] + (R0 &amp; R3) + (~R0 &amp; R2); \
+<span class="lineNum">     239 </span>            :     R1 = ROL(R1, 2);                                     \
+<span class="lineNum">     240 </span>            :     R2 = R2 + cx-&gt;K[4 * j + 2] + (R1 &amp; R0) + (~R1 &amp; R3); \
+<span class="lineNum">     241 </span>            :     R2 = ROL(R2, 3);                                     \
+<span class="lineNum">     242 </span>            :     R3 = R3 + cx-&gt;K[4 * j + 3] + (R2 &amp; R1) + (~R2 &amp; R0); \
+<span class="lineNum">     243 </span>            :     R3 = ROL(R3, 5)
+<span class="lineNum">     244 </span>            : #define MASH                  \
+<span class="lineNum">     245 </span>            :     R0 = R0 + cx-&gt;K[R3 &amp; 63]; \
+<span class="lineNum">     246 </span>            :     R1 = R1 + cx-&gt;K[R0 &amp; 63]; \
+<span class="lineNum">     247 </span>            :     R2 = R2 + cx-&gt;K[R1 &amp; 63]; \
+<span class="lineNum">     248 </span>            :     R3 = R3 + cx-&gt;K[R2 &amp; 63]
+<span class="lineNum">     249 </span>            : 
+<a name="250"><span class="lineNum">     250 </span>            : /* Encrypt one block */</a>
+<span class="lineNum">     251 </span>            : static void
+<span class="lineNum">     252 </span><span class="lineNoCov">          0 : rc2_Encrypt1Block(RC2Context *cx, RC2Block *output, RC2Block *input)</span>
+<span class="lineNum">     253 </span>            : {
+<span class="lineNum">     254 </span>            :     register PRUint16 R0, R1, R2, R3;
+<span class="lineNum">     255 </span>            : 
+<span class="lineNum">     256 </span>            :     /* step 1. Initialize input. */
+<span class="lineNum">     257 </span><span class="lineNoCov">          0 :     R0 = input-&gt;s[0];</span>
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 :     R1 = input-&gt;s[1];</span>
+<span class="lineNum">     259 </span><span class="lineNoCov">          0 :     R2 = input-&gt;s[2];</span>
+<span class="lineNum">     260 </span><span class="lineNoCov">          0 :     R3 = input-&gt;s[3];</span>
+<span class="lineNum">     261 </span>            : 
+<span class="lineNum">     262 </span>            :     /* step 2.  Expand Key (already done, in context) */
+<span class="lineNum">     263 </span>            :     /* step 3.  j = 0 */
+<span class="lineNum">     264 </span>            :     /* step 4.  Perform 5 mixing rounds. */
+<span class="lineNum">     265 </span>            : 
+<span class="lineNum">     266 </span><span class="lineNoCov">          0 :     MIX(0);</span>
+<span class="lineNum">     267 </span><span class="lineNoCov">          0 :     MIX(1);</span>
+<span class="lineNum">     268 </span><span class="lineNoCov">          0 :     MIX(2);</span>
+<span class="lineNum">     269 </span><span class="lineNoCov">          0 :     MIX(3);</span>
+<span class="lineNum">     270 </span><span class="lineNoCov">          0 :     MIX(4);</span>
+<span class="lineNum">     271 </span>            : 
+<span class="lineNum">     272 </span>            :     /* step 5. Perform 1 mashing round. */
+<span class="lineNum">     273 </span><span class="lineNoCov">          0 :     MASH;</span>
+<span class="lineNum">     274 </span>            : 
+<span class="lineNum">     275 </span>            :     /* step 6. Perform 6 mixing rounds. */
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span><span class="lineNoCov">          0 :     MIX(5);</span>
+<span class="lineNum">     278 </span><span class="lineNoCov">          0 :     MIX(6);</span>
+<span class="lineNum">     279 </span><span class="lineNoCov">          0 :     MIX(7);</span>
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 :     MIX(8);</span>
+<span class="lineNum">     281 </span><span class="lineNoCov">          0 :     MIX(9);</span>
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 :     MIX(10);</span>
+<span class="lineNum">     283 </span>            : 
+<span class="lineNum">     284 </span>            :     /* step 7. Perform 1 mashing round. */
+<span class="lineNum">     285 </span><span class="lineNoCov">          0 :     MASH;</span>
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span>            :     /* step 8. Perform 5 mixing rounds. */
+<span class="lineNum">     288 </span>            : 
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :     MIX(11);</span>
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :     MIX(12);</span>
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :     MIX(13);</span>
+<span class="lineNum">     292 </span><span class="lineNoCov">          0 :     MIX(14);</span>
+<span class="lineNum">     293 </span><span class="lineNoCov">          0 :     MIX(15);</span>
+<span class="lineNum">     294 </span>            : 
+<span class="lineNum">     295 </span>            :     /* output results */
+<span class="lineNum">     296 </span><span class="lineNoCov">          0 :     output-&gt;s[0] = R0;</span>
+<span class="lineNum">     297 </span><span class="lineNoCov">          0 :     output-&gt;s[1] = R1;</span>
+<span class="lineNum">     298 </span><span class="lineNoCov">          0 :     output-&gt;s[2] = R2;</span>
+<span class="lineNum">     299 </span><span class="lineNoCov">          0 :     output-&gt;s[3] = R3;</span>
+<span class="lineNum">     300 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span>            : #define ROR(x, k) (x &gt;&gt; k | x &lt;&lt; (16 - k))
+<span class="lineNum">     303 </span>            : #define R_MIX(j)                                         \
+<span class="lineNum">     304 </span>            :     R3 = ROR(R3, 5);                                     \
+<span class="lineNum">     305 </span>            :     R3 = R3 - cx-&gt;K[4 * j + 3] - (R2 &amp; R1) - (~R2 &amp; R0); \
+<span class="lineNum">     306 </span>            :     R2 = ROR(R2, 3);                                     \
+<span class="lineNum">     307 </span>            :     R2 = R2 - cx-&gt;K[4 * j + 2] - (R1 &amp; R0) - (~R1 &amp; R3); \
+<span class="lineNum">     308 </span>            :     R1 = ROR(R1, 2);                                     \
+<span class="lineNum">     309 </span>            :     R1 = R1 - cx-&gt;K[4 * j + 1] - (R0 &amp; R3) - (~R0 &amp; R2); \
+<span class="lineNum">     310 </span>            :     R0 = ROR(R0, 1);                                     \
+<span class="lineNum">     311 </span>            :     R0 = R0 - cx-&gt;K[4 * j + 0] - (R3 &amp; R2) - (~R3 &amp; R1)
+<span class="lineNum">     312 </span>            : #define R_MASH                \
+<span class="lineNum">     313 </span>            :     R3 = R3 - cx-&gt;K[R2 &amp; 63]; \
+<span class="lineNum">     314 </span>            :     R2 = R2 - cx-&gt;K[R1 &amp; 63]; \
+<span class="lineNum">     315 </span>            :     R1 = R1 - cx-&gt;K[R0 &amp; 63]; \
+<span class="lineNum">     316 </span>            :     R0 = R0 - cx-&gt;K[R3 &amp; 63]
+<span class="lineNum">     317 </span>            : 
+<a name="318"><span class="lineNum">     318 </span>            : /* Encrypt one block */</a>
+<span class="lineNum">     319 </span>            : static void
+<span class="lineNum">     320 </span><span class="lineCov">          1 : rc2_Decrypt1Block(RC2Context *cx, RC2Block *output, RC2Block *input)</span>
+<span class="lineNum">     321 </span>            : {
+<span class="lineNum">     322 </span>            :     register PRUint16 R0, R1, R2, R3;
+<span class="lineNum">     323 </span>            : 
+<span class="lineNum">     324 </span>            :     /* step 1. Initialize input. */
+<span class="lineNum">     325 </span><span class="lineCov">          1 :     R0 = input-&gt;s[0];</span>
+<span class="lineNum">     326 </span><span class="lineCov">          1 :     R1 = input-&gt;s[1];</span>
+<span class="lineNum">     327 </span><span class="lineCov">          1 :     R2 = input-&gt;s[2];</span>
+<span class="lineNum">     328 </span><span class="lineCov">          1 :     R3 = input-&gt;s[3];</span>
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span>            :     /* step 2.  Expand Key (already done, in context) */
+<span class="lineNum">     331 </span>            :     /* step 3.  j = 63 */
+<span class="lineNum">     332 </span>            :     /* step 4.  Perform 5 r_mixing rounds. */
+<span class="lineNum">     333 </span><span class="lineCov">          1 :     R_MIX(15);</span>
+<span class="lineNum">     334 </span><span class="lineCov">          1 :     R_MIX(14);</span>
+<span class="lineNum">     335 </span><span class="lineCov">          1 :     R_MIX(13);</span>
+<span class="lineNum">     336 </span><span class="lineCov">          1 :     R_MIX(12);</span>
+<span class="lineNum">     337 </span><span class="lineCov">          1 :     R_MIX(11);</span>
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span>            :     /* step 5.  Perform 1 r_mashing round. */
+<span class="lineNum">     340 </span><span class="lineCov">          1 :     R_MASH;</span>
+<span class="lineNum">     341 </span>            : 
+<span class="lineNum">     342 </span>            :     /* step 6.  Perform 6 r_mixing rounds. */
+<span class="lineNum">     343 </span><span class="lineCov">          1 :     R_MIX(10);</span>
+<span class="lineNum">     344 </span><span class="lineCov">          1 :     R_MIX(9);</span>
+<span class="lineNum">     345 </span><span class="lineCov">          1 :     R_MIX(8);</span>
+<span class="lineNum">     346 </span><span class="lineCov">          1 :     R_MIX(7);</span>
+<span class="lineNum">     347 </span><span class="lineCov">          1 :     R_MIX(6);</span>
+<span class="lineNum">     348 </span><span class="lineCov">          1 :     R_MIX(5);</span>
+<span class="lineNum">     349 </span>            : 
+<span class="lineNum">     350 </span>            :     /* step 7.  Perform 1 r_mashing round. */
+<span class="lineNum">     351 </span><span class="lineCov">          1 :     R_MASH;</span>
+<span class="lineNum">     352 </span>            : 
+<span class="lineNum">     353 </span>            :     /* step 8.  Perform 5 r_mixing rounds. */
+<span class="lineNum">     354 </span><span class="lineCov">          1 :     R_MIX(4);</span>
+<span class="lineNum">     355 </span><span class="lineCov">          1 :     R_MIX(3);</span>
+<span class="lineNum">     356 </span><span class="lineCov">          1 :     R_MIX(2);</span>
+<span class="lineNum">     357 </span><span class="lineCov">          1 :     R_MIX(1);</span>
+<span class="lineNum">     358 </span><span class="lineCov">          1 :     R_MIX(0);</span>
+<span class="lineNum">     359 </span>            : 
+<span class="lineNum">     360 </span>            :     /* output results */
+<span class="lineNum">     361 </span><span class="lineCov">          1 :     output-&gt;s[0] = R0;</span>
+<span class="lineNum">     362 </span><span class="lineCov">          1 :     output-&gt;s[1] = R1;</span>
+<span class="lineNum">     363 </span><span class="lineCov">          1 :     output-&gt;s[2] = R2;</span>
+<span class="lineNum">     364 </span><span class="lineCov">          1 :     output-&gt;s[3] = R3;</span>
+<span class="lineNum">     365 </span><span class="lineCov">          1 : }</span>
+<a name="366"><span class="lineNum">     366 </span>            : </a>
+<span class="lineNum">     367 </span>            : static SECStatus NO_SANITIZE_ALIGNMENT
+<span class="lineNum">     368 </span><span class="lineNoCov">          0 : rc2_EncryptECB(RC2Context *cx, unsigned char *output,</span>
+<span class="lineNum">     369 </span>            :                const unsigned char *input, unsigned int inputLen)
+<span class="lineNum">     370 </span>            : {
+<span class="lineNum">     371 </span>            :     RC2Block iBlock;
+<span class="lineNum">     372 </span>            : 
+<span class="lineNum">     373 </span><span class="lineNoCov">          0 :     while (inputLen &gt; 0) {</span>
+<span class="lineNum">     374 </span><span class="lineNoCov">          0 :         LOAD(iBlock.s)</span>
+<span class="lineNum">     375 </span><span class="lineNoCov">          0 :         rc2_Encrypt1Block(cx, &amp;iBlock, &amp;iBlock);</span>
+<span class="lineNum">     376 </span><span class="lineNoCov">          0 :         STORE(iBlock.s)</span>
+<span class="lineNum">     377 </span><span class="lineNoCov">          0 :         output += RC2_BLOCK_SIZE;</span>
+<span class="lineNum">     378 </span><span class="lineNoCov">          0 :         input += RC2_BLOCK_SIZE;</span>
+<span class="lineNum">     379 </span><span class="lineNoCov">          0 :         inputLen -= RC2_BLOCK_SIZE;</span>
+<span class="lineNum">     380 </span>            :     }
+<span class="lineNum">     381 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     382 </span>            : }
+<a name="383"><span class="lineNum">     383 </span>            : </a>
+<span class="lineNum">     384 </span>            : static SECStatus NO_SANITIZE_ALIGNMENT
+<span class="lineNum">     385 </span><span class="lineNoCov">          0 : rc2_DecryptECB(RC2Context *cx, unsigned char *output,</span>
+<span class="lineNum">     386 </span>            :                const unsigned char *input, unsigned int inputLen)
+<span class="lineNum">     387 </span>            : {
+<span class="lineNum">     388 </span>            :     RC2Block iBlock;
+<span class="lineNum">     389 </span>            : 
+<span class="lineNum">     390 </span><span class="lineNoCov">          0 :     while (inputLen &gt; 0) {</span>
+<span class="lineNum">     391 </span><span class="lineNoCov">          0 :         LOAD(iBlock.s)</span>
+<span class="lineNum">     392 </span><span class="lineNoCov">          0 :         rc2_Decrypt1Block(cx, &amp;iBlock, &amp;iBlock);</span>
+<span class="lineNum">     393 </span><span class="lineNoCov">          0 :         STORE(iBlock.s)</span>
+<span class="lineNum">     394 </span><span class="lineNoCov">          0 :         output += RC2_BLOCK_SIZE;</span>
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 :         input += RC2_BLOCK_SIZE;</span>
+<span class="lineNum">     396 </span><span class="lineNoCov">          0 :         inputLen -= RC2_BLOCK_SIZE;</span>
+<span class="lineNum">     397 </span>            :     }
+<span class="lineNum">     398 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     399 </span>            : }
+<a name="400"><span class="lineNum">     400 </span>            : </a>
+<span class="lineNum">     401 </span>            : static SECStatus NO_SANITIZE_ALIGNMENT
+<span class="lineNum">     402 </span><span class="lineNoCov">          0 : rc2_EncryptCBC(RC2Context *cx, unsigned char *output,</span>
+<span class="lineNum">     403 </span>            :                const unsigned char *input, unsigned int inputLen)
+<span class="lineNum">     404 </span>            : {
+<span class="lineNum">     405 </span>            :     RC2Block iBlock;
+<span class="lineNum">     406 </span>            : 
+<span class="lineNum">     407 </span><span class="lineNoCov">          0 :     while (inputLen &gt; 0) {</span>
+<span class="lineNum">     408 </span>            : 
+<span class="lineNum">     409 </span><span class="lineNoCov">          0 :         LOAD(iBlock.s)</span>
+<span class="lineNum">     410 </span><span class="lineNoCov">          0 :         iBlock.l[0] ^= cx-&gt;iv.l[0];</span>
+<span class="lineNum">     411 </span><span class="lineNoCov">          0 :         iBlock.l[1] ^= cx-&gt;iv.l[1];</span>
+<span class="lineNum">     412 </span><span class="lineNoCov">          0 :         rc2_Encrypt1Block(cx, &amp;iBlock, &amp;iBlock);</span>
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 :         cx-&gt;iv = iBlock;</span>
+<span class="lineNum">     414 </span><span class="lineNoCov">          0 :         STORE(iBlock.s)</span>
+<span class="lineNum">     415 </span><span class="lineNoCov">          0 :         output += RC2_BLOCK_SIZE;</span>
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :         input += RC2_BLOCK_SIZE;</span>
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :         inputLen -= RC2_BLOCK_SIZE;</span>
+<span class="lineNum">     418 </span>            :     }
+<span class="lineNum">     419 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     420 </span>            : }
+<a name="421"><span class="lineNum">     421 </span>            : </a>
+<span class="lineNum">     422 </span>            : static SECStatus NO_SANITIZE_ALIGNMENT
+<span class="lineNum">     423 </span><span class="lineCov">          1 : rc2_DecryptCBC(RC2Context *cx, unsigned char *output,</span>
+<span class="lineNum">     424 </span>            :                const unsigned char *input, unsigned int inputLen)
+<span class="lineNum">     425 </span>            : {
+<span class="lineNum">     426 </span>            :     RC2Block iBlock;
+<span class="lineNum">     427 </span>            :     RC2Block oBlock;
+<span class="lineNum">     428 </span>            : 
+<span class="lineNum">     429 </span><span class="lineCov">          1 :     while (inputLen &gt; 0) {</span>
+<span class="lineNum">     430 </span><span class="lineCov">          1 :         LOAD(iBlock.s)</span>
+<span class="lineNum">     431 </span><span class="lineCov">          1 :         rc2_Decrypt1Block(cx, &amp;oBlock, &amp;iBlock);</span>
+<span class="lineNum">     432 </span><span class="lineCov">          1 :         oBlock.l[0] ^= cx-&gt;iv.l[0];</span>
+<span class="lineNum">     433 </span><span class="lineCov">          1 :         oBlock.l[1] ^= cx-&gt;iv.l[1];</span>
+<span class="lineNum">     434 </span><span class="lineCov">          1 :         cx-&gt;iv = iBlock;</span>
+<span class="lineNum">     435 </span><span class="lineCov">          1 :         STORE(oBlock.s)</span>
+<span class="lineNum">     436 </span><span class="lineCov">          1 :         output += RC2_BLOCK_SIZE;</span>
+<span class="lineNum">     437 </span><span class="lineCov">          1 :         input += RC2_BLOCK_SIZE;</span>
+<span class="lineNum">     438 </span><span class="lineCov">          1 :         inputLen -= RC2_BLOCK_SIZE;</span>
+<span class="lineNum">     439 </span>            :     }
+<span class="lineNum">     440 </span><span class="lineCov">          1 :     return SECSuccess;</span>
+<span class="lineNum">     441 </span>            : }
+<span class="lineNum">     442 </span>            : 
+<span class="lineNum">     443 </span>            : /*
+<span class="lineNum">     444 </span>            : ** Perform RC2 encryption.
+<span class="lineNum">     445 </span>            : **  &quot;cx&quot; the context
+<span class="lineNum">     446 </span>            : **  &quot;output&quot; the output buffer to store the encrypted data.
+<span class="lineNum">     447 </span>            : **  &quot;outputLen&quot; how much data is stored in &quot;output&quot;. Set by the routine
+<span class="lineNum">     448 </span>            : **     after some data is stored in output.
+<span class="lineNum">     449 </span>            : **  &quot;maxOutputLen&quot; the maximum amount of data that can ever be
+<span class="lineNum">     450 </span>            : **     stored in &quot;output&quot;
+<span class="lineNum">     451 </span>            : **  &quot;input&quot; the input data
+<span class="lineNum">     452 </span>            : **  &quot;inputLen&quot; the amount of input data
+<a name="453"><span class="lineNum">     453 </span>            : */</a>
+<span class="lineNum">     454 </span>            : SECStatus
+<span class="lineNum">     455 </span><span class="lineNoCov">          0 : RC2_Encrypt(RC2Context *cx, unsigned char *output,</span>
+<span class="lineNum">     456 </span>            :             unsigned int *outputLen, unsigned int maxOutputLen,
+<span class="lineNum">     457 </span>            :             const unsigned char *input, unsigned int inputLen)
+<span class="lineNum">     458 </span>            : {
+<span class="lineNum">     459 </span><span class="lineNoCov">          0 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     460 </span><span class="lineNoCov">          0 :     if (inputLen) {</span>
+<span class="lineNum">     461 </span><span class="lineNoCov">          0 :         if (inputLen % RC2_BLOCK_SIZE) {</span>
+<span class="lineNum">     462 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_INPUT_LEN);</span>
+<span class="lineNum">     463 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">     464 </span>            :         }
+<span class="lineNum">     465 </span><span class="lineNoCov">          0 :         if (maxOutputLen &lt; inputLen) {</span>
+<span class="lineNum">     466 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_OUTPUT_LEN);</span>
+<span class="lineNum">     467 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">     468 </span>            :         }
+<span class="lineNum">     469 </span><span class="lineNoCov">          0 :         rv = (*cx-&gt;enc)(cx, output, input, inputLen);</span>
+<span class="lineNum">     470 </span>            :     }
+<span class="lineNum">     471 </span><span class="lineNoCov">          0 :     if (rv == SECSuccess) {</span>
+<span class="lineNum">     472 </span><span class="lineNoCov">          0 :         *outputLen = inputLen;</span>
+<span class="lineNum">     473 </span>            :     }
+<span class="lineNum">     474 </span><span class="lineNoCov">          0 :     return rv;</span>
+<span class="lineNum">     475 </span>            : }
+<span class="lineNum">     476 </span>            : 
+<span class="lineNum">     477 </span>            : /*
+<span class="lineNum">     478 </span>            : ** Perform RC2 decryption.
+<span class="lineNum">     479 </span>            : **  &quot;cx&quot; the context
+<span class="lineNum">     480 </span>            : **  &quot;output&quot; the output buffer to store the decrypted data.
+<span class="lineNum">     481 </span>            : **  &quot;outputLen&quot; how much data is stored in &quot;output&quot;. Set by the routine
+<span class="lineNum">     482 </span>            : **     after some data is stored in output.
+<span class="lineNum">     483 </span>            : **  &quot;maxOutputLen&quot; the maximum amount of data that can ever be
+<span class="lineNum">     484 </span>            : **     stored in &quot;output&quot;
+<span class="lineNum">     485 </span>            : **  &quot;input&quot; the input data
+<span class="lineNum">     486 </span>            : **  &quot;inputLen&quot; the amount of input data
+<a name="487"><span class="lineNum">     487 </span>            : */</a>
+<span class="lineNum">     488 </span>            : SECStatus
+<span class="lineNum">     489 </span><span class="lineCov">          1 : RC2_Decrypt(RC2Context *cx, unsigned char *output,</span>
+<span class="lineNum">     490 </span>            :             unsigned int *outputLen, unsigned int maxOutputLen,
+<span class="lineNum">     491 </span>            :             const unsigned char *input, unsigned int inputLen)
+<span class="lineNum">     492 </span>            : {
+<span class="lineNum">     493 </span><span class="lineCov">          1 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     494 </span><span class="lineCov">          1 :     if (inputLen) {</span>
+<span class="lineNum">     495 </span><span class="lineCov">          1 :         if (inputLen % RC2_BLOCK_SIZE) {</span>
+<span class="lineNum">     496 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_INPUT_LEN);</span>
+<span class="lineNum">     497 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">     498 </span>            :         }
+<span class="lineNum">     499 </span><span class="lineCov">          1 :         if (maxOutputLen &lt; inputLen) {</span>
+<span class="lineNum">     500 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_OUTPUT_LEN);</span>
+<span class="lineNum">     501 </span><span class="lineNoCov">          0 :             return SECFailure;</span>
+<span class="lineNum">     502 </span>            :         }
+<span class="lineNum">     503 </span><span class="lineCov">          1 :         rv = (*cx-&gt;dec)(cx, output, input, inputLen);</span>
+<span class="lineNum">     504 </span>            :     }
+<span class="lineNum">     505 </span><span class="lineCov">          1 :     if (rv == SECSuccess) {</span>
+<span class="lineNum">     506 </span><span class="lineCov">          1 :         *outputLen = inputLen;</span>
+<span class="lineNum">     507 </span>            :     }
+<span class="lineNum">     508 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">     509 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

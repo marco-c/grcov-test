@@ -1,0 +1,1013 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - netwerk/protocol/ftp/FTPChannelChild.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">netwerk/protocol/ftp</a> - FTPChannelChild.cpp<span style="font-size: 80%;"> (source / <a href="FTPChannelChild.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">349</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">0</td>
+            <td class="headerCovTableEntry">74</td>
+            <td class="headerCovTableEntryLo">0.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* vim: set sw=2 ts=8 et tw=80 : */
+<span class="lineNum">       3 </span>            : 
+<span class="lineNum">       4 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       5 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       6 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #include &quot;mozilla/net/NeckoChild.h&quot;
+<span class="lineNum">       9 </span>            : #include &quot;mozilla/net/ChannelDiverterChild.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;mozilla/net/FTPChannelChild.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;mozilla/dom/ContentChild.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;mozilla/dom/TabChild.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;nsFtpProtocolHandler.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;nsITabChild.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;nsStringStream.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;nsNetUtil.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;base/compiler_specific.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;mozilla/ipc/IPCStreamUtils.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;mozilla/ipc/URIUtils.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;SerializedLoadContext.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;mozilla/ipc/BackgroundUtils.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;nsIPrompt.h&quot;
+<span class="lineNum">      23 </span>            : 
+<span class="lineNum">      24 </span>            : using namespace mozilla::ipc;
+<span class="lineNum">      25 </span>            : 
+<span class="lineNum">      26 </span>            : #undef LOG
+<span class="lineNum">      27 </span>            : #define LOG(args) MOZ_LOG(gFTPLog, mozilla::LogLevel::Debug, args)
+<span class="lineNum">      28 </span>            : 
+<span class="lineNum">      29 </span>            : namespace mozilla {
+<a name="30"><span class="lineNum">      30 </span>            : namespace net {</a>
+<span class="lineNum">      31 </span>            : 
+<span class="lineNum">      32 </span><span class="lineNoCov">          0 : FTPChannelChild::FTPChannelChild(nsIURI* uri)</span>
+<span class="lineNum">      33 </span>            : : mIPCOpen(false)
+<span class="lineNum">      34 </span>            : , mUnknownDecoderInvolved(false)
+<span class="lineNum">      35 </span>            : , mCanceled(false)
+<span class="lineNum">      36 </span>            : , mSuspendCount(0)
+<span class="lineNum">      37 </span>            : , mIsPending(false)
+<span class="lineNum">      38 </span>            : , mLastModifiedTime(0)
+<span class="lineNum">      39 </span>            : , mStartPos(0)
+<span class="lineNum">      40 </span>            : , mDivertingToParent(false)
+<span class="lineNum">      41 </span>            : , mFlushedForDiversion(false)
+<span class="lineNum">      42 </span><span class="lineNoCov">          0 : , mSuspendSent(false)</span>
+<span class="lineNum">      43 </span>            : {
+<span class="lineNum">      44 </span><span class="lineNoCov">          0 :   LOG((&quot;Creating FTPChannelChild @%p\n&quot;, this));</span>
+<span class="lineNum">      45 </span>            :   // grab a reference to the handler to ensure that it doesn't go away.
+<span class="lineNum">      46 </span><span class="lineNoCov">          0 :   NS_ADDREF(gFtpHandler);</span>
+<span class="lineNum">      47 </span><span class="lineNoCov">          0 :   SetURI(uri);</span>
+<span class="lineNum">      48 </span><span class="lineNoCov">          0 :   mEventQ = new ChannelEventQueue(static_cast&lt;nsIFTPChannel*&gt;(this));</span>
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            :   // We could support thread retargeting, but as long as we're being driven by
+<span class="lineNum">      51 </span>            :   // IPDL on the main thread it doesn't buy us anything.
+<span class="lineNum">      52 </span><span class="lineNoCov">          0 :   DisallowThreadRetargeting();</span>
+<a name="53"><span class="lineNum">      53 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">      54 </span>            : 
+<span class="lineNum">      55 </span><span class="lineNoCov">          0 : FTPChannelChild::~FTPChannelChild()</span>
+<span class="lineNum">      56 </span>            : {
+<span class="lineNum">      57 </span><span class="lineNoCov">          0 :   LOG((&quot;Destroying FTPChannelChild @%p\n&quot;, this));</span>
+<span class="lineNum">      58 </span><span class="lineNoCov">          0 :   gFtpHandler-&gt;Release();</span>
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 : }</span>
+<a name="60"><span class="lineNum">      60 </span>            : </a>
+<span class="lineNum">      61 </span>            : void
+<span class="lineNum">      62 </span><span class="lineNoCov">          0 : FTPChannelChild::AddIPDLReference()</span>
+<span class="lineNum">      63 </span>            : {
+<span class="lineNum">      64 </span>            :   MOZ_ASSERT(!mIPCOpen, &quot;Attempt to retain more than one IPDL reference&quot;);
+<span class="lineNum">      65 </span><span class="lineNoCov">          0 :   mIPCOpen = true;</span>
+<span class="lineNum">      66 </span><span class="lineNoCov">          0 :   AddRef();</span>
+<span class="lineNum">      67 </span><span class="lineNoCov">          0 : }</span>
+<a name="68"><span class="lineNum">      68 </span>            : </a>
+<span class="lineNum">      69 </span>            : void
+<span class="lineNum">      70 </span><span class="lineNoCov">          0 : FTPChannelChild::ReleaseIPDLReference()</span>
+<span class="lineNum">      71 </span>            : {
+<span class="lineNum">      72 </span>            :   MOZ_ASSERT(mIPCOpen, &quot;Attempt to release nonexistent IPDL reference&quot;);
+<span class="lineNum">      73 </span><span class="lineNoCov">          0 :   mIPCOpen = false;</span>
+<span class="lineNum">      74 </span><span class="lineNoCov">          0 :   Release();</span>
+<span class="lineNum">      75 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">      76 </span>            : 
+<span class="lineNum">      77 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">      78 </span>            : // FTPChannelChild::nsISupports
+<a name="79"><span class="lineNum">      79 </span>            : //-----------------------------------------------------------------------------</a>
+<span class="lineNum">      80 </span>            : 
+<span class="lineNum">      81 </span><span class="lineNoCov">          0 : NS_IMPL_ISUPPORTS_INHERITED(FTPChannelChild,</span>
+<span class="lineNum">      82 </span>            :                             nsBaseChannel,
+<span class="lineNum">      83 </span>            :                             nsIFTPChannel,
+<span class="lineNum">      84 </span>            :                             nsIUploadChannel,
+<span class="lineNum">      85 </span>            :                             nsIResumableChannel,
+<span class="lineNum">      86 </span>            :                             nsIProxiedChannel,
+<span class="lineNum">      87 </span>            :                             nsIChildChannel,
+<span class="lineNum">      88 </span>            :                             nsIDivertableChannel)
+<span class="lineNum">      89 </span>            : 
+<span class="lineNum">      90 </span>            : //-----------------------------------------------------------------------------
+<a name="91"><span class="lineNum">      91 </span>            : </a>
+<span class="lineNum">      92 </span>            : NS_IMETHODIMP
+<span class="lineNum">      93 </span><span class="lineNoCov">          0 : FTPChannelChild::GetLastModifiedTime(PRTime* lastModifiedTime)</span>
+<span class="lineNum">      94 </span>            : {
+<span class="lineNum">      95 </span><span class="lineNoCov">          0 :   *lastModifiedTime = mLastModifiedTime;</span>
+<span class="lineNum">      96 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">      97 </span>            : }
+<a name="98"><span class="lineNum">      98 </span>            : </a>
+<span class="lineNum">      99 </span>            : NS_IMETHODIMP
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 : FTPChannelChild::SetLastModifiedTime(PRTime lastModifiedTime)</span>
+<span class="lineNum">     101 </span>            : {
+<span class="lineNum">     102 </span><span class="lineNoCov">          0 :   return NS_ERROR_NOT_AVAILABLE;</span>
+<span class="lineNum">     103 </span>            : }
+<a name="104"><span class="lineNum">     104 </span>            : </a>
+<span class="lineNum">     105 </span>            : NS_IMETHODIMP
+<span class="lineNum">     106 </span><span class="lineNoCov">          0 : FTPChannelChild::ResumeAt(uint64_t aStartPos, const nsACString&amp; aEntityID)</span>
+<span class="lineNum">     107 </span>            : {
+<span class="lineNum">     108 </span><span class="lineNoCov">          0 :   NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);</span>
+<span class="lineNum">     109 </span><span class="lineNoCov">          0 :   mStartPos = aStartPos;</span>
+<span class="lineNum">     110 </span><span class="lineNoCov">          0 :   mEntityID = aEntityID;</span>
+<span class="lineNum">     111 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     112 </span>            : }
+<a name="113"><span class="lineNum">     113 </span>            : </a>
+<span class="lineNum">     114 </span>            : NS_IMETHODIMP
+<span class="lineNum">     115 </span><span class="lineNoCov">          0 : FTPChannelChild::GetEntityID(nsACString&amp; entityID)</span>
+<span class="lineNum">     116 </span>            : {
+<span class="lineNum">     117 </span><span class="lineNoCov">          0 :   entityID = mEntityID;</span>
+<span class="lineNum">     118 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     119 </span>            : }
+<a name="120"><span class="lineNum">     120 </span>            : </a>
+<span class="lineNum">     121 </span>            : NS_IMETHODIMP
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 : FTPChannelChild::GetProxyInfo(nsIProxyInfo** aProxyInfo)</span>
+<span class="lineNum">     123 </span>            : {
+<span class="lineNum">     124 </span><span class="lineNoCov">          0 :   DROP_DEAD();</span>
+<span class="lineNum">     125 </span>            : }
+<a name="126"><span class="lineNum">     126 </span>            : </a>
+<span class="lineNum">     127 </span>            : NS_IMETHODIMP
+<span class="lineNum">     128 </span><span class="lineNoCov">          0 : FTPChannelChild::SetUploadStream(nsIInputStream* stream,</span>
+<span class="lineNum">     129 </span>            :                                  const nsACString&amp; contentType,
+<span class="lineNum">     130 </span>            :                                  int64_t contentLength)
+<span class="lineNum">     131 </span>            : {
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 :   NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);</span>
+<span class="lineNum">     133 </span><span class="lineNoCov">          0 :   mUploadStream = stream;</span>
+<span class="lineNum">     134 </span>            :   // NOTE: contentLength is intentionally ignored here.
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     136 </span>            : }
+<a name="137"><span class="lineNum">     137 </span>            : </a>
+<span class="lineNum">     138 </span>            : NS_IMETHODIMP
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 : FTPChannelChild::GetUploadStream(nsIInputStream** stream)</span>
+<span class="lineNum">     140 </span>            : {
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :   NS_ENSURE_ARG_POINTER(stream);</span>
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :   *stream = mUploadStream;</span>
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :   NS_IF_ADDREF(*stream);</span>
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     145 </span>            : }
+<a name="146"><span class="lineNum">     146 </span>            : </a>
+<span class="lineNum">     147 </span>            : NS_IMETHODIMP
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 : FTPChannelChild::AsyncOpen(::nsIStreamListener* listener, nsISupports* aContext)</span>
+<span class="lineNum">     149 </span>            : {
+<span class="lineNum">     150 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::AsyncOpen [this=%p]\n&quot;, this));</span>
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span><span class="lineNoCov">          0 :   NS_ENSURE_TRUE((gNeckoChild), NS_ERROR_FAILURE);</span>
+<span class="lineNum">     153 </span><span class="lineNoCov">          0 :   NS_ENSURE_ARG_POINTER(listener);</span>
+<span class="lineNum">     154 </span><span class="lineNoCov">          0 :   NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);</span>
+<span class="lineNum">     155 </span><span class="lineNoCov">          0 :   NS_ENSURE_TRUE(!mWasOpened, NS_ERROR_ALREADY_OPENED);</span>
+<span class="lineNum">     156 </span>            : 
+<span class="lineNum">     157 </span>            :   // Port checked in parent, but duplicate here so we can return with error
+<span class="lineNum">     158 </span>            :   // immediately, as we've done since before e10s.
+<span class="lineNum">     159 </span>            :   nsresult rv;
+<span class="lineNum">     160 </span><span class="lineNoCov">          0 :   rv = NS_CheckPortSafety(nsBaseChannel::URI()); // Need to disambiguate,</span>
+<span class="lineNum">     161 </span>            :                                                  // because in the child ipdl,
+<span class="lineNum">     162 </span>            :                                                  // a typedef URI is defined...
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :   if (NS_FAILED(rv))</span>
+<span class="lineNum">     164 </span>            :     return rv;
+<span class="lineNum">     165 </span>            : 
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :   mozilla::dom::TabChild* tabChild = nullptr;</span>
+<span class="lineNum">     167 </span>            :   nsCOMPtr&lt;nsITabChild&gt; iTabChild;
+<span class="lineNum">     168 </span>            :   NS_QueryNotificationCallbacks(mCallbacks, mLoadGroup,
+<span class="lineNum">     169 </span>            :                                 NS_GET_IID(nsITabChild),
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :                                 getter_AddRefs(iTabChild));</span>
+<span class="lineNum">     171 </span><span class="lineNoCov">          0 :   GetCallback(iTabChild);</span>
+<span class="lineNum">     172 </span><span class="lineNoCov">          0 :   if (iTabChild) {</span>
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 :     tabChild = static_cast&lt;mozilla::dom::TabChild*&gt;(iTabChild.get());</span>
+<span class="lineNum">     174 </span>            :   }
+<span class="lineNum">     175 </span><span class="lineNoCov">          0 :   if (MissingRequiredTabChild(tabChild, &quot;ftp&quot;)) {</span>
+<span class="lineNum">     176 </span>            :     return NS_ERROR_ILLEGAL_VALUE;
+<span class="lineNum">     177 </span>            :   }
+<span class="lineNum">     178 </span>            : 
+<span class="lineNum">     179 </span><span class="lineNoCov">          0 :   mListener = listener;</span>
+<span class="lineNum">     180 </span><span class="lineNoCov">          0 :   mListenerContext = aContext;</span>
+<span class="lineNum">     181 </span>            : 
+<span class="lineNum">     182 </span>            :   // add ourselves to the load group. 
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 :   if (mLoadGroup)</span>
+<span class="lineNum">     184 </span><span class="lineNoCov">          0 :     mLoadGroup-&gt;AddRequest(this, nullptr);</span>
+<span class="lineNum">     185 </span>            : 
+<span class="lineNum">     186 </span><span class="lineNoCov">          0 :   mozilla::ipc::AutoIPCStream autoStream;</span>
+<span class="lineNum">     187 </span>            :   autoStream.Serialize(mUploadStream,
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :                        static_cast&lt;mozilla::dom::ContentChild*&gt;(gNeckoChild-&gt;Manager()));</span>
+<span class="lineNum">     189 </span>            : 
+<span class="lineNum">     190 </span><span class="lineNoCov">          0 :   FTPChannelOpenArgs openArgs;</span>
+<span class="lineNum">     191 </span><span class="lineNoCov">          0 :   SerializeURI(nsBaseChannel::URI(), openArgs.uri());</span>
+<span class="lineNum">     192 </span><span class="lineNoCov">          0 :   openArgs.startPos() = mStartPos;</span>
+<span class="lineNum">     193 </span><span class="lineNoCov">          0 :   openArgs.entityID() = mEntityID;</span>
+<span class="lineNum">     194 </span><span class="lineNoCov">          0 :   openArgs.uploadStream() = autoStream.TakeOptionalValue();</span>
+<span class="lineNum">     195 </span>            : 
+<span class="lineNum">     196 </span>            :   nsCOMPtr&lt;nsILoadInfo&gt; loadInfo;
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :   GetLoadInfo(getter_AddRefs(loadInfo));</span>
+<span class="lineNum">     198 </span><span class="lineNoCov">          0 :   rv = mozilla::ipc::LoadInfoToLoadInfoArgs(loadInfo, &amp;openArgs.loadInfo());</span>
+<span class="lineNum">     199 </span><span class="lineNoCov">          0 :   NS_ENSURE_SUCCESS(rv, rv);</span>
+<span class="lineNum">     200 </span>            : 
+<span class="lineNum">     201 </span>            :   gNeckoChild-&gt;
+<span class="lineNum">     202 </span>            :     SendPFTPChannelConstructor(this, tabChild, IPC::SerializedLoadContext(this),
+<span class="lineNum">     203 </span><span class="lineNoCov">          0 :                                openArgs);</span>
+<span class="lineNum">     204 </span>            : 
+<span class="lineNum">     205 </span>            :   // The socket transport layer in the chrome process now has a logical ref to
+<span class="lineNum">     206 </span>            :   // us until OnStopRequest is called.
+<span class="lineNum">     207 </span><span class="lineNoCov">          0 :   AddIPDLReference();</span>
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span><span class="lineNoCov">          0 :   mIsPending = true;</span>
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :   mWasOpened = true;</span>
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span><span class="lineNoCov">          0 :   return rv;</span>
+<span class="lineNum">     213 </span>            : }
+<a name="214"><span class="lineNum">     214 </span>            : </a>
+<span class="lineNum">     215 </span>            : NS_IMETHODIMP
+<span class="lineNum">     216 </span><span class="lineNoCov">          0 : FTPChannelChild::IsPending(bool* result)</span>
+<span class="lineNum">     217 </span>            : {
+<span class="lineNum">     218 </span><span class="lineNoCov">          0 :   *result = mIsPending;</span>
+<span class="lineNum">     219 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     220 </span>            : }
+<a name="221"><span class="lineNum">     221 </span>            : </a>
+<span class="lineNum">     222 </span>            : nsresult
+<span class="lineNum">     223 </span><span class="lineNoCov">          0 : FTPChannelChild::OpenContentStream(bool async,</span>
+<span class="lineNum">     224 </span>            :                                    nsIInputStream** stream,
+<span class="lineNum">     225 </span>            :                                    nsIChannel** channel)
+<span class="lineNum">     226 </span>            : {
+<span class="lineNum">     227 </span><span class="lineNoCov">          0 :   MOZ_CRASH(&quot;FTPChannel*Child* should never have OpenContentStream called!&quot;);</span>
+<span class="lineNum">     228 </span>            :   return NS_OK;
+<span class="lineNum">     229 </span>            : }
+<span class="lineNum">     230 </span>            :   
+<span class="lineNum">     231 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">     232 </span>            : // FTPChannelChild::PFTPChannelChild
+<a name="233"><span class="lineNum">     233 </span>            : //-----------------------------------------------------------------------------</a>
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span><span class="lineNoCov">          0 : class FTPStartRequestEvent : public ChannelEvent</span>
+<a name="236"><span class="lineNum">     236 </span>            : {</a>
+<span class="lineNum">     237 </span>            : public:
+<span class="lineNum">     238 </span><span class="lineNoCov">          0 :   FTPStartRequestEvent(FTPChannelChild* aChild,</span>
+<span class="lineNum">     239 </span>            :                        const nsresult&amp; aChannelStatus,
+<span class="lineNum">     240 </span>            :                        const int64_t&amp; aContentLength,
+<span class="lineNum">     241 </span>            :                        const nsCString&amp; aContentType,
+<span class="lineNum">     242 </span>            :                        const PRTime&amp; aLastModified,
+<span class="lineNum">     243 </span>            :                        const nsCString&amp; aEntityID,
+<span class="lineNum">     244 </span>            :                        const URIParams&amp; aURI)
+<span class="lineNum">     245 </span>            :     : mChild(aChild)
+<span class="lineNum">     246 </span>            :     , mChannelStatus(aChannelStatus)
+<span class="lineNum">     247 </span>            :     , mContentLength(aContentLength)
+<span class="lineNum">     248 </span>            :     , mContentType(aContentType)
+<span class="lineNum">     249 </span>            :     , mLastModified(aLastModified)
+<span class="lineNum">     250 </span>            :     , mEntityID(aEntityID)
+<span class="lineNum">     251 </span><span class="lineNoCov">          0 :     , mURI(aURI)</span>
+<a name="252"><span class="lineNum">     252 </span>            :   {</a>
+<span class="lineNum">     253 </span><span class="lineNoCov">          0 :   }</span>
+<span class="lineNum">     254 </span><span class="lineNoCov">          0 :   void Run()</span>
+<span class="lineNum">     255 </span>            :   {
+<span class="lineNum">     256 </span>            :     mChild-&gt;DoOnStartRequest(mChannelStatus, mContentLength, mContentType,
+<span class="lineNum">     257 </span><span class="lineNoCov">          0 :                              mLastModified, mEntityID, mURI);</span>
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 :   }</span>
+<span class="lineNum">     259 </span>            : 
+<span class="lineNum">     260 </span>            : private:
+<span class="lineNum">     261 </span>            :   FTPChannelChild* mChild;
+<span class="lineNum">     262 </span>            :   nsresult mChannelStatus;
+<span class="lineNum">     263 </span>            :   int64_t mContentLength;
+<span class="lineNum">     264 </span>            :   nsCString mContentType;
+<span class="lineNum">     265 </span>            :   PRTime mLastModified;
+<span class="lineNum">     266 </span>            :   nsCString mEntityID;
+<span class="lineNum">     267 </span>            :   URIParams mURI;
+<span class="lineNum">     268 </span>            : };
+<a name="269"><span class="lineNum">     269 </span>            : </a>
+<span class="lineNum">     270 </span>            : mozilla::ipc::IPCResult
+<span class="lineNum">     271 </span><span class="lineNoCov">          0 : FTPChannelChild::RecvOnStartRequest(const nsresult&amp; aChannelStatus,</span>
+<span class="lineNum">     272 </span>            :                                     const int64_t&amp; aContentLength,
+<span class="lineNum">     273 </span>            :                                     const nsCString&amp; aContentType,
+<span class="lineNum">     274 </span>            :                                     const PRTime&amp; aLastModified,
+<span class="lineNum">     275 </span>            :                                     const nsCString&amp; aEntityID,
+<span class="lineNum">     276 </span>            :                                     const URIParams&amp; aURI)
+<span class="lineNum">     277 </span>            : {
+<span class="lineNum">     278 </span>            :   // mFlushedForDiversion and mDivertingToParent should NEVER be set at this
+<span class="lineNum">     279 </span>            :   // stage, as they are set in the listener's OnStartRequest.
+<span class="lineNum">     280 </span><span class="lineNoCov">          0 :   MOZ_RELEASE_ASSERT(!mFlushedForDiversion,</span>
+<span class="lineNum">     281 </span>            :     &quot;mFlushedForDiversion should be unset before OnStartRequest!&quot;);
+<span class="lineNum">     282 </span><span class="lineNoCov">          0 :   MOZ_RELEASE_ASSERT(!mDivertingToParent,</span>
+<span class="lineNum">     283 </span>            :     &quot;mDivertingToParent should be unset before OnStartRequest!&quot;);
+<span class="lineNum">     284 </span>            : 
+<span class="lineNum">     285 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::RecvOnStartRequest [this=%p]\n&quot;, this));</span>
+<span class="lineNum">     286 </span>            : 
+<span class="lineNum">     287 </span>            :   mEventQ-&gt;RunOrEnqueue(new FTPStartRequestEvent(this, aChannelStatus,
+<span class="lineNum">     288 </span>            :                                                  aContentLength, aContentType,
+<span class="lineNum">     289 </span>            :                                                  aLastModified, aEntityID,
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :                                                  aURI));</span>
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :   return IPC_OK();</span>
+<span class="lineNum">     292 </span>            : }
+<a name="293"><span class="lineNum">     293 </span>            : </a>
+<span class="lineNum">     294 </span>            : void
+<span class="lineNum">     295 </span><span class="lineNoCov">          0 : FTPChannelChild::DoOnStartRequest(const nsresult&amp; aChannelStatus,</span>
+<span class="lineNum">     296 </span>            :                                   const int64_t&amp; aContentLength,
+<span class="lineNum">     297 </span>            :                                   const nsCString&amp; aContentType,
+<span class="lineNum">     298 </span>            :                                   const PRTime&amp; aLastModified,
+<span class="lineNum">     299 </span>            :                                   const nsCString&amp; aEntityID,
+<span class="lineNum">     300 </span>            :                                   const URIParams&amp; aURI)
+<span class="lineNum">     301 </span>            : {
+<span class="lineNum">     302 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::DoOnStartRequest [this=%p]\n&quot;, this));</span>
+<span class="lineNum">     303 </span>            : 
+<span class="lineNum">     304 </span>            :   // mFlushedForDiversion and mDivertingToParent should NEVER be set at this
+<span class="lineNum">     305 </span>            :   // stage, as they are set in the listener's OnStartRequest.
+<span class="lineNum">     306 </span><span class="lineNoCov">          0 :   MOZ_RELEASE_ASSERT(!mFlushedForDiversion,</span>
+<span class="lineNum">     307 </span>            :     &quot;mFlushedForDiversion should be unset before OnStartRequest!&quot;);
+<span class="lineNum">     308 </span><span class="lineNoCov">          0 :   MOZ_RELEASE_ASSERT(!mDivertingToParent,</span>
+<span class="lineNum">     309 </span>            :     &quot;mDivertingToParent should be unset before OnStartRequest!&quot;);
+<span class="lineNum">     310 </span>            : 
+<span class="lineNum">     311 </span><span class="lineNoCov">          0 :   if (!mCanceled &amp;&amp; NS_SUCCEEDED(mStatus)) {</span>
+<span class="lineNum">     312 </span><span class="lineNoCov">          0 :     mStatus = aChannelStatus;</span>
+<span class="lineNum">     313 </span>            :   }
+<span class="lineNum">     314 </span>            : 
+<span class="lineNum">     315 </span><span class="lineNoCov">          0 :   mContentLength = aContentLength;</span>
+<span class="lineNum">     316 </span><span class="lineNoCov">          0 :   SetContentType(aContentType);</span>
+<span class="lineNum">     317 </span><span class="lineNoCov">          0 :   mLastModifiedTime = aLastModified;</span>
+<span class="lineNum">     318 </span><span class="lineNoCov">          0 :   mEntityID = aEntityID;</span>
+<span class="lineNum">     319 </span>            : 
+<span class="lineNum">     320 </span>            :   nsCString spec;
+<span class="lineNum">     321 </span><span class="lineNoCov">          0 :   nsCOMPtr&lt;nsIURI&gt; uri = DeserializeURI(aURI);</span>
+<span class="lineNum">     322 </span><span class="lineNoCov">          0 :   nsresult rv = uri-&gt;GetSpec(spec);</span>
+<span class="lineNum">     323 </span><span class="lineNoCov">          0 :   if (NS_SUCCEEDED(rv)) {</span>
+<span class="lineNum">     324 </span><span class="lineNoCov">          0 :     rv = nsBaseChannel::URI()-&gt;SetSpec(spec);</span>
+<span class="lineNum">     325 </span><span class="lineNoCov">          0 :     if (NS_FAILED(rv)) {</span>
+<span class="lineNum">     326 </span><span class="lineNoCov">          0 :       Cancel(rv);</span>
+<span class="lineNum">     327 </span>            :     }
+<span class="lineNum">     328 </span>            :   } else {
+<span class="lineNum">     329 </span><span class="lineNoCov">          0 :     Cancel(rv);</span>
+<span class="lineNum">     330 </span>            :   }
+<span class="lineNum">     331 </span>            : 
+<span class="lineNum">     332 </span><span class="lineNoCov">          0 :   AutoEventEnqueuer ensureSerialDispatch(mEventQ);</span>
+<span class="lineNum">     333 </span><span class="lineNoCov">          0 :   rv = mListener-&gt;OnStartRequest(this, mListenerContext);</span>
+<span class="lineNum">     334 </span><span class="lineNoCov">          0 :   if (NS_FAILED(rv))</span>
+<span class="lineNum">     335 </span><span class="lineNoCov">          0 :     Cancel(rv);</span>
+<span class="lineNum">     336 </span>            : 
+<span class="lineNum">     337 </span><span class="lineNoCov">          0 :   if (mDivertingToParent) {</span>
+<span class="lineNum">     338 </span><span class="lineNoCov">          0 :     mListener = nullptr;</span>
+<span class="lineNum">     339 </span><span class="lineNoCov">          0 :     mListenerContext = nullptr;</span>
+<span class="lineNum">     340 </span><span class="lineNoCov">          0 :     if (mLoadGroup) {</span>
+<span class="lineNum">     341 </span><span class="lineNoCov">          0 :       mLoadGroup-&gt;RemoveRequest(this, nullptr, mStatus);</span>
+<span class="lineNum">     342 </span>            :     }
+<span class="lineNum">     343 </span>            :   }
+<a name="344"><span class="lineNum">     344 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     345 </span>            : 
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 : class FTPDataAvailableEvent : public ChannelEvent</span>
+<a name="347"><span class="lineNum">     347 </span>            : {</a>
+<span class="lineNum">     348 </span>            : public:
+<span class="lineNum">     349 </span><span class="lineNoCov">          0 :   FTPDataAvailableEvent(FTPChannelChild* aChild,</span>
+<span class="lineNum">     350 </span>            :                         const nsresult&amp; aChannelStatus,
+<span class="lineNum">     351 </span>            :                         const nsCString&amp; aData,
+<span class="lineNum">     352 </span>            :                         const uint64_t&amp; aOffset,
+<span class="lineNum">     353 </span>            :                         const uint32_t&amp; aCount)
+<span class="lineNum">     354 </span>            :     : mChild(aChild)
+<span class="lineNum">     355 </span>            :     , mChannelStatus(aChannelStatus)
+<span class="lineNum">     356 </span>            :     , mData(aData)
+<span class="lineNum">     357 </span>            :     , mOffset(aOffset)
+<span class="lineNum">     358 </span><span class="lineNoCov">          0 :     , mCount(aCount)</span>
+<a name="359"><span class="lineNum">     359 </span>            :   {</a>
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 :   }</span>
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 :   void Run()</span>
+<span class="lineNum">     362 </span>            :   {
+<span class="lineNum">     363 </span><span class="lineNoCov">          0 :     mChild-&gt;DoOnDataAvailable(mChannelStatus, mData, mOffset, mCount);</span>
+<span class="lineNum">     364 </span><span class="lineNoCov">          0 :   }</span>
+<span class="lineNum">     365 </span>            : 
+<span class="lineNum">     366 </span>            : private:
+<span class="lineNum">     367 </span>            :   FTPChannelChild* mChild;
+<span class="lineNum">     368 </span>            :   nsresult mChannelStatus;
+<span class="lineNum">     369 </span>            :   nsCString mData;
+<span class="lineNum">     370 </span>            :   uint64_t mOffset;
+<span class="lineNum">     371 </span>            :   uint32_t mCount;
+<span class="lineNum">     372 </span>            : };
+<a name="373"><span class="lineNum">     373 </span>            : </a>
+<span class="lineNum">     374 </span>            : mozilla::ipc::IPCResult
+<span class="lineNum">     375 </span><span class="lineNoCov">          0 : FTPChannelChild::RecvOnDataAvailable(const nsresult&amp; channelStatus,</span>
+<span class="lineNum">     376 </span>            :                                      const nsCString&amp; data,
+<span class="lineNum">     377 </span>            :                                      const uint64_t&amp; offset,
+<span class="lineNum">     378 </span>            :                                      const uint32_t&amp; count)
+<span class="lineNum">     379 </span>            : {
+<span class="lineNum">     380 </span><span class="lineNoCov">          0 :   MOZ_RELEASE_ASSERT(!mFlushedForDiversion,</span>
+<span class="lineNum">     381 </span>            :                      &quot;Should not be receiving any more callbacks from parent!&quot;);
+<span class="lineNum">     382 </span>            : 
+<span class="lineNum">     383 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::RecvOnDataAvailable [this=%p]\n&quot;, this));</span>
+<span class="lineNum">     384 </span>            : 
+<span class="lineNum">     385 </span>            :   mEventQ-&gt;RunOrEnqueue(new FTPDataAvailableEvent(this, channelStatus, data,
+<span class="lineNum">     386 </span><span class="lineNoCov">          0 :                                                   offset, count),</span>
+<span class="lineNum">     387 </span><span class="lineNoCov">          0 :                         mDivertingToParent);</span>
+<span class="lineNum">     388 </span>            : 
+<span class="lineNum">     389 </span><span class="lineNoCov">          0 :   return IPC_OK();</span>
+<a name="390"><span class="lineNum">     390 </span>            : }</a>
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span><span class="lineNoCov">          0 : class MaybeDivertOnDataFTPEvent : public ChannelEvent</span>
+<a name="393"><span class="lineNum">     393 </span>            : {</a>
+<span class="lineNum">     394 </span>            :  public:
+<span class="lineNum">     395 </span><span class="lineNoCov">          0 :   MaybeDivertOnDataFTPEvent(FTPChannelChild* child,</span>
+<span class="lineNum">     396 </span>            :                             const nsCString&amp; data,
+<span class="lineNum">     397 </span>            :                             const uint64_t&amp; offset,
+<span class="lineNum">     398 </span>            :                             const uint32_t&amp; count)
+<span class="lineNum">     399 </span>            :   : mChild(child)
+<span class="lineNum">     400 </span>            :   , mData(data)
+<span class="lineNum">     401 </span>            :   , mOffset(offset)
+<a name="402"><span class="lineNum">     402 </span><span class="lineNoCov">          0 :   , mCount(count) {}</span></a>
+<span class="lineNum">     403 </span>            : 
+<span class="lineNum">     404 </span><span class="lineNoCov">          0 :   void Run()</span>
+<span class="lineNum">     405 </span>            :   {
+<span class="lineNum">     406 </span><span class="lineNoCov">          0 :     mChild-&gt;MaybeDivertOnData(mData, mOffset, mCount);</span>
+<span class="lineNum">     407 </span><span class="lineNoCov">          0 :   }</span>
+<span class="lineNum">     408 </span>            : 
+<span class="lineNum">     409 </span>            :  private:
+<span class="lineNum">     410 </span>            :   FTPChannelChild* mChild;
+<span class="lineNum">     411 </span>            :   nsCString mData;
+<span class="lineNum">     412 </span>            :   uint64_t mOffset;
+<span class="lineNum">     413 </span>            :   uint32_t mCount;
+<span class="lineNum">     414 </span>            : };
+<a name="415"><span class="lineNum">     415 </span>            : </a>
+<span class="lineNum">     416 </span>            : void
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 : FTPChannelChild::MaybeDivertOnData(const nsCString&amp; data,</span>
+<span class="lineNum">     418 </span>            :                                    const uint64_t&amp; offset,
+<span class="lineNum">     419 </span>            :                                    const uint32_t&amp; count)
+<span class="lineNum">     420 </span>            : {
+<span class="lineNum">     421 </span><span class="lineNoCov">          0 :   if (mDivertingToParent) {</span>
+<span class="lineNum">     422 </span><span class="lineNoCov">          0 :     SendDivertOnDataAvailable(data, offset, count);</span>
+<span class="lineNum">     423 </span>            :   }
+<span class="lineNum">     424 </span><span class="lineNoCov">          0 : }</span>
+<a name="425"><span class="lineNum">     425 </span>            : </a>
+<span class="lineNum">     426 </span>            : void
+<span class="lineNum">     427 </span><span class="lineNoCov">          0 : FTPChannelChild::DoOnDataAvailable(const nsresult&amp; channelStatus,</span>
+<span class="lineNum">     428 </span>            :                                    const nsCString&amp; data,
+<span class="lineNum">     429 </span>            :                                    const uint64_t&amp; offset,
+<span class="lineNum">     430 </span>            :                                    const uint32_t&amp; count)
+<span class="lineNum">     431 </span>            : {
+<span class="lineNum">     432 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::DoOnDataAvailable [this=%p]\n&quot;, this));</span>
+<span class="lineNum">     433 </span>            : 
+<span class="lineNum">     434 </span><span class="lineNoCov">          0 :   if (!mCanceled &amp;&amp; NS_SUCCEEDED(mStatus)) {</span>
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :     mStatus = channelStatus;</span>
+<span class="lineNum">     436 </span>            :   }
+<span class="lineNum">     437 </span>            : 
+<span class="lineNum">     438 </span><span class="lineNoCov">          0 :   if (mDivertingToParent) {</span>
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :     MOZ_RELEASE_ASSERT(!mFlushedForDiversion,</span>
+<span class="lineNum">     440 </span>            :       &quot;Should not be processing any more callbacks from parent!&quot;);
+<span class="lineNum">     441 </span>            : 
+<span class="lineNum">     442 </span><span class="lineNoCov">          0 :     SendDivertOnDataAvailable(data, offset, count);</span>
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     444 </span>            :   }
+<span class="lineNum">     445 </span>            : 
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :   if (mCanceled)</span>
+<span class="lineNum">     447 </span>            :     return;
+<span class="lineNum">     448 </span>            : 
+<span class="lineNum">     449 </span><span class="lineNoCov">          0 :   if (mUnknownDecoderInvolved) {</span>
+<span class="lineNum">     450 </span>            :     mUnknownDecoderEventQ.AppendElement(
+<span class="lineNum">     451 </span><span class="lineNoCov">          0 :       MakeUnique&lt;MaybeDivertOnDataFTPEvent&gt;(this, data, offset, count));</span>
+<span class="lineNum">     452 </span>            :   }
+<span class="lineNum">     453 </span>            : 
+<span class="lineNum">     454 </span>            :   // NOTE: the OnDataAvailable contract requires the client to read all the data
+<span class="lineNum">     455 </span>            :   // in the inputstream.  This code relies on that ('data' will go away after
+<span class="lineNum">     456 </span>            :   // this function).  Apparently the previous, non-e10s behavior was to actually
+<span class="lineNum">     457 </span>            :   // support only reading part of the data, allowing later calls to read the
+<span class="lineNum">     458 </span>            :   // rest.
+<span class="lineNum">     459 </span>            :   nsCOMPtr&lt;nsIInputStream&gt; stringStream;
+<span class="lineNum">     460 </span>            :   nsresult rv = NS_NewByteInputStream(getter_AddRefs(stringStream),
+<span class="lineNum">     461 </span>            :                                       data.get(),
+<span class="lineNum">     462 </span>            :                                       count,
+<span class="lineNum">     463 </span><span class="lineNoCov">          0 :                                       NS_ASSIGNMENT_DEPEND);</span>
+<span class="lineNum">     464 </span><span class="lineNoCov">          0 :   if (NS_FAILED(rv)) {</span>
+<span class="lineNum">     465 </span><span class="lineNoCov">          0 :     Cancel(rv);</span>
+<span class="lineNum">     466 </span>            :     return;
+<span class="lineNum">     467 </span>            :   }
+<span class="lineNum">     468 </span>            : 
+<span class="lineNum">     469 </span><span class="lineNoCov">          0 :   AutoEventEnqueuer ensureSerialDispatch(mEventQ);</span>
+<span class="lineNum">     470 </span><span class="lineNoCov">          0 :   rv = mListener-&gt;OnDataAvailable(this, mListenerContext,</span>
+<span class="lineNum">     471 </span><span class="lineNoCov">          0 :                                   stringStream, offset, count);</span>
+<span class="lineNum">     472 </span><span class="lineNoCov">          0 :   if (NS_FAILED(rv))</span>
+<span class="lineNum">     473 </span><span class="lineNoCov">          0 :     Cancel(rv);</span>
+<span class="lineNum">     474 </span><span class="lineNoCov">          0 :   stringStream-&gt;Close();</span>
+<a name="475"><span class="lineNum">     475 </span>            : }</a>
+<span class="lineNum">     476 </span>            : 
+<span class="lineNum">     477 </span><span class="lineNoCov">          0 : class FTPStopRequestEvent : public ChannelEvent</span>
+<span class="lineNum">     478 </span>            : {
+<span class="lineNum">     479 </span>            : public:
+<span class="lineNum">     480 </span>            :   FTPStopRequestEvent(FTPChannelChild* aChild,
+<span class="lineNum">     481 </span>            :                       const nsresult&amp; aChannelStatus,
+<span class="lineNum">     482 </span>            :                       const nsCString &amp;aErrorMsg,
+<span class="lineNum">     483 </span>            :                       bool aUseUTF8)
+<span class="lineNum">     484 </span>            :     : mChild(aChild)
+<span class="lineNum">     485 </span>            :     , mChannelStatus(aChannelStatus)
+<span class="lineNum">     486 </span>            :     , mErrorMsg(aErrorMsg)
+<span class="lineNum">     487 </span><span class="lineNoCov">          0 :     , mUseUTF8(aUseUTF8)</span>
+<a name="488"><span class="lineNum">     488 </span>            :   {</a>
+<span class="lineNum">     489 </span>            :   }
+<span class="lineNum">     490 </span><span class="lineNoCov">          0 :   void Run()</span>
+<span class="lineNum">     491 </span>            :   {
+<span class="lineNum">     492 </span><span class="lineNoCov">          0 :     mChild-&gt;DoOnStopRequest(mChannelStatus, mErrorMsg, mUseUTF8);</span>
+<span class="lineNum">     493 </span><span class="lineNoCov">          0 :   }</span>
+<span class="lineNum">     494 </span>            : 
+<span class="lineNum">     495 </span>            : private:
+<span class="lineNum">     496 </span>            :   FTPChannelChild* mChild;
+<span class="lineNum">     497 </span>            :   nsresult mChannelStatus;
+<span class="lineNum">     498 </span>            :   nsCString mErrorMsg;
+<span class="lineNum">     499 </span>            :   bool mUseUTF8;
+<span class="lineNum">     500 </span>            : };
+<a name="501"><span class="lineNum">     501 </span>            : </a>
+<span class="lineNum">     502 </span>            : mozilla::ipc::IPCResult
+<span class="lineNum">     503 </span><span class="lineNoCov">          0 : FTPChannelChild::RecvOnStopRequest(const nsresult&amp; aChannelStatus,</span>
+<span class="lineNum">     504 </span>            :                                    const nsCString &amp;aErrorMsg,
+<span class="lineNum">     505 </span>            :                                    const bool &amp;aUseUTF8)
+<span class="lineNum">     506 </span>            : {
+<span class="lineNum">     507 </span><span class="lineNoCov">          0 :   MOZ_RELEASE_ASSERT(!mFlushedForDiversion,</span>
+<span class="lineNum">     508 </span>            :     &quot;Should not be receiving any more callbacks from parent!&quot;);
+<span class="lineNum">     509 </span>            : 
+<span class="lineNum">     510 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::RecvOnStopRequest [this=%p status=%&quot; PRIx32&quot;]\n&quot;,</span>
+<span class="lineNum">     511 </span>            :        this, static_cast&lt;uint32_t&gt;(aChannelStatus)));
+<span class="lineNum">     512 </span>            : 
+<span class="lineNum">     513 </span>            :   mEventQ-&gt;RunOrEnqueue(new FTPStopRequestEvent(this, aChannelStatus, aErrorMsg,
+<span class="lineNum">     514 </span><span class="lineNoCov">          0 :                                                 aUseUTF8));</span>
+<span class="lineNum">     515 </span><span class="lineNoCov">          0 :   return IPC_OK();</span>
+<span class="lineNum">     516 </span>            : }
+<span class="lineNum">     517 </span>            : 
+<span class="lineNum">     518 </span>            : class nsFtpChildAsyncAlert : public Runnable
+<a name="519"><span class="lineNum">     519 </span>            : {</a>
+<span class="lineNum">     520 </span>            : public:
+<span class="lineNum">     521 </span><span class="lineNoCov">          0 :   nsFtpChildAsyncAlert(nsIPrompt *aPrompter, nsString aResponseMsg)</span>
+<span class="lineNum">     522 </span>            :     : mPrompter(aPrompter)
+<span class="lineNum">     523 </span><span class="lineNoCov">          0 :     , mResponseMsg(aResponseMsg)</span>
+<span class="lineNum">     524 </span>            :   {
+<a name="525"><span class="lineNum">     525 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">     526 </span>            : protected:
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :   virtual ~nsFtpChildAsyncAlert()</span>
+<span class="lineNum">     528 </span><span class="lineNoCov">          0 :   {</span>
+<a name="529"><span class="lineNum">     529 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">     530 </span>            : public:
+<span class="lineNum">     531 </span><span class="lineNoCov">          0 :   NS_IMETHOD Run() override</span>
+<span class="lineNum">     532 </span>            :   {
+<span class="lineNum">     533 </span><span class="lineNoCov">          0 :     if (mPrompter) {</span>
+<span class="lineNum">     534 </span><span class="lineNoCov">          0 :       mPrompter-&gt;Alert(nullptr, mResponseMsg.get());</span>
+<span class="lineNum">     535 </span>            :     }
+<span class="lineNum">     536 </span><span class="lineNoCov">          0 :     return NS_OK;</span>
+<span class="lineNum">     537 </span>            :   }
+<span class="lineNum">     538 </span>            : private:
+<span class="lineNum">     539 </span>            :   nsCOMPtr&lt;nsIPrompt&gt; mPrompter;
+<span class="lineNum">     540 </span>            :   nsString mResponseMsg;
+<a name="541"><span class="lineNum">     541 </span>            : };</a>
+<span class="lineNum">     542 </span>            : 
+<span class="lineNum">     543 </span><span class="lineNoCov">          0 : class MaybeDivertOnStopFTPEvent : public ChannelEvent</span>
+<span class="lineNum">     544 </span>            : {
+<span class="lineNum">     545 </span>            :  public:
+<span class="lineNum">     546 </span>            :   MaybeDivertOnStopFTPEvent(FTPChannelChild* child,
+<span class="lineNum">     547 </span>            :                             const nsresult&amp; aChannelStatus)
+<span class="lineNum">     548 </span>            :   : mChild(child)
+<a name="549"><span class="lineNum">     549 </span><span class="lineNoCov">          0 :   , mChannelStatus(aChannelStatus) {}</span></a>
+<span class="lineNum">     550 </span>            : 
+<span class="lineNum">     551 </span><span class="lineNoCov">          0 :   void Run()</span>
+<span class="lineNum">     552 </span>            :   {
+<span class="lineNum">     553 </span><span class="lineNoCov">          0 :     mChild-&gt;MaybeDivertOnStop(mChannelStatus);</span>
+<span class="lineNum">     554 </span><span class="lineNoCov">          0 :   }</span>
+<span class="lineNum">     555 </span>            : 
+<span class="lineNum">     556 </span>            :  private:
+<span class="lineNum">     557 </span>            :   FTPChannelChild* mChild;
+<span class="lineNum">     558 </span>            :   nsresult mChannelStatus;
+<span class="lineNum">     559 </span>            : };
+<a name="560"><span class="lineNum">     560 </span>            : </a>
+<span class="lineNum">     561 </span>            : void
+<span class="lineNum">     562 </span><span class="lineNoCov">          0 : FTPChannelChild::MaybeDivertOnStop(const nsresult&amp; aChannelStatus)</span>
+<span class="lineNum">     563 </span>            : {
+<span class="lineNum">     564 </span><span class="lineNoCov">          0 :   if (mDivertingToParent) {</span>
+<span class="lineNum">     565 </span><span class="lineNoCov">          0 :     SendDivertOnStopRequest(aChannelStatus);</span>
+<span class="lineNum">     566 </span>            :   }
+<span class="lineNum">     567 </span><span class="lineNoCov">          0 : }</span>
+<a name="568"><span class="lineNum">     568 </span>            : </a>
+<span class="lineNum">     569 </span>            : void
+<span class="lineNum">     570 </span><span class="lineNoCov">          0 : FTPChannelChild::DoOnStopRequest(const nsresult&amp; aChannelStatus,</span>
+<span class="lineNum">     571 </span>            :                                  const nsCString &amp;aErrorMsg,
+<span class="lineNum">     572 </span>            :                                  bool aUseUTF8)
+<span class="lineNum">     573 </span>            : {
+<span class="lineNum">     574 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::DoOnStopRequest [this=%p status=%&quot; PRIx32 &quot;]\n&quot;,</span>
+<span class="lineNum">     575 </span>            :        this, static_cast&lt;uint32_t&gt;(aChannelStatus)));
+<span class="lineNum">     576 </span>            : 
+<span class="lineNum">     577 </span><span class="lineNoCov">          0 :   if (mDivertingToParent) {</span>
+<span class="lineNum">     578 </span><span class="lineNoCov">          0 :     MOZ_RELEASE_ASSERT(!mFlushedForDiversion,</span>
+<span class="lineNum">     579 </span>            :       &quot;Should not be processing any more callbacks from parent!&quot;);
+<span class="lineNum">     580 </span>            : 
+<span class="lineNum">     581 </span><span class="lineNoCov">          0 :     SendDivertOnStopRequest(aChannelStatus);</span>
+<span class="lineNum">     582 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     583 </span>            :   }
+<span class="lineNum">     584 </span>            : 
+<span class="lineNum">     585 </span><span class="lineNoCov">          0 :   if (!mCanceled)</span>
+<span class="lineNum">     586 </span><span class="lineNoCov">          0 :     mStatus = aChannelStatus;</span>
+<span class="lineNum">     587 </span>            : 
+<span class="lineNum">     588 </span><span class="lineNoCov">          0 :   if (mUnknownDecoderInvolved) {</span>
+<span class="lineNum">     589 </span>            :     mUnknownDecoderEventQ.AppendElement(
+<span class="lineNum">     590 </span><span class="lineNoCov">          0 :       MakeUnique&lt;MaybeDivertOnStopFTPEvent&gt;(this, aChannelStatus));</span>
+<span class="lineNum">     591 </span>            :   }
+<span class="lineNum">     592 </span>            : 
+<span class="lineNum">     593 </span>            :   { // Ensure that all queued ipdl events are dispatched before
+<span class="lineNum">     594 </span>            :     // we initiate protocol deletion below.
+<span class="lineNum">     595 </span><span class="lineNoCov">          0 :     mIsPending = false;</span>
+<span class="lineNum">     596 </span><span class="lineNoCov">          0 :     AutoEventEnqueuer ensureSerialDispatch(mEventQ);</span>
+<span class="lineNum">     597 </span><span class="lineNoCov">          0 :     (void)mListener-&gt;OnStopRequest(this, mListenerContext, aChannelStatus);</span>
+<span class="lineNum">     598 </span>            : 
+<span class="lineNum">     599 </span><span class="lineNoCov">          0 :     if (NS_FAILED(aChannelStatus) &amp;&amp; !aErrorMsg.IsEmpty()) {</span>
+<span class="lineNum">     600 </span>            :       nsCOMPtr&lt;nsIPrompt&gt; prompter;
+<span class="lineNum">     601 </span><span class="lineNoCov">          0 :       GetCallback(prompter);</span>
+<span class="lineNum">     602 </span><span class="lineNoCov">          0 :       if (prompter) {</span>
+<span class="lineNum">     603 </span>            :         nsCOMPtr&lt;nsIRunnable&gt; alertEvent;
+<span class="lineNum">     604 </span><span class="lineNoCov">          0 :         if (aUseUTF8) {</span>
+<span class="lineNum">     605 </span><span class="lineNoCov">          0 :           alertEvent = new nsFtpChildAsyncAlert(prompter,</span>
+<span class="lineNum">     606 </span><span class="lineNoCov">          0 :                              NS_ConvertUTF8toUTF16(aErrorMsg));</span>
+<span class="lineNum">     607 </span>            :         } else {
+<span class="lineNum">     608 </span><span class="lineNoCov">          0 :           alertEvent = new nsFtpChildAsyncAlert(prompter,</span>
+<span class="lineNum">     609 </span><span class="lineNoCov">          0 :                              NS_ConvertASCIItoUTF16(aErrorMsg));</span>
+<span class="lineNum">     610 </span>            :         }
+<span class="lineNum">     611 </span><span class="lineNoCov">          0 :         NS_DispatchToMainThread(alertEvent);</span>
+<span class="lineNum">     612 </span>            :       }
+<span class="lineNum">     613 </span>            :     }
+<span class="lineNum">     614 </span>            : 
+<span class="lineNum">     615 </span><span class="lineNoCov">          0 :     mListener = nullptr;</span>
+<span class="lineNum">     616 </span><span class="lineNoCov">          0 :     mListenerContext = nullptr;</span>
+<span class="lineNum">     617 </span>            : 
+<span class="lineNum">     618 </span><span class="lineNoCov">          0 :     if (mLoadGroup)</span>
+<span class="lineNum">     619 </span><span class="lineNoCov">          0 :       mLoadGroup-&gt;RemoveRequest(this, nullptr, aChannelStatus);</span>
+<span class="lineNum">     620 </span>            :   }
+<span class="lineNum">     621 </span>            : 
+<span class="lineNum">     622 </span>            :   // This calls NeckoChild::DeallocPFTPChannelChild(), which deletes |this| if IPDL
+<span class="lineNum">     623 </span>            :   // holds the last reference.  Don't rely on |this| existing after here!
+<span class="lineNum">     624 </span><span class="lineNoCov">          0 :   Send__delete__(this);</span>
+<a name="625"><span class="lineNum">     625 </span>            : }</a>
+<span class="lineNum">     626 </span>            : 
+<span class="lineNum">     627 </span><span class="lineNoCov">          0 : class FTPFailedAsyncOpenEvent : public ChannelEvent</span>
+<span class="lineNum">     628 </span>            : {
+<span class="lineNum">     629 </span>            :  public:
+<a name="630"><span class="lineNum">     630 </span>            :   FTPFailedAsyncOpenEvent(FTPChannelChild* aChild, nsresult aStatus)</a>
+<span class="lineNum">     631 </span><span class="lineNoCov">          0 :   : mChild(aChild), mStatus(aStatus) {}</span>
+<span class="lineNum">     632 </span><span class="lineNoCov">          0 :   void Run() { mChild-&gt;DoFailedAsyncOpen(mStatus); }</span>
+<span class="lineNum">     633 </span>            :  private:
+<span class="lineNum">     634 </span>            :   FTPChannelChild* mChild;
+<span class="lineNum">     635 </span>            :   nsresult mStatus;
+<span class="lineNum">     636 </span>            : };
+<a name="637"><span class="lineNum">     637 </span>            : </a>
+<span class="lineNum">     638 </span>            : mozilla::ipc::IPCResult
+<span class="lineNum">     639 </span><span class="lineNoCov">          0 : FTPChannelChild::RecvFailedAsyncOpen(const nsresult&amp; statusCode)</span>
+<span class="lineNum">     640 </span>            : {
+<span class="lineNum">     641 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::RecvFailedAsyncOpen [this=%p status=%&quot; PRIx32 &quot;]\n&quot;,</span>
+<span class="lineNum">     642 </span>            :        this, static_cast&lt;uint32_t&gt;(statusCode)));
+<span class="lineNum">     643 </span><span class="lineNoCov">          0 :   mEventQ-&gt;RunOrEnqueue(new FTPFailedAsyncOpenEvent(this, statusCode));</span>
+<span class="lineNum">     644 </span><span class="lineNoCov">          0 :   return IPC_OK();</span>
+<span class="lineNum">     645 </span>            : }
+<a name="646"><span class="lineNum">     646 </span>            : </a>
+<span class="lineNum">     647 </span>            : void
+<span class="lineNum">     648 </span><span class="lineNoCov">          0 : FTPChannelChild::DoFailedAsyncOpen(const nsresult&amp; statusCode)</span>
+<span class="lineNum">     649 </span>            : {
+<span class="lineNum">     650 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::DoFailedAsyncOpen [this=%p status=%&quot; PRIx32 &quot;]\n&quot;,</span>
+<span class="lineNum">     651 </span>            :        this, static_cast&lt;uint32_t&gt;(statusCode)));
+<span class="lineNum">     652 </span><span class="lineNoCov">          0 :   mStatus = statusCode;</span>
+<span class="lineNum">     653 </span>            : 
+<span class="lineNum">     654 </span><span class="lineNoCov">          0 :   if (mLoadGroup)</span>
+<span class="lineNum">     655 </span><span class="lineNoCov">          0 :     mLoadGroup-&gt;RemoveRequest(this, nullptr, statusCode);</span>
+<span class="lineNum">     656 </span>            : 
+<span class="lineNum">     657 </span><span class="lineNoCov">          0 :   if (mListener) {</span>
+<span class="lineNum">     658 </span><span class="lineNoCov">          0 :     mListener-&gt;OnStartRequest(this, mListenerContext);</span>
+<span class="lineNum">     659 </span><span class="lineNoCov">          0 :     mIsPending = false;</span>
+<span class="lineNum">     660 </span><span class="lineNoCov">          0 :     mListener-&gt;OnStopRequest(this, mListenerContext, statusCode);</span>
+<span class="lineNum">     661 </span>            :   } else {
+<span class="lineNum">     662 </span><span class="lineNoCov">          0 :     mIsPending = false;</span>
+<span class="lineNum">     663 </span>            :   }
+<span class="lineNum">     664 </span>            : 
+<span class="lineNum">     665 </span><span class="lineNoCov">          0 :   mListener = nullptr;</span>
+<span class="lineNum">     666 </span><span class="lineNoCov">          0 :   mListenerContext = nullptr;</span>
+<span class="lineNum">     667 </span>            : 
+<span class="lineNum">     668 </span><span class="lineNoCov">          0 :   if (mIPCOpen)</span>
+<span class="lineNum">     669 </span><span class="lineNoCov">          0 :     Send__delete__(this);</span>
+<a name="670"><span class="lineNum">     670 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     671 </span>            : 
+<span class="lineNum">     672 </span><span class="lineNoCov">          0 : class FTPFlushedForDiversionEvent : public ChannelEvent</span>
+<a name="673"><span class="lineNum">     673 </span>            : {</a>
+<span class="lineNum">     674 </span>            :  public:
+<span class="lineNum">     675 </span><span class="lineNoCov">          0 :   explicit FTPFlushedForDiversionEvent(FTPChannelChild* aChild)</span>
+<span class="lineNum">     676 </span><span class="lineNoCov">          0 :   : mChild(aChild)</span>
+<span class="lineNum">     677 </span>            :   {
+<span class="lineNum">     678 </span><span class="lineNoCov">          0 :     MOZ_RELEASE_ASSERT(aChild);</span>
+<a name="679"><span class="lineNum">     679 </span><span class="lineNoCov">          0 :   }</span></a>
+<span class="lineNum">     680 </span>            : 
+<span class="lineNum">     681 </span><span class="lineNoCov">          0 :   void Run()</span>
+<span class="lineNum">     682 </span>            :   {
+<span class="lineNum">     683 </span><span class="lineNoCov">          0 :     mChild-&gt;FlushedForDiversion();</span>
+<span class="lineNum">     684 </span><span class="lineNoCov">          0 :   }</span>
+<span class="lineNum">     685 </span>            :  private:
+<span class="lineNum">     686 </span>            :   FTPChannelChild* mChild;
+<span class="lineNum">     687 </span>            : };
+<a name="688"><span class="lineNum">     688 </span>            : </a>
+<span class="lineNum">     689 </span>            : mozilla::ipc::IPCResult
+<span class="lineNum">     690 </span><span class="lineNoCov">          0 : FTPChannelChild::RecvFlushedForDiversion()</span>
+<span class="lineNum">     691 </span>            : {
+<span class="lineNum">     692 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::RecvFlushedForDiversion [this=%p]\n&quot;, this));</span>
+<span class="lineNum">     693 </span>            :   MOZ_ASSERT(mDivertingToParent);
+<span class="lineNum">     694 </span>            : 
+<span class="lineNum">     695 </span><span class="lineNoCov">          0 :   mEventQ-&gt;RunOrEnqueue(new FTPFlushedForDiversionEvent(this), true);</span>
+<span class="lineNum">     696 </span><span class="lineNoCov">          0 :   return IPC_OK();</span>
+<span class="lineNum">     697 </span>            : }
+<a name="698"><span class="lineNum">     698 </span>            : </a>
+<span class="lineNum">     699 </span>            : void
+<span class="lineNum">     700 </span><span class="lineNoCov">          0 : FTPChannelChild::FlushedForDiversion()</span>
+<span class="lineNum">     701 </span>            : {
+<span class="lineNum">     702 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::FlushedForDiversion [this=%p]\n&quot;, this));</span>
+<span class="lineNum">     703 </span><span class="lineNoCov">          0 :   MOZ_RELEASE_ASSERT(mDivertingToParent);</span>
+<span class="lineNum">     704 </span>            : 
+<span class="lineNum">     705 </span>            :   // Once this is set, it should not be unset before FTPChannelChild is taken
+<span class="lineNum">     706 </span>            :   // down. After it is set, no OnStart/OnData/OnStop callbacks should be
+<span class="lineNum">     707 </span>            :   // received from the parent channel, nor dequeued from the ChannelEventQueue.
+<span class="lineNum">     708 </span><span class="lineNoCov">          0 :   mFlushedForDiversion = true;</span>
+<span class="lineNum">     709 </span>            : 
+<span class="lineNum">     710 </span><span class="lineNoCov">          0 :   SendDivertComplete();</span>
+<span class="lineNum">     711 </span><span class="lineNoCov">          0 : }</span>
+<a name="712"><span class="lineNum">     712 </span>            : </a>
+<span class="lineNum">     713 </span>            : mozilla::ipc::IPCResult
+<span class="lineNum">     714 </span><span class="lineNoCov">          0 : FTPChannelChild::RecvDivertMessages()</span>
+<span class="lineNum">     715 </span>            : {
+<span class="lineNum">     716 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::RecvDivertMessages [this=%p]\n&quot;, this));</span>
+<span class="lineNum">     717 </span><span class="lineNoCov">          0 :   MOZ_RELEASE_ASSERT(mDivertingToParent);</span>
+<span class="lineNum">     718 </span><span class="lineNoCov">          0 :   MOZ_RELEASE_ASSERT(mSuspendCount &gt; 0);</span>
+<span class="lineNum">     719 </span>            : 
+<span class="lineNum">     720 </span>            :   // DivertTo() has been called on parent, so we can now start sending queued
+<span class="lineNum">     721 </span>            :   // IPDL messages back to parent listener.
+<span class="lineNum">     722 </span><span class="lineNoCov">          0 :   if (NS_WARN_IF(NS_FAILED(Resume()))) {</span>
+<span class="lineNum">     723 </span><span class="lineNoCov">          0 :     return IPC_FAIL_NO_REASON(this);</span>
+<span class="lineNum">     724 </span>            :   }
+<span class="lineNum">     725 </span>            :   return IPC_OK();
+<a name="726"><span class="lineNum">     726 </span>            : }</a>
+<span class="lineNum">     727 </span>            : 
+<span class="lineNum">     728 </span><span class="lineNoCov">          0 : class FTPDeleteSelfEvent : public ChannelEvent</span>
+<span class="lineNum">     729 </span>            : {
+<span class="lineNum">     730 </span>            :  public:
+<a name="731"><span class="lineNum">     731 </span>            :   explicit FTPDeleteSelfEvent(FTPChannelChild* aChild)</a>
+<span class="lineNum">     732 </span><span class="lineNoCov">          0 :   : mChild(aChild) {}</span>
+<span class="lineNum">     733 </span><span class="lineNoCov">          0 :   void Run() { mChild-&gt;DoDeleteSelf(); }</span>
+<span class="lineNum">     734 </span>            :  private:
+<span class="lineNum">     735 </span>            :   FTPChannelChild* mChild;
+<span class="lineNum">     736 </span>            : };
+<a name="737"><span class="lineNum">     737 </span>            : </a>
+<span class="lineNum">     738 </span>            : mozilla::ipc::IPCResult
+<span class="lineNum">     739 </span><span class="lineNoCov">          0 : FTPChannelChild::RecvDeleteSelf()</span>
+<span class="lineNum">     740 </span>            : {
+<span class="lineNum">     741 </span><span class="lineNoCov">          0 :   mEventQ-&gt;RunOrEnqueue(new FTPDeleteSelfEvent(this));</span>
+<span class="lineNum">     742 </span><span class="lineNoCov">          0 :   return IPC_OK();</span>
+<span class="lineNum">     743 </span>            : }
+<a name="744"><span class="lineNum">     744 </span>            : </a>
+<span class="lineNum">     745 </span>            : void
+<span class="lineNum">     746 </span><span class="lineNoCov">          0 : FTPChannelChild::DoDeleteSelf()</span>
+<span class="lineNum">     747 </span>            : {
+<span class="lineNum">     748 </span><span class="lineNoCov">          0 :   if (mIPCOpen)</span>
+<span class="lineNum">     749 </span><span class="lineNoCov">          0 :     Send__delete__(this);</span>
+<span class="lineNum">     750 </span><span class="lineNoCov">          0 : }</span>
+<a name="751"><span class="lineNum">     751 </span>            : </a>
+<span class="lineNum">     752 </span>            : NS_IMETHODIMP
+<span class="lineNum">     753 </span><span class="lineNoCov">          0 : FTPChannelChild::Cancel(nsresult status)</span>
+<span class="lineNum">     754 </span>            : {
+<span class="lineNum">     755 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::Cancel [this=%p]\n&quot;, this));</span>
+<span class="lineNum">     756 </span><span class="lineNoCov">          0 :   if (mCanceled)</span>
+<span class="lineNum">     757 </span>            :     return NS_OK;
+<span class="lineNum">     758 </span>            : 
+<span class="lineNum">     759 </span><span class="lineNoCov">          0 :   mCanceled = true;</span>
+<span class="lineNum">     760 </span><span class="lineNoCov">          0 :   mStatus = status;</span>
+<span class="lineNum">     761 </span><span class="lineNoCov">          0 :   if (mIPCOpen)</span>
+<span class="lineNum">     762 </span><span class="lineNoCov">          0 :     SendCancel(status);</span>
+<span class="lineNum">     763 </span>            :   return NS_OK;
+<span class="lineNum">     764 </span>            : }
+<a name="765"><span class="lineNum">     765 </span>            : </a>
+<span class="lineNum">     766 </span>            : NS_IMETHODIMP
+<span class="lineNum">     767 </span><span class="lineNoCov">          0 : FTPChannelChild::Suspend()</span>
+<span class="lineNum">     768 </span>            : {
+<span class="lineNum">     769 </span><span class="lineNoCov">          0 :   NS_ENSURE_TRUE(mIPCOpen, NS_ERROR_NOT_AVAILABLE);</span>
+<span class="lineNum">     770 </span>            : 
+<span class="lineNum">     771 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::Suspend [this=%p]\n&quot;, this));</span>
+<span class="lineNum">     772 </span>            : 
+<span class="lineNum">     773 </span>            :   // SendSuspend only once, when suspend goes from 0 to 1.
+<span class="lineNum">     774 </span>            :   // Don't SendSuspend at all if we're diverting callbacks to the parent;
+<span class="lineNum">     775 </span>            :   // suspend will be called at the correct time in the parent itself.
+<span class="lineNum">     776 </span><span class="lineNoCov">          0 :   if (!mSuspendCount++ &amp;&amp; !mDivertingToParent) {</span>
+<span class="lineNum">     777 </span><span class="lineNoCov">          0 :     SendSuspend();</span>
+<span class="lineNum">     778 </span><span class="lineNoCov">          0 :     mSuspendSent = true;</span>
+<span class="lineNum">     779 </span>            :   }
+<span class="lineNum">     780 </span><span class="lineNoCov">          0 :   mEventQ-&gt;Suspend();</span>
+<span class="lineNum">     781 </span>            : 
+<span class="lineNum">     782 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     783 </span>            : }
+<a name="784"><span class="lineNum">     784 </span>            : </a>
+<span class="lineNum">     785 </span>            : NS_IMETHODIMP
+<span class="lineNum">     786 </span><span class="lineNoCov">          0 : FTPChannelChild::Resume()</span>
+<span class="lineNum">     787 </span>            : {
+<span class="lineNum">     788 </span><span class="lineNoCov">          0 :   NS_ENSURE_TRUE(mIPCOpen, NS_ERROR_NOT_AVAILABLE);</span>
+<span class="lineNum">     789 </span>            : 
+<span class="lineNum">     790 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::Resume [this=%p]\n&quot;, this));</span>
+<span class="lineNum">     791 </span>            : 
+<span class="lineNum">     792 </span>            :   // SendResume only once, when suspend count drops to 0.
+<span class="lineNum">     793 </span>            :   // Don't SendResume at all if we're diverting callbacks to the parent (unless
+<span class="lineNum">     794 </span>            :   // suspend was sent earlier); otherwise, resume will be called at the correct
+<span class="lineNum">     795 </span>            :   // time in the parent itself.
+<span class="lineNum">     796 </span><span class="lineNoCov">          0 :   if (!--mSuspendCount &amp;&amp; (!mDivertingToParent || mSuspendSent)) {</span>
+<span class="lineNum">     797 </span><span class="lineNoCov">          0 :     SendResume();</span>
+<span class="lineNum">     798 </span>            :   }
+<span class="lineNum">     799 </span><span class="lineNoCov">          0 :   mEventQ-&gt;Resume();</span>
+<span class="lineNum">     800 </span>            : 
+<span class="lineNum">     801 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     802 </span>            : }
+<span class="lineNum">     803 </span>            : 
+<span class="lineNum">     804 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">     805 </span>            : // FTPChannelChild::nsIChildChannel
+<span class="lineNum">     806 </span>            : //-----------------------------------------------------------------------------
+<a name="807"><span class="lineNum">     807 </span>            : </a>
+<span class="lineNum">     808 </span>            : NS_IMETHODIMP
+<span class="lineNum">     809 </span><span class="lineNoCov">          0 : FTPChannelChild::ConnectParent(uint32_t id)</span>
+<span class="lineNum">     810 </span>            : {
+<span class="lineNum">     811 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::ConnectParent [this=%p]\n&quot;, this));</span>
+<span class="lineNum">     812 </span>            : 
+<span class="lineNum">     813 </span><span class="lineNoCov">          0 :   mozilla::dom::TabChild* tabChild = nullptr;</span>
+<span class="lineNum">     814 </span>            :   nsCOMPtr&lt;nsITabChild&gt; iTabChild;
+<span class="lineNum">     815 </span>            :   NS_QueryNotificationCallbacks(mCallbacks, mLoadGroup,
+<span class="lineNum">     816 </span>            :                                 NS_GET_IID(nsITabChild),
+<span class="lineNum">     817 </span><span class="lineNoCov">          0 :                                 getter_AddRefs(iTabChild));</span>
+<span class="lineNum">     818 </span><span class="lineNoCov">          0 :   GetCallback(iTabChild);</span>
+<span class="lineNum">     819 </span><span class="lineNoCov">          0 :   if (iTabChild) {</span>
+<span class="lineNum">     820 </span><span class="lineNoCov">          0 :     tabChild = static_cast&lt;mozilla::dom::TabChild*&gt;(iTabChild.get());</span>
+<span class="lineNum">     821 </span>            :   }
+<span class="lineNum">     822 </span>            : 
+<span class="lineNum">     823 </span>            :   // The socket transport in the chrome process now holds a logical ref to us
+<span class="lineNum">     824 </span>            :   // until OnStopRequest, or we do a redirect, or we hit an IPDL error.
+<span class="lineNum">     825 </span><span class="lineNoCov">          0 :   AddIPDLReference();</span>
+<span class="lineNum">     826 </span>            : 
+<span class="lineNum">     827 </span><span class="lineNoCov">          0 :   FTPChannelConnectArgs connectArgs(id);</span>
+<span class="lineNum">     828 </span>            : 
+<span class="lineNum">     829 </span><span class="lineNoCov">          0 :   if (!gNeckoChild-&gt;SendPFTPChannelConstructor(this, tabChild,</span>
+<span class="lineNum">     830 </span>            :                                                IPC::SerializedLoadContext(this),
+<span class="lineNum">     831 </span><span class="lineNoCov">          0 :                                                connectArgs)) {</span>
+<span class="lineNum">     832 </span>            :     return NS_ERROR_FAILURE;
+<span class="lineNum">     833 </span>            :   }
+<span class="lineNum">     834 </span>            : 
+<span class="lineNum">     835 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     836 </span>            : }
+<a name="837"><span class="lineNum">     837 </span>            : </a>
+<span class="lineNum">     838 </span>            : NS_IMETHODIMP
+<span class="lineNum">     839 </span><span class="lineNoCov">          0 : FTPChannelChild::CompleteRedirectSetup(nsIStreamListener *listener,</span>
+<span class="lineNum">     840 </span>            :                                        nsISupports *aContext)
+<span class="lineNum">     841 </span>            : {
+<span class="lineNum">     842 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::CompleteRedirectSetup [this=%p]\n&quot;, this));</span>
+<span class="lineNum">     843 </span>            : 
+<span class="lineNum">     844 </span><span class="lineNoCov">          0 :   NS_ENSURE_TRUE(!mIsPending, NS_ERROR_IN_PROGRESS);</span>
+<span class="lineNum">     845 </span><span class="lineNoCov">          0 :   NS_ENSURE_TRUE(!mWasOpened, NS_ERROR_ALREADY_OPENED);</span>
+<span class="lineNum">     846 </span>            : 
+<span class="lineNum">     847 </span><span class="lineNoCov">          0 :   mIsPending = true;</span>
+<span class="lineNum">     848 </span><span class="lineNoCov">          0 :   mWasOpened = true;</span>
+<span class="lineNum">     849 </span><span class="lineNoCov">          0 :   mListener = listener;</span>
+<span class="lineNum">     850 </span><span class="lineNoCov">          0 :   mListenerContext = aContext;</span>
+<span class="lineNum">     851 </span>            : 
+<span class="lineNum">     852 </span>            :   // add ourselves to the load group.
+<span class="lineNum">     853 </span><span class="lineNoCov">          0 :   if (mLoadGroup)</span>
+<span class="lineNum">     854 </span><span class="lineNoCov">          0 :     mLoadGroup-&gt;AddRequest(this, nullptr);</span>
+<span class="lineNum">     855 </span>            : 
+<span class="lineNum">     856 </span>            :   // We already have an open IPDL connection to the parent. If on-modify-request
+<span class="lineNum">     857 </span>            :   // listeners or load group observers canceled us, let the parent handle it
+<span class="lineNum">     858 </span>            :   // and send it back to us naturally.
+<span class="lineNum">     859 </span>            :   return NS_OK;
+<span class="lineNum">     860 </span>            : }
+<span class="lineNum">     861 </span>            : 
+<span class="lineNum">     862 </span>            : //-----------------------------------------------------------------------------
+<span class="lineNum">     863 </span>            : // FTPChannelChild::nsIDivertableChannel
+<a name="864"><span class="lineNum">     864 </span>            : //-----------------------------------------------------------------------------</a>
+<span class="lineNum">     865 </span>            : NS_IMETHODIMP
+<span class="lineNum">     866 </span><span class="lineNoCov">          0 : FTPChannelChild::DivertToParent(ChannelDiverterChild **aChild)</span>
+<span class="lineNum">     867 </span>            : {
+<span class="lineNum">     868 </span><span class="lineNoCov">          0 :   MOZ_RELEASE_ASSERT(aChild);</span>
+<span class="lineNum">     869 </span><span class="lineNoCov">          0 :   MOZ_RELEASE_ASSERT(gNeckoChild);</span>
+<span class="lineNum">     870 </span><span class="lineNoCov">          0 :   MOZ_RELEASE_ASSERT(!mDivertingToParent);</span>
+<span class="lineNum">     871 </span>            : 
+<span class="lineNum">     872 </span><span class="lineNoCov">          0 :   LOG((&quot;FTPChannelChild::DivertToParent [this=%p]\n&quot;, this));</span>
+<span class="lineNum">     873 </span>            : 
+<span class="lineNum">     874 </span>            :   // We must fail DivertToParent() if there's no parent end of the channel (and
+<span class="lineNum">     875 </span>            :   // won't be!) due to early failure.
+<span class="lineNum">     876 </span><span class="lineNoCov">          0 :   if (NS_FAILED(mStatus) &amp;&amp; !mIPCOpen) {</span>
+<span class="lineNum">     877 </span>            :     return mStatus;
+<span class="lineNum">     878 </span>            :   }
+<span class="lineNum">     879 </span>            : 
+<span class="lineNum">     880 </span><span class="lineNoCov">          0 :   nsresult rv = Suspend();</span>
+<span class="lineNum">     881 </span><span class="lineNoCov">          0 :   if (NS_WARN_IF(NS_FAILED(rv))) {</span>
+<span class="lineNum">     882 </span>            :     return rv;
+<span class="lineNum">     883 </span>            :   }
+<span class="lineNum">     884 </span>            : 
+<span class="lineNum">     885 </span>            :   // Once this is set, it should not be unset before the child is taken down.
+<span class="lineNum">     886 </span><span class="lineNoCov">          0 :   mDivertingToParent = true;</span>
+<span class="lineNum">     887 </span>            : 
+<span class="lineNum">     888 </span>            :   PChannelDiverterChild* diverter =
+<span class="lineNum">     889 </span><span class="lineNoCov">          0 :     gNeckoChild-&gt;SendPChannelDiverterConstructor(this);</span>
+<span class="lineNum">     890 </span><span class="lineNoCov">          0 :   MOZ_RELEASE_ASSERT(diverter);</span>
+<span class="lineNum">     891 </span>            : 
+<span class="lineNum">     892 </span><span class="lineNoCov">          0 :   *aChild = static_cast&lt;ChannelDiverterChild*&gt;(diverter);</span>
+<span class="lineNum">     893 </span>            : 
+<span class="lineNum">     894 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     895 </span>            : }
+<a name="896"><span class="lineNum">     896 </span>            : </a>
+<span class="lineNum">     897 </span>            : NS_IMETHODIMP
+<span class="lineNum">     898 </span><span class="lineNoCov">          0 : FTPChannelChild::UnknownDecoderInvolvedKeepData()</span>
+<span class="lineNum">     899 </span>            : {
+<span class="lineNum">     900 </span><span class="lineNoCov">          0 :   mUnknownDecoderInvolved = true;</span>
+<span class="lineNum">     901 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     902 </span>            : }
+<a name="903"><span class="lineNum">     903 </span>            : </a>
+<span class="lineNum">     904 </span>            : NS_IMETHODIMP
+<span class="lineNum">     905 </span><span class="lineNoCov">          0 : FTPChannelChild::UnknownDecoderInvolvedOnStartRequestCalled()</span>
+<span class="lineNum">     906 </span>            : {
+<span class="lineNum">     907 </span><span class="lineNoCov">          0 :   mUnknownDecoderInvolved = false;</span>
+<span class="lineNum">     908 </span>            : 
+<span class="lineNum">     909 </span><span class="lineNoCov">          0 :   nsresult rv = NS_OK;</span>
+<span class="lineNum">     910 </span>            : 
+<span class="lineNum">     911 </span><span class="lineNoCov">          0 :   if (mDivertingToParent) {</span>
+<span class="lineNum">     912 </span><span class="lineNoCov">          0 :     rv = mEventQ-&gt;PrependEvents(mUnknownDecoderEventQ);</span>
+<span class="lineNum">     913 </span>            :   }
+<span class="lineNum">     914 </span><span class="lineNoCov">          0 :   mUnknownDecoderEventQ.Clear();</span>
+<span class="lineNum">     915 </span>            : 
+<span class="lineNum">     916 </span><span class="lineNoCov">          0 :   return rv;</span>
+<span class="lineNum">     917 </span>            : }
+<a name="918"><span class="lineNum">     918 </span>            : </a>
+<span class="lineNum">     919 </span>            : NS_IMETHODIMP
+<span class="lineNum">     920 </span><span class="lineNoCov">          0 : FTPChannelChild::GetDivertingToParent(bool* aDiverting)</span>
+<span class="lineNum">     921 </span>            : {
+<span class="lineNum">     922 </span><span class="lineNoCov">          0 :   NS_ENSURE_ARG_POINTER(aDiverting);</span>
+<span class="lineNum">     923 </span><span class="lineNoCov">          0 :   *aDiverting = mDivertingToParent;</span>
+<span class="lineNum">     924 </span><span class="lineNoCov">          0 :   return NS_OK;</span>
+<span class="lineNum">     925 </span>            : }
+<span class="lineNum">     926 </span>            : 
+<span class="lineNum">     927 </span>            : } // namespace net
+<span class="lineNum">     928 </span>            : } // namespace mozilla
+<span class="lineNum">     929 </span>            : 
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

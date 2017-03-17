@@ -1,0 +1,1637 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - js/src/builtin/SIMD.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">js/src/builtin</a> - SIMD.cpp<span style="font-size: 80%;"> (source / <a href="SIMD.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">14</td>
+            <td class="headerCovTableEntry">356</td>
+            <td class="headerCovTableEntryLo">3.9 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">2</td>
+            <td class="headerCovTableEntry">753</td>
+            <td class="headerCovTableEntryLo">0.3 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-</a>
+<span class="lineNum">       2 </span>            :  * vim: set ts=8 sts=4 et sw=4 tw=99:
+<span class="lineNum">       3 </span>            :  * This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : /*
+<span class="lineNum">       8 </span>            :  * JS SIMD pseudo-module.
+<span class="lineNum">       9 </span>            :  * Specification matches polyfill:
+<span class="lineNum">      10 </span>            :  * https://github.com/johnmccutchan/ecmascript_simd/blob/master/src/ecmascript_simd.js
+<span class="lineNum">      11 </span>            :  * The objects float32x4 and int32x4 are installed on the SIMD pseudo-module.
+<span class="lineNum">      12 </span>            :  */
+<span class="lineNum">      13 </span>            : 
+<span class="lineNum">      14 </span>            : #include &quot;builtin/SIMD.h&quot;
+<span class="lineNum">      15 </span>            : 
+<span class="lineNum">      16 </span>            : #include &quot;mozilla/FloatingPoint.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;mozilla/IntegerTypeTraits.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;mozilla/Sprintf.h&quot;
+<span class="lineNum">      19 </span>            : 
+<span class="lineNum">      20 </span>            : #include &quot;jsapi.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;jsfriendapi.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;jsnum.h&quot;
+<span class="lineNum">      23 </span>            : #include &quot;jsprf.h&quot;
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : #include &quot;builtin/TypedObject.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;jit/AtomicOperations.h&quot;
+<span class="lineNum">      27 </span>            : #include &quot;jit/InlinableNatives.h&quot;
+<span class="lineNum">      28 </span>            : #include &quot;js/GCAPI.h&quot;
+<span class="lineNum">      29 </span>            : #include &quot;js/Value.h&quot;
+<span class="lineNum">      30 </span>            : 
+<span class="lineNum">      31 </span>            : #include &quot;jsobjinlines.h&quot;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : using namespace js;
+<span class="lineNum">      34 </span>            : 
+<span class="lineNum">      35 </span>            : using mozilla::ArrayLength;
+<span class="lineNum">      36 </span>            : using mozilla::IsFinite;
+<span class="lineNum">      37 </span>            : using mozilla::IsNaN;
+<span class="lineNum">      38 </span>            : using mozilla::FloorLog2;
+<span class="lineNum">      39 </span>            : using mozilla::NumberIsInt32;
+<span class="lineNum">      40 </span>            : 
+<span class="lineNum">      41 </span>            : ///////////////////////////////////////////////////////////////////////////
+<span class="lineNum">      42 </span>            : // SIMD
+<span class="lineNum">      43 </span>            : 
+<span class="lineNum">      44 </span>            : static_assert(unsigned(SimdType::Count) == 12, &quot;sync with TypedObjectConstants.h&quot;);
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span>            : static bool ArgumentToLaneIndex(JSContext* cx, JS::HandleValue v, unsigned limit, unsigned* lane);
+<a name="47"><span class="lineNum">      47 </span>            : </a>
+<span class="lineNum">      48 </span>            : static bool
+<span class="lineNum">      49 </span><span class="lineNoCov">          0 : CheckVectorObject(HandleValue v, SimdType expectedType)</span>
+<span class="lineNum">      50 </span>            : {
+<span class="lineNum">      51 </span><span class="lineNoCov">          0 :     if (!v.isObject())</span>
+<span class="lineNum">      52 </span>            :         return false;
+<span class="lineNum">      53 </span>            : 
+<span class="lineNum">      54 </span><span class="lineNoCov">          0 :     JSObject&amp; obj = v.toObject();</span>
+<span class="lineNum">      55 </span><span class="lineNoCov">          0 :     if (!obj.is&lt;TypedObject&gt;())</span>
+<span class="lineNum">      56 </span>            :         return false;
+<span class="lineNum">      57 </span>            : 
+<span class="lineNum">      58 </span><span class="lineNoCov">          0 :     TypeDescr&amp; typeRepr = obj.as&lt;TypedObject&gt;().typeDescr();</span>
+<span class="lineNum">      59 </span><span class="lineNoCov">          0 :     if (typeRepr.kind() != type::Simd)</span>
+<span class="lineNum">      60 </span>            :         return false;
+<span class="lineNum">      61 </span>            : 
+<span class="lineNum">      62 </span><span class="lineNoCov">          0 :     return typeRepr.as&lt;SimdTypeDescr&gt;().type() == expectedType;</span>
+<span class="lineNum">      63 </span>            : }
+<span class="lineNum">      64 </span>            : 
+<a name="65"><span class="lineNum">      65 </span>            : template&lt;class V&gt;</a>
+<span class="lineNum">      66 </span>            : bool
+<span class="lineNum">      67 </span><span class="lineNoCov">          0 : js::IsVectorObject(HandleValue v)</span>
+<span class="lineNum">      68 </span>            : {
+<span class="lineNum">      69 </span><span class="lineNoCov">          0 :     return CheckVectorObject(v, V::type);</span>
+<span class="lineNum">      70 </span>            : }
+<span class="lineNum">      71 </span>            : 
+<span class="lineNum">      72 </span>            : #define FOR_EACH_SIMD(macro) \
+<span class="lineNum">      73 </span>            :   macro(Int8x16)             \
+<span class="lineNum">      74 </span>            :   macro(Int16x8)             \
+<span class="lineNum">      75 </span>            :   macro(Int32x4)             \
+<span class="lineNum">      76 </span>            :   macro(Uint8x16)            \
+<span class="lineNum">      77 </span>            :   macro(Uint16x8)            \
+<span class="lineNum">      78 </span>            :   macro(Uint32x4)            \
+<span class="lineNum">      79 </span>            :   macro(Float32x4)           \
+<span class="lineNum">      80 </span>            :   macro(Float64x2)           \
+<span class="lineNum">      81 </span>            :   macro(Bool8x16)            \
+<span class="lineNum">      82 </span>            :   macro(Bool16x8)            \
+<span class="lineNum">      83 </span>            :   macro(Bool32x4)            \
+<span class="lineNum">      84 </span>            :   macro(Bool64x2)
+<span class="lineNum">      85 </span>            : 
+<span class="lineNum">      86 </span>            : #define InstantiateIsVectorObject_(T) \
+<span class="lineNum">      87 </span>            :     template bool js::IsVectorObject&lt;T&gt;(HandleValue v);
+<span class="lineNum">      88 </span>            : FOR_EACH_SIMD(InstantiateIsVectorObject_)
+<span class="lineNum">      89 </span>            : #undef InstantiateIsVectorObject_
+<a name="90"><span class="lineNum">      90 </span>            : </a>
+<span class="lineNum">      91 </span>            : const char*
+<span class="lineNum">      92 </span><span class="lineNoCov">          0 : js::SimdTypeToString(SimdType type)</span>
+<span class="lineNum">      93 </span>            : {
+<span class="lineNum">      94 </span><span class="lineNoCov">          0 :     switch (type) {</span>
+<span class="lineNum">      95 </span>            : #define RETSTR_(TYPE) case SimdType::TYPE: return #TYPE;
+<span class="lineNum">      96 </span><span class="lineNoCov">          0 :       FOR_EACH_SIMD(RETSTR_)</span>
+<span class="lineNum">      97 </span>            : #undef RETSTR_
+<span class="lineNum">      98 </span>            :       case SimdType::Count: break;
+<span class="lineNum">      99 </span>            :     }
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :     return &quot;&lt;bad SimdType&gt;&quot;;</span>
+<span class="lineNum">     101 </span>            : }
+<a name="102"><span class="lineNum">     102 </span>            : </a>
+<span class="lineNum">     103 </span>            : PropertyName*
+<span class="lineNum">     104 </span><span class="lineNoCov">          0 : js::SimdTypeToName(const JSAtomState&amp; atoms, SimdType type)</span>
+<span class="lineNum">     105 </span>            : {
+<span class="lineNum">     106 </span><span class="lineNoCov">          0 :     switch (type) {</span>
+<span class="lineNum">     107 </span>            : #define CASE_(TypeName) case SimdType::TypeName: return atoms.TypeName;
+<span class="lineNum">     108 </span><span class="lineNoCov">          0 :       FOR_EACH_SIMD(CASE_)</span>
+<span class="lineNum">     109 </span>            : #undef CASE_
+<span class="lineNum">     110 </span>            :       case SimdType::Count: break;
+<span class="lineNum">     111 </span>            :     }
+<span class="lineNum">     112 </span><span class="lineNoCov">          0 :     MOZ_CRASH(&quot;bad SIMD type&quot;);</span>
+<span class="lineNum">     113 </span>            : }
+<a name="114"><span class="lineNum">     114 </span>            : </a>
+<span class="lineNum">     115 </span>            : bool
+<span class="lineNum">     116 </span><span class="lineNoCov">          0 : js::IsSimdTypeName(const JSAtomState&amp; atoms, const PropertyName* name, SimdType* type)</span>
+<span class="lineNum">     117 </span>            : {
+<span class="lineNum">     118 </span>            : #define CHECK_(TypeName) if (name == atoms.TypeName) {   \
+<span class="lineNum">     119 </span>            :                              *type = SimdType::TypeName; \
+<span class="lineNum">     120 </span>            :                              return true;                \
+<span class="lineNum">     121 </span>            :                          }
+<span class="lineNum">     122 </span><span class="lineNoCov">          0 :     FOR_EACH_SIMD(CHECK_)</span>
+<span class="lineNum">     123 </span>            : #undef CHECK_
+<span class="lineNum">     124 </span>            :     return false;
+<span class="lineNum">     125 </span>            : }
+<span class="lineNum">     126 </span>            : 
+<span class="lineNum">     127 </span>            : static inline bool
+<span class="lineNum">     128 </span>            : ErrorBadArgs(JSContext* cx)
+<span class="lineNum">     129 </span>            : {
+<span class="lineNum">     130 </span><span class="lineNoCov">          0 :     JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr, JSMSG_TYPED_ARRAY_BAD_ARGS);</span>
+<span class="lineNum">     131 </span>            :     return false;
+<span class="lineNum">     132 </span>            : }
+<a name="133"><span class="lineNum">     133 </span>            : </a>
+<span class="lineNum">     134 </span>            : static inline bool
+<span class="lineNum">     135 </span><span class="lineNoCov">          0 : ErrorWrongTypeArg(JSContext* cx, unsigned argIndex, Handle&lt;TypeDescr*&gt; typeDescr)</span>
+<span class="lineNum">     136 </span>            : {
+<span class="lineNum">     137 </span>            :     MOZ_ASSERT(argIndex &lt; 10);
+<span class="lineNum">     138 </span>            :     char charArgIndex[2];
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :     SprintfLiteral(charArgIndex, &quot;%u&quot;, argIndex);</span>
+<span class="lineNum">     140 </span>            : 
+<span class="lineNum">     141 </span><span class="lineNoCov">          0 :     HeapSlot&amp; typeNameSlot = typeDescr-&gt;getReservedSlotRef(JS_DESCR_SLOT_STRING_REPR);</span>
+<span class="lineNum">     142 </span><span class="lineNoCov">          0 :     char* typeNameStr = JS_EncodeString(cx, typeNameSlot.toString());</span>
+<span class="lineNum">     143 </span><span class="lineNoCov">          0 :     if (!typeNameStr)</span>
+<span class="lineNum">     144 </span>            :         return false;
+<span class="lineNum">     145 </span>            : 
+<span class="lineNum">     146 </span>            :     JS_ReportErrorNumberLatin1(cx, GetErrorMessage, nullptr, JSMSG_SIMD_NOT_A_VECTOR,
+<span class="lineNum">     147 </span><span class="lineNoCov">          0 :                                typeNameStr, charArgIndex);</span>
+<span class="lineNum">     148 </span><span class="lineNoCov">          0 :     JS_free(cx, typeNameStr);</span>
+<span class="lineNum">     149 </span><span class="lineNoCov">          0 :     return false;</span>
+<span class="lineNum">     150 </span>            : }
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span>            : static inline bool
+<span class="lineNum">     153 </span>            : ErrorBadIndex(JSContext* cx)
+<span class="lineNum">     154 </span>            : {
+<span class="lineNum">     155 </span><span class="lineNoCov">          0 :     JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr, JSMSG_BAD_INDEX);</span>
+<span class="lineNum">     156 </span>            :     return false;
+<span class="lineNum">     157 </span>            : }
+<span class="lineNum">     158 </span>            : 
+<a name="159"><span class="lineNum">     159 </span>            : template&lt;typename T&gt;</a>
+<span class="lineNum">     160 </span>            : static SimdTypeDescr*
+<span class="lineNum">     161 </span><span class="lineNoCov">          0 : GetTypeDescr(JSContext* cx)</span>
+<span class="lineNum">     162 </span>            : {
+<span class="lineNum">     163 </span><span class="lineNoCov">          0 :     RootedGlobalObject global(cx, cx-&gt;global());</span>
+<span class="lineNum">     164 </span><span class="lineNoCov">          0 :     return GlobalObject::getOrCreateSimdTypeDescr(cx, global, T::type);</span>
+<span class="lineNum">     165 </span>            : }
+<span class="lineNum">     166 </span>            : 
+<a name="167"><span class="lineNum">     167 </span>            : template&lt;typename V&gt;</a>
+<span class="lineNum">     168 </span>            : bool
+<span class="lineNum">     169 </span><span class="lineNoCov">          0 : js::ToSimdConstant(JSContext* cx, HandleValue v, jit::SimdConstant* out)</span>
+<span class="lineNum">     170 </span>            : {
+<span class="lineNum">     171 </span>            :     typedef typename V::Elem Elem;
+<span class="lineNum">     172 </span><span class="lineNoCov">          0 :     Rooted&lt;TypeDescr*&gt; typeDescr(cx, GetTypeDescr&lt;V&gt;(cx));</span>
+<span class="lineNum">     173 </span><span class="lineNoCov">          0 :     if (!typeDescr)</span>
+<span class="lineNum">     174 </span>            :         return false;
+<span class="lineNum">     175 </span><span class="lineNoCov">          0 :     if (!IsVectorObject&lt;V&gt;(v))</span>
+<span class="lineNum">     176 </span><span class="lineNoCov">          0 :         return ErrorWrongTypeArg(cx, 1, typeDescr);</span>
+<span class="lineNum">     177 </span>            : 
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :     JS::AutoCheckCannotGC nogc(cx);</span>
+<span class="lineNum">     179 </span><span class="lineNoCov">          0 :     Elem* mem = reinterpret_cast&lt;Elem*&gt;(v.toObject().as&lt;TypedObject&gt;().typedMem(nogc));</span>
+<span class="lineNum">     180 </span><span class="lineNoCov">          0 :     *out = jit::SimdConstant::CreateSimd128(mem);</span>
+<span class="lineNum">     181 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">     182 </span>            : }
+<span class="lineNum">     183 </span>            : 
+<span class="lineNum">     184 </span>            : template bool js::ToSimdConstant&lt;Int8x16&gt;(JSContext* cx, HandleValue v, jit::SimdConstant* out);
+<span class="lineNum">     185 </span>            : template bool js::ToSimdConstant&lt;Int16x8&gt;(JSContext* cx, HandleValue v, jit::SimdConstant* out);
+<span class="lineNum">     186 </span>            : template bool js::ToSimdConstant&lt;Int32x4&gt;(JSContext* cx, HandleValue v, jit::SimdConstant* out);
+<span class="lineNum">     187 </span>            : template bool js::ToSimdConstant&lt;Float32x4&gt;(JSContext* cx, HandleValue v, jit::SimdConstant* out);
+<span class="lineNum">     188 </span>            : template bool js::ToSimdConstant&lt;Bool8x16&gt;(JSContext* cx, HandleValue v, jit::SimdConstant* out);
+<span class="lineNum">     189 </span>            : template bool js::ToSimdConstant&lt;Bool16x8&gt;(JSContext* cx, HandleValue v, jit::SimdConstant* out);
+<span class="lineNum">     190 </span>            : template bool js::ToSimdConstant&lt;Bool32x4&gt;(JSContext* cx, HandleValue v, jit::SimdConstant* out);
+<span class="lineNum">     191 </span>            : 
+<span class="lineNum">     192 </span>            : template&lt;typename Elem&gt;
+<span class="lineNum">     193 </span>            : static Elem
+<span class="lineNum">     194 </span>            : TypedObjectMemory(HandleValue v, const JS::AutoRequireNoGC&amp; nogc)
+<span class="lineNum">     195 </span>            : {
+<span class="lineNum">     196 </span><span class="lineNoCov">          0 :     TypedObject&amp; obj = v.toObject().as&lt;TypedObject&gt;();</span>
+<span class="lineNum">     197 </span><span class="lineNoCov">          0 :     return reinterpret_cast&lt;Elem&gt;(obj.typedMem(nogc));</span>
+<span class="lineNum">     198 </span>            : }
+<span class="lineNum">     199 </span>            : 
+<span class="lineNum">     200 </span>            : static const ClassOps SimdTypeDescrClassOps = {
+<span class="lineNum">     201 </span>            :     nullptr, /* addProperty */
+<span class="lineNum">     202 </span>            :     nullptr, /* delProperty */
+<span class="lineNum">     203 </span>            :     nullptr, /* getProperty */
+<span class="lineNum">     204 </span>            :     nullptr, /* setProperty */
+<span class="lineNum">     205 </span>            :     nullptr, /* enumerate */
+<span class="lineNum">     206 </span>            :     nullptr, /* resolve */
+<span class="lineNum">     207 </span>            :     nullptr, /* mayResolve */
+<span class="lineNum">     208 </span>            :     TypeDescr::finalize,
+<span class="lineNum">     209 </span>            :     SimdTypeDescr::call
+<span class="lineNum">     210 </span>            : };
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span>            : const Class SimdTypeDescr::class_ = {
+<span class="lineNum">     213 </span>            :     &quot;SIMD&quot;,
+<span class="lineNum">     214 </span>            :     JSCLASS_HAS_RESERVED_SLOTS(JS_DESCR_SLOTS) | JSCLASS_BACKGROUND_FINALIZE,
+<span class="lineNum">     215 </span>            :     &amp;SimdTypeDescrClassOps
+<span class="lineNum">     216 </span>            : };
+<span class="lineNum">     217 </span>            : 
+<span class="lineNum">     218 </span>            : namespace {
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span>            : // Define classes (Int8x16Defn, Int16x8Defn, etc.) to group together various
+<span class="lineNum">     221 </span>            : // properties and so on.
+<span class="lineNum">     222 </span>            : #define DEFINE_DEFN_(TypeName)                                       \
+<span class="lineNum">     223 </span>            : class TypeName##Defn {                                               \
+<span class="lineNum">     224 </span>            :   public:                                                            \
+<span class="lineNum">     225 </span>            :     static const JSFunctionSpec Methods[];                           \
+<span class="lineNum">     226 </span>            : };
+<span class="lineNum">     227 </span>            : 
+<span class="lineNum">     228 </span>            : FOR_EACH_SIMD(DEFINE_DEFN_)
+<span class="lineNum">     229 </span>            : #undef DEFINE_DEFN_
+<span class="lineNum">     230 </span>            : 
+<span class="lineNum">     231 </span>            : } // namespace
+<span class="lineNum">     232 </span>            : 
+<span class="lineNum">     233 </span>            : // Shared type descriptor methods for all SIMD types.
+<span class="lineNum">     234 </span>            : static const JSFunctionSpec TypeDescriptorMethods[] = {
+<span class="lineNum">     235 </span>            :     JS_SELF_HOSTED_FN(&quot;toSource&quot;, &quot;DescrToSource&quot;, 0, 0),
+<span class="lineNum">     236 </span>            :     JS_SELF_HOSTED_FN(&quot;array&quot;, &quot;ArrayShorthand&quot;, 1, 0),
+<span class="lineNum">     237 </span>            :     JS_SELF_HOSTED_FN(&quot;equivalent&quot;, &quot;TypeDescrEquivalent&quot;, 1, 0),
+<span class="lineNum">     238 </span>            :     JS_FS_END
+<span class="lineNum">     239 </span>            : };
+<span class="lineNum">     240 </span>            : 
+<span class="lineNum">     241 </span>            : // Shared TypedObject methods for all SIMD types.
+<span class="lineNum">     242 </span>            : static const JSFunctionSpec SimdTypedObjectMethods[] = {
+<span class="lineNum">     243 </span>            :     JS_SELF_HOSTED_FN(&quot;toString&quot;, &quot;SimdToString&quot;, 0, 0),
+<span class="lineNum">     244 </span>            :     JS_SELF_HOSTED_FN(&quot;valueOf&quot;, &quot;SimdValueOf&quot;, 0, 0),
+<span class="lineNum">     245 </span>            :     JS_SELF_HOSTED_FN(&quot;toSource&quot;, &quot;SimdToSource&quot;, 0, 0),
+<span class="lineNum">     246 </span>            :     JS_FS_END
+<span class="lineNum">     247 </span>            : };
+<span class="lineNum">     248 </span>            : 
+<span class="lineNum">     249 </span>            : // Provide JSJitInfo structs for those types that are supported by Ion.
+<span class="lineNum">     250 </span>            : // The controlling SIMD type is encoded as the InlinableNative primary opcode.
+<span class="lineNum">     251 </span>            : // The SimdOperation within the type is encoded in the .depth field.
+<span class="lineNum">     252 </span>            : //
+<span class="lineNum">     253 </span>            : // The JS_INLINABLE_FN macro refers to js::JitInfo_##native which we provide as
+<span class="lineNum">     254 </span>            : // Simd##Type##_##Operation
+<span class="lineNum">     255 </span>            : //
+<span class="lineNum">     256 </span>            : // /!\ Don't forget to keep this list in sync with the SIMD instrinics used in
+<span class="lineNum">     257 </span>            : // SelfHosting.cpp.
+<span class="lineNum">     258 </span>            : 
+<span class="lineNum">     259 </span>            : namespace js {
+<span class="lineNum">     260 </span>            : namespace jit {
+<span class="lineNum">     261 </span>            : 
+<span class="lineNum">     262 </span>            : static_assert(uint64_t(SimdOperation::Last) &lt;= UINT16_MAX, &quot;SimdOperation must fit in uint16_t&quot;);
+<span class="lineNum">     263 </span>            : 
+<span class="lineNum">     264 </span>            : // See also JitInfo_* in MCallOptimize.cpp. We provide a JSJitInfo for all the
+<span class="lineNum">     265 </span>            : // named functions here. The default JitInfo_SimdInt32x4 etc structs represent the
+<span class="lineNum">     266 </span>            : // SimdOperation::Constructor.
+<span class="lineNum">     267 </span>            : #define DEFN(TYPE, OP) const JSJitInfo JitInfo_Simd##TYPE##_##OP = {                             \
+<span class="lineNum">     268 </span>            :      /* .getter, unused for inlinable natives. */                                                \
+<span class="lineNum">     269 </span>            :     { nullptr },                                                                                 \
+<span class="lineNum">     270 </span>            :     /* .inlinableNative, but we have to init first union member: .protoID. */                    \
+<span class="lineNum">     271 </span>            :     { uint16_t(InlinableNative::Simd##TYPE) },                                                   \
+<span class="lineNum">     272 </span>            :     /* .nativeOp. Actually initializing first union member .depth. */                            \
+<span class="lineNum">     273 </span>            :     { uint16_t(SimdOperation::Fn_##OP) },                                                        \
+<span class="lineNum">     274 </span>            :     /* .type_ bitfield says this in an inlinable native function. */                             \
+<span class="lineNum">     275 </span>            :     JSJitInfo::InlinableNative                                                                   \
+<span class="lineNum">     276 </span>            :     /* Remaining fields are not used for inlinable natives. They are zero-initialized. */        \
+<span class="lineNum">     277 </span>            : };
+<span class="lineNum">     278 </span>            : 
+<span class="lineNum">     279 </span>            : // This list of inlinable types should match the one in jit/InlinableNatives.h.
+<span class="lineNum">     280 </span>            : #define TDEFN(Name, Func, Operands) DEFN(Float32x4, Name)
+<span class="lineNum">     281 </span>            : FLOAT32X4_FUNCTION_LIST(TDEFN)
+<span class="lineNum">     282 </span>            : #undef TDEFN
+<span class="lineNum">     283 </span>            : 
+<span class="lineNum">     284 </span>            : #define TDEFN(Name, Func, Operands) DEFN(Int8x16, Name)
+<span class="lineNum">     285 </span>            : INT8X16_FUNCTION_LIST(TDEFN)
+<span class="lineNum">     286 </span>            : #undef TDEFN
+<span class="lineNum">     287 </span>            : 
+<span class="lineNum">     288 </span>            : #define TDEFN(Name, Func, Operands) DEFN(Uint8x16, Name)
+<span class="lineNum">     289 </span>            : UINT8X16_FUNCTION_LIST(TDEFN)
+<span class="lineNum">     290 </span>            : #undef TDEFN
+<span class="lineNum">     291 </span>            : 
+<span class="lineNum">     292 </span>            : #define TDEFN(Name, Func, Operands) DEFN(Int16x8, Name)
+<span class="lineNum">     293 </span>            : INT16X8_FUNCTION_LIST(TDEFN)
+<span class="lineNum">     294 </span>            : #undef TDEFN
+<span class="lineNum">     295 </span>            : 
+<span class="lineNum">     296 </span>            : #define TDEFN(Name, Func, Operands) DEFN(Uint16x8, Name)
+<span class="lineNum">     297 </span>            : UINT16X8_FUNCTION_LIST(TDEFN)
+<span class="lineNum">     298 </span>            : #undef TDEFN
+<span class="lineNum">     299 </span>            : 
+<span class="lineNum">     300 </span>            : #define TDEFN(Name, Func, Operands) DEFN(Int32x4, Name)
+<span class="lineNum">     301 </span>            : INT32X4_FUNCTION_LIST(TDEFN)
+<span class="lineNum">     302 </span>            : #undef TDEFN
+<span class="lineNum">     303 </span>            : 
+<span class="lineNum">     304 </span>            : #define TDEFN(Name, Func, Operands) DEFN(Uint32x4, Name)
+<span class="lineNum">     305 </span>            : UINT32X4_FUNCTION_LIST(TDEFN)
+<span class="lineNum">     306 </span>            : #undef TDEFN
+<span class="lineNum">     307 </span>            : 
+<span class="lineNum">     308 </span>            : #define TDEFN(Name, Func, Operands) DEFN(Bool8x16, Name)
+<span class="lineNum">     309 </span>            : BOOL8X16_FUNCTION_LIST(TDEFN)
+<span class="lineNum">     310 </span>            : #undef TDEFN
+<span class="lineNum">     311 </span>            : 
+<span class="lineNum">     312 </span>            : #define TDEFN(Name, Func, Operands) DEFN(Bool16x8, Name)
+<span class="lineNum">     313 </span>            : BOOL16X8_FUNCTION_LIST(TDEFN)
+<span class="lineNum">     314 </span>            : #undef TDEFN
+<span class="lineNum">     315 </span>            : 
+<span class="lineNum">     316 </span>            : #define TDEFN(Name, Func, Operands) DEFN(Bool32x4, Name)
+<span class="lineNum">     317 </span>            : BOOL32X4_FUNCTION_LIST(TDEFN)
+<span class="lineNum">     318 </span>            : #undef TDEFN
+<span class="lineNum">     319 </span>            : 
+<span class="lineNum">     320 </span>            : } // namespace jit
+<span class="lineNum">     321 </span>            : } // namespace js
+<span class="lineNum">     322 </span>            : 
+<span class="lineNum">     323 </span>            : const JSFunctionSpec Float32x4Defn::Methods[] = {
+<span class="lineNum">     324 </span>            : #define SIMD_FLOAT32X4_FUNCTION_ITEM(Name, Func, Operands) \
+<span class="lineNum">     325 </span>            :     JS_INLINABLE_FN(#Name, js::simd_float32x4_##Name, Operands, 0, SimdFloat32x4_##Name),
+<span class="lineNum">     326 </span>            :     FLOAT32X4_FUNCTION_LIST(SIMD_FLOAT32X4_FUNCTION_ITEM)
+<span class="lineNum">     327 </span>            : #undef SIMD_FLOAT32x4_FUNCTION_ITEM
+<span class="lineNum">     328 </span>            :     JS_FS_END
+<span class="lineNum">     329 </span>            : };
+<span class="lineNum">     330 </span>            : 
+<span class="lineNum">     331 </span>            : const JSFunctionSpec Float64x2Defn::Methods[]  = {
+<span class="lineNum">     332 </span>            : #define SIMD_FLOAT64X2_FUNCTION_ITEM(Name, Func, Operands) \
+<span class="lineNum">     333 </span>            :     JS_FN(#Name, js::simd_float64x2_##Name, Operands, 0),
+<span class="lineNum">     334 </span>            :     FLOAT64X2_FUNCTION_LIST(SIMD_FLOAT64X2_FUNCTION_ITEM)
+<span class="lineNum">     335 </span>            : #undef SIMD_FLOAT64X2_FUNCTION_ITEM
+<span class="lineNum">     336 </span>            :     JS_FS_END
+<span class="lineNum">     337 </span>            : };
+<span class="lineNum">     338 </span>            : 
+<span class="lineNum">     339 </span>            : const JSFunctionSpec Int8x16Defn::Methods[] = {
+<span class="lineNum">     340 </span>            : #define SIMD_INT8X16_FUNCTION_ITEM(Name, Func, Operands) \
+<span class="lineNum">     341 </span>            :     JS_INLINABLE_FN(#Name, js::simd_int8x16_##Name, Operands, 0, SimdInt8x16_##Name),
+<span class="lineNum">     342 </span>            :     INT8X16_FUNCTION_LIST(SIMD_INT8X16_FUNCTION_ITEM)
+<span class="lineNum">     343 </span>            : #undef SIMD_INT8X16_FUNCTION_ITEM
+<span class="lineNum">     344 </span>            :     JS_FS_END
+<span class="lineNum">     345 </span>            : };
+<span class="lineNum">     346 </span>            : 
+<span class="lineNum">     347 </span>            : const JSFunctionSpec Int16x8Defn::Methods[] = {
+<span class="lineNum">     348 </span>            : #define SIMD_INT16X8_FUNCTION_ITEM(Name, Func, Operands) \
+<span class="lineNum">     349 </span>            :     JS_INLINABLE_FN(#Name, js::simd_int16x8_##Name, Operands, 0, SimdInt16x8_##Name),
+<span class="lineNum">     350 </span>            :     INT16X8_FUNCTION_LIST(SIMD_INT16X8_FUNCTION_ITEM)
+<span class="lineNum">     351 </span>            : #undef SIMD_INT16X8_FUNCTION_ITEM
+<span class="lineNum">     352 </span>            :     JS_FS_END
+<span class="lineNum">     353 </span>            : };
+<span class="lineNum">     354 </span>            : 
+<span class="lineNum">     355 </span>            : const JSFunctionSpec Int32x4Defn::Methods[] = {
+<span class="lineNum">     356 </span>            : #define SIMD_INT32X4_FUNCTION_ITEM(Name, Func, Operands) \
+<span class="lineNum">     357 </span>            :     JS_INLINABLE_FN(#Name, js::simd_int32x4_##Name, Operands, 0, SimdInt32x4_##Name),
+<span class="lineNum">     358 </span>            :     INT32X4_FUNCTION_LIST(SIMD_INT32X4_FUNCTION_ITEM)
+<span class="lineNum">     359 </span>            : #undef SIMD_INT32X4_FUNCTION_ITEM
+<span class="lineNum">     360 </span>            :     JS_FS_END
+<span class="lineNum">     361 </span>            : };
+<span class="lineNum">     362 </span>            : 
+<span class="lineNum">     363 </span>            : const JSFunctionSpec Uint8x16Defn::Methods[] = {
+<span class="lineNum">     364 </span>            : #define SIMD_UINT8X16_FUNCTION_ITEM(Name, Func, Operands) \
+<span class="lineNum">     365 </span>            :     JS_INLINABLE_FN(#Name, js::simd_uint8x16_##Name, Operands, 0, SimdUint8x16_##Name),
+<span class="lineNum">     366 </span>            :     UINT8X16_FUNCTION_LIST(SIMD_UINT8X16_FUNCTION_ITEM)
+<span class="lineNum">     367 </span>            : #undef SIMD_UINT8X16_FUNCTION_ITEM
+<span class="lineNum">     368 </span>            :     JS_FS_END
+<span class="lineNum">     369 </span>            : };
+<span class="lineNum">     370 </span>            : 
+<span class="lineNum">     371 </span>            : const JSFunctionSpec Uint16x8Defn::Methods[] = {
+<span class="lineNum">     372 </span>            : #define SIMD_UINT16X8_FUNCTION_ITEM(Name, Func, Operands) \
+<span class="lineNum">     373 </span>            :     JS_INLINABLE_FN(#Name, js::simd_uint16x8_##Name, Operands, 0, SimdUint16x8_##Name),
+<span class="lineNum">     374 </span>            :     UINT16X8_FUNCTION_LIST(SIMD_UINT16X8_FUNCTION_ITEM)
+<span class="lineNum">     375 </span>            : #undef SIMD_UINT16X8_FUNCTION_ITEM
+<span class="lineNum">     376 </span>            :     JS_FS_END
+<span class="lineNum">     377 </span>            : };
+<span class="lineNum">     378 </span>            : 
+<span class="lineNum">     379 </span>            : const JSFunctionSpec Uint32x4Defn::Methods[] = {
+<span class="lineNum">     380 </span>            : #define SIMD_UINT32X4_FUNCTION_ITEM(Name, Func, Operands) \
+<span class="lineNum">     381 </span>            :     JS_INLINABLE_FN(#Name, js::simd_uint32x4_##Name, Operands, 0, SimdUint32x4_##Name),
+<span class="lineNum">     382 </span>            :     UINT32X4_FUNCTION_LIST(SIMD_UINT32X4_FUNCTION_ITEM)
+<span class="lineNum">     383 </span>            : #undef SIMD_UINT32X4_FUNCTION_ITEM
+<span class="lineNum">     384 </span>            :     JS_FS_END
+<span class="lineNum">     385 </span>            : };
+<span class="lineNum">     386 </span>            : 
+<span class="lineNum">     387 </span>            : const JSFunctionSpec Bool8x16Defn::Methods[] = {
+<span class="lineNum">     388 </span>            : #define SIMD_BOOL8X16_FUNCTION_ITEM(Name, Func, Operands) \
+<span class="lineNum">     389 </span>            :     JS_INLINABLE_FN(#Name, js::simd_bool8x16_##Name, Operands, 0, SimdBool8x16_##Name),
+<span class="lineNum">     390 </span>            :     BOOL8X16_FUNCTION_LIST(SIMD_BOOL8X16_FUNCTION_ITEM)
+<span class="lineNum">     391 </span>            : #undef SIMD_BOOL8X16_FUNCTION_ITEM
+<span class="lineNum">     392 </span>            :     JS_FS_END
+<span class="lineNum">     393 </span>            : };
+<span class="lineNum">     394 </span>            : 
+<span class="lineNum">     395 </span>            : const JSFunctionSpec Bool16x8Defn::Methods[] = {
+<span class="lineNum">     396 </span>            : #define SIMD_BOOL16X8_FUNCTION_ITEM(Name, Func, Operands) \
+<span class="lineNum">     397 </span>            :     JS_INLINABLE_FN(#Name, js::simd_bool16x8_##Name, Operands, 0, SimdBool16x8_##Name),
+<span class="lineNum">     398 </span>            :     BOOL16X8_FUNCTION_LIST(SIMD_BOOL16X8_FUNCTION_ITEM)
+<span class="lineNum">     399 </span>            : #undef SIMD_BOOL16X8_FUNCTION_ITEM
+<span class="lineNum">     400 </span>            :     JS_FS_END
+<span class="lineNum">     401 </span>            : };
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span>            : const JSFunctionSpec Bool32x4Defn::Methods[] = {
+<span class="lineNum">     404 </span>            : #define SIMD_BOOL32X4_FUNCTION_ITEM(Name, Func, Operands) \
+<span class="lineNum">     405 </span>            :     JS_INLINABLE_FN(#Name, js::simd_bool32x4_##Name, Operands, 0, SimdBool32x4_##Name),
+<span class="lineNum">     406 </span>            :     BOOL32X4_FUNCTION_LIST(SIMD_BOOL32X4_FUNCTION_ITEM)
+<span class="lineNum">     407 </span>            : #undef SIMD_BOOL32X4_FUNCTION_ITEM
+<span class="lineNum">     408 </span>            :     JS_FS_END
+<span class="lineNum">     409 </span>            : };
+<span class="lineNum">     410 </span>            : 
+<span class="lineNum">     411 </span>            : const JSFunctionSpec Bool64x2Defn::Methods[] = {
+<span class="lineNum">     412 </span>            : #define SIMD_BOOL64X2_FUNCTION_ITEM(Name, Func, Operands) \
+<span class="lineNum">     413 </span>            :     JS_FN(#Name, js::simd_bool64x2_##Name, Operands, 0),
+<span class="lineNum">     414 </span>            :     BOOL64X2_FUNCTION_LIST(SIMD_BOOL64X2_FUNCTION_ITEM)
+<span class="lineNum">     415 </span>            : #undef SIMD_BOOL64x2_FUNCTION_ITEM
+<span class="lineNum">     416 </span>            :     JS_FS_END
+<span class="lineNum">     417 </span>            : };
+<span class="lineNum">     418 </span>            : 
+<a name="419"><span class="lineNum">     419 </span>            : template &lt;typename T&gt;</a>
+<span class="lineNum">     420 </span>            : static bool
+<span class="lineNum">     421 </span><span class="lineNoCov">          0 : FillLanes(JSContext* cx, Handle&lt;TypedObject*&gt; result, const CallArgs&amp; args)</span>
+<span class="lineNum">     422 </span>            : {
+<span class="lineNum">     423 </span>            :     typedef typename T::Elem Elem;
+<span class="lineNum">     424 </span>            :     Elem tmp;
+<span class="lineNum">     425 </span><span class="lineNoCov">          0 :     for (unsigned i = 0; i &lt; T::lanes; i++) {</span>
+<span class="lineNum">     426 </span><span class="lineNoCov">          0 :         if (!T::Cast(cx, args.get(i), &amp;tmp))</span>
+<span class="lineNum">     427 </span>            :             return false;
+<span class="lineNum">     428 </span>            :         // Reassure typedMem() that we won't GC while holding onto the returned
+<span class="lineNum">     429 </span>            :         // pointer, even though we could GC on every iteration of this loop
+<span class="lineNum">     430 </span>            :         // (but it is safe because we re-fetch each time.)
+<span class="lineNum">     431 </span>            :         JS::AutoCheckCannotGC nogc(cx);
+<span class="lineNum">     432 </span><span class="lineNoCov">          0 :         reinterpret_cast&lt;Elem*&gt;(result-&gt;typedMem(nogc))[i] = tmp;</span>
+<span class="lineNum">     433 </span>            :     }
+<span class="lineNum">     434 </span><span class="lineNoCov">          0 :     args.rval().setObject(*result);</span>
+<span class="lineNum">     435 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">     436 </span>            : }
+<a name="437"><span class="lineNum">     437 </span>            : </a>
+<span class="lineNum">     438 </span>            : bool
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 : SimdTypeDescr::call(JSContext* cx, unsigned argc, Value* vp)</span>
+<span class="lineNum">     440 </span>            : {
+<span class="lineNum">     441 </span><span class="lineNoCov">          0 :     CallArgs args = CallArgsFromVp(argc, vp);</span>
+<span class="lineNum">     442 </span>            : 
+<span class="lineNum">     443 </span><span class="lineNoCov">          0 :     Rooted&lt;SimdTypeDescr*&gt; descr(cx, &amp;args.callee().as&lt;SimdTypeDescr&gt;());</span>
+<span class="lineNum">     444 </span><span class="lineNoCov">          0 :     Rooted&lt;TypedObject*&gt; result(cx, TypedObject::createZeroed(cx, descr, 0));</span>
+<span class="lineNum">     445 </span><span class="lineNoCov">          0 :     if (!result)</span>
+<span class="lineNum">     446 </span>            :         return false;
+<span class="lineNum">     447 </span>            : 
+<span class="lineNum">     448 </span>            : #define CASE_CALL_(Type) \
+<span class="lineNum">     449 </span>            :       case SimdType::Type:   return FillLanes&lt; ::Type&gt;(cx, result, args);
+<span class="lineNum">     450 </span>            : 
+<span class="lineNum">     451 </span><span class="lineNoCov">          0 :     switch (descr-&gt;type()) {</span>
+<span class="lineNum">     452 </span><span class="lineNoCov">          0 :       FOR_EACH_SIMD(CASE_CALL_)</span>
+<span class="lineNum">     453 </span>            :       case SimdType::Count: break;
+<span class="lineNum">     454 </span>            :     }
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span>            : #undef CASE_CALL_
+<span class="lineNum">     457 </span><span class="lineNoCov">          0 :     MOZ_CRASH(&quot;unexpected SIMD descriptor&quot;);</span>
+<span class="lineNum">     458 </span>            :     return false;
+<span class="lineNum">     459 </span>            : }
+<span class="lineNum">     460 </span>            : 
+<span class="lineNum">     461 </span>            : ///////////////////////////////////////////////////////////////////////////
+<span class="lineNum">     462 </span>            : // SIMD class
+<span class="lineNum">     463 </span>            : 
+<span class="lineNum">     464 </span>            : static const ClassOps SimdObjectClassOps = {
+<span class="lineNum">     465 </span>            :     nullptr, /* addProperty */
+<span class="lineNum">     466 </span>            :     nullptr, /* delProperty */
+<span class="lineNum">     467 </span>            :     nullptr, /* getProperty */
+<span class="lineNum">     468 </span>            :     nullptr, /* setProperty */
+<span class="lineNum">     469 </span>            :     nullptr, /* enumerate */
+<span class="lineNum">     470 </span>            :     SimdObject::resolve
+<span class="lineNum">     471 </span>            : };
+<span class="lineNum">     472 </span>            : 
+<span class="lineNum">     473 </span>            : const Class SimdObject::class_ = {
+<span class="lineNum">     474 </span>            :     &quot;SIMD&quot;,
+<span class="lineNum">     475 </span>            :     JSCLASS_HAS_RESERVED_SLOTS(uint32_t(SimdType::Count)),
+<span class="lineNum">     476 </span>            :     &amp;SimdObjectClassOps
+<span class="lineNum">     477 </span>            : };
+<a name="478"><span class="lineNum">     478 </span>            : </a>
+<span class="lineNum">     479 </span>            : /* static */ bool
+<span class="lineNum">     480 </span><span class="lineCov">          1 : GlobalObject::initSimdObject(JSContext* cx, Handle&lt;GlobalObject*&gt; global)</span>
+<span class="lineNum">     481 </span>            : {
+<span class="lineNum">     482 </span>            :     // SIMD relies on the TypedObject module being initialized.
+<span class="lineNum">     483 </span>            :     // In particular, the self-hosted code for array() wants
+<span class="lineNum">     484 </span>            :     // to be able to call GetTypedObjectModule(). It is NOT necessary
+<span class="lineNum">     485 </span>            :     // to install the TypedObjectModule global, but at the moment
+<span class="lineNum">     486 </span>            :     // those two things are not separable.
+<span class="lineNum">     487 </span><span class="lineCov">          1 :     if (!GlobalObject::getOrCreateTypedObjectModule(cx, global))</span>
+<span class="lineNum">     488 </span>            :         return false;
+<span class="lineNum">     489 </span>            : 
+<span class="lineNum">     490 </span>            :     RootedObject globalSimdObject(cx);
+<span class="lineNum">     491 </span><span class="lineCov">          1 :     RootedObject objProto(cx, GlobalObject::getOrCreateObjectPrototype(cx, global));</span>
+<span class="lineNum">     492 </span><span class="lineCov">          1 :     if (!objProto)</span>
+<span class="lineNum">     493 </span>            :         return false;
+<span class="lineNum">     494 </span>            : 
+<span class="lineNum">     495 </span><span class="lineCov">          1 :     globalSimdObject = NewObjectWithGivenProto(cx, &amp;SimdObject::class_, objProto, SingletonObject);</span>
+<span class="lineNum">     496 </span><span class="lineCov">          1 :     if (!globalSimdObject)</span>
+<span class="lineNum">     497 </span>            :         return false;
+<span class="lineNum">     498 </span>            : 
+<span class="lineNum">     499 </span><span class="lineCov">          1 :     RootedValue globalSimdValue(cx, ObjectValue(*globalSimdObject));</span>
+<span class="lineNum">     500 </span><span class="lineCov">          1 :     if (!DefineProperty(cx, global, cx-&gt;names().SIMD, globalSimdValue, nullptr, nullptr,</span>
+<span class="lineNum">     501 </span><span class="lineCov">          1 :                         JSPROP_RESOLVING))</span>
+<span class="lineNum">     502 </span>            :     {
+<span class="lineNum">     503 </span>            :         return false;
+<span class="lineNum">     504 </span>            :     }
+<span class="lineNum">     505 </span>            : 
+<span class="lineNum">     506 </span><span class="lineCov">          1 :     global-&gt;setConstructor(JSProto_SIMD, globalSimdValue);</span>
+<span class="lineNum">     507 </span><span class="lineCov">          1 :     return true;</span>
+<span class="lineNum">     508 </span>            : }
+<a name="509"><span class="lineNum">     509 </span>            : </a>
+<span class="lineNum">     510 </span>            : static bool
+<span class="lineNum">     511 </span><span class="lineNoCov">          0 : CreateSimdType(JSContext* cx, Handle&lt;GlobalObject*&gt; global, HandlePropertyName stringRepr,</span>
+<span class="lineNum">     512 </span>            :                SimdType simdType, const JSFunctionSpec* methods)
+<span class="lineNum">     513 </span>            : {
+<span class="lineNum">     514 </span><span class="lineNoCov">          0 :     RootedObject funcProto(cx, GlobalObject::getOrCreateFunctionPrototype(cx, global));</span>
+<span class="lineNum">     515 </span><span class="lineNoCov">          0 :     if (!funcProto)</span>
+<span class="lineNum">     516 </span>            :         return false;
+<span class="lineNum">     517 </span>            : 
+<span class="lineNum">     518 </span>            :     // Create type constructor itself and initialize its reserved slots.
+<span class="lineNum">     519 </span>            :     Rooted&lt;SimdTypeDescr*&gt; typeDescr(cx);
+<span class="lineNum">     520 </span><span class="lineNoCov">          0 :     typeDescr = NewObjectWithGivenProto&lt;SimdTypeDescr&gt;(cx, funcProto, SingletonObject);</span>
+<span class="lineNum">     521 </span><span class="lineNoCov">          0 :     if (!typeDescr)</span>
+<span class="lineNum">     522 </span>            :         return false;
+<span class="lineNum">     523 </span>            : 
+<span class="lineNum">     524 </span><span class="lineNoCov">          0 :     typeDescr-&gt;initReservedSlot(JS_DESCR_SLOT_KIND, Int32Value(type::Simd));</span>
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :     typeDescr-&gt;initReservedSlot(JS_DESCR_SLOT_STRING_REPR, StringValue(stringRepr));</span>
+<span class="lineNum">     526 </span><span class="lineNoCov">          0 :     typeDescr-&gt;initReservedSlot(JS_DESCR_SLOT_ALIGNMENT, Int32Value(SimdTypeDescr::alignment(simdType)));</span>
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :     typeDescr-&gt;initReservedSlot(JS_DESCR_SLOT_SIZE, Int32Value(SimdTypeDescr::size(simdType)));</span>
+<span class="lineNum">     528 </span><span class="lineNoCov">          0 :     typeDescr-&gt;initReservedSlot(JS_DESCR_SLOT_OPAQUE, BooleanValue(false));</span>
+<span class="lineNum">     529 </span><span class="lineNoCov">          0 :     typeDescr-&gt;initReservedSlot(JS_DESCR_SLOT_TYPE, Int32Value(uint8_t(simdType)));</span>
+<span class="lineNum">     530 </span>            : 
+<span class="lineNum">     531 </span><span class="lineNoCov">          0 :     if (!CreateUserSizeAndAlignmentProperties(cx, typeDescr))</span>
+<span class="lineNum">     532 </span>            :         return false;
+<span class="lineNum">     533 </span>            : 
+<span class="lineNum">     534 </span>            :     // Create prototype property, which inherits from Object.prototype.
+<span class="lineNum">     535 </span><span class="lineNoCov">          0 :     RootedObject objProto(cx, GlobalObject::getOrCreateObjectPrototype(cx, global));</span>
+<span class="lineNum">     536 </span><span class="lineNoCov">          0 :     if (!objProto)</span>
+<span class="lineNum">     537 </span>            :         return false;
+<span class="lineNum">     538 </span>            :     Rooted&lt;TypedProto*&gt; proto(cx);
+<span class="lineNum">     539 </span><span class="lineNoCov">          0 :     proto = NewObjectWithGivenProto&lt;TypedProto&gt;(cx, objProto, SingletonObject);</span>
+<span class="lineNum">     540 </span><span class="lineNoCov">          0 :     if (!proto)</span>
+<span class="lineNum">     541 </span>            :         return false;
+<span class="lineNum">     542 </span><span class="lineNoCov">          0 :     typeDescr-&gt;initReservedSlot(JS_DESCR_SLOT_TYPROTO, ObjectValue(*proto));</span>
+<span class="lineNum">     543 </span>            : 
+<span class="lineNum">     544 </span>            :     // Link constructor to prototype and install properties.
+<span class="lineNum">     545 </span><span class="lineNoCov">          0 :     if (!JS_DefineFunctions(cx, typeDescr, TypeDescriptorMethods))</span>
+<span class="lineNum">     546 </span>            :         return false;
+<span class="lineNum">     547 </span>            : 
+<span class="lineNum">     548 </span><span class="lineNoCov">          0 :     if (!LinkConstructorAndPrototype(cx, typeDescr, proto) ||</span>
+<span class="lineNum">     549 </span><span class="lineNoCov">          0 :         !JS_DefineFunctions(cx, proto, SimdTypedObjectMethods))</span>
+<span class="lineNum">     550 </span>            :     {
+<span class="lineNum">     551 </span>            :         return false;
+<span class="lineNum">     552 </span>            :     }
+<span class="lineNum">     553 </span>            : 
+<span class="lineNum">     554 </span>            :     // Bind type descriptor to the global SIMD object
+<span class="lineNum">     555 </span><span class="lineNoCov">          0 :     RootedObject globalSimdObject(cx, GlobalObject::getOrCreateSimdGlobalObject(cx, global));</span>
+<span class="lineNum">     556 </span>            :     MOZ_ASSERT(globalSimdObject);
+<span class="lineNum">     557 </span>            : 
+<span class="lineNum">     558 </span><span class="lineNoCov">          0 :     RootedValue typeValue(cx, ObjectValue(*typeDescr));</span>
+<span class="lineNum">     559 </span><span class="lineNoCov">          0 :     if (!JS_DefineFunctions(cx, typeDescr, methods) ||</span>
+<span class="lineNum">     560 </span>            :         !DefineProperty(cx, globalSimdObject, stringRepr, typeValue, nullptr, nullptr,
+<span class="lineNum">     561 </span><span class="lineNoCov">          0 :                         JSPROP_READONLY | JSPROP_PERMANENT | JSPROP_RESOLVING))</span>
+<span class="lineNum">     562 </span>            :     {
+<span class="lineNum">     563 </span>            :         return false;
+<span class="lineNum">     564 </span>            :     }
+<span class="lineNum">     565 </span>            : 
+<span class="lineNum">     566 </span><span class="lineNoCov">          0 :     uint32_t slot = uint32_t(typeDescr-&gt;type());</span>
+<span class="lineNum">     567 </span>            :     MOZ_ASSERT(globalSimdObject-&gt;as&lt;NativeObject&gt;().getReservedSlot(slot).isUndefined());
+<span class="lineNum">     568 </span><span class="lineNoCov">          0 :     globalSimdObject-&gt;as&lt;NativeObject&gt;().setReservedSlot(slot, ObjectValue(*typeDescr));</span>
+<span class="lineNum">     569 </span><span class="lineNoCov">          0 :     return !!typeDescr;</span>
+<span class="lineNum">     570 </span>            : }
+<a name="571"><span class="lineNum">     571 </span>            : </a>
+<span class="lineNum">     572 </span>            : /* static */ bool
+<span class="lineNum">     573 </span><span class="lineNoCov">          0 : GlobalObject::initSimdType(JSContext* cx, Handle&lt;GlobalObject*&gt; global, SimdType simdType)</span>
+<span class="lineNum">     574 </span>            : {
+<span class="lineNum">     575 </span>            : #define CREATE_(Type) \
+<span class="lineNum">     576 </span>            :     case SimdType::Type: \
+<span class="lineNum">     577 </span>            :       return CreateSimdType(cx, global, cx-&gt;names().Type, simdType, Type##Defn::Methods);
+<span class="lineNum">     578 </span>            : 
+<span class="lineNum">     579 </span><span class="lineNoCov">          0 :     switch (simdType) {</span>
+<span class="lineNum">     580 </span><span class="lineNoCov">          0 :       FOR_EACH_SIMD(CREATE_)</span>
+<span class="lineNum">     581 </span>            :       case SimdType::Count: break;
+<span class="lineNum">     582 </span>            :     }
+<span class="lineNum">     583 </span><span class="lineNoCov">          0 :     MOZ_CRASH(&quot;unexpected simd type&quot;);</span>
+<span class="lineNum">     584 </span>            : 
+<span class="lineNum">     585 </span>            : #undef CREATE_
+<span class="lineNum">     586 </span>            : }
+<a name="587"><span class="lineNum">     587 </span>            : </a>
+<span class="lineNum">     588 </span>            : /* static */ SimdTypeDescr*
+<span class="lineNum">     589 </span><span class="lineNoCov">          0 : GlobalObject::getOrCreateSimdTypeDescr(JSContext* cx, Handle&lt;GlobalObject*&gt; global,</span>
+<span class="lineNum">     590 </span>            :                                        SimdType simdType)
+<span class="lineNum">     591 </span>            : {
+<span class="lineNum">     592 </span>            :     MOZ_ASSERT(unsigned(simdType) &lt; unsigned(SimdType::Count), &quot;Invalid SIMD type&quot;);
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span><span class="lineNoCov">          0 :     RootedObject globalSimdObject(cx, GlobalObject::getOrCreateSimdGlobalObject(cx, global));</span>
+<span class="lineNum">     595 </span><span class="lineNoCov">          0 :     if (!globalSimdObject)</span>
+<span class="lineNum">     596 </span>            :        return nullptr;
+<span class="lineNum">     597 </span>            : 
+<span class="lineNum">     598 </span><span class="lineNoCov">          0 :     uint32_t typeSlotIndex = uint32_t(simdType);</span>
+<span class="lineNum">     599 </span><span class="lineNoCov">          0 :     if (globalSimdObject-&gt;as&lt;NativeObject&gt;().getReservedSlot(typeSlotIndex).isUndefined() &amp;&amp;</span>
+<span class="lineNum">     600 </span><span class="lineNoCov">          0 :         !GlobalObject::initSimdType(cx, global, simdType))</span>
+<span class="lineNum">     601 </span>            :     {
+<span class="lineNum">     602 </span>            :         return nullptr;
+<span class="lineNum">     603 </span>            :     }
+<span class="lineNum">     604 </span>            : 
+<span class="lineNum">     605 </span><span class="lineNoCov">          0 :     const Value&amp; slot = globalSimdObject-&gt;as&lt;NativeObject&gt;().getReservedSlot(typeSlotIndex);</span>
+<span class="lineNum">     606 </span>            :     MOZ_ASSERT(slot.isObject());
+<span class="lineNum">     607 </span><span class="lineNoCov">          0 :     return &amp;slot.toObject().as&lt;SimdTypeDescr&gt;();</span>
+<span class="lineNum">     608 </span>            : }
+<a name="609"><span class="lineNum">     609 </span>            : </a>
+<span class="lineNum">     610 </span>            : bool
+<span class="lineNum">     611 </span><span class="lineNoCov">          0 : SimdObject::resolve(JSContext* cx, JS::HandleObject obj, JS::HandleId id, bool* resolved)</span>
+<span class="lineNum">     612 </span>            : {
+<span class="lineNum">     613 </span><span class="lineNoCov">          0 :     *resolved = false;</span>
+<span class="lineNum">     614 </span><span class="lineNoCov">          0 :     if (!JSID_IS_ATOM(id))</span>
+<span class="lineNum">     615 </span>            :         return true;
+<span class="lineNum">     616 </span><span class="lineNoCov">          0 :     JSAtom* str = JSID_TO_ATOM(id);</span>
+<span class="lineNum">     617 </span><span class="lineNoCov">          0 :     Rooted&lt;GlobalObject*&gt; global(cx, cx-&gt;global());</span>
+<span class="lineNum">     618 </span>            : #define TRY_RESOLVE_(Type)                                                    \
+<span class="lineNum">     619 </span>            :     if (str == cx-&gt;names().Type) {                                            \
+<span class="lineNum">     620 </span>            :         *resolved = CreateSimdType(cx, global, cx-&gt;names().Type,              \
+<span class="lineNum">     621 </span>            :                                    SimdType::Type, Type##Defn::Methods);      \
+<span class="lineNum">     622 </span>            :         return *resolved;                                                     \
+<span class="lineNum">     623 </span>            :     }
+<span class="lineNum">     624 </span><span class="lineNoCov">          0 :     FOR_EACH_SIMD(TRY_RESOLVE_)</span>
+<span class="lineNum">     625 </span>            : #undef TRY_RESOLVE_
+<span class="lineNum">     626 </span>            :     return true;
+<span class="lineNum">     627 </span>            : }
+<a name="628"><span class="lineNum">     628 </span>            : </a>
+<span class="lineNum">     629 </span>            : JSObject*
+<span class="lineNum">     630 </span><span class="lineCov">          1 : js::InitSimdClass(JSContext* cx, HandleObject obj)</span>
+<span class="lineNum">     631 </span>            : {
+<span class="lineNum">     632 </span><span class="lineCov">          1 :     Handle&lt;GlobalObject*&gt; global = obj.as&lt;GlobalObject&gt;();</span>
+<span class="lineNum">     633 </span><span class="lineCov">          1 :     return GlobalObject::getOrCreateSimdGlobalObject(cx, global);</span>
+<span class="lineNum">     634 </span>            : }
+<span class="lineNum">     635 </span>            : 
+<a name="636"><span class="lineNum">     636 </span>            : template&lt;typename V&gt;</a>
+<span class="lineNum">     637 </span>            : JSObject*
+<span class="lineNum">     638 </span><span class="lineNoCov">          0 : js::CreateSimd(JSContext* cx, const typename V::Elem* data)</span>
+<span class="lineNum">     639 </span>            : {
+<span class="lineNum">     640 </span>            :     typedef typename V::Elem Elem;
+<span class="lineNum">     641 </span><span class="lineNoCov">          0 :     Rooted&lt;TypeDescr*&gt; typeDescr(cx, GetTypeDescr&lt;V&gt;(cx));</span>
+<span class="lineNum">     642 </span><span class="lineNoCov">          0 :     if (!typeDescr)</span>
+<span class="lineNum">     643 </span>            :         return nullptr;
+<span class="lineNum">     644 </span>            : 
+<span class="lineNum">     645 </span><span class="lineNoCov">          0 :     Rooted&lt;TypedObject*&gt; result(cx, TypedObject::createZeroed(cx, typeDescr, 0));</span>
+<span class="lineNum">     646 </span><span class="lineNoCov">          0 :     if (!result)</span>
+<span class="lineNum">     647 </span>            :         return nullptr;
+<span class="lineNum">     648 </span>            : 
+<span class="lineNum">     649 </span><span class="lineNoCov">          0 :     JS::AutoCheckCannotGC nogc(cx);</span>
+<span class="lineNum">     650 </span><span class="lineNoCov">          0 :     Elem* resultMem = reinterpret_cast&lt;Elem*&gt;(result-&gt;typedMem(nogc));</span>
+<span class="lineNum">     651 </span><span class="lineNoCov">          0 :     memcpy(resultMem, data, sizeof(Elem) * V::lanes);</span>
+<span class="lineNum">     652 </span><span class="lineNoCov">          0 :     return result;</span>
+<span class="lineNum">     653 </span>            : }
+<span class="lineNum">     654 </span>            : 
+<span class="lineNum">     655 </span>            : #define InstantiateCreateSimd_(Type) \
+<span class="lineNum">     656 </span>            :     template JSObject* js::CreateSimd&lt;Type&gt;(JSContext* cx, const Type::Elem* data);
+<span class="lineNum">     657 </span>            : 
+<span class="lineNum">     658 </span>            : FOR_EACH_SIMD(InstantiateCreateSimd_)
+<span class="lineNum">     659 </span>            : 
+<span class="lineNum">     660 </span>            : #undef InstantiateCreateSimd_
+<span class="lineNum">     661 </span>            : 
+<span class="lineNum">     662 </span>            : #undef FOR_EACH_SIMD
+<span class="lineNum">     663 </span>            : 
+<span class="lineNum">     664 </span>            : namespace js {
+<span class="lineNum">     665 </span>            : // Unary SIMD operators
+<span class="lineNum">     666 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     667 </span>            : struct Identity {
+<span class="lineNum">     668 </span>            :     static T apply(T x) { return x; }
+<span class="lineNum">     669 </span>            : };
+<span class="lineNum">     670 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     671 </span>            : struct Abs {
+<span class="lineNum">     672 </span>            :     static T apply(T x) { return mozilla::Abs(x); }
+<span class="lineNum">     673 </span>            : };
+<span class="lineNum">     674 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     675 </span>            : struct Neg {
+<span class="lineNum">     676 </span><span class="lineNoCov">          0 :     static T apply(T x) { return -1 * x; }</span>
+<span class="lineNum">     677 </span>            : };
+<span class="lineNum">     678 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     679 </span>            : struct Not {
+<span class="lineNum">     680 </span><span class="lineNoCov">          0 :     static T apply(T x) { return ~x; }</span>
+<span class="lineNum">     681 </span>            : };
+<span class="lineNum">     682 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     683 </span>            : struct LogicalNot {
+<span class="lineNum">     684 </span><span class="lineNoCov">          0 :     static T apply(T x) { return !x; }</span>
+<span class="lineNum">     685 </span>            : };
+<span class="lineNum">     686 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     687 </span>            : struct RecApprox {
+<span class="lineNum">     688 </span><span class="lineNoCov">          0 :     static T apply(T x) { return 1 / x; }</span>
+<span class="lineNum">     689 </span>            : };
+<span class="lineNum">     690 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     691 </span>            : struct RecSqrtApprox {
+<span class="lineNum">     692 </span><span class="lineNoCov">          0 :     static T apply(T x) { return 1 / sqrt(x); }</span>
+<span class="lineNum">     693 </span>            : };
+<span class="lineNum">     694 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     695 </span>            : struct Sqrt {
+<span class="lineNum">     696 </span><span class="lineNoCov">          0 :     static T apply(T x) { return sqrt(x); }</span>
+<span class="lineNum">     697 </span>            : };
+<span class="lineNum">     698 </span>            : 
+<span class="lineNum">     699 </span>            : // Binary SIMD operators
+<span class="lineNum">     700 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     701 </span>            : struct Add {
+<span class="lineNum">     702 </span><span class="lineNoCov">          0 :     static T apply(T l, T r) { return l + r; }</span>
+<span class="lineNum">     703 </span>            : };
+<span class="lineNum">     704 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     705 </span>            : struct Sub {
+<span class="lineNum">     706 </span><span class="lineNoCov">          0 :     static T apply(T l, T r) { return l - r; }</span>
+<span class="lineNum">     707 </span>            : };
+<span class="lineNum">     708 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     709 </span>            : struct Div {
+<span class="lineNum">     710 </span><span class="lineNoCov">          0 :     static T apply(T l, T r) { return l / r; }</span>
+<span class="lineNum">     711 </span>            : };
+<span class="lineNum">     712 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     713 </span>            : struct Mul {
+<span class="lineNum">     714 </span><span class="lineNoCov">          0 :     static T apply(T l, T r) { return l * r; }</span>
+<span class="lineNum">     715 </span>            : };
+<span class="lineNum">     716 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     717 </span>            : struct Minimum {
+<span class="lineNum">     718 </span><span class="lineNoCov">          0 :     static T apply(T l, T r) { return math_min_impl(l, r); }</span>
+<span class="lineNum">     719 </span>            : };
+<a name="720"><span class="lineNum">     720 </span>            : template&lt;typename T&gt;</a>
+<span class="lineNum">     721 </span>            : struct MinNum {
+<span class="lineNum">     722 </span><span class="lineNoCov">          0 :     static T apply(T l, T r) { return IsNaN(l) ? r : (IsNaN(r) ? l : math_min_impl(l, r)); }</span>
+<span class="lineNum">     723 </span>            : };
+<span class="lineNum">     724 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     725 </span>            : struct Maximum {
+<span class="lineNum">     726 </span><span class="lineNoCov">          0 :     static T apply(T l, T r) { return math_max_impl(l, r); }</span>
+<span class="lineNum">     727 </span>            : };
+<a name="728"><span class="lineNum">     728 </span>            : template&lt;typename T&gt;</a>
+<span class="lineNum">     729 </span>            : struct MaxNum {
+<span class="lineNum">     730 </span><span class="lineNoCov">          0 :     static T apply(T l, T r) { return IsNaN(l) ? r : (IsNaN(r) ? l : math_max_impl(l, r)); }</span>
+<span class="lineNum">     731 </span>            : };
+<span class="lineNum">     732 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     733 </span>            : struct LessThan {
+<span class="lineNum">     734 </span>            :     static bool apply(T l, T r) { return l &lt; r; }
+<span class="lineNum">     735 </span>            : };
+<span class="lineNum">     736 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     737 </span>            : struct LessThanOrEqual {
+<span class="lineNum">     738 </span>            :     static bool apply(T l, T r) { return l &lt;= r; }
+<span class="lineNum">     739 </span>            : };
+<span class="lineNum">     740 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     741 </span>            : struct GreaterThan {
+<span class="lineNum">     742 </span>            :     static bool apply(T l, T r) { return l &gt; r; }
+<span class="lineNum">     743 </span>            : };
+<span class="lineNum">     744 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     745 </span>            : struct GreaterThanOrEqual {
+<span class="lineNum">     746 </span>            :     static bool apply(T l, T r) { return l &gt;= r; }
+<span class="lineNum">     747 </span>            : };
+<span class="lineNum">     748 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     749 </span>            : struct Equal {
+<span class="lineNum">     750 </span>            :     static bool apply(T l, T r) { return l == r; }
+<span class="lineNum">     751 </span>            : };
+<span class="lineNum">     752 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     753 </span>            : struct NotEqual {
+<span class="lineNum">     754 </span>            :     static bool apply(T l, T r) { return l != r; }
+<span class="lineNum">     755 </span>            : };
+<span class="lineNum">     756 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     757 </span>            : struct Xor {
+<span class="lineNum">     758 </span><span class="lineNoCov">          0 :     static T apply(T l, T r) { return l ^ r; }</span>
+<span class="lineNum">     759 </span>            : };
+<span class="lineNum">     760 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     761 </span>            : struct And {
+<span class="lineNum">     762 </span><span class="lineNoCov">          0 :     static T apply(T l, T r) { return l &amp; r; }</span>
+<span class="lineNum">     763 </span>            : };
+<span class="lineNum">     764 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     765 </span>            : struct Or {
+<span class="lineNum">     766 </span><span class="lineNoCov">          0 :     static T apply(T l, T r) { return l | r; }</span>
+<span class="lineNum">     767 </span>            : };
+<span class="lineNum">     768 </span>            : 
+<span class="lineNum">     769 </span>            : // For the following three operators, if the value v we're trying to shift is
+<span class="lineNum">     770 </span>            : // such that v &lt;&lt; bits can't fit in the int32 range, then we have undefined
+<span class="lineNum">     771 </span>            : // behavior, according to C++11 [expr.shift]p2. However, left-shifting an
+<span class="lineNum">     772 </span>            : // unsigned type is well-defined.
+<span class="lineNum">     773 </span>            : //
+<span class="lineNum">     774 </span>            : // In C++, shifting by an amount outside the range [0;N-1] is undefined
+<span class="lineNum">     775 </span>            : // behavior. SIMD.js reduces the shift amount modulo the number of bits in a
+<span class="lineNum">     776 </span>            : // lane and has defined behavior for all shift amounts.
+<span class="lineNum">     777 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     778 </span>            : struct ShiftLeft {
+<span class="lineNum">     779 </span>            :     static T apply(T v, int32_t bits) {
+<span class="lineNum">     780 </span>            :         typedef typename mozilla::MakeUnsigned&lt;T&gt;::Type UnsignedT;
+<span class="lineNum">     781 </span><span class="lineNoCov">          0 :         uint32_t maskedBits = uint32_t(bits) % (sizeof(T) * 8);</span>
+<span class="lineNum">     782 </span><span class="lineNoCov">          0 :         return UnsignedT(v) &lt;&lt; maskedBits;</span>
+<span class="lineNum">     783 </span>            :     }
+<span class="lineNum">     784 </span>            : };
+<span class="lineNum">     785 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     786 </span>            : struct ShiftRightArithmetic {
+<span class="lineNum">     787 </span>            :     static T apply(T v, int32_t bits) {
+<span class="lineNum">     788 </span>            :         typedef typename mozilla::MakeSigned&lt;T&gt;::Type SignedT;
+<span class="lineNum">     789 </span><span class="lineNoCov">          0 :         uint32_t maskedBits = uint32_t(bits) % (sizeof(T) * 8);</span>
+<span class="lineNum">     790 </span><span class="lineNoCov">          0 :         return SignedT(v) &gt;&gt; maskedBits;</span>
+<span class="lineNum">     791 </span>            :     }
+<span class="lineNum">     792 </span>            : };
+<span class="lineNum">     793 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     794 </span>            : struct ShiftRightLogical {
+<span class="lineNum">     795 </span>            :     static T apply(T v, int32_t bits) {
+<span class="lineNum">     796 </span>            :         typedef typename mozilla::MakeUnsigned&lt;T&gt;::Type UnsignedT;
+<span class="lineNum">     797 </span><span class="lineNoCov">          0 :         uint32_t maskedBits = uint32_t(bits) % (sizeof(T) * 8);</span>
+<span class="lineNum">     798 </span><span class="lineNoCov">          0 :         return UnsignedT(v) &gt;&gt; maskedBits;</span>
+<span class="lineNum">     799 </span>            :     }
+<span class="lineNum">     800 </span>            : };
+<span class="lineNum">     801 </span>            : 
+<span class="lineNum">     802 </span>            : // Saturating arithmetic is only defined on types smaller than int.
+<span class="lineNum">     803 </span>            : // Clamp `x` into the range supported by the integral type T.
+<span class="lineNum">     804 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     805 </span>            : static T
+<span class="lineNum">     806 </span>            : Saturate(int x)
+<span class="lineNum">     807 </span>            : {
+<span class="lineNum">     808 </span>            :     static_assert(mozilla::IsIntegral&lt;T&gt;::value, &quot;Only integer saturation supported&quot;);
+<span class="lineNum">     809 </span>            :     static_assert(sizeof(T) &lt; sizeof(int), &quot;Saturating int-sized arithmetic is not safe&quot;);
+<span class="lineNum">     810 </span><span class="lineNoCov">          0 :     const T lower = mozilla::MinValue&lt;T&gt;::value;</span>
+<span class="lineNum">     811 </span><span class="lineNoCov">          0 :     const T upper = mozilla::MaxValue&lt;T&gt;::value;</span>
+<span class="lineNum">     812 </span><span class="lineNoCov">          0 :     if (x &gt; int(upper))</span>
+<span class="lineNum">     813 </span>            :         return upper;
+<span class="lineNum">     814 </span><span class="lineNoCov">          0 :     if (x &lt; int(lower))</span>
+<span class="lineNum">     815 </span>            :         return lower;
+<span class="lineNum">     816 </span><span class="lineNoCov">          0 :     return T(x);</span>
+<span class="lineNum">     817 </span>            : }
+<span class="lineNum">     818 </span>            : 
+<span class="lineNum">     819 </span>            : // Since signed integer overflow is undefined behavior in C++, it would be
+<span class="lineNum">     820 </span>            : // wildly irresponsible to attempt something as dangerous as adding two numbers
+<span class="lineNum">     821 </span>            : // coming from user code. However, in this case we know that T is smaller than
+<span class="lineNum">     822 </span>            : // int, so there is no way these operations can cause overflow. The
+<span class="lineNum">     823 </span>            : // static_assert in Saturate() enforces this for us.
+<span class="lineNum">     824 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     825 </span>            : struct AddSaturate {
+<span class="lineNum">     826 </span><span class="lineNoCov">          0 :     static T apply(T l, T r) { return Saturate&lt;T&gt;(l + r); }</span>
+<span class="lineNum">     827 </span>            : };
+<span class="lineNum">     828 </span>            : template&lt;typename T&gt;
+<span class="lineNum">     829 </span>            : struct SubSaturate {
+<span class="lineNum">     830 </span><span class="lineNoCov">          0 :     static T apply(T l, T r) { return Saturate&lt;T&gt;(l - r); }</span>
+<span class="lineNum">     831 </span>            : };
+<span class="lineNum">     832 </span>            : 
+<span class="lineNum">     833 </span>            : } // namespace js
+<span class="lineNum">     834 </span>            : 
+<a name="835"><span class="lineNum">     835 </span>            : template&lt;typename Out&gt;</a>
+<span class="lineNum">     836 </span>            : static bool
+<span class="lineNum">     837 </span><span class="lineNoCov">          0 : StoreResult(JSContext* cx, CallArgs&amp; args, typename Out::Elem* result)</span>
+<span class="lineNum">     838 </span>            : {
+<span class="lineNum">     839 </span><span class="lineNoCov">          0 :     RootedObject obj(cx, CreateSimd&lt;Out&gt;(cx, result));</span>
+<span class="lineNum">     840 </span><span class="lineNoCov">          0 :     if (!obj)</span>
+<span class="lineNum">     841 </span>            :         return false;
+<span class="lineNum">     842 </span><span class="lineNoCov">          0 :     args.rval().setObject(*obj);</span>
+<span class="lineNum">     843 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">     844 </span>            : }
+<span class="lineNum">     845 </span>            : 
+<span class="lineNum">     846 </span>            : // StoreResult can GC, and it is commonly used after pulling something out of a
+<span class="lineNum">     847 </span>            : // TypedObject:
+<span class="lineNum">     848 </span>            : //
+<span class="lineNum">     849 </span>            : //   Elem result = op(TypedObjectMemory&lt;Elem&gt;(args[0]));
+<span class="lineNum">     850 </span>            : //   StoreResult&lt;Out&gt;(..., result);
+<span class="lineNum">     851 </span>            : //
+<span class="lineNum">     852 </span>            : // The pointer extracted from the typed object in args[0] in the above example
+<span class="lineNum">     853 </span>            : // could be an interior pointer, and therefore be invalidated by GC.
+<span class="lineNum">     854 </span>            : // TypedObjectMemory() requires an assertion token to be passed in to prove
+<span class="lineNum">     855 </span>            : // that we won't GC, but the scope of eg an AutoCheckCannotGC RAII object
+<span class="lineNum">     856 </span>            : // extends to the end of its containing scope -- which would include the call
+<span class="lineNum">     857 </span>            : // to StoreResult, resulting in a rooting hazard.
+<span class="lineNum">     858 </span>            : //
+<span class="lineNum">     859 </span>            : // TypedObjectElemArray fixes this by wrapping the problematic pointer in a
+<span class="lineNum">     860 </span>            : // type, and the analysis is able to see that it is dead before calling
+<span class="lineNum">     861 </span>            : // StoreResult. (But if another GC called is made before the pointer is dead,
+<span class="lineNum">     862 </span>            : // it will correctly report a hazard.)
+<span class="lineNum">     863 </span>            : //
+<span class="lineNum">     864 </span>            : template &lt;typename Elem&gt;
+<span class="lineNum">     865 </span>            : class TypedObjectElemArray {
+<span class="lineNum">     866 </span>            :     Elem* elements;
+<span class="lineNum">     867 </span>            :   public:
+<span class="lineNum">     868 </span>            :     explicit TypedObjectElemArray(HandleValue objVal) {
+<span class="lineNum">     869 </span>            :         JS::AutoCheckCannotGC nogc;
+<span class="lineNum">     870 </span><span class="lineNoCov">          0 :         elements = TypedObjectMemory&lt;Elem*&gt;(objVal, nogc);</span>
+<span class="lineNum">     871 </span>            :     }
+<span class="lineNum">     872 </span><span class="lineNoCov">          0 :     Elem&amp; operator[](int i) { return elements[i]; }</span>
+<span class="lineNum">     873 </span>            : } JS_HAZ_GC_POINTER;
+<span class="lineNum">     874 </span>            : 
+<span class="lineNum">     875 </span>            : // Coerces the inputs of type In to the type Coercion, apply the operator Op
+<span class="lineNum">     876 </span>            : // and converts the result to the type Out.
+<a name="877"><span class="lineNum">     877 </span>            : template&lt;typename In, typename Coercion, template&lt;typename C&gt; class Op, typename Out&gt;</a>
+<span class="lineNum">     878 </span>            : static bool
+<span class="lineNum">     879 </span><span class="lineNoCov">          0 : CoercedUnaryFunc(JSContext* cx, unsigned argc, Value* vp)</span>
+<span class="lineNum">     880 </span>            : {
+<span class="lineNum">     881 </span>            :     typedef typename Coercion::Elem CoercionElem;
+<span class="lineNum">     882 </span>            :     typedef typename Out::Elem RetElem;
+<span class="lineNum">     883 </span>            : 
+<span class="lineNum">     884 </span><span class="lineNoCov">          0 :     CallArgs args = CallArgsFromVp(argc, vp);</span>
+<span class="lineNum">     885 </span><span class="lineNoCov">          0 :     if (args.length() != 1 || !IsVectorObject&lt;In&gt;(args[0]))</span>
+<span class="lineNum">     886 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">     887 </span>            : 
+<span class="lineNum">     888 </span>            :     CoercionElem result[Coercion::lanes];
+<span class="lineNum">     889 </span><span class="lineNoCov">          0 :     TypedObjectElemArray&lt;CoercionElem&gt; val(args[0]);</span>
+<span class="lineNum">     890 </span><span class="lineNoCov">          0 :     for (unsigned i = 0; i &lt; Coercion::lanes; i++)</span>
+<span class="lineNum">     891 </span><span class="lineNoCov">          0 :         result[i] = Op&lt;CoercionElem&gt;::apply(val[i]);</span>
+<span class="lineNum">     892 </span><span class="lineNoCov">          0 :     return StoreResult&lt;Out&gt;(cx, args, (RetElem*) result);</span>
+<span class="lineNum">     893 </span>            : }
+<span class="lineNum">     894 </span>            : 
+<span class="lineNum">     895 </span>            : // Coerces the inputs of type In to the type Coercion, apply the operator Op
+<span class="lineNum">     896 </span>            : // and converts the result to the type Out.
+<a name="897"><span class="lineNum">     897 </span>            : template&lt;typename In, typename Coercion, template&lt;typename C&gt; class Op, typename Out&gt;</a>
+<span class="lineNum">     898 </span>            : static bool
+<span class="lineNum">     899 </span><span class="lineNoCov">          0 : CoercedBinaryFunc(JSContext* cx, unsigned argc, Value* vp)</span>
+<span class="lineNum">     900 </span>            : {
+<span class="lineNum">     901 </span>            :     typedef typename Coercion::Elem CoercionElem;
+<span class="lineNum">     902 </span>            :     typedef typename Out::Elem RetElem;
+<span class="lineNum">     903 </span>            : 
+<span class="lineNum">     904 </span><span class="lineNoCov">          0 :     CallArgs args = CallArgsFromVp(argc, vp);</span>
+<span class="lineNum">     905 </span><span class="lineNoCov">          0 :     if (args.length() != 2 || !IsVectorObject&lt;In&gt;(args[0]) || !IsVectorObject&lt;In&gt;(args[1]))</span>
+<span class="lineNum">     906 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">     907 </span>            : 
+<span class="lineNum">     908 </span>            :     CoercionElem result[Coercion::lanes];
+<span class="lineNum">     909 </span><span class="lineNoCov">          0 :     TypedObjectElemArray&lt;CoercionElem&gt; left(args[0]);</span>
+<span class="lineNum">     910 </span><span class="lineNoCov">          0 :     TypedObjectElemArray&lt;CoercionElem&gt; right(args[1]);</span>
+<span class="lineNum">     911 </span><span class="lineNoCov">          0 :     for (unsigned i = 0; i &lt; Coercion::lanes; i++)</span>
+<span class="lineNum">     912 </span><span class="lineNoCov">          0 :         result[i] = Op&lt;CoercionElem&gt;::apply(left[i], right[i]);</span>
+<span class="lineNum">     913 </span><span class="lineNoCov">          0 :     return StoreResult&lt;Out&gt;(cx, args, (RetElem*) result);</span>
+<span class="lineNum">     914 </span>            : }
+<span class="lineNum">     915 </span>            : 
+<span class="lineNum">     916 </span>            : // Same as above, with no coercion, i.e. Coercion == In.
+<span class="lineNum">     917 </span>            : template&lt;typename In, template&lt;typename C&gt; class Op, typename Out&gt;
+<span class="lineNum">     918 </span>            : static bool
+<span class="lineNum">     919 </span>            : UnaryFunc(JSContext* cx, unsigned argc, Value* vp)
+<span class="lineNum">     920 </span>            : {
+<span class="lineNum">     921 </span><span class="lineNoCov">          0 :     return CoercedUnaryFunc&lt;In, Out, Op, Out&gt;(cx, argc, vp);</span>
+<span class="lineNum">     922 </span>            : }
+<span class="lineNum">     923 </span>            : 
+<span class="lineNum">     924 </span>            : template&lt;typename In, template&lt;typename C&gt; class Op, typename Out&gt;
+<span class="lineNum">     925 </span>            : static bool
+<span class="lineNum">     926 </span>            : BinaryFunc(JSContext* cx, unsigned argc, Value* vp)
+<span class="lineNum">     927 </span>            : {
+<span class="lineNum">     928 </span><span class="lineNoCov">          0 :     return CoercedBinaryFunc&lt;In, Out, Op, Out&gt;(cx, argc, vp);</span>
+<span class="lineNum">     929 </span>            : }
+<span class="lineNum">     930 </span>            : 
+<a name="931"><span class="lineNum">     931 </span>            : template&lt;typename V&gt;</a>
+<span class="lineNum">     932 </span>            : static bool
+<span class="lineNum">     933 </span><span class="lineNoCov">          0 : ExtractLane(JSContext* cx, unsigned argc, Value* vp)</span>
+<span class="lineNum">     934 </span>            : {
+<span class="lineNum">     935 </span>            :     typedef typename V::Elem Elem;
+<span class="lineNum">     936 </span>            : 
+<span class="lineNum">     937 </span><span class="lineNoCov">          0 :     CallArgs args = CallArgsFromVp(argc, vp);</span>
+<span class="lineNum">     938 </span><span class="lineNoCov">          0 :     if (args.length() &lt; 2 || !IsVectorObject&lt;V&gt;(args[0]))</span>
+<span class="lineNum">     939 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">     940 </span>            : 
+<span class="lineNum">     941 </span>            :     unsigned lane;
+<span class="lineNum">     942 </span><span class="lineNoCov">          0 :     if (!ArgumentToLaneIndex(cx, args[1], V::lanes, &amp;lane))</span>
+<span class="lineNum">     943 </span>            :         return false;
+<span class="lineNum">     944 </span>            : 
+<span class="lineNum">     945 </span>            :     JS::AutoCheckCannotGC nogc(cx);
+<span class="lineNum">     946 </span><span class="lineNoCov">          0 :     Elem* vec = TypedObjectMemory&lt;Elem*&gt;(args[0], nogc);</span>
+<span class="lineNum">     947 </span><span class="lineNoCov">          0 :     Elem val = vec[lane];</span>
+<span class="lineNum">     948 </span><span class="lineNoCov">          0 :     args.rval().set(V::ToValue(val));</span>
+<span class="lineNum">     949 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">     950 </span>            : }
+<span class="lineNum">     951 </span>            : 
+<a name="952"><span class="lineNum">     952 </span>            : template&lt;typename V&gt;</a>
+<span class="lineNum">     953 </span>            : static bool
+<span class="lineNum">     954 </span><span class="lineNoCov">          0 : AllTrue(JSContext* cx, unsigned argc, Value* vp)</span>
+<span class="lineNum">     955 </span>            : {
+<span class="lineNum">     956 </span>            :     typedef typename V::Elem Elem;
+<span class="lineNum">     957 </span>            : 
+<span class="lineNum">     958 </span><span class="lineNoCov">          0 :     CallArgs args = CallArgsFromVp(argc, vp);</span>
+<span class="lineNum">     959 </span><span class="lineNoCov">          0 :     if (args.length() &lt; 1 || !IsVectorObject&lt;V&gt;(args[0]))</span>
+<span class="lineNum">     960 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">     961 </span>            : 
+<span class="lineNum">     962 </span>            :     JS::AutoCheckCannotGC nogc(cx);
+<span class="lineNum">     963 </span><span class="lineNoCov">          0 :     Elem* vec = TypedObjectMemory&lt;Elem*&gt;(args[0], nogc);</span>
+<span class="lineNum">     964 </span><span class="lineNoCov">          0 :     bool allTrue = true;</span>
+<span class="lineNum">     965 </span><span class="lineNoCov">          0 :     for (unsigned i = 0; allTrue &amp;&amp; i &lt; V::lanes; i++)</span>
+<span class="lineNum">     966 </span><span class="lineNoCov">          0 :         allTrue = vec[i];</span>
+<span class="lineNum">     967 </span>            : 
+<span class="lineNum">     968 </span><span class="lineNoCov">          0 :     args.rval().setBoolean(allTrue);</span>
+<span class="lineNum">     969 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">     970 </span>            : }
+<span class="lineNum">     971 </span>            : 
+<a name="972"><span class="lineNum">     972 </span>            : template&lt;typename V&gt;</a>
+<span class="lineNum">     973 </span>            : static bool
+<span class="lineNum">     974 </span><span class="lineNoCov">          0 : AnyTrue(JSContext* cx, unsigned argc, Value* vp)</span>
+<span class="lineNum">     975 </span>            : {
+<span class="lineNum">     976 </span>            :     typedef typename V::Elem Elem;
+<span class="lineNum">     977 </span>            : 
+<span class="lineNum">     978 </span><span class="lineNoCov">          0 :     CallArgs args = CallArgsFromVp(argc, vp);</span>
+<span class="lineNum">     979 </span><span class="lineNoCov">          0 :     if (args.length() &lt; 1 || !IsVectorObject&lt;V&gt;(args[0]))</span>
+<span class="lineNum">     980 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">     981 </span>            : 
+<span class="lineNum">     982 </span>            :     JS::AutoCheckCannotGC nogc(cx);
+<span class="lineNum">     983 </span><span class="lineNoCov">          0 :     Elem* vec = TypedObjectMemory&lt;Elem*&gt;(args[0], nogc);</span>
+<span class="lineNum">     984 </span><span class="lineNoCov">          0 :     bool anyTrue = false;</span>
+<span class="lineNum">     985 </span><span class="lineNoCov">          0 :     for (unsigned i = 0; !anyTrue &amp;&amp; i &lt; V::lanes; i++)</span>
+<span class="lineNum">     986 </span><span class="lineNoCov">          0 :         anyTrue = vec[i];</span>
+<span class="lineNum">     987 </span>            : 
+<span class="lineNum">     988 </span><span class="lineNoCov">          0 :     args.rval().setBoolean(anyTrue);</span>
+<span class="lineNum">     989 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">     990 </span>            : }
+<span class="lineNum">     991 </span>            : 
+<a name="992"><span class="lineNum">     992 </span>            : template&lt;typename V&gt;</a>
+<span class="lineNum">     993 </span>            : static bool
+<span class="lineNum">     994 </span><span class="lineNoCov">          0 : ReplaceLane(JSContext* cx, unsigned argc, Value* vp)</span>
+<span class="lineNum">     995 </span>            : {
+<span class="lineNum">     996 </span>            :     typedef typename V::Elem Elem;
+<span class="lineNum">     997 </span>            : 
+<span class="lineNum">     998 </span><span class="lineNoCov">          0 :     CallArgs args = CallArgsFromVp(argc, vp);</span>
+<span class="lineNum">     999 </span>            :     // Only the first and second arguments are mandatory
+<span class="lineNum">    1000 </span><span class="lineNoCov">          0 :     if (args.length() &lt; 2 || !IsVectorObject&lt;V&gt;(args[0]))</span>
+<span class="lineNum">    1001 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">    1002 </span>            : 
+<span class="lineNum">    1003 </span>            :     unsigned lane;
+<span class="lineNum">    1004 </span><span class="lineNoCov">          0 :     if (!ArgumentToLaneIndex(cx, args[1], V::lanes, &amp;lane))</span>
+<span class="lineNum">    1005 </span>            :         return false;
+<span class="lineNum">    1006 </span>            : 
+<span class="lineNum">    1007 </span>            :     Elem value;
+<span class="lineNum">    1008 </span><span class="lineNoCov">          0 :     if (!V::Cast(cx, args.get(2), &amp;value))</span>
+<span class="lineNum">    1009 </span>            :         return false;
+<span class="lineNum">    1010 </span>            : 
+<span class="lineNum">    1011 </span><span class="lineNoCov">          0 :     TypedObjectElemArray&lt;Elem&gt; vec(args[0]);</span>
+<span class="lineNum">    1012 </span>            :     Elem result[V::lanes];
+<span class="lineNum">    1013 </span><span class="lineNoCov">          0 :     for (unsigned i = 0; i &lt; V::lanes; i++)</span>
+<span class="lineNum">    1014 </span><span class="lineNoCov">          0 :         result[i] = i == lane ? value : vec[i];</span>
+<span class="lineNum">    1015 </span>            : 
+<span class="lineNum">    1016 </span><span class="lineNoCov">          0 :     return StoreResult&lt;V&gt;(cx, args, result);</span>
+<span class="lineNum">    1017 </span>            : }
+<span class="lineNum">    1018 </span>            : 
+<a name="1019"><span class="lineNum">    1019 </span>            : template&lt;typename V&gt;</a>
+<span class="lineNum">    1020 </span>            : static bool
+<span class="lineNum">    1021 </span><span class="lineNoCov">          0 : Swizzle(JSContext* cx, unsigned argc, Value* vp)</span>
+<span class="lineNum">    1022 </span>            : {
+<span class="lineNum">    1023 </span>            :     typedef typename V::Elem Elem;
+<span class="lineNum">    1024 </span>            : 
+<span class="lineNum">    1025 </span><span class="lineNoCov">          0 :     CallArgs args = CallArgsFromVp(argc, vp);</span>
+<span class="lineNum">    1026 </span><span class="lineNoCov">          0 :     if (args.length() != (V::lanes + 1) || !IsVectorObject&lt;V&gt;(args[0]))</span>
+<span class="lineNum">    1027 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">    1028 </span>            : 
+<span class="lineNum">    1029 </span>            :     unsigned lanes[V::lanes];
+<span class="lineNum">    1030 </span><span class="lineNoCov">          0 :     for (unsigned i = 0; i &lt; V::lanes; i++) {</span>
+<span class="lineNum">    1031 </span><span class="lineNoCov">          0 :         if (!ArgumentToLaneIndex(cx, args[i + 1], V::lanes, &amp;lanes[i]))</span>
+<span class="lineNum">    1032 </span>            :             return false;
+<span class="lineNum">    1033 </span>            :     }
+<span class="lineNum">    1034 </span>            : 
+<span class="lineNum">    1035 </span><span class="lineNoCov">          0 :     TypedObjectElemArray&lt;Elem&gt; val(args[0]);</span>
+<span class="lineNum">    1036 </span>            :     Elem result[V::lanes];
+<span class="lineNum">    1037 </span><span class="lineNoCov">          0 :     for (unsigned i = 0; i &lt; V::lanes; i++)</span>
+<span class="lineNum">    1038 </span><span class="lineNoCov">          0 :         result[i] = val[lanes[i]];</span>
+<span class="lineNum">    1039 </span>            : 
+<span class="lineNum">    1040 </span><span class="lineNoCov">          0 :     return StoreResult&lt;V&gt;(cx, args, result);</span>
+<span class="lineNum">    1041 </span>            : }
+<span class="lineNum">    1042 </span>            : 
+<a name="1043"><span class="lineNum">    1043 </span>            : template&lt;typename V&gt;</a>
+<span class="lineNum">    1044 </span>            : static bool
+<span class="lineNum">    1045 </span><span class="lineNoCov">          0 : Shuffle(JSContext* cx, unsigned argc, Value* vp)</span>
+<span class="lineNum">    1046 </span>            : {
+<span class="lineNum">    1047 </span>            :     typedef typename V::Elem Elem;
+<span class="lineNum">    1048 </span>            : 
+<span class="lineNum">    1049 </span><span class="lineNoCov">          0 :     CallArgs args = CallArgsFromVp(argc, vp);</span>
+<span class="lineNum">    1050 </span><span class="lineNoCov">          0 :     if (args.length() != (V::lanes + 2) || !IsVectorObject&lt;V&gt;(args[0]) || !IsVectorObject&lt;V&gt;(args[1]))</span>
+<span class="lineNum">    1051 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">    1052 </span>            : 
+<span class="lineNum">    1053 </span>            :     unsigned lanes[V::lanes];
+<span class="lineNum">    1054 </span><span class="lineNoCov">          0 :     for (unsigned i = 0; i &lt; V::lanes; i++) {</span>
+<span class="lineNum">    1055 </span><span class="lineNoCov">          0 :         if (!ArgumentToLaneIndex(cx, args[i + 2], 2 * V::lanes, &amp;lanes[i]))</span>
+<span class="lineNum">    1056 </span>            :             return false;
+<span class="lineNum">    1057 </span>            :     }
+<span class="lineNum">    1058 </span>            : 
+<span class="lineNum">    1059 </span>            :     Elem result[V::lanes];
+<span class="lineNum">    1060 </span>            :     {
+<span class="lineNum">    1061 </span>            :         JS::AutoCheckCannotGC nogc(cx);
+<span class="lineNum">    1062 </span><span class="lineNoCov">          0 :         Elem* lhs = TypedObjectMemory&lt;Elem*&gt;(args[0], nogc);</span>
+<span class="lineNum">    1063 </span><span class="lineNoCov">          0 :         Elem* rhs = TypedObjectMemory&lt;Elem*&gt;(args[1], nogc);</span>
+<span class="lineNum">    1064 </span>            : 
+<span class="lineNum">    1065 </span><span class="lineNoCov">          0 :         for (unsigned i = 0; i &lt; V::lanes; i++) {</span>
+<span class="lineNum">    1066 </span><span class="lineNoCov">          0 :             Elem* selectedInput = lanes[i] &lt; V::lanes ? lhs : rhs;</span>
+<span class="lineNum">    1067 </span><span class="lineNoCov">          0 :             result[i] = selectedInput[lanes[i] % V::lanes];</span>
+<span class="lineNum">    1068 </span>            :         }
+<span class="lineNum">    1069 </span>            :     }
+<span class="lineNum">    1070 </span>            : 
+<span class="lineNum">    1071 </span><span class="lineNoCov">          0 :     return StoreResult&lt;V&gt;(cx, args, result);</span>
+<span class="lineNum">    1072 </span>            : }
+<span class="lineNum">    1073 </span>            : 
+<a name="1074"><span class="lineNum">    1074 </span>            : template&lt;typename V, template&lt;typename T&gt; class Op&gt;</a>
+<span class="lineNum">    1075 </span>            : static bool
+<span class="lineNum">    1076 </span><span class="lineNoCov">          0 : BinaryScalar(JSContext* cx, unsigned argc, Value* vp)</span>
+<span class="lineNum">    1077 </span>            : {
+<span class="lineNum">    1078 </span>            :     typedef typename V::Elem Elem;
+<span class="lineNum">    1079 </span>            : 
+<span class="lineNum">    1080 </span><span class="lineNoCov">          0 :     CallArgs args = CallArgsFromVp(argc, vp);</span>
+<span class="lineNum">    1081 </span><span class="lineNoCov">          0 :     if (args.length() != 2)</span>
+<span class="lineNum">    1082 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">    1083 </span>            : 
+<span class="lineNum">    1084 </span><span class="lineNoCov">          0 :     if (!IsVectorObject&lt;V&gt;(args[0]))</span>
+<span class="lineNum">    1085 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">    1086 </span>            : 
+<span class="lineNum">    1087 </span>            :     int32_t bits;
+<span class="lineNum">    1088 </span><span class="lineNoCov">          0 :     if (!ToInt32(cx, args[1], &amp;bits))</span>
+<span class="lineNum">    1089 </span>            :         return false;
+<span class="lineNum">    1090 </span>            : 
+<span class="lineNum">    1091 </span><span class="lineNoCov">          0 :     TypedObjectElemArray&lt;Elem&gt; val(args[0]);</span>
+<span class="lineNum">    1092 </span>            :     Elem result[V::lanes];
+<span class="lineNum">    1093 </span><span class="lineNoCov">          0 :     for (unsigned i = 0; i &lt; V::lanes; i++)</span>
+<span class="lineNum">    1094 </span><span class="lineNoCov">          0 :         result[i] = Op&lt;Elem&gt;::apply(val[i], bits);</span>
+<span class="lineNum">    1095 </span>            : 
+<span class="lineNum">    1096 </span><span class="lineNoCov">          0 :     return StoreResult&lt;V&gt;(cx, args, result);</span>
+<span class="lineNum">    1097 </span>            : }
+<span class="lineNum">    1098 </span>            : 
+<a name="1099"><span class="lineNum">    1099 </span>            : template&lt;typename In, template&lt;typename C&gt; class Op, typename Out&gt;</a>
+<span class="lineNum">    1100 </span>            : static bool
+<span class="lineNum">    1101 </span><span class="lineNoCov">          0 : CompareFunc(JSContext* cx, unsigned argc, Value* vp)</span>
+<span class="lineNum">    1102 </span>            : {
+<span class="lineNum">    1103 </span>            :     typedef typename In::Elem InElem;
+<span class="lineNum">    1104 </span>            :     typedef typename Out::Elem OutElem;
+<span class="lineNum">    1105 </span>            : 
+<span class="lineNum">    1106 </span><span class="lineNoCov">          0 :     CallArgs args = CallArgsFromVp(argc, vp);</span>
+<span class="lineNum">    1107 </span><span class="lineNoCov">          0 :     if (args.length() != 2 || !IsVectorObject&lt;In&gt;(args[0]) || !IsVectorObject&lt;In&gt;(args[1]))</span>
+<span class="lineNum">    1108 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">    1109 </span>            : 
+<span class="lineNum">    1110 </span>            :     OutElem result[Out::lanes];
+<span class="lineNum">    1111 </span><span class="lineNoCov">          0 :     TypedObjectElemArray&lt;InElem&gt; left(args[0]);</span>
+<span class="lineNum">    1112 </span><span class="lineNoCov">          0 :     TypedObjectElemArray&lt;InElem&gt; right(args[1]);</span>
+<span class="lineNum">    1113 </span><span class="lineNoCov">          0 :     for (unsigned i = 0; i &lt; Out::lanes; i++) {</span>
+<span class="lineNum">    1114 </span><span class="lineNoCov">          0 :         unsigned j = (i * In::lanes) / Out::lanes;</span>
+<span class="lineNum">    1115 </span><span class="lineNoCov">          0 :         result[i] = Op&lt;InElem&gt;::apply(left[j], right[j]) ? -1 : 0;</span>
+<span class="lineNum">    1116 </span>            :     }
+<span class="lineNum">    1117 </span>            : 
+<span class="lineNum">    1118 </span><span class="lineNoCov">          0 :     return StoreResult&lt;Out&gt;(cx, args, result);</span>
+<span class="lineNum">    1119 </span>            : }
+<span class="lineNum">    1120 </span>            : 
+<span class="lineNum">    1121 </span>            : // This struct defines whether we should throw during a conversion attempt,
+<span class="lineNum">    1122 </span>            : // when trying to convert a value of type from From to the type To.  This
+<span class="lineNum">    1123 </span>            : // happens whenever a C++ conversion would have undefined behavior (and perhaps
+<span class="lineNum">    1124 </span>            : // be platform-dependent).
+<span class="lineNum">    1125 </span>            : template&lt;typename From, typename To&gt;
+<span class="lineNum">    1126 </span>            : struct ThrowOnConvert;
+<span class="lineNum">    1127 </span>            : 
+<span class="lineNum">    1128 </span>            : struct NeverThrow
+<span class="lineNum">    1129 </span>            : {
+<span class="lineNum">    1130 </span>            :     static bool value(int32_t v) {
+<span class="lineNum">    1131 </span>            :         return false;
+<span class="lineNum">    1132 </span>            :     }
+<span class="lineNum">    1133 </span>            : };
+<span class="lineNum">    1134 </span>            : 
+<span class="lineNum">    1135 </span>            : // While int32 to float conversions can be lossy, these conversions have
+<span class="lineNum">    1136 </span>            : // defined behavior in C++, so we don't need to care about them here. In practice,
+<span class="lineNum">    1137 </span>            : // this means round to nearest, tie with even (zero bit in significand).
+<span class="lineNum">    1138 </span>            : template&lt;&gt;
+<span class="lineNum">    1139 </span>            : struct ThrowOnConvert&lt;int32_t, float&gt; : public NeverThrow {};
+<span class="lineNum">    1140 </span>            : 
+<span class="lineNum">    1141 </span>            : template&lt;&gt;
+<span class="lineNum">    1142 </span>            : struct ThrowOnConvert&lt;uint32_t, float&gt; : public NeverThrow {};
+<span class="lineNum">    1143 </span>            : 
+<span class="lineNum">    1144 </span>            : // All int32 can be safely converted to doubles.
+<span class="lineNum">    1145 </span>            : template&lt;&gt;
+<span class="lineNum">    1146 </span>            : struct ThrowOnConvert&lt;int32_t, double&gt; : public NeverThrow {};
+<span class="lineNum">    1147 </span>            : 
+<span class="lineNum">    1148 </span>            : template&lt;&gt;
+<span class="lineNum">    1149 </span>            : struct ThrowOnConvert&lt;uint32_t, double&gt; : public NeverThrow {};
+<span class="lineNum">    1150 </span>            : 
+<span class="lineNum">    1151 </span>            : // All floats can be safely converted to doubles.
+<span class="lineNum">    1152 </span>            : template&lt;&gt;
+<span class="lineNum">    1153 </span>            : struct ThrowOnConvert&lt;float, double&gt; : public NeverThrow {};
+<span class="lineNum">    1154 </span>            : 
+<span class="lineNum">    1155 </span>            : // Double to float conversion for inputs which aren't in the float range are
+<span class="lineNum">    1156 </span>            : // undefined behavior in C++, but they're defined in IEEE754.
+<span class="lineNum">    1157 </span>            : template&lt;&gt;
+<span class="lineNum">    1158 </span>            : struct ThrowOnConvert&lt;double, float&gt; : public NeverThrow {};
+<span class="lineNum">    1159 </span>            : 
+<span class="lineNum">    1160 </span>            : // Float to integer conversions have undefined behavior if the float value
+<span class="lineNum">    1161 </span>            : // is out of the representable integer range (on x86, will yield the undefined
+<span class="lineNum">    1162 </span>            : // value pattern, namely 0x80000000; on arm, will clamp the input value), so
+<span class="lineNum">    1163 </span>            : // check this here.
+<span class="lineNum">    1164 </span>            : template&lt;typename From, typename IntegerType&gt;
+<span class="lineNum">    1165 </span>            : struct ThrowIfNotInRange
+<span class="lineNum">    1166 </span>            : {
+<span class="lineNum">    1167 </span>            :     static_assert(mozilla::IsIntegral&lt;IntegerType&gt;::value, &quot;bad destination type&quot;);
+<span class="lineNum">    1168 </span>            : 
+<span class="lineNum">    1169 </span>            :     static bool value(From v) {
+<span class="lineNum">    1170 </span>            :         // Truncate to integer value before the range check.
+<span class="lineNum">    1171 </span><span class="lineNoCov">          0 :         double d = trunc(double(v));</span>
+<span class="lineNum">    1172 </span>            :         // Arrange relations so NaN returns true (i.e., it throws a RangeError).
+<span class="lineNum">    1173 </span>            :         return !(d &gt;= double(mozilla::MinValue&lt;IntegerType&gt;::value) &amp;&amp;
+<span class="lineNum">    1174 </span><span class="lineNoCov">          0 :                  d &lt;= double(mozilla::MaxValue&lt;IntegerType&gt;::value));</span>
+<span class="lineNum">    1175 </span>            :     }
+<span class="lineNum">    1176 </span>            : };
+<span class="lineNum">    1177 </span>            : 
+<span class="lineNum">    1178 </span>            : template&lt;&gt;
+<span class="lineNum">    1179 </span>            : struct ThrowOnConvert&lt;double, int32_t&gt; : public ThrowIfNotInRange&lt;double, int32_t&gt; {};
+<span class="lineNum">    1180 </span>            : 
+<span class="lineNum">    1181 </span>            : template&lt;&gt;
+<span class="lineNum">    1182 </span>            : struct ThrowOnConvert&lt;double, uint32_t&gt; : public ThrowIfNotInRange&lt;double, uint32_t&gt; {};
+<span class="lineNum">    1183 </span>            : 
+<span class="lineNum">    1184 </span>            : template&lt;&gt;
+<span class="lineNum">    1185 </span>            : struct ThrowOnConvert&lt;float, int32_t&gt; : public ThrowIfNotInRange&lt;float, int32_t&gt; {};
+<span class="lineNum">    1186 </span>            : 
+<span class="lineNum">    1187 </span>            : template&lt;&gt;
+<span class="lineNum">    1188 </span>            : struct ThrowOnConvert&lt;float, uint32_t&gt; : public ThrowIfNotInRange&lt;float, uint32_t&gt; {};
+<span class="lineNum">    1189 </span>            : 
+<a name="1190"><span class="lineNum">    1190 </span>            : template&lt;typename V, typename Vret&gt;</a>
+<span class="lineNum">    1191 </span>            : static bool
+<span class="lineNum">    1192 </span><span class="lineNoCov">          0 : FuncConvert(JSContext* cx, unsigned argc, Value* vp)</span>
+<span class="lineNum">    1193 </span>            : {
+<span class="lineNum">    1194 </span>            :     typedef typename V::Elem Elem;
+<span class="lineNum">    1195 </span>            :     typedef typename Vret::Elem RetElem;
+<span class="lineNum">    1196 </span>            : 
+<span class="lineNum">    1197 </span>            :     static_assert(!mozilla::IsSame&lt;V,Vret&gt;::value, &quot;Can't convert SIMD type to itself&quot;);
+<span class="lineNum">    1198 </span>            :     static_assert(V::lanes == Vret::lanes, &quot;Can only convert from same number of lanes&quot;);
+<span class="lineNum">    1199 </span>            :     static_assert(!mozilla::IsIntegral&lt;Elem&gt;::value || !mozilla::IsIntegral&lt;RetElem&gt;::value,
+<span class="lineNum">    1200 </span>            :                   &quot;Cannot convert between integer SIMD types&quot;);
+<span class="lineNum">    1201 </span>            : 
+<span class="lineNum">    1202 </span><span class="lineNoCov">          0 :     CallArgs args = CallArgsFromVp(argc, vp);</span>
+<span class="lineNum">    1203 </span><span class="lineNoCov">          0 :     if (args.length() != 1 || !IsVectorObject&lt;V&gt;(args[0]))</span>
+<span class="lineNum">    1204 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">    1205 </span>            : 
+<span class="lineNum">    1206 </span><span class="lineNoCov">          0 :     TypedObjectElemArray&lt;Elem&gt; val(args[0]);</span>
+<span class="lineNum">    1207 </span>            :     RetElem result[Vret::lanes];
+<span class="lineNum">    1208 </span><span class="lineNoCov">          0 :     for (unsigned i = 0; i &lt; V::lanes; i++) {</span>
+<span class="lineNum">    1209 </span><span class="lineNoCov">          0 :         if (ThrowOnConvert&lt;Elem, RetElem&gt;::value(val[i])) {</span>
+<span class="lineNum">    1210 </span><span class="lineNoCov">          0 :             JS_ReportErrorNumberASCII(cx, GetErrorMessage, nullptr, JSMSG_SIMD_FAILED_CONVERSION);</span>
+<span class="lineNum">    1211 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">    1212 </span>            :         }
+<span class="lineNum">    1213 </span><span class="lineNoCov">          0 :         result[i] = ConvertScalar&lt;RetElem&gt;(val[i]);</span>
+<span class="lineNum">    1214 </span>            :     }
+<span class="lineNum">    1215 </span>            : 
+<span class="lineNum">    1216 </span><span class="lineNoCov">          0 :     return StoreResult&lt;Vret&gt;(cx, args, result);</span>
+<span class="lineNum">    1217 </span>            : }
+<span class="lineNum">    1218 </span>            : 
+<a name="1219"><span class="lineNum">    1219 </span>            : template&lt;typename V, typename Vret&gt;</a>
+<span class="lineNum">    1220 </span>            : static bool
+<span class="lineNum">    1221 </span><span class="lineNoCov">          0 : FuncConvertBits(JSContext* cx, unsigned argc, Value* vp)</span>
+<span class="lineNum">    1222 </span>            : {
+<span class="lineNum">    1223 </span>            :     typedef typename V::Elem Elem;
+<span class="lineNum">    1224 </span>            :     typedef typename Vret::Elem RetElem;
+<span class="lineNum">    1225 </span>            : 
+<span class="lineNum">    1226 </span>            :     static_assert(!mozilla::IsSame&lt;V, Vret&gt;::value, &quot;Can't convert SIMD type to itself&quot;);
+<span class="lineNum">    1227 </span>            :     static_assert(V::lanes * sizeof(Elem) == Vret::lanes * sizeof(RetElem),
+<span class="lineNum">    1228 </span>            :                   &quot;Can only bitcast from the same number of bits&quot;);
+<span class="lineNum">    1229 </span>            : 
+<span class="lineNum">    1230 </span><span class="lineNoCov">          0 :     CallArgs args = CallArgsFromVp(argc, vp);</span>
+<span class="lineNum">    1231 </span><span class="lineNoCov">          0 :     if (args.length() != 1 || !IsVectorObject&lt;V&gt;(args[0]))</span>
+<span class="lineNum">    1232 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">    1233 </span>            : 
+<span class="lineNum">    1234 </span>            :     // While we could just pass the typedMem of args[0] as StoreResults' last
+<span class="lineNum">    1235 </span>            :     // argument, a GC could move the pointer to its memory in the meanwhile.
+<span class="lineNum">    1236 </span>            :     // For consistency with other SIMD functions, simply copy the input in a
+<span class="lineNum">    1237 </span>            :     // temporary array.
+<span class="lineNum">    1238 </span>            :     RetElem copy[Vret::lanes];
+<span class="lineNum">    1239 </span>            :     {
+<span class="lineNum">    1240 </span>            :         JS::AutoCheckCannotGC nogc(cx);
+<span class="lineNum">    1241 </span><span class="lineNoCov">          0 :         memcpy(copy, TypedObjectMemory&lt;RetElem*&gt;(args[0], nogc), Vret::lanes * sizeof(RetElem));</span>
+<span class="lineNum">    1242 </span>            :     }
+<span class="lineNum">    1243 </span><span class="lineNoCov">          0 :     return StoreResult&lt;Vret&gt;(cx, args, copy);</span>
+<span class="lineNum">    1244 </span>            : }
+<span class="lineNum">    1245 </span>            : 
+<a name="1246"><span class="lineNum">    1246 </span>            : template&lt;typename Vret&gt;</a>
+<span class="lineNum">    1247 </span>            : static bool
+<span class="lineNum">    1248 </span><span class="lineNoCov">          0 : FuncSplat(JSContext* cx, unsigned argc, Value* vp)</span>
+<span class="lineNum">    1249 </span>            : {
+<span class="lineNum">    1250 </span>            :     typedef typename Vret::Elem RetElem;
+<span class="lineNum">    1251 </span>            : 
+<span class="lineNum">    1252 </span><span class="lineNoCov">          0 :     CallArgs args = CallArgsFromVp(argc, vp);</span>
+<span class="lineNum">    1253 </span>            :     RetElem arg;
+<span class="lineNum">    1254 </span><span class="lineNoCov">          0 :     if (!Vret::Cast(cx, args.get(0), &amp;arg))</span>
+<span class="lineNum">    1255 </span>            :         return false;
+<span class="lineNum">    1256 </span>            : 
+<span class="lineNum">    1257 </span>            :     RetElem result[Vret::lanes];
+<span class="lineNum">    1258 </span><span class="lineNoCov">          0 :     for (unsigned i = 0; i &lt; Vret::lanes; i++)</span>
+<span class="lineNum">    1259 </span><span class="lineNoCov">          0 :         result[i] = arg;</span>
+<span class="lineNum">    1260 </span><span class="lineNoCov">          0 :     return StoreResult&lt;Vret&gt;(cx, args, result);</span>
+<span class="lineNum">    1261 </span>            : }
+<span class="lineNum">    1262 </span>            : 
+<span class="lineNum">    1263 </span>            : template&lt;typename V&gt;
+<span class="lineNum">    1264 </span>            : static bool
+<span class="lineNum">    1265 </span>            : Bool(JSContext* cx, unsigned argc, Value* vp)
+<span class="lineNum">    1266 </span>            : {
+<span class="lineNum">    1267 </span>            :     typedef typename V::Elem Elem;
+<span class="lineNum">    1268 </span>            : 
+<span class="lineNum">    1269 </span>            :     CallArgs args = CallArgsFromVp(argc, vp);
+<span class="lineNum">    1270 </span>            : 
+<span class="lineNum">    1271 </span>            :     Elem result[V::lanes];
+<span class="lineNum">    1272 </span>            :     for (unsigned i = 0; i &lt; V::lanes; i++)
+<span class="lineNum">    1273 </span>            :         result[i] = ToBoolean(args.get(i)) ? -1 : 0;
+<span class="lineNum">    1274 </span>            :     return StoreResult&lt;V&gt;(cx, args, result);
+<span class="lineNum">    1275 </span>            : }
+<span class="lineNum">    1276 </span>            : 
+<span class="lineNum">    1277 </span>            : template&lt;typename V, typename MaskType&gt;
+<span class="lineNum">    1278 </span>            : static bool
+<span class="lineNum">    1279 </span>            : SelectBits(JSContext* cx, unsigned argc, Value* vp)
+<span class="lineNum">    1280 </span>            : {
+<span class="lineNum">    1281 </span>            :     typedef typename V::Elem Elem;
+<span class="lineNum">    1282 </span>            :     typedef typename MaskType::Elem MaskTypeElem;
+<span class="lineNum">    1283 </span>            : 
+<span class="lineNum">    1284 </span>            :     CallArgs args = CallArgsFromVp(argc, vp);
+<span class="lineNum">    1285 </span>            :     if (args.length() != 3 || !IsVectorObject&lt;MaskType&gt;(args[0]) ||
+<span class="lineNum">    1286 </span>            :         !IsVectorObject&lt;V&gt;(args[1]) || !IsVectorObject&lt;V&gt;(args[2]))
+<span class="lineNum">    1287 </span>            :     {
+<span class="lineNum">    1288 </span>            :         return ErrorBadArgs(cx);
+<span class="lineNum">    1289 </span>            :     }
+<span class="lineNum">    1290 </span>            : 
+<span class="lineNum">    1291 </span>            :     TypedObjectElemArray&lt;MaskTypeElem&gt; val(args[0]);
+<span class="lineNum">    1292 </span>            :     TypedObjectElemArray&lt;MaskTypeElem&gt; tv(args[1]);
+<span class="lineNum">    1293 </span>            :     TypedObjectElemArray&lt;MaskTypeElem&gt; fv(args[2]);
+<span class="lineNum">    1294 </span>            : 
+<span class="lineNum">    1295 </span>            :     MaskTypeElem tr[MaskType::lanes];
+<span class="lineNum">    1296 </span>            :     for (unsigned i = 0; i &lt; MaskType::lanes; i++)
+<span class="lineNum">    1297 </span>            :         tr[i] = And&lt;MaskTypeElem&gt;::apply(val[i], tv[i]);
+<span class="lineNum">    1298 </span>            : 
+<span class="lineNum">    1299 </span>            :     MaskTypeElem fr[MaskType::lanes];
+<span class="lineNum">    1300 </span>            :     for (unsigned i = 0; i &lt; MaskType::lanes; i++)
+<span class="lineNum">    1301 </span>            :         fr[i] = And&lt;MaskTypeElem&gt;::apply(Not&lt;MaskTypeElem&gt;::apply(val[i]), fv[i]);
+<span class="lineNum">    1302 </span>            : 
+<span class="lineNum">    1303 </span>            :     MaskTypeElem orInt[MaskType::lanes];
+<span class="lineNum">    1304 </span>            :     for (unsigned i = 0; i &lt; MaskType::lanes; i++)
+<span class="lineNum">    1305 </span>            :         orInt[i] = Or&lt;MaskTypeElem&gt;::apply(tr[i], fr[i]);
+<span class="lineNum">    1306 </span>            : 
+<span class="lineNum">    1307 </span>            :     Elem* result = reinterpret_cast&lt;Elem*&gt;(orInt);
+<span class="lineNum">    1308 </span>            :     return StoreResult&lt;V&gt;(cx, args, result);
+<span class="lineNum">    1309 </span>            : }
+<span class="lineNum">    1310 </span>            : 
+<a name="1311"><span class="lineNum">    1311 </span>            : template&lt;typename V, typename MaskType&gt;</a>
+<span class="lineNum">    1312 </span>            : static bool
+<span class="lineNum">    1313 </span><span class="lineNoCov">          0 : Select(JSContext* cx, unsigned argc, Value* vp)</span>
+<span class="lineNum">    1314 </span>            : {
+<span class="lineNum">    1315 </span>            :     typedef typename V::Elem Elem;
+<span class="lineNum">    1316 </span>            :     typedef typename MaskType::Elem MaskTypeElem;
+<span class="lineNum">    1317 </span>            : 
+<span class="lineNum">    1318 </span><span class="lineNoCov">          0 :     CallArgs args = CallArgsFromVp(argc, vp);</span>
+<span class="lineNum">    1319 </span><span class="lineNoCov">          0 :     if (args.length() != 3 || !IsVectorObject&lt;MaskType&gt;(args[0]) ||</span>
+<span class="lineNum">    1320 </span><span class="lineNoCov">          0 :         !IsVectorObject&lt;V&gt;(args[1]) || !IsVectorObject&lt;V&gt;(args[2]))</span>
+<span class="lineNum">    1321 </span>            :     {
+<span class="lineNum">    1322 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">    1323 </span>            :     }
+<span class="lineNum">    1324 </span>            : 
+<span class="lineNum">    1325 </span><span class="lineNoCov">          0 :     TypedObjectElemArray&lt;MaskTypeElem&gt; mask(args[0]);</span>
+<span class="lineNum">    1326 </span><span class="lineNoCov">          0 :     TypedObjectElemArray&lt;Elem&gt; tv(args[1]);</span>
+<span class="lineNum">    1327 </span><span class="lineNoCov">          0 :     TypedObjectElemArray&lt;Elem&gt; fv(args[2]);</span>
+<span class="lineNum">    1328 </span>            : 
+<span class="lineNum">    1329 </span>            :     Elem result[V::lanes];
+<span class="lineNum">    1330 </span><span class="lineNoCov">          0 :     for (unsigned i = 0; i &lt; V::lanes; i++)</span>
+<span class="lineNum">    1331 </span><span class="lineNoCov">          0 :         result[i] = mask[i] ? tv[i] : fv[i];</span>
+<span class="lineNum">    1332 </span>            : 
+<span class="lineNum">    1333 </span><span class="lineNoCov">          0 :     return StoreResult&lt;V&gt;(cx, args, result);</span>
+<span class="lineNum">    1334 </span>            : }
+<span class="lineNum">    1335 </span>            : 
+<span class="lineNum">    1336 </span>            : // Extract an integer lane index from a function argument.
+<span class="lineNum">    1337 </span>            : //
+<a name="1338"><span class="lineNum">    1338 </span>            : // Register an exception and return false if the argument is not suitable.</a>
+<span class="lineNum">    1339 </span>            : static bool
+<span class="lineNum">    1340 </span><span class="lineNoCov">          0 : ArgumentToLaneIndex(JSContext* cx, JS::HandleValue v, unsigned limit, unsigned* lane)</span>
+<span class="lineNum">    1341 </span>            : {
+<span class="lineNum">    1342 </span>            :     uint64_t arg;
+<span class="lineNum">    1343 </span><span class="lineNoCov">          0 :     if (!NonStandardToIndex(cx, v, &amp;arg))</span>
+<span class="lineNum">    1344 </span>            :         return false;
+<span class="lineNum">    1345 </span><span class="lineNoCov">          0 :     if (arg &gt;= limit)</span>
+<span class="lineNum">    1346 </span><span class="lineNoCov">          0 :         return ErrorBadIndex(cx);</span>
+<span class="lineNum">    1347 </span>            : 
+<span class="lineNum">    1348 </span><span class="lineNoCov">          0 :     *lane = unsigned(arg);</span>
+<span class="lineNum">    1349 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">    1350 </span>            : }
+<span class="lineNum">    1351 </span>            : 
+<span class="lineNum">    1352 </span>            : // Look for arguments (ta, idx) where ta is a TypedArray and idx is a
+<span class="lineNum">    1353 </span>            : // non-negative integer.
+<span class="lineNum">    1354 </span>            : // Check that accessBytes can be accessed starting from index idx in the array.
+<a name="1355"><span class="lineNum">    1355 </span>            : // Return the array handle in typedArray and idx converted to a byte offset in byteStart.</a>
+<span class="lineNum">    1356 </span>            : static bool
+<span class="lineNum">    1357 </span><span class="lineNoCov">          0 : TypedArrayFromArgs(JSContext* cx, const CallArgs&amp; args, uint32_t accessBytes,</span>
+<span class="lineNum">    1358 </span>            :                    MutableHandleObject typedArray, size_t* byteStart)
+<span class="lineNum">    1359 </span>            : {
+<span class="lineNum">    1360 </span><span class="lineNoCov">          0 :     if (!args[0].isObject())</span>
+<span class="lineNum">    1361 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">    1362 </span>            : 
+<span class="lineNum">    1363 </span><span class="lineNoCov">          0 :     JSObject&amp; argobj = args[0].toObject();</span>
+<span class="lineNum">    1364 </span><span class="lineNoCov">          0 :     if (!argobj.is&lt;TypedArrayObject&gt;())</span>
+<span class="lineNum">    1365 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">    1366 </span>            : 
+<span class="lineNum">    1367 </span><span class="lineNoCov">          0 :     typedArray.set(&amp;argobj);</span>
+<span class="lineNum">    1368 </span>            : 
+<span class="lineNum">    1369 </span>            :     uint64_t index;
+<span class="lineNum">    1370 </span><span class="lineNoCov">          0 :     if (!NonStandardToIndex(cx, args[1], &amp;index))</span>
+<span class="lineNum">    1371 </span>            :         return false;
+<span class="lineNum">    1372 </span>            : 
+<span class="lineNum">    1373 </span>            :     // Do the range check in 64 bits even when size_t is 32 bits.
+<span class="lineNum">    1374 </span>            :     // This can't overflow because index &lt;= 2^53.
+<span class="lineNum">    1375 </span><span class="lineNoCov">          0 :     uint64_t bytes = index * typedArray-&gt;as&lt;TypedArrayObject&gt;().bytesPerElement();</span>
+<span class="lineNum">    1376 </span>            :     // Keep in sync with AsmJS OnOutOfBounds function.
+<span class="lineNum">    1377 </span><span class="lineNoCov">          0 :     if ((bytes + accessBytes) &gt; typedArray-&gt;as&lt;TypedArrayObject&gt;().byteLength())</span>
+<span class="lineNum">    1378 </span><span class="lineNoCov">          0 :         return ErrorBadIndex(cx);</span>
+<span class="lineNum">    1379 </span>            : 
+<span class="lineNum">    1380 </span><span class="lineNoCov">          0 :     *byteStart = bytes;</span>
+<span class="lineNum">    1381 </span>            : 
+<span class="lineNum">    1382 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">    1383 </span>            : }
+<span class="lineNum">    1384 </span>            : 
+<a name="1385"><span class="lineNum">    1385 </span>            : template&lt;class V, unsigned NumElem&gt;</a>
+<span class="lineNum">    1386 </span>            : static bool
+<span class="lineNum">    1387 </span><span class="lineNoCov">          0 : Load(JSContext* cx, unsigned argc, Value* vp)</span>
+<span class="lineNum">    1388 </span>            : {
+<span class="lineNum">    1389 </span>            :     typedef typename V::Elem Elem;
+<span class="lineNum">    1390 </span>            : 
+<span class="lineNum">    1391 </span><span class="lineNoCov">          0 :     CallArgs args = CallArgsFromVp(argc, vp);</span>
+<span class="lineNum">    1392 </span><span class="lineNoCov">          0 :     if (args.length() != 2)</span>
+<span class="lineNum">    1393 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">    1394 </span>            : 
+<span class="lineNum">    1395 </span>            :     size_t byteStart;
+<span class="lineNum">    1396 </span>            :     RootedObject typedArray(cx);
+<span class="lineNum">    1397 </span><span class="lineNoCov">          0 :     if (!TypedArrayFromArgs(cx, args, sizeof(Elem) * NumElem, &amp;typedArray, &amp;byteStart))</span>
+<span class="lineNum">    1398 </span>            :         return false;
+<span class="lineNum">    1399 </span>            : 
+<span class="lineNum">    1400 </span><span class="lineNoCov">          0 :     Rooted&lt;TypeDescr*&gt; typeDescr(cx, GetTypeDescr&lt;V&gt;(cx));</span>
+<span class="lineNum">    1401 </span><span class="lineNoCov">          0 :     if (!typeDescr)</span>
+<span class="lineNum">    1402 </span>            :         return false;
+<span class="lineNum">    1403 </span>            : 
+<span class="lineNum">    1404 </span><span class="lineNoCov">          0 :     Rooted&lt;TypedObject*&gt; result(cx, TypedObject::createZeroed(cx, typeDescr, 0));</span>
+<span class="lineNum">    1405 </span><span class="lineNoCov">          0 :     if (!result)</span>
+<span class="lineNum">    1406 </span>            :         return false;
+<span class="lineNum">    1407 </span>            : 
+<span class="lineNum">    1408 </span><span class="lineNoCov">          0 :     JS::AutoCheckCannotGC nogc(cx);</span>
+<span class="lineNum">    1409 </span>            :     SharedMem&lt;Elem*&gt; src =
+<span class="lineNum">    1410 </span><span class="lineNoCov">          0 :         typedArray-&gt;as&lt;TypedArrayObject&gt;().viewDataEither().addBytes(byteStart).cast&lt;Elem*&gt;();</span>
+<span class="lineNum">    1411 </span><span class="lineNoCov">          0 :     Elem* dst = reinterpret_cast&lt;Elem*&gt;(result-&gt;typedMem(nogc));</span>
+<span class="lineNum">    1412 </span>            :     jit::AtomicOperations::podCopySafeWhenRacy(SharedMem&lt;Elem*&gt;::unshared(dst), src, NumElem);
+<span class="lineNum">    1413 </span>            : 
+<span class="lineNum">    1414 </span><span class="lineNoCov">          0 :     args.rval().setObject(*result);</span>
+<span class="lineNum">    1415 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">    1416 </span>            : }
+<span class="lineNum">    1417 </span>            : 
+<a name="1418"><span class="lineNum">    1418 </span>            : template&lt;class V, unsigned NumElem&gt;</a>
+<span class="lineNum">    1419 </span>            : static bool
+<span class="lineNum">    1420 </span><span class="lineNoCov">          0 : Store(JSContext* cx, unsigned argc, Value* vp)</span>
+<span class="lineNum">    1421 </span>            : {
+<span class="lineNum">    1422 </span>            :     typedef typename V::Elem Elem;
+<span class="lineNum">    1423 </span>            : 
+<span class="lineNum">    1424 </span><span class="lineNoCov">          0 :     CallArgs args = CallArgsFromVp(argc, vp);</span>
+<span class="lineNum">    1425 </span><span class="lineNoCov">          0 :     if (args.length() != 3)</span>
+<span class="lineNum">    1426 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">    1427 </span>            : 
+<span class="lineNum">    1428 </span>            :     size_t byteStart;
+<span class="lineNum">    1429 </span>            :     RootedObject typedArray(cx);
+<span class="lineNum">    1430 </span><span class="lineNoCov">          0 :     if (!TypedArrayFromArgs(cx, args, sizeof(Elem) * NumElem, &amp;typedArray, &amp;byteStart))</span>
+<span class="lineNum">    1431 </span>            :         return false;
+<span class="lineNum">    1432 </span>            : 
+<span class="lineNum">    1433 </span><span class="lineNoCov">          0 :     if (!IsVectorObject&lt;V&gt;(args[2]))</span>
+<span class="lineNum">    1434 </span><span class="lineNoCov">          0 :         return ErrorBadArgs(cx);</span>
+<span class="lineNum">    1435 </span>            : 
+<span class="lineNum">    1436 </span><span class="lineNoCov">          0 :     JS::AutoCheckCannotGC nogc(cx);</span>
+<span class="lineNum">    1437 </span><span class="lineNoCov">          0 :     Elem* src = TypedObjectMemory&lt;Elem*&gt;(args[2], nogc);</span>
+<span class="lineNum">    1438 </span>            :     SharedMem&lt;Elem*&gt; dst =
+<span class="lineNum">    1439 </span><span class="lineNoCov">          0 :         typedArray-&gt;as&lt;TypedArrayObject&gt;().viewDataEither().addBytes(byteStart).cast&lt;Elem*&gt;();</span>
+<span class="lineNum">    1440 </span>            :     js::jit::AtomicOperations::podCopySafeWhenRacy(dst, SharedMem&lt;Elem*&gt;::unshared(src), NumElem);
+<span class="lineNum">    1441 </span>            : 
+<span class="lineNum">    1442 </span><span class="lineNoCov">          0 :     args.rval().setObject(args[2].toObject());</span>
+<span class="lineNum">    1443 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">    1444 </span>            : }
+<span class="lineNum">    1445 </span>            : 
+<span class="lineNum">    1446 </span>            : #define DEFINE_SIMD_FLOAT32X4_FUNCTION(Name, Func, Operands)       \
+<span class="lineNum">    1447 </span>            : bool                                                               \
+<span class="lineNum">    1448 </span>            : js::simd_float32x4_##Name(JSContext* cx, unsigned argc, Value* vp) \
+<span class="lineNum">    1449 </span>            : {                                                                  \
+<a name="1450"><span class="lineNum">    1450 </span>            :     return Func(cx, argc, vp);                                     \</a>
+<span class="lineNum">    1451 </span>            : }
+<span class="lineNum">    1452 </span><span class="lineNoCov">          0 : FLOAT32X4_FUNCTION_LIST(DEFINE_SIMD_FLOAT32X4_FUNCTION)</span>
+<span class="lineNum">    1453 </span>            : #undef DEFINE_SIMD_FLOAT32X4_FUNCTION
+<span class="lineNum">    1454 </span>            : 
+<span class="lineNum">    1455 </span>            : #define DEFINE_SIMD_FLOAT64X2_FUNCTION(Name, Func, Operands)       \
+<span class="lineNum">    1456 </span>            : bool                                                               \
+<span class="lineNum">    1457 </span>            : js::simd_float64x2_##Name(JSContext* cx, unsigned argc, Value* vp) \
+<span class="lineNum">    1458 </span>            : {                                                                  \
+<a name="1459"><span class="lineNum">    1459 </span>            :     return Func(cx, argc, vp);                                     \</a>
+<span class="lineNum">    1460 </span>            : }
+<span class="lineNum">    1461 </span><span class="lineNoCov">          0 : FLOAT64X2_FUNCTION_LIST(DEFINE_SIMD_FLOAT64X2_FUNCTION)</span>
+<span class="lineNum">    1462 </span>            : #undef DEFINE_SIMD_FLOAT64X2_FUNCTION
+<span class="lineNum">    1463 </span>            : 
+<span class="lineNum">    1464 </span>            : #define DEFINE_SIMD_INT8X16_FUNCTION(Name, Func, Operands)         \
+<span class="lineNum">    1465 </span>            : bool                                                               \
+<span class="lineNum">    1466 </span>            : js::simd_int8x16_##Name(JSContext* cx, unsigned argc, Value* vp)   \
+<span class="lineNum">    1467 </span>            : {                                                                  \
+<a name="1468"><span class="lineNum">    1468 </span>            :     return Func(cx, argc, vp);                                     \</a>
+<span class="lineNum">    1469 </span>            : }
+<span class="lineNum">    1470 </span><span class="lineNoCov">          0 : INT8X16_FUNCTION_LIST(DEFINE_SIMD_INT8X16_FUNCTION)</span>
+<span class="lineNum">    1471 </span>            : #undef DEFINE_SIMD_INT8X16_FUNCTION
+<span class="lineNum">    1472 </span>            : 
+<span class="lineNum">    1473 </span>            : #define DEFINE_SIMD_INT16X8_FUNCTION(Name, Func, Operands)         \
+<span class="lineNum">    1474 </span>            : bool                                                               \
+<span class="lineNum">    1475 </span>            : js::simd_int16x8_##Name(JSContext* cx, unsigned argc, Value* vp)   \
+<span class="lineNum">    1476 </span>            : {                                                                  \
+<a name="1477"><span class="lineNum">    1477 </span>            :     return Func(cx, argc, vp);                                     \</a>
+<span class="lineNum">    1478 </span>            : }
+<span class="lineNum">    1479 </span><span class="lineNoCov">          0 : INT16X8_FUNCTION_LIST(DEFINE_SIMD_INT16X8_FUNCTION)</span>
+<span class="lineNum">    1480 </span>            : #undef DEFINE_SIMD_INT16X8_FUNCTION
+<span class="lineNum">    1481 </span>            : 
+<span class="lineNum">    1482 </span>            : #define DEFINE_SIMD_INT32X4_FUNCTION(Name, Func, Operands)         \
+<span class="lineNum">    1483 </span>            : bool                                                               \
+<span class="lineNum">    1484 </span>            : js::simd_int32x4_##Name(JSContext* cx, unsigned argc, Value* vp)   \
+<span class="lineNum">    1485 </span>            : {                                                                  \
+<a name="1486"><span class="lineNum">    1486 </span>            :     return Func(cx, argc, vp);                                     \</a>
+<span class="lineNum">    1487 </span>            : }
+<span class="lineNum">    1488 </span><span class="lineNoCov">          0 : INT32X4_FUNCTION_LIST(DEFINE_SIMD_INT32X4_FUNCTION)</span>
+<span class="lineNum">    1489 </span>            : #undef DEFINE_SIMD_INT32X4_FUNCTION
+<span class="lineNum">    1490 </span>            : 
+<span class="lineNum">    1491 </span>            : #define DEFINE_SIMD_UINT8X16_FUNCTION(Name, Func, Operands)        \
+<span class="lineNum">    1492 </span>            : bool                                                               \
+<span class="lineNum">    1493 </span>            : js::simd_uint8x16_##Name(JSContext* cx, unsigned argc, Value* vp)  \
+<span class="lineNum">    1494 </span>            : {                                                                  \
+<a name="1495"><span class="lineNum">    1495 </span>            :     return Func(cx, argc, vp);                                     \</a>
+<span class="lineNum">    1496 </span>            : }
+<span class="lineNum">    1497 </span><span class="lineNoCov">          0 : UINT8X16_FUNCTION_LIST(DEFINE_SIMD_UINT8X16_FUNCTION)</span>
+<span class="lineNum">    1498 </span>            : #undef DEFINE_SIMD_UINT8X16_FUNCTION
+<span class="lineNum">    1499 </span>            : 
+<span class="lineNum">    1500 </span>            : #define DEFINE_SIMD_UINT16X8_FUNCTION(Name, Func, Operands)        \
+<span class="lineNum">    1501 </span>            : bool                                                               \
+<span class="lineNum">    1502 </span>            : js::simd_uint16x8_##Name(JSContext* cx, unsigned argc, Value* vp)  \
+<span class="lineNum">    1503 </span>            : {                                                                  \
+<a name="1504"><span class="lineNum">    1504 </span>            :     return Func(cx, argc, vp);                                     \</a>
+<span class="lineNum">    1505 </span>            : }
+<span class="lineNum">    1506 </span><span class="lineNoCov">          0 : UINT16X8_FUNCTION_LIST(DEFINE_SIMD_UINT16X8_FUNCTION)</span>
+<span class="lineNum">    1507 </span>            : #undef DEFINE_SIMD_UINT16X8_FUNCTION
+<span class="lineNum">    1508 </span>            : 
+<span class="lineNum">    1509 </span>            : #define DEFINE_SIMD_UINT32X4_FUNCTION(Name, Func, Operands)        \
+<span class="lineNum">    1510 </span>            : bool                                                               \
+<span class="lineNum">    1511 </span>            : js::simd_uint32x4_##Name(JSContext* cx, unsigned argc, Value* vp)  \
+<span class="lineNum">    1512 </span>            : {                                                                  \
+<a name="1513"><span class="lineNum">    1513 </span>            :     return Func(cx, argc, vp);                                     \</a>
+<span class="lineNum">    1514 </span>            : }
+<span class="lineNum">    1515 </span><span class="lineNoCov">          0 : UINT32X4_FUNCTION_LIST(DEFINE_SIMD_UINT32X4_FUNCTION)</span>
+<span class="lineNum">    1516 </span>            : #undef DEFINE_SIMD_UINT32X4_FUNCTION
+<span class="lineNum">    1517 </span>            : 
+<span class="lineNum">    1518 </span>            : #define DEFINE_SIMD_BOOL8X16_FUNCTION(Name, Func, Operands)        \
+<span class="lineNum">    1519 </span>            : bool                                                               \
+<span class="lineNum">    1520 </span>            : js::simd_bool8x16_##Name(JSContext* cx, unsigned argc, Value* vp)  \
+<span class="lineNum">    1521 </span>            : {                                                                  \
+<span class="lineNum">    1522 </span>            :     return Func(cx, argc, vp);                                     \
+<a name="1523"><span class="lineNum">    1523 </span>            : }</a>
+<span class="lineNum">    1524 </span>            : 
+<span class="lineNum">    1525 </span><span class="lineNoCov">          0 : BOOL8X16_FUNCTION_LIST(DEFINE_SIMD_BOOL8X16_FUNCTION)</span>
+<span class="lineNum">    1526 </span>            : #undef DEFINE_SIMD_BOOL8X16_FUNCTION
+<span class="lineNum">    1527 </span>            : 
+<span class="lineNum">    1528 </span>            : #define DEFINE_SIMD_BOOL16X8_FUNCTION(Name, Func, Operands)        \
+<span class="lineNum">    1529 </span>            : bool                                                               \
+<span class="lineNum">    1530 </span>            : js::simd_bool16x8_##Name(JSContext* cx, unsigned argc, Value* vp)  \
+<span class="lineNum">    1531 </span>            : {                                                                  \
+<a name="1532"><span class="lineNum">    1532 </span>            :     return Func(cx, argc, vp);                                     \</a>
+<span class="lineNum">    1533 </span>            : }
+<span class="lineNum">    1534 </span><span class="lineNoCov">          0 : BOOL16X8_FUNCTION_LIST(DEFINE_SIMD_BOOL16X8_FUNCTION)</span>
+<span class="lineNum">    1535 </span>            : #undef DEFINE_SIMD_BOOL16X8_FUNCTION
+<span class="lineNum">    1536 </span>            : 
+<span class="lineNum">    1537 </span>            : #define DEFINE_SIMD_BOOL32X4_FUNCTION(Name, Func, Operands)        \
+<span class="lineNum">    1538 </span>            : bool                                                               \
+<span class="lineNum">    1539 </span>            : js::simd_bool32x4_##Name(JSContext* cx, unsigned argc, Value* vp)  \
+<span class="lineNum">    1540 </span>            : {                                                                  \
+<a name="1541"><span class="lineNum">    1541 </span>            :     return Func(cx, argc, vp);                                     \</a>
+<span class="lineNum">    1542 </span>            : }
+<span class="lineNum">    1543 </span><span class="lineNoCov">          0 : BOOL32X4_FUNCTION_LIST(DEFINE_SIMD_BOOL32X4_FUNCTION)</span>
+<span class="lineNum">    1544 </span>            : #undef DEFINE_SIMD_BOOL32X4_FUNCTION
+<span class="lineNum">    1545 </span>            : 
+<span class="lineNum">    1546 </span>            : #define DEFINE_SIMD_BOOL64X2_FUNCTION(Name, Func, Operands)        \
+<span class="lineNum">    1547 </span>            : bool                                                               \
+<span class="lineNum">    1548 </span>            : js::simd_bool64x2_##Name(JSContext* cx, unsigned argc, Value* vp)  \
+<span class="lineNum">    1549 </span>            : {                                                                  \
+<a name="1550"><span class="lineNum">    1550 </span>            :     return Func(cx, argc, vp);                                     \</a>
+<span class="lineNum">    1551 </span>            : }
+<span class="lineNum">    1552 </span><span class="lineNoCov">          0 : BOOL64X2_FUNCTION_LIST(DEFINE_SIMD_BOOL64X2_FUNCTION)</span>
+<span class="lineNum">    1553 </span>            : #undef DEFINE_SIMD_BOOL64X2_FUNCTION
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

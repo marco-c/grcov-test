@@ -1,0 +1,903 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - security/nss/lib/util/quickder.c</title>
+  <link rel="stylesheet" type="text/css" href="../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../index.html">top level</a> - <a href="index.html">security/nss/lib/util</a> - quickder.c<span style="font-size: 80%;"> (source / <a href="quickder.c.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">238</td>
+            <td class="headerCovTableEntry">296</td>
+            <td class="headerCovTableEntryMed">80.4 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">11</td>
+            <td class="headerCovTableEntry">12</td>
+            <td class="headerCovTableEntryHi">91.7 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public</a>
+<span class="lineNum">       2 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       3 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       4 </span>            : 
+<span class="lineNum">       5 </span>            : /*
+<span class="lineNum">       6 </span>            :     Optimized ASN.1 DER decoder
+<span class="lineNum">       7 </span>            : */
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &quot;secerr.h&quot;
+<span class="lineNum">      10 </span>            : #include &quot;secasn1.h&quot; /* for SEC_ASN1GetSubtemplate */
+<span class="lineNum">      11 </span>            : #include &quot;secitem.h&quot;
+<span class="lineNum">      12 </span>            : 
+<span class="lineNum">      13 </span>            : /*
+<span class="lineNum">      14 </span>            :  * simple definite-length ASN.1 decoder
+<span class="lineNum">      15 </span>            :  */
+<a name="16"><span class="lineNum">      16 </span>            : </a>
+<span class="lineNum">      17 </span>            : static unsigned char*
+<span class="lineNum">      18 </span><span class="lineCov">          1 : definite_length_decoder(const unsigned char* buf,</span>
+<span class="lineNum">      19 </span>            :                         const unsigned int buf_length,
+<span class="lineNum">      20 </span>            :                         unsigned int* out_data_length,
+<span class="lineNum">      21 </span>            :                         PRBool includeTag)
+<span class="lineNum">      22 </span>            : {
+<span class="lineNum">      23 </span>            :     unsigned char tag;
+<span class="lineNum">      24 </span><span class="lineCov">          1 :     unsigned int used_length = 0;</span>
+<span class="lineNum">      25 </span><span class="lineCov">          1 :     unsigned int data_length = 0;</span>
+<span class="lineNum">      26 </span><span class="lineCov">          1 :     unsigned char length_field_len = 0;</span>
+<span class="lineNum">      27 </span>            :     unsigned char byte;
+<span class="lineNum">      28 </span>            :     unsigned int i;
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span><span class="lineCov">          1 :     if (used_length &gt;= buf_length) {</span>
+<span class="lineNum">      31 </span>            :         /* Tag field was not found! */
+<span class="lineNum">      32 </span>            :         return NULL;
+<span class="lineNum">      33 </span>            :     }
+<span class="lineNum">      34 </span><span class="lineCov">          1 :     tag = buf[used_length++];</span>
+<span class="lineNum">      35 </span>            : 
+<span class="lineNum">      36 </span><span class="lineCov">          1 :     if (tag == 0) {</span>
+<span class="lineNum">      37 </span>            :         /* End-of-contents octects should not be present in DER because
+<span class="lineNum">      38 </span>            :            DER doesn't use the indefinite length form. */
+<span class="lineNum">      39 </span>            :         return NULL;
+<span class="lineNum">      40 </span>            :     }
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span><span class="lineCov">          1 :     if ((tag &amp; 0x1F) == 0x1F) {</span>
+<span class="lineNum">      43 </span>            :         /* High tag number (a tag number &gt; 30) is not supported */
+<span class="lineNum">      44 </span>            :         return NULL;
+<span class="lineNum">      45 </span>            :     }
+<span class="lineNum">      46 </span>            : 
+<span class="lineNum">      47 </span><span class="lineCov">          1 :     if (used_length &gt;= buf_length) {</span>
+<span class="lineNum">      48 </span>            :         /* Length field was not found! */
+<span class="lineNum">      49 </span>            :         return NULL;
+<span class="lineNum">      50 </span>            :     }
+<span class="lineNum">      51 </span><span class="lineCov">          1 :     byte = buf[used_length++];</span>
+<span class="lineNum">      52 </span>            : 
+<span class="lineNum">      53 </span><span class="lineCov">          1 :     if (!(byte &amp; 0x80)) {</span>
+<span class="lineNum">      54 </span>            :         /* Short form: The high bit is not set. */
+<span class="lineNum">      55 </span><span class="lineCov">          1 :         data_length = byte; /* clarity; we're returning a 32-bit int. */</span>
+<span class="lineNum">      56 </span>            :     } else {
+<span class="lineNum">      57 </span>            :         /* Long form. Extract the field length */
+<span class="lineNum">      58 </span><span class="lineCov">          1 :         length_field_len = byte &amp; 0x7F;</span>
+<span class="lineNum">      59 </span><span class="lineCov">          1 :         if (length_field_len == 0) {</span>
+<span class="lineNum">      60 </span>            :             /* DER doesn't use the indefinite length form. */
+<span class="lineNum">      61 </span>            :             return NULL;
+<span class="lineNum">      62 </span>            :         }
+<span class="lineNum">      63 </span>            : 
+<span class="lineNum">      64 </span><span class="lineCov">          1 :         if (length_field_len &gt; sizeof(data_length)) {</span>
+<span class="lineNum">      65 </span>            :             /* We don't support an extended length field  longer than
+<span class="lineNum">      66 </span>            :                4 bytes (2^32) */
+<span class="lineNum">      67 </span>            :             return NULL;
+<span class="lineNum">      68 </span>            :         }
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span><span class="lineCov">          1 :         if (length_field_len &gt; (buf_length - used_length)) {</span>
+<span class="lineNum">      71 </span>            :             /* Extended length field was not found */
+<span class="lineNum">      72 </span>            :             return NULL;
+<span class="lineNum">      73 </span>            :         }
+<span class="lineNum">      74 </span>            : 
+<span class="lineNum">      75 </span>            :         /* Iterate across the extended length field */
+<span class="lineNum">      76 </span><span class="lineCov">          1 :         for (i = 0; i &lt; length_field_len; i++) {</span>
+<span class="lineNum">      77 </span><span class="lineCov">          1 :             byte = buf[used_length++];</span>
+<span class="lineNum">      78 </span><span class="lineCov">          1 :             data_length = (data_length &lt;&lt; 8) | byte;</span>
+<span class="lineNum">      79 </span>            : 
+<span class="lineNum">      80 </span><span class="lineCov">          1 :             if (i == 0) {</span>
+<span class="lineNum">      81 </span><span class="lineCov">          1 :                 PRBool too_long = PR_FALSE;</span>
+<span class="lineNum">      82 </span><span class="lineCov">          1 :                 if (length_field_len == 1) {</span>
+<span class="lineNum">      83 </span><span class="lineCov">          1 :                     too_long = ((byte &amp; 0x80) == 0); /* Short form suffices */</span>
+<span class="lineNum">      84 </span>            :                 } else {
+<span class="lineNum">      85 </span><span class="lineCov">          1 :                     too_long = (byte == 0); /* This zero byte can be omitted */</span>
+<span class="lineNum">      86 </span>            :                 }
+<span class="lineNum">      87 </span><span class="lineCov">          1 :                 if (too_long) {</span>
+<span class="lineNum">      88 </span>            :                     /* The length is longer than needed. */
+<span class="lineNum">      89 </span>            :                     return NULL;
+<span class="lineNum">      90 </span>            :                 }
+<span class="lineNum">      91 </span>            :             }
+<span class="lineNum">      92 </span>            :         }
+<span class="lineNum">      93 </span>            :     }
+<span class="lineNum">      94 </span>            : 
+<span class="lineNum">      95 </span><span class="lineCov">          1 :     if (data_length &gt; (buf_length - used_length)) {</span>
+<span class="lineNum">      96 </span>            :         /* The decoded length exceeds the available buffer */
+<span class="lineNum">      97 </span>            :         return NULL;
+<span class="lineNum">      98 </span>            :     }
+<span class="lineNum">      99 </span>            : 
+<span class="lineNum">     100 </span><span class="lineCov">          1 :     if (includeTag) {</span>
+<span class="lineNum">     101 </span><span class="lineCov">          1 :         data_length += used_length;</span>
+<span class="lineNum">     102 </span>            :     }
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span><span class="lineCov">          1 :     *out_data_length = data_length;</span>
+<span class="lineNum">     105 </span><span class="lineCov">          1 :     return ((unsigned char*)buf + (includeTag ? 0 : used_length));</span>
+<span class="lineNum">     106 </span>            : }
+<a name="107"><span class="lineNum">     107 </span>            : </a>
+<span class="lineNum">     108 </span>            : static SECStatus
+<span class="lineNum">     109 </span><span class="lineCov">          1 : GetItem(SECItem* src, SECItem* dest, PRBool includeTag)</span>
+<span class="lineNum">     110 </span>            : {
+<span class="lineNum">     111 </span><span class="lineCov">          1 :     if ((!src) || (!dest) || (!src-&gt;data &amp;&amp; src-&gt;len)) {</span>
+<span class="lineNum">     112 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     113 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     114 </span>            :     }
+<span class="lineNum">     115 </span>            : 
+<span class="lineNum">     116 </span><span class="lineCov">          1 :     if (!src-&gt;len) {</span>
+<span class="lineNum">     117 </span>            :         /* reaching the end of the buffer is not an error */
+<span class="lineNum">     118 </span><span class="lineCov">          1 :         dest-&gt;data = NULL;</span>
+<span class="lineNum">     119 </span><span class="lineCov">          1 :         dest-&gt;len = 0;</span>
+<span class="lineNum">     120 </span><span class="lineCov">          1 :         return SECSuccess;</span>
+<span class="lineNum">     121 </span>            :     }
+<span class="lineNum">     122 </span>            : 
+<span class="lineNum">     123 </span><span class="lineCov">          1 :     dest-&gt;data = definite_length_decoder(src-&gt;data, src-&gt;len, &amp;dest-&gt;len,</span>
+<span class="lineNum">     124 </span>            :                                          includeTag);
+<span class="lineNum">     125 </span><span class="lineCov">          1 :     if (dest-&gt;data == NULL) {</span>
+<span class="lineNum">     126 </span><span class="lineCov">          1 :         PORT_SetError(SEC_ERROR_BAD_DER);</span>
+<span class="lineNum">     127 </span><span class="lineCov">          1 :         return SECFailure;</span>
+<span class="lineNum">     128 </span>            :     }
+<span class="lineNum">     129 </span><span class="lineCov">          1 :     src-&gt;len -= (int)(dest-&gt;data - src-&gt;data) + dest-&gt;len;</span>
+<span class="lineNum">     130 </span><span class="lineCov">          1 :     src-&gt;data = dest-&gt;data + dest-&gt;len;</span>
+<span class="lineNum">     131 </span><span class="lineCov">          1 :     return SECSuccess;</span>
+<span class="lineNum">     132 </span>            : }
+<span class="lineNum">     133 </span>            : 
+<span class="lineNum">     134 </span>            : /* check if the actual component's type matches the type in the template */
+<a name="135"><span class="lineNum">     135 </span>            : </a>
+<span class="lineNum">     136 </span>            : static SECStatus
+<span class="lineNum">     137 </span><span class="lineCov">          1 : MatchComponentType(const SEC_ASN1Template* templateEntry,</span>
+<span class="lineNum">     138 </span>            :                    SECItem* item, PRBool* match, void* dest)
+<span class="lineNum">     139 </span>            : {
+<span class="lineNum">     140 </span><span class="lineCov">          1 :     unsigned long kind = 0;</span>
+<span class="lineNum">     141 </span><span class="lineCov">          1 :     unsigned char tag = 0;</span>
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span><span class="lineCov">          1 :     if ((!item) || (!item-&gt;data &amp;&amp; item-&gt;len) || (!templateEntry) || (!match)) {</span>
+<span class="lineNum">     144 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     145 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     146 </span>            :     }
+<span class="lineNum">     147 </span>            : 
+<span class="lineNum">     148 </span><span class="lineCov">          1 :     if (!item-&gt;len) {</span>
+<span class="lineNum">     149 </span><span class="lineCov">          1 :         *match = PR_FALSE;</span>
+<span class="lineNum">     150 </span><span class="lineCov">          1 :         return SECSuccess;</span>
+<span class="lineNum">     151 </span>            :     }
+<span class="lineNum">     152 </span>            : 
+<span class="lineNum">     153 </span><span class="lineCov">          1 :     kind = templateEntry-&gt;kind;</span>
+<span class="lineNum">     154 </span><span class="lineCov">          1 :     tag = *(unsigned char*)item-&gt;data;</span>
+<span class="lineNum">     155 </span>            : 
+<span class="lineNum">     156 </span><span class="lineCov">          1 :     if (((kind &amp; SEC_ASN1_INLINE) ||</span>
+<span class="lineNum">     157 </span><span class="lineCov">          1 :          (kind &amp; SEC_ASN1_POINTER)) &amp;&amp;</span>
+<span class="lineNum">     158 </span><span class="lineCov">          1 :         (0 == (kind &amp; SEC_ASN1_TAG_MASK))) {</span>
+<span class="lineNum">     159 </span>            :         /* These cases are special because the template's &quot;kind&quot; does not
+<span class="lineNum">     160 </span>            :            give us the information for the ASN.1 tag of the next item. It can
+<span class="lineNum">     161 </span>            :            only be figured out from the subtemplate. */
+<span class="lineNum">     162 </span><span class="lineCov">          1 :         if (!(kind &amp; SEC_ASN1_OPTIONAL)) {</span>
+<span class="lineNum">     163 </span>            :             /* This is a required component. If there is a type mismatch,
+<span class="lineNum">     164 </span>            :                the decoding of the subtemplate will fail, so assume this
+<span class="lineNum">     165 </span>            :                is a match at the parent level and let it fail later. This
+<span class="lineNum">     166 </span>            :                avoids a redundant check in matching cases */
+<span class="lineNum">     167 </span><span class="lineCov">          1 :             *match = PR_TRUE;</span>
+<span class="lineNum">     168 </span><span class="lineCov">          1 :             return SECSuccess;</span>
+<span class="lineNum">     169 </span>            :         } else {
+<span class="lineNum">     170 </span>            :             /* optional component. This is the hard case. Now we need to
+<span class="lineNum">     171 </span>            :                look at the subtemplate to get the expected kind */
+<span class="lineNum">     172 </span><span class="lineNoCov">          0 :             const SEC_ASN1Template* subTemplate =</span>
+<span class="lineNum">     173 </span>            :                 SEC_ASN1GetSubtemplate(templateEntry, dest, PR_FALSE);
+<span class="lineNum">     174 </span><span class="lineNoCov">          0 :             if (!subTemplate) {</span>
+<span class="lineNum">     175 </span><span class="lineNoCov">          0 :                 PORT_SetError(SEC_ERROR_BAD_TEMPLATE);</span>
+<span class="lineNum">     176 </span><span class="lineNoCov">          0 :                 return SECFailure;</span>
+<span class="lineNum">     177 </span>            :             }
+<span class="lineNum">     178 </span><span class="lineNoCov">          0 :             if ((subTemplate-&gt;kind &amp; SEC_ASN1_INLINE) ||</span>
+<span class="lineNum">     179 </span>            :                 (subTemplate-&gt;kind &amp; SEC_ASN1_POINTER)) {
+<span class="lineNum">     180 </span>            :                 /* disallow nesting SEC_ASN1_POINTER and SEC_ASN1_INLINE,
+<span class="lineNum">     181 </span>            :                    otherwise you may get a false positive due to the recursion
+<span class="lineNum">     182 </span>            :                    optimization above that always matches the type if the
+<span class="lineNum">     183 </span>            :                    component is required . Nesting these should never be
+<span class="lineNum">     184 </span>            :                    required, so that no one should miss this ability */
+<span class="lineNum">     185 </span><span class="lineNoCov">          0 :                 PORT_SetError(SEC_ERROR_BAD_TEMPLATE);</span>
+<span class="lineNum">     186 </span><span class="lineNoCov">          0 :                 return SECFailure;</span>
+<span class="lineNum">     187 </span>            :             }
+<span class="lineNum">     188 </span><span class="lineNoCov">          0 :             return MatchComponentType(subTemplate, item, match,</span>
+<span class="lineNum">     189 </span><span class="lineNoCov">          0 :                                       (void*)((char*)dest + templateEntry-&gt;offset));</span>
+<span class="lineNum">     190 </span>            :         }
+<span class="lineNum">     191 </span>            :     }
+<span class="lineNum">     192 </span>            : 
+<span class="lineNum">     193 </span><span class="lineCov">          1 :     if (kind &amp; SEC_ASN1_CHOICE) {</span>
+<span class="lineNum">     194 </span>            :         /* we need to check the component's tag against each choice's tag */
+<span class="lineNum">     195 </span>            :         /* XXX it would be nice to save the index of the choice here so that
+<span class="lineNum">     196 </span>            :            DecodeChoice wouldn't have to do this again. However, due to the
+<span class="lineNum">     197 </span>            :            recursivity of MatchComponentType, we don't know if we are in a
+<span class="lineNum">     198 </span>            :            required or optional component, so we can't write anywhere in
+<span class="lineNum">     199 </span>            :            the destination within this function */
+<span class="lineNum">     200 </span>            :         unsigned choiceIndex = 1;
+<span class="lineNum">     201 </span>            :         const SEC_ASN1Template* choiceEntry;
+<span class="lineNum">     202 </span><span class="lineCov">          1 :         while ((choiceEntry = &amp;templateEntry[choiceIndex++]) &amp;&amp; (choiceEntry-&gt;kind)) {</span>
+<span class="lineNum">     203 </span><span class="lineCov">          1 :             if ((SECSuccess == MatchComponentType(choiceEntry, item, match,</span>
+<span class="lineNum">     204 </span><span class="lineCov">          1 :                                                   (void*)((char*)dest + choiceEntry-&gt;offset))) &amp;&amp;</span>
+<span class="lineNum">     205 </span><span class="lineCov">          1 :                 (PR_TRUE == *match)) {</span>
+<span class="lineNum">     206 </span>            :                 return SECSuccess;
+<span class="lineNum">     207 </span>            :             }
+<span class="lineNum">     208 </span>            :         }
+<span class="lineNum">     209 </span>            :         /* no match, caller must decide if this is BAD DER, or not. */
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :         *match = PR_FALSE;</span>
+<span class="lineNum">     211 </span><span class="lineNoCov">          0 :         return SECSuccess;</span>
+<span class="lineNum">     212 </span>            :     }
+<span class="lineNum">     213 </span>            : 
+<span class="lineNum">     214 </span><span class="lineCov">          1 :     if (kind &amp; SEC_ASN1_ANY) {</span>
+<span class="lineNum">     215 </span>            :         /* SEC_ASN1_ANY always matches */
+<span class="lineNum">     216 </span><span class="lineCov">          1 :         *match = PR_TRUE;</span>
+<span class="lineNum">     217 </span><span class="lineCov">          1 :         return SECSuccess;</span>
+<span class="lineNum">     218 </span>            :     }
+<span class="lineNum">     219 </span>            : 
+<span class="lineNum">     220 </span><span class="lineCov">          1 :     if ((0 == ((unsigned char)kind &amp; SEC_ASN1_TAGNUM_MASK)) &amp;&amp;</span>
+<span class="lineNum">     221 </span><span class="lineCov">          1 :         (!(kind &amp; SEC_ASN1_EXPLICIT)) &amp;&amp;</span>
+<span class="lineNum">     222 </span><span class="lineCov">          1 :         (((kind &amp; SEC_ASN1_SAVE) ||</span>
+<span class="lineNum">     223 </span><span class="lineCov">          1 :           (kind &amp; SEC_ASN1_SKIP)) &amp;&amp;</span>
+<span class="lineNum">     224 </span><span class="lineCov">          1 :          (!(kind &amp; SEC_ASN1_OPTIONAL)))) {</span>
+<span class="lineNum">     225 </span>            :         /* when saving or skipping a required component,  a type is not
+<span class="lineNum">     226 </span>            :            required in the template. This is for legacy support of
+<span class="lineNum">     227 </span>            :            SEC_ASN1_SAVE and SEC_ASN1_SKIP only. XXX I would like to
+<span class="lineNum">     228 </span>            :            deprecate these usages and always require a type, as this
+<span class="lineNum">     229 </span>            :            disables type checking, and effectively forbids us from
+<span class="lineNum">     230 </span>            :            transparently ignoring optional components we aren't aware of */
+<span class="lineNum">     231 </span><span class="lineCov">          1 :         *match = PR_TRUE;</span>
+<span class="lineNum">     232 </span><span class="lineCov">          1 :         return SECSuccess;</span>
+<span class="lineNum">     233 </span>            :     }
+<span class="lineNum">     234 </span>            : 
+<span class="lineNum">     235 </span>            :     /* first, do a class check */
+<span class="lineNum">     236 </span><span class="lineCov">          1 :     if ((tag &amp; SEC_ASN1_CLASS_MASK) !=</span>
+<span class="lineNum">     237 </span>            :         (((unsigned char)kind) &amp; SEC_ASN1_CLASS_MASK)) {
+<span class="lineNum">     238 </span>            :         /* this is only to help debugging of the decoder in case of problems */
+<span class="lineNum">     239 </span>            :         /* unsigned char tagclass = tag &amp; SEC_ASN1_CLASS_MASK; */
+<span class="lineNum">     240 </span>            :         /* unsigned char expectedclass = (unsigned char)kind &amp; SEC_ASN1_CLASS_MASK; */
+<span class="lineNum">     241 </span><span class="lineNoCov">          0 :         *match = PR_FALSE;</span>
+<span class="lineNum">     242 </span><span class="lineNoCov">          0 :         return SECSuccess;</span>
+<span class="lineNum">     243 </span>            :     }
+<span class="lineNum">     244 </span>            : 
+<span class="lineNum">     245 </span>            :     /* now do a tag check */
+<span class="lineNum">     246 </span><span class="lineCov">          1 :     if (((unsigned char)kind &amp; SEC_ASN1_TAGNUM_MASK) !=</span>
+<span class="lineNum">     247 </span>            :         (tag &amp; SEC_ASN1_TAGNUM_MASK)) {
+<span class="lineNum">     248 </span><span class="lineCov">          1 :         *match = PR_FALSE;</span>
+<span class="lineNum">     249 </span><span class="lineCov">          1 :         return SECSuccess;</span>
+<span class="lineNum">     250 </span>            :     }
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span>            :     /* now, do a method check. This depends on the class */
+<span class="lineNum">     253 </span><span class="lineCov">          1 :     switch (tag &amp; SEC_ASN1_CLASS_MASK) {</span>
+<span class="lineNum">     254 </span>            :         case SEC_ASN1_UNIVERSAL:
+<span class="lineNum">     255 </span>            :             /* For types of the SEC_ASN1_UNIVERSAL class, we know which must be
+<span class="lineNum">     256 </span>            :                primitive or constructed based on the tag */
+<span class="lineNum">     257 </span><span class="lineCov">          1 :             switch (tag &amp; SEC_ASN1_TAGNUM_MASK) {</span>
+<span class="lineNum">     258 </span>            :                 case SEC_ASN1_SEQUENCE:
+<span class="lineNum">     259 </span>            :                 case SEC_ASN1_SET:
+<span class="lineNum">     260 </span>            :                 case SEC_ASN1_EMBEDDED_PDV:
+<span class="lineNum">     261 </span>            :                     /* this component must be a constructed type */
+<span class="lineNum">     262 </span>            :                     /* XXX add any new universal constructed type here */
+<span class="lineNum">     263 </span><span class="lineCov">          1 :                     if (tag &amp; SEC_ASN1_CONSTRUCTED) {</span>
+<span class="lineNum">     264 </span><span class="lineCov">          1 :                         *match = PR_TRUE;</span>
+<span class="lineNum">     265 </span><span class="lineCov">          1 :                         return SECSuccess;</span>
+<span class="lineNum">     266 </span>            :                     }
+<span class="lineNum">     267 </span>            :                     break;
+<span class="lineNum">     268 </span>            : 
+<span class="lineNum">     269 </span>            :                 default:
+<span class="lineNum">     270 </span>            :                     /* this component must be a primitive type */
+<span class="lineNum">     271 </span><span class="lineCov">          1 :                     if (!(tag &amp; SEC_ASN1_CONSTRUCTED)) {</span>
+<span class="lineNum">     272 </span><span class="lineCov">          1 :                         *match = PR_TRUE;</span>
+<span class="lineNum">     273 </span><span class="lineCov">          1 :                         return SECSuccess;</span>
+<span class="lineNum">     274 </span>            :                     }
+<span class="lineNum">     275 </span>            :                     break;
+<span class="lineNum">     276 </span>            :             }
+<span class="lineNum">     277 </span>            :             break;
+<span class="lineNum">     278 </span>            : 
+<span class="lineNum">     279 </span>            :         default:
+<span class="lineNum">     280 </span>            :             /* for all other classes, we check the method based on the template */
+<span class="lineNum">     281 </span><span class="lineCov">          1 :             if ((unsigned char)(kind &amp; SEC_ASN1_METHOD_MASK) ==</span>
+<span class="lineNum">     282 </span>            :                 (tag &amp; SEC_ASN1_METHOD_MASK)) {
+<span class="lineNum">     283 </span><span class="lineCov">          1 :                 *match = PR_TRUE;</span>
+<span class="lineNum">     284 </span><span class="lineCov">          1 :                 return SECSuccess;</span>
+<span class="lineNum">     285 </span>            :             }
+<span class="lineNum">     286 </span>            :             /* method does not match between template and component */
+<span class="lineNum">     287 </span>            :             break;
+<span class="lineNum">     288 </span>            :     }
+<span class="lineNum">     289 </span>            : 
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :     *match = PR_FALSE;</span>
+<span class="lineNum">     291 </span><span class="lineNoCov">          0 :     return SECSuccess;</span>
+<span class="lineNum">     292 </span>            : }
+<span class="lineNum">     293 </span>            : 
+<span class="lineNum">     294 </span>            : #ifdef DEBUG
+<span class="lineNum">     295 </span>            : 
+<span class="lineNum">     296 </span>            : static SECStatus
+<span class="lineNum">     297 </span>            : CheckSequenceTemplate(const SEC_ASN1Template* sequenceTemplate)
+<span class="lineNum">     298 </span>            : {
+<span class="lineNum">     299 </span>            :     SECStatus rv = SECSuccess;
+<span class="lineNum">     300 </span>            :     const SEC_ASN1Template* sequenceEntry = NULL;
+<span class="lineNum">     301 </span>            :     unsigned long seqIndex = 0;
+<span class="lineNum">     302 </span>            :     unsigned long lastEntryIndex = 0;
+<span class="lineNum">     303 </span>            :     unsigned long ambiguityIndex = 0;
+<span class="lineNum">     304 </span>            :     PRBool foundAmbiguity = PR_FALSE;
+<span class="lineNum">     305 </span>            : 
+<span class="lineNum">     306 </span>            :     do {
+<span class="lineNum">     307 </span>            :         sequenceEntry = &amp;sequenceTemplate[seqIndex++];
+<span class="lineNum">     308 </span>            :         if (sequenceEntry-&gt;kind) {
+<span class="lineNum">     309 </span>            :             /* ensure that we don't have an optional component of SEC_ASN1_ANY
+<span class="lineNum">     310 </span>            :                in the middle of the sequence, since we could not handle it */
+<span class="lineNum">     311 </span>            :             /* XXX this function needs to dig into the subtemplates to find
+<span class="lineNum">     312 </span>            :                the next tag */
+<span class="lineNum">     313 </span>            :             if ((PR_FALSE == foundAmbiguity) &amp;&amp;
+<span class="lineNum">     314 </span>            :                 (sequenceEntry-&gt;kind &amp; SEC_ASN1_OPTIONAL) &amp;&amp;
+<span class="lineNum">     315 </span>            :                 (sequenceEntry-&gt;kind &amp; SEC_ASN1_ANY)) {
+<span class="lineNum">     316 </span>            :                 foundAmbiguity = PR_TRUE;
+<span class="lineNum">     317 </span>            :                 ambiguityIndex = seqIndex - 1;
+<span class="lineNum">     318 </span>            :             }
+<span class="lineNum">     319 </span>            :         }
+<span class="lineNum">     320 </span>            :     } while (sequenceEntry-&gt;kind);
+<span class="lineNum">     321 </span>            : 
+<span class="lineNum">     322 </span>            :     lastEntryIndex = seqIndex - 2;
+<span class="lineNum">     323 </span>            : 
+<span class="lineNum">     324 </span>            :     if (PR_FALSE != foundAmbiguity) {
+<span class="lineNum">     325 </span>            :         if (ambiguityIndex &lt; lastEntryIndex) {
+<span class="lineNum">     326 </span>            :             /* ambiguity can only be tolerated on the last entry */
+<span class="lineNum">     327 </span>            :             PORT_SetError(SEC_ERROR_BAD_TEMPLATE);
+<span class="lineNum">     328 </span>            :             rv = SECFailure;
+<span class="lineNum">     329 </span>            :         }
+<span class="lineNum">     330 </span>            :     }
+<span class="lineNum">     331 </span>            : 
+<span class="lineNum">     332 </span>            :     /* XXX also enforce ASN.1 requirement that tags be
+<span class="lineNum">     333 </span>            :        distinct for consecutive optional components */
+<span class="lineNum">     334 </span>            : 
+<span class="lineNum">     335 </span>            :     return rv;
+<span class="lineNum">     336 </span>            : }
+<span class="lineNum">     337 </span>            : 
+<span class="lineNum">     338 </span>            : #endif
+<span class="lineNum">     339 </span>            : 
+<span class="lineNum">     340 </span>            : static SECStatus DecodeItem(void* dest,
+<span class="lineNum">     341 </span>            :                             const SEC_ASN1Template* templateEntry,
+<span class="lineNum">     342 </span>            :                             SECItem* src, PLArenaPool* arena, PRBool checkTag);
+<a name="343"><span class="lineNum">     343 </span>            : </a>
+<span class="lineNum">     344 </span>            : static SECStatus
+<span class="lineNum">     345 </span><span class="lineCov">          1 : DecodeSequence(void* dest,</span>
+<span class="lineNum">     346 </span>            :                const SEC_ASN1Template* templateEntry,
+<span class="lineNum">     347 </span>            :                SECItem* src, PLArenaPool* arena)
+<span class="lineNum">     348 </span>            : {
+<span class="lineNum">     349 </span><span class="lineCov">          1 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     350 </span>            :     SECItem source;
+<span class="lineNum">     351 </span>            :     SECItem sequence;
+<span class="lineNum">     352 </span><span class="lineCov">          1 :     const SEC_ASN1Template* sequenceTemplate = &amp;(templateEntry[1]);</span>
+<span class="lineNum">     353 </span><span class="lineCov">          1 :     const SEC_ASN1Template* sequenceEntry = NULL;</span>
+<span class="lineNum">     354 </span><span class="lineCov">          1 :     unsigned long seqindex = 0;</span>
+<span class="lineNum">     355 </span>            : 
+<span class="lineNum">     356 </span>            : #ifdef DEBUG
+<span class="lineNum">     357 </span>            :     /* for a sequence, we need to validate the template. */
+<span class="lineNum">     358 </span>            :     rv = CheckSequenceTemplate(sequenceTemplate);
+<span class="lineNum">     359 </span>            : #endif
+<span class="lineNum">     360 </span>            : 
+<span class="lineNum">     361 </span><span class="lineCov">          1 :     source = *src;</span>
+<span class="lineNum">     362 </span>            : 
+<span class="lineNum">     363 </span>            :     /* get the sequence */
+<span class="lineNum">     364 </span>            :     if (SECSuccess == rv) {
+<span class="lineNum">     365 </span><span class="lineCov">          1 :         rv = GetItem(&amp;source, &amp;sequence, PR_FALSE);</span>
+<span class="lineNum">     366 </span>            :     }
+<span class="lineNum">     367 </span>            : 
+<span class="lineNum">     368 </span>            :     /* process it */
+<span class="lineNum">     369 </span><span class="lineCov">          1 :     if (SECSuccess == rv)</span>
+<span class="lineNum">     370 </span>            :         do {
+<span class="lineNum">     371 </span><span class="lineCov">          1 :             sequenceEntry = &amp;sequenceTemplate[seqindex++];</span>
+<span class="lineNum">     372 </span><span class="lineCov">          1 :             if ((sequenceEntry &amp;&amp; sequenceEntry-&gt;kind) &amp;&amp;</span>
+<span class="lineNum">     373 </span>            :                 (sequenceEntry-&gt;kind != SEC_ASN1_SKIP_REST)) {
+<span class="lineNum">     374 </span><span class="lineCov">          1 :                 rv = DecodeItem(dest, sequenceEntry, &amp;sequence, arena, PR_TRUE);</span>
+<span class="lineNum">     375 </span>            :             }
+<span class="lineNum">     376 </span><span class="lineCov">          1 :         } while ((SECSuccess == rv) &amp;&amp;</span>
+<span class="lineNum">     377 </span><span class="lineCov">          1 :                  (sequenceEntry-&gt;kind &amp;&amp;</span>
+<span class="lineNum">     378 </span><span class="lineCov">          1 :                   sequenceEntry-&gt;kind != SEC_ASN1_SKIP_REST));</span>
+<span class="lineNum">     379 </span>            :     /* we should have consumed all the bytes in the sequence by now
+<span class="lineNum">     380 </span>            :        unless the caller doesn't care about the rest of the sequence */
+<span class="lineNum">     381 </span><span class="lineCov">          1 :     if (SECSuccess == rv &amp;&amp; sequence.len &amp;&amp;</span>
+<span class="lineNum">     382 </span><span class="lineCov">          1 :         sequenceEntry &amp;&amp; sequenceEntry-&gt;kind != SEC_ASN1_SKIP_REST) {</span>
+<span class="lineNum">     383 </span>            :         /* it isn't 100% clear whether this is a bad DER or a bad template.
+<span class="lineNum">     384 </span>            :            The problem is that logically, they don't match - there is extra
+<span class="lineNum">     385 </span>            :            data in the DER that the template doesn't know about */
+<span class="lineNum">     386 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_BAD_DER);</span>
+<span class="lineNum">     387 </span><span class="lineNoCov">          0 :         rv = SECFailure;</span>
+<span class="lineNum">     388 </span>            :     }
+<span class="lineNum">     389 </span>            : 
+<span class="lineNum">     390 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">     391 </span>            : }
+<a name="392"><span class="lineNum">     392 </span>            : </a>
+<span class="lineNum">     393 </span>            : static SECStatus
+<span class="lineNum">     394 </span><span class="lineCov">          1 : DecodeInline(void* dest,</span>
+<span class="lineNum">     395 </span>            :              const SEC_ASN1Template* templateEntry,
+<span class="lineNum">     396 </span>            :              SECItem* src, PLArenaPool* arena, PRBool checkTag)
+<span class="lineNum">     397 </span>            : {
+<span class="lineNum">     398 </span><span class="lineCov">          1 :     const SEC_ASN1Template* inlineTemplate =</span>
+<span class="lineNum">     399 </span>            :         SEC_ASN1GetSubtemplate(templateEntry, dest, PR_FALSE);
+<span class="lineNum">     400 </span><span class="lineCov">          1 :     return DecodeItem((void*)((char*)dest + templateEntry-&gt;offset),</span>
+<span class="lineNum">     401 </span>            :                       inlineTemplate, src, arena, checkTag);
+<span class="lineNum">     402 </span>            : }
+<a name="403"><span class="lineNum">     403 </span>            : </a>
+<span class="lineNum">     404 </span>            : static SECStatus
+<span class="lineNum">     405 </span><span class="lineNoCov">          0 : DecodePointer(void* dest,</span>
+<span class="lineNum">     406 </span>            :               const SEC_ASN1Template* templateEntry,
+<span class="lineNum">     407 </span>            :               SECItem* src, PLArenaPool* arena, PRBool checkTag)
+<span class="lineNum">     408 </span>            : {
+<span class="lineNum">     409 </span><span class="lineNoCov">          0 :     const SEC_ASN1Template* ptrTemplate =</span>
+<span class="lineNum">     410 </span>            :         SEC_ASN1GetSubtemplate(templateEntry, dest, PR_FALSE);
+<span class="lineNum">     411 </span><span class="lineNoCov">          0 :     void* subdata = PORT_ArenaZAlloc(arena, ptrTemplate-&gt;size);</span>
+<span class="lineNum">     412 </span><span class="lineNoCov">          0 :     *(void**)((char*)dest + templateEntry-&gt;offset) = subdata;</span>
+<span class="lineNum">     413 </span><span class="lineNoCov">          0 :     if (subdata) {</span>
+<span class="lineNum">     414 </span><span class="lineNoCov">          0 :         return DecodeItem(subdata, ptrTemplate, src, arena, checkTag);</span>
+<span class="lineNum">     415 </span>            :     } else {
+<span class="lineNum">     416 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_NO_MEMORY);</span>
+<span class="lineNum">     417 </span><span class="lineNoCov">          0 :         return SECFailure;</span>
+<span class="lineNum">     418 </span>            :     }
+<span class="lineNum">     419 </span>            : }
+<a name="420"><span class="lineNum">     420 </span>            : </a>
+<span class="lineNum">     421 </span>            : static SECStatus
+<span class="lineNum">     422 </span><span class="lineCov">          1 : DecodeImplicit(void* dest,</span>
+<span class="lineNum">     423 </span>            :                const SEC_ASN1Template* templateEntry,
+<span class="lineNum">     424 </span>            :                SECItem* src, PLArenaPool* arena)
+<span class="lineNum">     425 </span>            : {
+<span class="lineNum">     426 </span><span class="lineCov">          1 :     if (templateEntry-&gt;kind &amp; SEC_ASN1_POINTER) {</span>
+<span class="lineNum">     427 </span><span class="lineNoCov">          0 :         return DecodePointer((void*)((char*)dest),</span>
+<span class="lineNum">     428 </span>            :                              templateEntry, src, arena, PR_FALSE);
+<span class="lineNum">     429 </span>            :     } else {
+<span class="lineNum">     430 </span><span class="lineCov">          1 :         return DecodeInline((void*)((char*)dest),</span>
+<span class="lineNum">     431 </span>            :                             templateEntry, src, arena, PR_FALSE);
+<span class="lineNum">     432 </span>            :     }
+<span class="lineNum">     433 </span>            : }
+<a name="434"><span class="lineNum">     434 </span>            : </a>
+<span class="lineNum">     435 </span>            : static SECStatus
+<span class="lineNum">     436 </span><span class="lineCov">          1 : DecodeChoice(void* dest,</span>
+<span class="lineNum">     437 </span>            :              const SEC_ASN1Template* templateEntry,
+<span class="lineNum">     438 </span>            :              SECItem* src, PLArenaPool* arena)
+<span class="lineNum">     439 </span>            : {
+<span class="lineNum">     440 </span><span class="lineCov">          1 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     441 </span>            :     SECItem choice;
+<span class="lineNum">     442 </span><span class="lineCov">          1 :     const SEC_ASN1Template* choiceTemplate = &amp;(templateEntry[1]);</span>
+<span class="lineNum">     443 </span><span class="lineCov">          1 :     const SEC_ASN1Template* choiceEntry = NULL;</span>
+<span class="lineNum">     444 </span><span class="lineCov">          1 :     unsigned long choiceindex = 0;</span>
+<span class="lineNum">     445 </span>            : 
+<span class="lineNum">     446 </span>            :     /* XXX for a choice component, we should validate the template to make
+<span class="lineNum">     447 </span>            :        sure the tags are distinct, in debug builds. This hasn't been
+<span class="lineNum">     448 </span>            :        implemented yet */
+<span class="lineNum">     449 </span>            :     /* rv = CheckChoiceTemplate(sequenceTemplate); */
+<span class="lineNum">     450 </span>            : 
+<span class="lineNum">     451 </span>            :     /* process it */
+<span class="lineNum">     452 </span>            :     do {
+<span class="lineNum">     453 </span><span class="lineCov">          1 :         choice = *src;</span>
+<span class="lineNum">     454 </span><span class="lineCov">          1 :         choiceEntry = &amp;choiceTemplate[choiceindex++];</span>
+<span class="lineNum">     455 </span><span class="lineCov">          1 :         if (choiceEntry-&gt;kind) {</span>
+<span class="lineNum">     456 </span><span class="lineCov">          1 :             rv = DecodeItem(dest, choiceEntry, &amp;choice, arena, PR_TRUE);</span>
+<span class="lineNum">     457 </span>            :         }
+<span class="lineNum">     458 </span><span class="lineCov">          1 :     } while ((SECFailure == rv) &amp;&amp; (choiceEntry-&gt;kind));</span>
+<span class="lineNum">     459 </span>            : 
+<span class="lineNum">     460 </span><span class="lineCov">          1 :     if (SECFailure == rv) {</span>
+<span class="lineNum">     461 </span>            :         /* the component didn't match any of the choices */
+<span class="lineNum">     462 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_BAD_DER);</span>
+<span class="lineNum">     463 </span>            :     } else {
+<span class="lineNum">     464 </span>            :         /* set the type in the union here */
+<span class="lineNum">     465 </span><span class="lineCov">          1 :         int* which = (int*)((char*)dest + templateEntry-&gt;offset);</span>
+<span class="lineNum">     466 </span><span class="lineCov">          1 :         *which = (int)choiceEntry-&gt;size;</span>
+<span class="lineNum">     467 </span>            :     }
+<span class="lineNum">     468 </span>            : 
+<span class="lineNum">     469 </span>            :     /* we should have consumed all the bytes by now */
+<span class="lineNum">     470 </span>            :     /* fail if we have not */
+<span class="lineNum">     471 </span><span class="lineCov">          1 :     if (SECSuccess == rv &amp;&amp; choice.len) {</span>
+<span class="lineNum">     472 </span>            :         /* there is extra data that isn't listed in the template */
+<span class="lineNum">     473 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_BAD_DER);</span>
+<span class="lineNum">     474 </span><span class="lineNoCov">          0 :         rv = SECFailure;</span>
+<span class="lineNum">     475 </span>            :     }
+<span class="lineNum">     476 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">     477 </span>            : }
+<a name="478"><span class="lineNum">     478 </span>            : </a>
+<span class="lineNum">     479 </span>            : static SECStatus
+<span class="lineNum">     480 </span><span class="lineCov">          1 : DecodeGroup(void* dest,</span>
+<span class="lineNum">     481 </span>            :             const SEC_ASN1Template* templateEntry,
+<span class="lineNum">     482 </span>            :             SECItem* src, PLArenaPool* arena)
+<span class="lineNum">     483 </span>            : {
+<span class="lineNum">     484 </span><span class="lineCov">          1 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     485 </span>            :     SECItem source;
+<span class="lineNum">     486 </span>            :     SECItem group;
+<span class="lineNum">     487 </span><span class="lineCov">          1 :     PRUint32 totalEntries = 0;</span>
+<span class="lineNum">     488 </span><span class="lineCov">          1 :     PRUint32 entryIndex = 0;</span>
+<span class="lineNum">     489 </span><span class="lineCov">          1 :     void** entries = NULL;</span>
+<span class="lineNum">     490 </span>            : 
+<span class="lineNum">     491 </span><span class="lineCov">          1 :     const SEC_ASN1Template* subTemplate =</span>
+<span class="lineNum">     492 </span>            :         SEC_ASN1GetSubtemplate(templateEntry, dest, PR_FALSE);
+<span class="lineNum">     493 </span>            : 
+<span class="lineNum">     494 </span><span class="lineCov">          1 :     source = *src;</span>
+<span class="lineNum">     495 </span>            : 
+<span class="lineNum">     496 </span>            :     /* get the group */
+<span class="lineNum">     497 </span>            :     if (SECSuccess == rv) {
+<span class="lineNum">     498 </span><span class="lineCov">          1 :         rv = GetItem(&amp;source, &amp;group, PR_FALSE);</span>
+<span class="lineNum">     499 </span>            :     }
+<span class="lineNum">     500 </span>            : 
+<span class="lineNum">     501 </span>            :     /* XXX we should check the subtemplate in debug builds */
+<span class="lineNum">     502 </span><span class="lineCov">          1 :     if (SECSuccess == rv) {</span>
+<span class="lineNum">     503 </span>            :         /* first, count the number of entries. Benchmarking showed that this
+<span class="lineNum">     504 </span>            :            counting pass is more efficient than trying to allocate entries as
+<span class="lineNum">     505 </span>            :            we read the DER, even if allocating many entries at a time
+<span class="lineNum">     506 </span>            :         */
+<span class="lineNum">     507 </span><span class="lineCov">          1 :         SECItem counter = group;</span>
+<span class="lineNum">     508 </span>            :         do {
+<span class="lineNum">     509 </span>            :             SECItem anitem;
+<span class="lineNum">     510 </span><span class="lineCov">          1 :             rv = GetItem(&amp;counter, &amp;anitem, PR_TRUE);</span>
+<span class="lineNum">     511 </span><span class="lineCov">          1 :             if (SECSuccess == rv &amp;&amp; (anitem.len)) {</span>
+<span class="lineNum">     512 </span><span class="lineCov">          1 :                 totalEntries++;</span>
+<span class="lineNum">     513 </span>            :             }
+<span class="lineNum">     514 </span><span class="lineCov">          1 :         } while ((SECSuccess == rv) &amp;&amp; (counter.len));</span>
+<span class="lineNum">     515 </span>            : 
+<span class="lineNum">     516 </span><span class="lineCov">          1 :         if (SECSuccess == rv) {</span>
+<span class="lineNum">     517 </span>            :             /* allocate room for pointer array and entries */
+<span class="lineNum">     518 </span>            :             /* we want to allocate the array even if there is 0 entry */
+<span class="lineNum">     519 </span><span class="lineCov">          1 :             entries = (void**)PORT_ArenaZAlloc(arena, sizeof(void*) *</span>
+<span class="lineNum">     520 </span><span class="lineCov">          1 :                                                               (totalEntries + 1) + /* the extra one is for NULL termination */</span>
+<span class="lineNum">     521 </span><span class="lineCov">          1 :                                                           subTemplate-&gt;size * totalEntries);</span>
+<span class="lineNum">     522 </span>            : 
+<span class="lineNum">     523 </span><span class="lineCov">          1 :             if (entries) {</span>
+<span class="lineNum">     524 </span><span class="lineCov">          1 :                 entries[totalEntries] = NULL; /* terminate the array */</span>
+<span class="lineNum">     525 </span>            :             } else {
+<span class="lineNum">     526 </span><span class="lineNoCov">          0 :                 PORT_SetError(SEC_ERROR_NO_MEMORY);</span>
+<span class="lineNum">     527 </span><span class="lineNoCov">          0 :                 rv = SECFailure;</span>
+<span class="lineNum">     528 </span>            :             }
+<span class="lineNum">     529 </span><span class="lineCov">          1 :             if (SECSuccess == rv) {</span>
+<span class="lineNum">     530 </span>            :                 void* entriesData = (unsigned char*)entries + (unsigned long)(sizeof(void*) * (totalEntries + 1));
+<span class="lineNum">     531 </span>            :                 /* and fix the pointers in the array */
+<span class="lineNum">     532 </span>            :                 PRUint32 entriesIndex = 0;
+<span class="lineNum">     533 </span><span class="lineCov">          1 :                 for (entriesIndex = 0; entriesIndex &lt; totalEntries; entriesIndex++) {</span>
+<span class="lineNum">     534 </span><span class="lineCov">          1 :                     entries[entriesIndex] =</span>
+<span class="lineNum">     535 </span><span class="lineCov">          1 :                         (char*)entriesData + (subTemplate-&gt;size * entriesIndex);</span>
+<span class="lineNum">     536 </span>            :                 }
+<span class="lineNum">     537 </span>            :             }
+<span class="lineNum">     538 </span>            :         }
+<span class="lineNum">     539 </span>            :     }
+<span class="lineNum">     540 </span>            : 
+<span class="lineNum">     541 </span><span class="lineCov">          1 :     if (SECSuccess == rv &amp;&amp; totalEntries)</span>
+<span class="lineNum">     542 </span>            :         do {
+<span class="lineNum">     543 </span><span class="lineCov">          1 :             if (!(entryIndex &lt; totalEntries)) {</span>
+<span class="lineNum">     544 </span>            :                 rv = SECFailure;
+<span class="lineNum">     545 </span>            :                 break;
+<span class="lineNum">     546 </span>            :             }
+<span class="lineNum">     547 </span><span class="lineCov">          1 :             rv = DecodeItem(entries[entryIndex++], subTemplate, &amp;group, arena, PR_TRUE);</span>
+<span class="lineNum">     548 </span><span class="lineCov">          1 :         } while ((SECSuccess == rv) &amp;&amp; (group.len));</span>
+<span class="lineNum">     549 </span>            :     /* we should be at the end of the set by now */
+<span class="lineNum">     550 </span>            :     /* save the entries where requested */
+<span class="lineNum">     551 </span><span class="lineCov">          1 :     memcpy(((char*)dest + templateEntry-&gt;offset), &amp;entries, sizeof(void**));</span>
+<span class="lineNum">     552 </span>            : 
+<span class="lineNum">     553 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">     554 </span>            : }
+<a name="555"><span class="lineNum">     555 </span>            : </a>
+<span class="lineNum">     556 </span>            : static SECStatus
+<span class="lineNum">     557 </span><span class="lineCov">          1 : DecodeExplicit(void* dest,</span>
+<span class="lineNum">     558 </span>            :                const SEC_ASN1Template* templateEntry,
+<span class="lineNum">     559 </span>            :                SECItem* src, PLArenaPool* arena)
+<span class="lineNum">     560 </span>            : {
+<span class="lineNum">     561 </span><span class="lineCov">          1 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     562 </span>            :     SECItem subItem;
+<span class="lineNum">     563 </span><span class="lineCov">          1 :     SECItem constructed = *src;</span>
+<span class="lineNum">     564 </span>            : 
+<span class="lineNum">     565 </span><span class="lineCov">          1 :     rv = GetItem(&amp;constructed, &amp;subItem, PR_FALSE);</span>
+<span class="lineNum">     566 </span>            : 
+<span class="lineNum">     567 </span><span class="lineCov">          1 :     if (SECSuccess == rv) {</span>
+<span class="lineNum">     568 </span><span class="lineCov">          1 :         if (templateEntry-&gt;kind &amp; SEC_ASN1_POINTER) {</span>
+<span class="lineNum">     569 </span><span class="lineNoCov">          0 :             rv = DecodePointer(dest, templateEntry, &amp;subItem, arena, PR_TRUE);</span>
+<span class="lineNum">     570 </span>            :         } else {
+<span class="lineNum">     571 </span><span class="lineCov">          1 :             rv = DecodeInline(dest, templateEntry, &amp;subItem, arena, PR_TRUE);</span>
+<span class="lineNum">     572 </span>            :         }
+<span class="lineNum">     573 </span>            :     }
+<span class="lineNum">     574 </span>            : 
+<span class="lineNum">     575 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">     576 </span>            : }
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span>            : /* new decoder implementation. This is a recursive function */
+<a name="579"><span class="lineNum">     579 </span>            : </a>
+<span class="lineNum">     580 </span>            : static SECStatus
+<span class="lineNum">     581 </span><span class="lineCov">          1 : DecodeItem(void* dest,</span>
+<span class="lineNum">     582 </span>            :            const SEC_ASN1Template* templateEntry,
+<span class="lineNum">     583 </span>            :            SECItem* src, PLArenaPool* arena, PRBool checkTag)
+<span class="lineNum">     584 </span>            : {
+<span class="lineNum">     585 </span><span class="lineCov">          1 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     586 </span>            :     SECItem temp;
+<span class="lineNum">     587 </span><span class="lineCov">          1 :     SECItem mark = { siBuffer, NULL, 0 };</span>
+<span class="lineNum">     588 </span><span class="lineCov">          1 :     PRBool pop = PR_FALSE;</span>
+<span class="lineNum">     589 </span><span class="lineCov">          1 :     PRBool decode = PR_TRUE;</span>
+<span class="lineNum">     590 </span><span class="lineCov">          1 :     PRBool save = PR_FALSE;</span>
+<span class="lineNum">     591 </span>            :     unsigned long kind;
+<span class="lineNum">     592 </span><span class="lineCov">          1 :     PRBool match = PR_TRUE;</span>
+<span class="lineNum">     593 </span>            : 
+<span class="lineNum">     594 </span>            :     PR_ASSERT(src &amp;&amp; dest &amp;&amp; templateEntry &amp;&amp; arena);
+<span class="lineNum">     595 </span>            : #if 0
+<span class="lineNum">     596 </span>            :     if (!src || !dest || !templateEntry || !arena)
+<span class="lineNum">     597 </span>            :     {
+<span class="lineNum">     598 </span>            :         PORT_SetError(SEC_ERROR_INVALID_ARGS);
+<span class="lineNum">     599 </span>            :         rv = SECFailure;
+<span class="lineNum">     600 </span>            :     }
+<span class="lineNum">     601 </span>            : #endif
+<span class="lineNum">     602 </span>            : 
+<span class="lineNum">     603 </span>            :     if (SECSuccess == rv) {
+<span class="lineNum">     604 </span>            :         /* do the template validation */
+<span class="lineNum">     605 </span><span class="lineCov">          1 :         kind = templateEntry-&gt;kind;</span>
+<span class="lineNum">     606 </span><span class="lineCov">          1 :         if (!kind) {</span>
+<span class="lineNum">     607 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_BAD_TEMPLATE);</span>
+<span class="lineNum">     608 </span><span class="lineNoCov">          0 :             rv = SECFailure;</span>
+<span class="lineNum">     609 </span>            :         }
+<span class="lineNum">     610 </span>            :     }
+<span class="lineNum">     611 </span>            : 
+<span class="lineNum">     612 </span><span class="lineCov">          1 :     if (SECSuccess == rv) {</span>
+<span class="lineNum">     613 </span>            : #ifdef DEBUG
+<span class="lineNum">     614 </span>            :         if (kind &amp; SEC_ASN1_DEBUG_BREAK) {
+<span class="lineNum">     615 </span>            :             /* when debugging the decoder or a template that fails to
+<span class="lineNum">     616 </span>            :             decode, put SEC_ASN1_DEBUG in the component that gives you
+<span class="lineNum">     617 </span>            :             trouble. The decoder will then get to this block and assert.
+<span class="lineNum">     618 </span>            :             If you want to debug the rest of the code, you can set a
+<span class="lineNum">     619 </span>            :             breakpoint and set dontassert to PR_TRUE, which will let
+<span class="lineNum">     620 </span>            :             you skip over the assert and continue the debugging session
+<span class="lineNum">     621 </span>            :             past it. */
+<span class="lineNum">     622 </span>            :             PRBool dontassert = PR_FALSE;
+<span class="lineNum">     623 </span>            :             PR_ASSERT(dontassert); /* set bkpoint here &amp; set dontassert*/
+<span class="lineNum">     624 </span>            :         }
+<span class="lineNum">     625 </span>            : #endif
+<span class="lineNum">     626 </span>            : 
+<span class="lineNum">     627 </span><span class="lineCov">          1 :         if ((kind &amp; SEC_ASN1_SKIP) ||</span>
+<span class="lineNum">     628 </span>            :             (kind &amp; SEC_ASN1_SAVE)) {
+<span class="lineNum">     629 </span>            :             /* if skipping or saving this component, don't decode it */
+<span class="lineNum">     630 </span><span class="lineCov">          1 :             decode = PR_FALSE;</span>
+<span class="lineNum">     631 </span>            :         }
+<span class="lineNum">     632 </span>            : 
+<span class="lineNum">     633 </span><span class="lineCov">          1 :         if (kind &amp; (SEC_ASN1_SAVE | SEC_ASN1_OPTIONAL)) {</span>
+<span class="lineNum">     634 </span>            :             /* if saving this component, or if it is optional, we may not want to
+<span class="lineNum">     635 </span>            :                move past it, so save the position in case we have to rewind */
+<span class="lineNum">     636 </span><span class="lineCov">          1 :             mark = *src;</span>
+<span class="lineNum">     637 </span><span class="lineCov">          1 :             if (kind &amp; SEC_ASN1_SAVE) {</span>
+<span class="lineNum">     638 </span><span class="lineCov">          1 :                 save = PR_TRUE;</span>
+<span class="lineNum">     639 </span><span class="lineCov">          1 :                 if (0 == (kind &amp; SEC_ASN1_SKIP)) {</span>
+<span class="lineNum">     640 </span>            :                     /* we will for sure have to rewind when saving this
+<span class="lineNum">     641 </span>            :                        component and not skipping it. This is true for all
+<span class="lineNum">     642 </span>            :                        legacy uses of SEC_ASN1_SAVE where the following entry
+<span class="lineNum">     643 </span>            :                        in the template would causes the same component to be
+<span class="lineNum">     644 </span>            :                        processed again */
+<span class="lineNum">     645 </span><span class="lineCov">          1 :                     pop = PR_TRUE;</span>
+<span class="lineNum">     646 </span>            :                 }
+<span class="lineNum">     647 </span>            :             }
+<span class="lineNum">     648 </span>            :         }
+<span class="lineNum">     649 </span>            : 
+<span class="lineNum">     650 </span><span class="lineCov">          1 :         rv = GetItem(src, &amp;temp, PR_TRUE);</span>
+<span class="lineNum">     651 </span>            :     }
+<span class="lineNum">     652 </span>            : 
+<span class="lineNum">     653 </span><span class="lineCov">          1 :     if (SECSuccess == rv) {</span>
+<span class="lineNum">     654 </span>            :         /* now check if the component matches what we expect in the template */
+<span class="lineNum">     655 </span>            : 
+<span class="lineNum">     656 </span><span class="lineCov">          1 :         if (PR_TRUE == checkTag)</span>
+<span class="lineNum">     657 </span>            : 
+<span class="lineNum">     658 </span>            :         {
+<span class="lineNum">     659 </span><span class="lineCov">          1 :             rv = MatchComponentType(templateEntry, &amp;temp, &amp;match, dest);</span>
+<span class="lineNum">     660 </span>            :         }
+<span class="lineNum">     661 </span>            : 
+<span class="lineNum">     662 </span><span class="lineCov">          1 :         if ((SECSuccess == rv) &amp;&amp; (PR_TRUE != match)) {</span>
+<span class="lineNum">     663 </span><span class="lineCov">          1 :             if (kind &amp; SEC_ASN1_OPTIONAL) {</span>
+<span class="lineNum">     664 </span>            : 
+<span class="lineNum">     665 </span>            :                 /* the optional component is missing. This is not fatal. */
+<span class="lineNum">     666 </span>            :                 /* Rewind, don't decode, and don't save */
+<span class="lineNum">     667 </span>            :                 pop = PR_TRUE;
+<span class="lineNum">     668 </span>            :                 decode = PR_FALSE;
+<span class="lineNum">     669 </span>            :                 save = PR_FALSE;
+<span class="lineNum">     670 </span>            :             } else {
+<span class="lineNum">     671 </span>            :                 /* a required component is missing. abort */
+<span class="lineNum">     672 </span><span class="lineNoCov">          0 :                 PORT_SetError(SEC_ERROR_BAD_DER);</span>
+<span class="lineNum">     673 </span><span class="lineNoCov">          0 :                 rv = SECFailure;</span>
+<span class="lineNum">     674 </span>            :             }
+<span class="lineNum">     675 </span>            :         }
+<span class="lineNum">     676 </span>            :     }
+<span class="lineNum">     677 </span>            : 
+<span class="lineNum">     678 </span><span class="lineCov">          1 :     if ((SECSuccess == rv) &amp;&amp; (PR_TRUE == decode)) {</span>
+<span class="lineNum">     679 </span>            :         /* the order of processing here is is the tricky part */
+<span class="lineNum">     680 </span>            :         /* we start with our special cases */
+<span class="lineNum">     681 </span>            :         /* first, check the component class */
+<span class="lineNum">     682 </span><span class="lineCov">          1 :         if (kind &amp; SEC_ASN1_INLINE) {</span>
+<span class="lineNum">     683 </span>            :             /* decode inline template */
+<span class="lineNum">     684 </span><span class="lineCov">          1 :             rv = DecodeInline(dest, templateEntry, &amp;temp, arena, PR_TRUE);</span>
+<span class="lineNum">     685 </span>            :         }
+<span class="lineNum">     686 </span>            : 
+<span class="lineNum">     687 </span><span class="lineCov">          1 :         else if (kind &amp; SEC_ASN1_EXPLICIT) {</span>
+<span class="lineNum">     688 </span><span class="lineCov">          1 :             rv = DecodeExplicit(dest, templateEntry, &amp;temp, arena);</span>
+<span class="lineNum">     689 </span><span class="lineCov">          1 :         } else if ((SEC_ASN1_UNIVERSAL != (kind &amp; SEC_ASN1_CLASS_MASK)) &amp;&amp;</span>
+<span class="lineNum">     690 </span>            : 
+<span class="lineNum">     691 </span>            :                    (!(kind &amp; SEC_ASN1_EXPLICIT))) {
+<span class="lineNum">     692 </span>            : 
+<span class="lineNum">     693 </span>            :             /* decode implicitly tagged components */
+<span class="lineNum">     694 </span><span class="lineCov">          1 :             rv = DecodeImplicit(dest, templateEntry, &amp;temp, arena);</span>
+<span class="lineNum">     695 </span><span class="lineCov">          1 :         } else if (kind &amp; SEC_ASN1_POINTER) {</span>
+<span class="lineNum">     696 </span><span class="lineNoCov">          0 :             rv = DecodePointer(dest, templateEntry, &amp;temp, arena, PR_TRUE);</span>
+<span class="lineNum">     697 </span><span class="lineCov">          1 :         } else if (kind &amp; SEC_ASN1_CHOICE) {</span>
+<span class="lineNum">     698 </span><span class="lineCov">          1 :             rv = DecodeChoice(dest, templateEntry, &amp;temp, arena);</span>
+<span class="lineNum">     699 </span><span class="lineCov">          1 :         } else if (kind &amp; SEC_ASN1_ANY) {</span>
+<span class="lineNum">     700 </span>            :             /* catch-all ANY type, don't decode */
+<span class="lineNum">     701 </span><span class="lineCov">          1 :             save = PR_TRUE;</span>
+<span class="lineNum">     702 </span><span class="lineCov">          1 :             if (kind &amp; SEC_ASN1_INNER) {</span>
+<span class="lineNum">     703 </span>            :                 /* skip the tag and length */
+<span class="lineNum">     704 </span><span class="lineNoCov">          0 :                 SECItem newtemp = temp;</span>
+<span class="lineNum">     705 </span><span class="lineNoCov">          0 :                 rv = GetItem(&amp;newtemp, &amp;temp, PR_FALSE);</span>
+<span class="lineNum">     706 </span>            :             }
+<span class="lineNum">     707 </span><span class="lineCov">          1 :         } else if (kind &amp; SEC_ASN1_GROUP) {</span>
+<span class="lineNum">     708 </span><span class="lineCov">          1 :             if ((SEC_ASN1_SEQUENCE == (kind &amp; SEC_ASN1_TAGNUM_MASK)) ||</span>
+<span class="lineNum">     709 </span>            :                 (SEC_ASN1_SET == (kind &amp; SEC_ASN1_TAGNUM_MASK))) {
+<span class="lineNum">     710 </span><span class="lineCov">          1 :                 rv = DecodeGroup(dest, templateEntry, &amp;temp, arena);</span>
+<span class="lineNum">     711 </span>            :             } else {
+<span class="lineNum">     712 </span>            :                 /* a group can only be a SET OF or SEQUENCE OF */
+<span class="lineNum">     713 </span><span class="lineNoCov">          0 :                 PORT_SetError(SEC_ERROR_BAD_TEMPLATE);</span>
+<span class="lineNum">     714 </span><span class="lineNoCov">          0 :                 rv = SECFailure;</span>
+<span class="lineNum">     715 </span>            :             }
+<span class="lineNum">     716 </span><span class="lineCov">          1 :         } else if (SEC_ASN1_SEQUENCE == (kind &amp; SEC_ASN1_TAGNUM_MASK)) {</span>
+<span class="lineNum">     717 </span>            :             /* plain SEQUENCE */
+<span class="lineNum">     718 </span><span class="lineCov">          1 :             rv = DecodeSequence(dest, templateEntry, &amp;temp, arena);</span>
+<span class="lineNum">     719 </span>            :         } else {
+<span class="lineNum">     720 </span>            :             /* handle all other types as &quot;save&quot; */
+<span class="lineNum">     721 </span>            :             /* we should only get here for primitive universal types */
+<span class="lineNum">     722 </span><span class="lineCov">          1 :             SECItem newtemp = temp;</span>
+<span class="lineNum">     723 </span><span class="lineCov">          1 :             rv = GetItem(&amp;newtemp, &amp;temp, PR_FALSE);</span>
+<span class="lineNum">     724 </span><span class="lineCov">          1 :             save = PR_TRUE;</span>
+<span class="lineNum">     725 </span><span class="lineCov">          1 :             if ((SECSuccess == rv) &amp;&amp;</span>
+<span class="lineNum">     726 </span>            :                 SEC_ASN1_UNIVERSAL == (kind &amp; SEC_ASN1_CLASS_MASK)) {
+<span class="lineNum">     727 </span><span class="lineCov">          1 :                 unsigned long tagnum = kind &amp; SEC_ASN1_TAGNUM_MASK;</span>
+<span class="lineNum">     728 </span><span class="lineCov">          1 :                 if (temp.len == 0 &amp;&amp; (tagnum == SEC_ASN1_BOOLEAN ||</span>
+<span class="lineNum">     729 </span><span class="lineNoCov">          0 :                                       tagnum == SEC_ASN1_INTEGER ||</span>
+<span class="lineNum">     730 </span><span class="lineNoCov">          0 :                                       tagnum == SEC_ASN1_BIT_STRING ||</span>
+<span class="lineNum">     731 </span><span class="lineNoCov">          0 :                                       tagnum == SEC_ASN1_OBJECT_ID ||</span>
+<span class="lineNum">     732 </span><span class="lineNoCov">          0 :                                       tagnum == SEC_ASN1_ENUMERATED ||</span>
+<span class="lineNum">     733 </span><span class="lineNoCov">          0 :                                       tagnum == SEC_ASN1_UTC_TIME ||</span>
+<span class="lineNum">     734 </span>            :                                       tagnum == SEC_ASN1_GENERALIZED_TIME)) {
+<span class="lineNum">     735 </span>            :                     /* these types MUST have at least one content octet */
+<span class="lineNum">     736 </span><span class="lineNoCov">          0 :                     PORT_SetError(SEC_ERROR_BAD_DER);</span>
+<span class="lineNum">     737 </span><span class="lineNoCov">          0 :                     rv = SECFailure;</span>
+<span class="lineNum">     738 </span>            :                 } else
+<span class="lineNum">     739 </span><span class="lineCov">          1 :                     switch (tagnum) {</span>
+<span class="lineNum">     740 </span>            :                         /* special cases of primitive types */
+<span class="lineNum">     741 </span>            :                         case SEC_ASN1_INTEGER: {
+<span class="lineNum">     742 </span>            :                             /* remove leading zeroes if the caller requested
+<span class="lineNum">     743 </span>            :                                siUnsignedInteger
+<span class="lineNum">     744 </span>            :                                This is to allow RSA key operations to work */
+<span class="lineNum">     745 </span><span class="lineCov">          1 :                             SECItem* destItem = (SECItem*)((char*)dest +</span>
+<span class="lineNum">     746 </span><span class="lineCov">          1 :                                                            templateEntry-&gt;offset);</span>
+<span class="lineNum">     747 </span><span class="lineCov">          1 :                             if (destItem &amp;&amp; (siUnsignedInteger == destItem-&gt;type)) {</span>
+<span class="lineNum">     748 </span><span class="lineCov">          1 :                                 while (temp.len &gt; 1 &amp;&amp; temp.data[0] == 0) { /* leading 0 */</span>
+<span class="lineNum">     749 </span><span class="lineCov">          1 :                                     temp.data++;</span>
+<span class="lineNum">     750 </span><span class="lineCov">          1 :                                     temp.len--;</span>
+<span class="lineNum">     751 </span>            :                                 }
+<span class="lineNum">     752 </span>            :                             }
+<span class="lineNum">     753 </span>            :                             break;
+<span class="lineNum">     754 </span>            :                         }
+<span class="lineNum">     755 </span>            : 
+<span class="lineNum">     756 </span>            :                         case SEC_ASN1_BIT_STRING: {
+<span class="lineNum">     757 </span>            :                             /* change the length in the SECItem to be the number
+<span class="lineNum">     758 </span>            :                                of bits */
+<span class="lineNum">     759 </span><span class="lineCov">          1 :                             temp.len = (temp.len - 1) * 8 - (temp.data[0] &amp; 0x7);</span>
+<span class="lineNum">     760 </span><span class="lineCov">          1 :                             temp.data++;</span>
+<span class="lineNum">     761 </span><span class="lineCov">          1 :                             break;</span>
+<span class="lineNum">     762 </span>            :                         }
+<span class="lineNum">     763 </span>            : 
+<span class="lineNum">     764 </span>            :                         default: {
+<span class="lineNum">     765 </span>            :                             break;
+<span class="lineNum">     766 </span>            :                         }
+<span class="lineNum">     767 </span>            :                     }
+<span class="lineNum">     768 </span>            :             }
+<span class="lineNum">     769 </span>            :         }
+<span class="lineNum">     770 </span>            :     }
+<span class="lineNum">     771 </span>            : 
+<span class="lineNum">     772 </span><span class="lineCov">          1 :     if ((SECSuccess == rv) &amp;&amp; (PR_TRUE == save)) {</span>
+<span class="lineNum">     773 </span><span class="lineCov">          1 :         SECItem* destItem = (SECItem*)((char*)dest + templateEntry-&gt;offset);</span>
+<span class="lineNum">     774 </span><span class="lineCov">          1 :         if (destItem) {</span>
+<span class="lineNum">     775 </span>            :             /* we leave the type alone in the destination SECItem.
+<span class="lineNum">     776 </span>            :                If part of the destination was allocated by the decoder, in
+<span class="lineNum">     777 </span>            :                cases of POINTER, SET OF and SEQUENCE OF, then type is set to
+<span class="lineNum">     778 </span>            :                siBuffer due to the use of PORT_ArenaZAlloc*/
+<span class="lineNum">     779 </span><span class="lineCov">          1 :             destItem-&gt;data = temp.len ? temp.data : NULL;</span>
+<span class="lineNum">     780 </span><span class="lineCov">          1 :             destItem-&gt;len = temp.len;</span>
+<span class="lineNum">     781 </span>            :         } else {
+<span class="lineNum">     782 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     783 </span><span class="lineNoCov">          0 :             rv = SECFailure;</span>
+<span class="lineNum">     784 </span>            :         }
+<span class="lineNum">     785 </span>            :     }
+<span class="lineNum">     786 </span>            : 
+<span class="lineNum">     787 </span><span class="lineCov">          1 :     if (PR_TRUE == pop) {</span>
+<span class="lineNum">     788 </span>            :         /* we don't want to move ahead, so restore the position */
+<span class="lineNum">     789 </span><span class="lineCov">          1 :         *src = mark;</span>
+<span class="lineNum">     790 </span>            :     }
+<span class="lineNum">     791 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">     792 </span>            : }
+<span class="lineNum">     793 </span>            : 
+<span class="lineNum">     794 </span>            : /* the function below is the public one */
+<a name="795"><span class="lineNum">     795 </span>            : </a>
+<span class="lineNum">     796 </span>            : SECStatus
+<span class="lineNum">     797 </span><span class="lineCov">          1 : SEC_QuickDERDecodeItem(PLArenaPool* arena, void* dest,</span>
+<span class="lineNum">     798 </span>            :                        const SEC_ASN1Template* templateEntry,
+<span class="lineNum">     799 </span>            :                        const SECItem* src)
+<span class="lineNum">     800 </span>            : {
+<span class="lineNum">     801 </span><span class="lineCov">          1 :     SECStatus rv = SECSuccess;</span>
+<span class="lineNum">     802 </span>            :     SECItem newsrc;
+<span class="lineNum">     803 </span>            : 
+<span class="lineNum">     804 </span><span class="lineCov">          1 :     if (!arena || !templateEntry || !src) {</span>
+<span class="lineNum">     805 </span><span class="lineNoCov">          0 :         PORT_SetError(SEC_ERROR_INVALID_ARGS);</span>
+<span class="lineNum">     806 </span><span class="lineNoCov">          0 :         rv = SECFailure;</span>
+<span class="lineNum">     807 </span>            :     }
+<span class="lineNum">     808 </span>            : 
+<span class="lineNum">     809 </span><span class="lineCov">          1 :     if (SECSuccess == rv) {</span>
+<span class="lineNum">     810 </span><span class="lineCov">          1 :         newsrc = *src;</span>
+<span class="lineNum">     811 </span><span class="lineCov">          1 :         rv = DecodeItem(dest, templateEntry, &amp;newsrc, arena, PR_TRUE);</span>
+<span class="lineNum">     812 </span><span class="lineCov">          1 :         if (SECSuccess == rv &amp;&amp; newsrc.len) {</span>
+<span class="lineNum">     813 </span><span class="lineNoCov">          0 :             rv = SECFailure;</span>
+<span class="lineNum">     814 </span><span class="lineNoCov">          0 :             PORT_SetError(SEC_ERROR_EXTRA_INPUT);</span>
+<span class="lineNum">     815 </span>            :         }
+<span class="lineNum">     816 </span>            :     }
+<span class="lineNum">     817 </span>            : 
+<span class="lineNum">     818 </span><span class="lineCov">          1 :     return rv;</span>
+<span class="lineNum">     819 </span>            : }
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

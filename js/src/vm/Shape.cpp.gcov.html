@@ -1,0 +1,1767 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - js/src/vm/Shape.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../index.html">top level</a> - <a href="index.html">js/src/vm</a> - Shape.cpp<span style="font-size: 80%;"> (source / <a href="Shape.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">514</td>
+            <td class="headerCovTableEntry">577</td>
+            <td class="headerCovTableEntryMed">89.1 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">45</td>
+            <td class="headerCovTableEntry">49</td>
+            <td class="headerCovTableEntryHi">91.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 8; indent-tabs-mode: nil; c-basic-offset: 4 -*-</a>
+<span class="lineNum">       2 </span>            :  * vim: set ts=8 sts=4 et sw=4 tw=99:
+<span class="lineNum">       3 </span>            :  * This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       4 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       5 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       6 </span>            : 
+<span class="lineNum">       7 </span>            : /* JS symbol tables. */
+<span class="lineNum">       8 </span>            : 
+<span class="lineNum">       9 </span>            : #include &quot;vm/Shape-inl.h&quot;
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;mozilla/DebugOnly.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;mozilla/MathAlgorithms.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;mozilla/PodOperations.h&quot;
+<span class="lineNum">      14 </span>            : 
+<span class="lineNum">      15 </span>            : #include &quot;jsatom.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;jscntxt.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;jshashutil.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;jsobj.h&quot;
+<span class="lineNum">      19 </span>            : 
+<span class="lineNum">      20 </span>            : #include &quot;gc/Policy.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;js/HashTable.h&quot;
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : #include &quot;jscntxtinlines.h&quot;
+<span class="lineNum">      24 </span>            : #include &quot;jscompartmentinlines.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;jsobjinlines.h&quot;
+<span class="lineNum">      26 </span>            : 
+<span class="lineNum">      27 </span>            : #include &quot;vm/Caches-inl.h&quot;
+<span class="lineNum">      28 </span>            : #include &quot;vm/NativeObject-inl.h&quot;
+<span class="lineNum">      29 </span>            : 
+<span class="lineNum">      30 </span>            : using namespace js;
+<span class="lineNum">      31 </span>            : using namespace js::gc;
+<span class="lineNum">      32 </span>            : 
+<span class="lineNum">      33 </span>            : using mozilla::CeilingLog2Size;
+<span class="lineNum">      34 </span>            : using mozilla::DebugOnly;
+<span class="lineNum">      35 </span>            : using mozilla::PodZero;
+<span class="lineNum">      36 </span>            : using mozilla::RotateLeft;
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : using JS::AutoCheckCannotGC;
+<span class="lineNum">      39 </span>            : 
+<span class="lineNum">      40 </span>            : Shape* const ShapeTable::Entry::SHAPE_REMOVED = (Shape*)ShapeTable::Entry::SHAPE_COLLISION;
+<a name="41"><span class="lineNum">      41 </span>            : </a>
+<span class="lineNum">      42 </span>            : bool
+<span class="lineNum">      43 </span><span class="lineCov">          1 : ShapeTable::init(JSContext* cx, Shape* lastProp)</span>
+<span class="lineNum">      44 </span>            : {
+<span class="lineNum">      45 </span><span class="lineCov">          1 :     uint32_t sizeLog2 = CeilingLog2Size(entryCount_);</span>
+<span class="lineNum">      46 </span><span class="lineCov">          1 :     uint32_t size = JS_BIT(sizeLog2);</span>
+<span class="lineNum">      47 </span><span class="lineCov">          1 :     if (entryCount_ &gt;= size - (size &gt;&gt; 2))</span>
+<span class="lineNum">      48 </span><span class="lineCov">          1 :         sizeLog2++;</span>
+<span class="lineNum">      49 </span><span class="lineCov">          1 :     if (sizeLog2 &lt; MIN_SIZE_LOG2)</span>
+<span class="lineNum">      50 </span><span class="lineCov">          1 :         sizeLog2 = MIN_SIZE_LOG2;</span>
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span><span class="lineCov">          1 :     size = JS_BIT(sizeLog2);</span>
+<span class="lineNum">      53 </span><span class="lineCov">          1 :     entries_ = cx-&gt;pod_calloc&lt;Entry&gt;(size);</span>
+<span class="lineNum">      54 </span><span class="lineCov">          1 :     if (!entries_)</span>
+<span class="lineNum">      55 </span>            :         return false;
+<span class="lineNum">      56 </span>            : 
+<span class="lineNum">      57 </span>            :     MOZ_ASSERT(sizeLog2 &lt;= HASH_BITS);
+<span class="lineNum">      58 </span><span class="lineCov">          1 :     hashShift_ = HASH_BITS - sizeLog2;</span>
+<span class="lineNum">      59 </span>            : 
+<span class="lineNum">      60 </span><span class="lineCov">          1 :     for (Shape::Range&lt;NoGC&gt; r(lastProp); !r.empty(); r.popFront()) {</span>
+<span class="lineNum">      61 </span><span class="lineCov">          1 :         Shape&amp; shape = r.front();</span>
+<span class="lineNum">      62 </span><span class="lineCov">          1 :         Entry&amp; entry = searchUnchecked&lt;MaybeAdding::Adding&gt;(shape.propid());</span>
+<span class="lineNum">      63 </span>            : 
+<span class="lineNum">      64 </span>            :         /*
+<span class="lineNum">      65 </span>            :          * Beware duplicate args and arg vs. var conflicts: the youngest shape
+<span class="lineNum">      66 </span>            :          * (nearest to lastProp) must win. See bug 600067.
+<span class="lineNum">      67 </span>            :          */
+<span class="lineNum">      68 </span><span class="lineCov">          1 :         if (!entry.shape())</span>
+<span class="lineNum">      69 </span>            :             entry.setPreservingCollision(&amp;shape);
+<span class="lineNum">      70 </span>            :     }
+<span class="lineNum">      71 </span>            : 
+<span class="lineNum">      72 </span>            :     MOZ_ASSERT(capacity() == size);
+<span class="lineNum">      73 </span>            :     MOZ_ASSERT(size &gt;= MIN_SIZE);
+<span class="lineNum">      74 </span>            :     MOZ_ASSERT(!needsToGrow());
+<span class="lineNum">      75 </span>            :     return true;
+<span class="lineNum">      76 </span>            : }
+<a name="77"><span class="lineNum">      77 </span>            : </a>
+<span class="lineNum">      78 </span>            : void
+<span class="lineNum">      79 </span><span class="lineCov">          1 : Shape::removeFromDictionary(NativeObject* obj)</span>
+<span class="lineNum">      80 </span>            : {
+<span class="lineNum">      81 </span>            :     MOZ_ASSERT(inDictionary());
+<span class="lineNum">      82 </span>            :     MOZ_ASSERT(obj-&gt;inDictionaryMode());
+<span class="lineNum">      83 </span>            :     MOZ_ASSERT(listp);
+<span class="lineNum">      84 </span>            : 
+<span class="lineNum">      85 </span>            :     MOZ_ASSERT(obj-&gt;shape_-&gt;inDictionary());
+<span class="lineNum">      86 </span>            :     MOZ_ASSERT(obj-&gt;shape_-&gt;listp == &amp;obj-&gt;shape_);
+<span class="lineNum">      87 </span>            : 
+<span class="lineNum">      88 </span><span class="lineCov">          1 :     if (parent)</span>
+<span class="lineNum">      89 </span><span class="lineCov">          1 :         parent-&gt;listp = listp;</span>
+<span class="lineNum">      90 </span><span class="lineCov">          1 :     *listp = parent;</span>
+<span class="lineNum">      91 </span><span class="lineCov">          1 :     listp = nullptr;</span>
+<span class="lineNum">      92 </span>            : 
+<span class="lineNum">      93 </span><span class="lineCov">          1 :     obj-&gt;shape_-&gt;clearCachedBigEnoughForShapeTable();</span>
+<span class="lineNum">      94 </span><span class="lineCov">          1 : }</span>
+<a name="95"><span class="lineNum">      95 </span>            : </a>
+<span class="lineNum">      96 </span>            : void
+<span class="lineNum">      97 </span><span class="lineCov">          1 : Shape::insertIntoDictionary(GCPtrShape* dictp)</span>
+<span class="lineNum">      98 </span>            : {
+<span class="lineNum">      99 </span>            :     // Don't assert inDictionaryMode() here because we may be called from
+<span class="lineNum">     100 </span>            :     // JSObject::toDictionaryMode via JSObject::newDictionaryShape.
+<span class="lineNum">     101 </span>            :     MOZ_ASSERT(inDictionary());
+<span class="lineNum">     102 </span>            :     MOZ_ASSERT(!listp);
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span>            :     MOZ_ASSERT_IF(*dictp, (*dictp)-&gt;inDictionary());
+<span class="lineNum">     105 </span>            :     MOZ_ASSERT_IF(*dictp, (*dictp)-&gt;listp == dictp);
+<span class="lineNum">     106 </span>            :     MOZ_ASSERT_IF(*dictp, zone() == (*dictp)-&gt;zone());
+<span class="lineNum">     107 </span>            : 
+<span class="lineNum">     108 </span><span class="lineCov">          1 :     setParent(dictp-&gt;get());</span>
+<span class="lineNum">     109 </span><span class="lineCov">          1 :     if (parent)</span>
+<span class="lineNum">     110 </span><span class="lineCov">          1 :         parent-&gt;listp = &amp;parent;</span>
+<span class="lineNum">     111 </span><span class="lineCov">          1 :     listp = (GCPtrShape*) dictp;</span>
+<span class="lineNum">     112 </span><span class="lineCov">          1 :     *dictp = this;</span>
+<span class="lineNum">     113 </span><span class="lineCov">          1 : }</span>
+<a name="114"><span class="lineNum">     114 </span>            : </a>
+<span class="lineNum">     115 </span>            : bool
+<span class="lineNum">     116 </span><span class="lineCov">          1 : Shape::makeOwnBaseShape(JSContext* cx)</span>
+<span class="lineNum">     117 </span>            : {
+<span class="lineNum">     118 </span>            :     MOZ_ASSERT(!base()-&gt;isOwned());
+<span class="lineNum">     119 </span>            :     MOZ_ASSERT(cx-&gt;zone() == zone());
+<span class="lineNum">     120 </span>            : 
+<span class="lineNum">     121 </span><span class="lineCov">          1 :     BaseShape* nbase = Allocate&lt;BaseShape, NoGC&gt;(cx);</span>
+<span class="lineNum">     122 </span><span class="lineCov">          1 :     if (!nbase)</span>
+<span class="lineNum">     123 </span>            :         return false;
+<span class="lineNum">     124 </span>            : 
+<span class="lineNum">     125 </span><span class="lineCov">          1 :     new (nbase) BaseShape(StackBaseShape(this));</span>
+<span class="lineNum">     126 </span><span class="lineCov">          1 :     nbase-&gt;setOwned(base()-&gt;toUnowned());</span>
+<span class="lineNum">     127 </span>            : 
+<span class="lineNum">     128 </span><span class="lineCov">          1 :     this-&gt;base_ = nbase;</span>
+<span class="lineNum">     129 </span>            : 
+<span class="lineNum">     130 </span><span class="lineCov">          1 :     return true;</span>
+<span class="lineNum">     131 </span>            : }
+<a name="132"><span class="lineNum">     132 </span>            : </a>
+<span class="lineNum">     133 </span>            : void
+<span class="lineNum">     134 </span><span class="lineCov">          1 : Shape::handoffTableTo(Shape* shape)</span>
+<span class="lineNum">     135 </span>            : {
+<span class="lineNum">     136 </span>            :     MOZ_ASSERT(inDictionary() &amp;&amp; shape-&gt;inDictionary());
+<span class="lineNum">     137 </span>            : 
+<span class="lineNum">     138 </span><span class="lineCov">          1 :     if (this == shape)</span>
+<span class="lineNum">     139 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">     140 </span>            : 
+<span class="lineNum">     141 </span>            :     MOZ_ASSERT(base()-&gt;isOwned() &amp;&amp; !shape-&gt;base()-&gt;isOwned());
+<span class="lineNum">     142 </span>            : 
+<span class="lineNum">     143 </span><span class="lineCov">          1 :     BaseShape* nbase = base();</span>
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span>            :     MOZ_ASSERT_IF(shape-&gt;hasSlot(), nbase-&gt;slotSpan() &gt; shape-&gt;slot());
+<span class="lineNum">     146 </span>            : 
+<span class="lineNum">     147 </span><span class="lineCov">          1 :     this-&gt;base_ = nbase-&gt;baseUnowned();</span>
+<span class="lineNum">     148 </span><span class="lineCov">          1 :     nbase-&gt;adoptUnowned(shape-&gt;base()-&gt;toUnowned());</span>
+<span class="lineNum">     149 </span>            : 
+<span class="lineNum">     150 </span><span class="lineCov">          1 :     shape-&gt;base_ = nbase;</span>
+<span class="lineNum">     151 </span>            : }
+<a name="152"><span class="lineNum">     152 </span>            : </a>
+<span class="lineNum">     153 </span>            : /* static */ bool
+<span class="lineNum">     154 </span><span class="lineCov">          1 : Shape::hashify(JSContext* cx, Shape* shape)</span>
+<span class="lineNum">     155 </span>            : {
+<span class="lineNum">     156 </span>            :     MOZ_ASSERT(!shape-&gt;hasTable());
+<span class="lineNum">     157 </span>            : 
+<span class="lineNum">     158 </span><span class="lineCov">          1 :     if (!shape-&gt;ensureOwnBaseShape(cx))</span>
+<span class="lineNum">     159 </span>            :         return false;
+<span class="lineNum">     160 </span>            : 
+<span class="lineNum">     161 </span><span class="lineCov">          1 :     ShapeTable* table = cx-&gt;new_&lt;ShapeTable&gt;(shape-&gt;entryCount());</span>
+<span class="lineNum">     162 </span><span class="lineCov">          1 :     if (!table)</span>
+<span class="lineNum">     163 </span>            :         return false;
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span><span class="lineCov">          1 :     if (!table-&gt;init(cx, shape)) {</span>
+<span class="lineNum">     166 </span>            :         js_free(table);
+<span class="lineNum">     167 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     168 </span>            :     }
+<span class="lineNum">     169 </span>            : 
+<span class="lineNum">     170 </span><span class="lineCov">          1 :     shape-&gt;base()-&gt;setTable(table);</span>
+<span class="lineNum">     171 </span><span class="lineCov">          1 :     return true;</span>
+<span class="lineNum">     172 </span>            : }
+<a name="173"><span class="lineNum">     173 </span>            : </a>
+<span class="lineNum">     174 </span>            : bool
+<span class="lineNum">     175 </span><span class="lineCov">          1 : ShapeTable::change(JSContext* cx, int log2Delta)</span>
+<span class="lineNum">     176 </span>            : {
+<span class="lineNum">     177 </span>            :     MOZ_ASSERT(entries_);
+<span class="lineNum">     178 </span>            :     MOZ_ASSERT(-1 &lt;= log2Delta &amp;&amp; log2Delta &lt;= 1);
+<span class="lineNum">     179 </span>            : 
+<span class="lineNum">     180 </span>            :     /*
+<span class="lineNum">     181 </span>            :      * Grow, shrink, or compress by changing this-&gt;entries_.
+<span class="lineNum">     182 </span>            :      */
+<span class="lineNum">     183 </span><span class="lineCov">          1 :     uint32_t oldLog2 = HASH_BITS - hashShift_;</span>
+<span class="lineNum">     184 </span><span class="lineCov">          1 :     uint32_t newLog2 = oldLog2 + log2Delta;</span>
+<span class="lineNum">     185 </span><span class="lineCov">          1 :     uint32_t oldSize = JS_BIT(oldLog2);</span>
+<span class="lineNum">     186 </span><span class="lineCov">          1 :     uint32_t newSize = JS_BIT(newLog2);</span>
+<span class="lineNum">     187 </span><span class="lineCov">          1 :     Entry* newTable = cx-&gt;maybe_pod_calloc&lt;Entry&gt;(newSize);</span>
+<span class="lineNum">     188 </span><span class="lineCov">          1 :     if (!newTable)</span>
+<span class="lineNum">     189 </span>            :         return false;
+<span class="lineNum">     190 </span>            : 
+<span class="lineNum">     191 </span>            :     /* Now that we have newTable allocated, update members. */
+<span class="lineNum">     192 </span>            :     MOZ_ASSERT(newLog2 &lt;= HASH_BITS);
+<span class="lineNum">     193 </span><span class="lineCov">          1 :     hashShift_ = HASH_BITS - newLog2;</span>
+<span class="lineNum">     194 </span><span class="lineCov">          1 :     removedCount_ = 0;</span>
+<span class="lineNum">     195 </span><span class="lineCov">          1 :     Entry* oldTable = entries_;</span>
+<span class="lineNum">     196 </span><span class="lineCov">          1 :     entries_ = newTable;</span>
+<span class="lineNum">     197 </span>            : 
+<span class="lineNum">     198 </span>            :     /* Copy only live entries, leaving removed and free ones behind. */
+<span class="lineNum">     199 </span>            :     AutoCheckCannotGC nogc;
+<span class="lineNum">     200 </span><span class="lineCov">          1 :     for (Entry* oldEntry = oldTable; oldSize != 0; oldEntry++) {</span>
+<span class="lineNum">     201 </span><span class="lineCov">          1 :         if (Shape* shape = oldEntry-&gt;shape()) {</span>
+<span class="lineNum">     202 </span><span class="lineCov">          1 :             Entry&amp; entry = search&lt;MaybeAdding::Adding&gt;(shape-&gt;propid(), nogc);</span>
+<span class="lineNum">     203 </span>            :             MOZ_ASSERT(entry.isFree());
+<span class="lineNum">     204 </span>            :             entry.setShape(shape);
+<span class="lineNum">     205 </span>            :         }
+<span class="lineNum">     206 </span><span class="lineCov">          1 :         oldSize--;</span>
+<span class="lineNum">     207 </span>            :     }
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span>            :     MOZ_ASSERT(capacity() == newSize);
+<span class="lineNum">     210 </span>            : 
+<span class="lineNum">     211 </span>            :     /* Finally, free the old entries storage. */
+<span class="lineNum">     212 </span>            :     js_free(oldTable);
+<span class="lineNum">     213 </span><span class="lineCov">          1 :     return true;</span>
+<span class="lineNum">     214 </span>            : }
+<a name="215"><span class="lineNum">     215 </span>            : </a>
+<span class="lineNum">     216 </span>            : bool
+<span class="lineNum">     217 </span><span class="lineCov">          1 : ShapeTable::grow(JSContext* cx)</span>
+<span class="lineNum">     218 </span>            : {
+<span class="lineNum">     219 </span>            :     MOZ_ASSERT(needsToGrow());
+<span class="lineNum">     220 </span>            : 
+<span class="lineNum">     221 </span><span class="lineCov">          1 :     uint32_t size = capacity();</span>
+<span class="lineNum">     222 </span><span class="lineCov">          1 :     int delta = removedCount_ &lt; (size &gt;&gt; 2);</span>
+<span class="lineNum">     223 </span>            : 
+<span class="lineNum">     224 </span>            :     MOZ_ASSERT(entryCount_ + removedCount_ &lt;= size - 1);
+<span class="lineNum">     225 </span>            : 
+<span class="lineNum">     226 </span><span class="lineCov">          1 :     if (!change(cx, delta)) {</span>
+<span class="lineNum">     227 </span><span class="lineNoCov">          0 :         if (entryCount_ + removedCount_ == size - 1) {</span>
+<span class="lineNum">     228 </span><span class="lineNoCov">          0 :             ReportOutOfMemory(cx);</span>
+<span class="lineNum">     229 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     230 </span>            :         }
+<span class="lineNum">     231 </span>            :     }
+<span class="lineNum">     232 </span>            : 
+<span class="lineNum">     233 </span>            :     return true;
+<span class="lineNum">     234 </span>            : }
+<a name="235"><span class="lineNum">     235 </span>            : </a>
+<span class="lineNum">     236 </span>            : void
+<span class="lineNum">     237 </span><span class="lineCov">          1 : ShapeTable::trace(JSTracer* trc)</span>
+<span class="lineNum">     238 </span>            : {
+<span class="lineNum">     239 </span><span class="lineCov">          1 :     for (size_t i = 0; i &lt; capacity(); i++) {</span>
+<span class="lineNum">     240 </span><span class="lineCov">          1 :         Entry&amp; entry = getEntry(i);</span>
+<span class="lineNum">     241 </span><span class="lineCov">          1 :         Shape* shape = entry.shape();</span>
+<span class="lineNum">     242 </span><span class="lineCov">          1 :         if (shape) {</span>
+<span class="lineNum">     243 </span><span class="lineCov">          1 :             TraceManuallyBarrieredEdge(trc, &amp;shape, &quot;ShapeTable shape&quot;);</span>
+<span class="lineNum">     244 </span><span class="lineCov">          1 :             if (shape != entry.shape())</span>
+<span class="lineNum">     245 </span><span class="lineCov">          1 :                 entry.setPreservingCollision(shape);</span>
+<span class="lineNum">     246 </span>            :         }
+<span class="lineNum">     247 </span>            :     }
+<span class="lineNum">     248 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     249 </span>            : 
+<span class="lineNum">     250 </span>            : #ifdef JSGC_HASH_TABLE_CHECKS
+<span class="lineNum">     251 </span>            : 
+<span class="lineNum">     252 </span>            : void
+<span class="lineNum">     253 </span>            : ShapeTable::checkAfterMovingGC()
+<span class="lineNum">     254 </span>            : {
+<span class="lineNum">     255 </span>            :     for (size_t i = 0; i &lt; capacity(); i++) {
+<span class="lineNum">     256 </span>            :         Entry&amp; entry = getEntry(i);
+<span class="lineNum">     257 </span>            :         Shape* shape = entry.shape();
+<span class="lineNum">     258 </span>            :         if (shape)
+<span class="lineNum">     259 </span>            :             CheckGCThingAfterMovingGC(shape);
+<span class="lineNum">     260 </span>            :     }
+<span class="lineNum">     261 </span>            : }
+<span class="lineNum">     262 </span>            : 
+<span class="lineNum">     263 </span>            : #endif
+<a name="264"><span class="lineNum">     264 </span>            : </a>
+<span class="lineNum">     265 </span>            : /* static */ Shape*
+<span class="lineNum">     266 </span><span class="lineCov">          1 : Shape::replaceLastProperty(JSContext* cx, StackBaseShape&amp; base,</span>
+<span class="lineNum">     267 </span>            :                            TaggedProto proto, HandleShape shape)
+<span class="lineNum">     268 </span>            : {
+<span class="lineNum">     269 </span>            :     MOZ_ASSERT(!shape-&gt;inDictionary());
+<span class="lineNum">     270 </span>            : 
+<span class="lineNum">     271 </span><span class="lineCov">          1 :     if (!shape-&gt;parent) {</span>
+<span class="lineNum">     272 </span>            :         /* Treat as resetting the initial property of the shape hierarchy. */
+<span class="lineNum">     273 </span><span class="lineCov">          1 :         AllocKind kind = gc::GetGCObjectKind(shape-&gt;numFixedSlots());</span>
+<span class="lineNum">     274 </span>            :         return EmptyShape::getInitialShape(cx, base.clasp, proto, kind,
+<span class="lineNum">     275 </span><span class="lineCov">          1 :                                            base.flags &amp; BaseShape::OBJECT_FLAG_MASK);</span>
+<span class="lineNum">     276 </span>            :     }
+<span class="lineNum">     277 </span>            : 
+<span class="lineNum">     278 </span><span class="lineCov">          1 :     UnownedBaseShape* nbase = BaseShape::getUnowned(cx, base);</span>
+<span class="lineNum">     279 </span><span class="lineCov">          1 :     if (!nbase)</span>
+<span class="lineNum">     280 </span>            :         return nullptr;
+<span class="lineNum">     281 </span>            : 
+<span class="lineNum">     282 </span><span class="lineCov">          1 :     Rooted&lt;StackShape&gt; child(cx, StackShape(shape));</span>
+<span class="lineNum">     283 </span>            :     child.setBase(nbase);
+<span class="lineNum">     284 </span>            : 
+<span class="lineNum">     285 </span><span class="lineCov">          1 :     return cx-&gt;zone()-&gt;propertyTree().getChild(cx, shape-&gt;parent, child);</span>
+<span class="lineNum">     286 </span>            : }
+<span class="lineNum">     287 </span>            : 
+<span class="lineNum">     288 </span>            : /*
+<span class="lineNum">     289 </span>            :  * Get or create a property-tree or dictionary child property of |parent|,
+<span class="lineNum">     290 </span>            :  * which must be lastProperty() if inDictionaryMode(), else parent must be
+<span class="lineNum">     291 </span>            :  * one of lastProperty() or lastProperty()-&gt;parent.
+<a name="292"><span class="lineNum">     292 </span>            :  */</a>
+<span class="lineNum">     293 </span>            : /* static */ Shape*
+<span class="lineNum">     294 </span><span class="lineCov">          1 : NativeObject::getChildPropertyOnDictionary(JSContext* cx, HandleNativeObject obj,</span>
+<span class="lineNum">     295 </span>            :                                            HandleShape parent, MutableHandle&lt;StackShape&gt; child)
+<span class="lineNum">     296 </span>            : {
+<span class="lineNum">     297 </span>            :     /*
+<span class="lineNum">     298 </span>            :      * Shared properties have no slot, but slot_ will reflect that of parent.
+<span class="lineNum">     299 </span>            :      * Unshared properties allocate a slot here but may lose it due to a
+<span class="lineNum">     300 </span>            :      * JS_ClearScope call.
+<span class="lineNum">     301 </span>            :      */
+<span class="lineNum">     302 </span><span class="lineCov">          1 :     if (!child.hasSlot()) {</span>
+<span class="lineNum">     303 </span><span class="lineCov">          1 :         child.setSlot(parent-&gt;maybeSlot());</span>
+<span class="lineNum">     304 </span>            :     } else {
+<span class="lineNum">     305 </span><span class="lineCov">          1 :         if (child.hasMissingSlot()) {</span>
+<span class="lineNum">     306 </span>            :             uint32_t slot;
+<span class="lineNum">     307 </span><span class="lineCov">          1 :             if (!allocSlot(cx, obj, &amp;slot))</span>
+<span class="lineNum">     308 </span><span class="lineNoCov">          0 :                 return nullptr;</span>
+<span class="lineNum">     309 </span><span class="lineCov">          1 :             child.setSlot(slot);</span>
+<span class="lineNum">     310 </span>            :         } else {
+<span class="lineNum">     311 </span>            :             /*
+<span class="lineNum">     312 </span>            :              * Slots can only be allocated out of order on objects in
+<span class="lineNum">     313 </span>            :              * dictionary mode.  Otherwise the child's slot must be after the
+<span class="lineNum">     314 </span>            :              * parent's slot (if it has one), because slot number determines
+<span class="lineNum">     315 </span>            :              * slot span for objects with that shape.  Usually child slot
+<span class="lineNum">     316 </span>            :              * *immediately* follows parent slot, but there may be a slot gap
+<span class="lineNum">     317 </span>            :              * when the object uses some -- but not all -- of its reserved
+<span class="lineNum">     318 </span>            :              * slots to store properties.
+<span class="lineNum">     319 </span>            :              */
+<span class="lineNum">     320 </span>            :             MOZ_ASSERT(obj-&gt;inDictionaryMode() ||
+<span class="lineNum">     321 </span>            :                        parent-&gt;hasMissingSlot() ||
+<span class="lineNum">     322 </span>            :                        child.slot() == parent-&gt;maybeSlot() + 1 ||
+<span class="lineNum">     323 </span>            :                        (parent-&gt;maybeSlot() + 1 &lt; JSSLOT_FREE(obj-&gt;getClass()) &amp;&amp;
+<span class="lineNum">     324 </span>            :                         child.slot() == JSSLOT_FREE(obj-&gt;getClass())));
+<span class="lineNum">     325 </span>            :         }
+<span class="lineNum">     326 </span>            :     }
+<span class="lineNum">     327 </span>            : 
+<span class="lineNum">     328 </span>            :     RootedShape shape(cx);
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span><span class="lineCov">          1 :     if (obj-&gt;inDictionaryMode()) {</span>
+<span class="lineNum">     331 </span>            :         MOZ_ASSERT(parent == obj-&gt;lastProperty());
+<span class="lineNum">     332 </span><span class="lineCov">          1 :         shape = child.isAccessorShape() ? Allocate&lt;AccessorShape&gt;(cx) : Allocate&lt;Shape&gt;(cx);</span>
+<span class="lineNum">     333 </span><span class="lineCov">          1 :         if (!shape)</span>
+<span class="lineNum">     334 </span>            :             return nullptr;
+<span class="lineNum">     335 </span><span class="lineCov">          1 :         if (child.hasSlot() &amp;&amp; child.slot() &gt;= obj-&gt;lastProperty()-&gt;base()-&gt;slotSpan()) {</span>
+<span class="lineNum">     336 </span><span class="lineNoCov">          0 :             if (!obj-&gt;setSlotSpan(cx, child.slot() + 1)) {</span>
+<span class="lineNum">     337 </span><span class="lineNoCov">          0 :                 new (shape) Shape(obj-&gt;lastProperty()-&gt;base()-&gt;unowned(), 0);</span>
+<span class="lineNum">     338 </span>            :                 return nullptr;
+<span class="lineNum">     339 </span>            :             }
+<span class="lineNum">     340 </span>            :         }
+<span class="lineNum">     341 </span><span class="lineCov">          1 :         shape-&gt;initDictionaryShape(child, obj-&gt;numFixedSlots(), &amp;obj-&gt;shape_);</span>
+<span class="lineNum">     342 </span>            :     }
+<span class="lineNum">     343 </span>            : 
+<span class="lineNum">     344 </span><span class="lineCov">          1 :     return shape;</span>
+<span class="lineNum">     345 </span>            : }
+<a name="346"><span class="lineNum">     346 </span>            : </a>
+<span class="lineNum">     347 </span>            : /* static */ Shape*
+<span class="lineNum">     348 </span><span class="lineCov">          1 : NativeObject::getChildProperty(JSContext* cx,</span>
+<span class="lineNum">     349 </span>            :                                HandleNativeObject obj, HandleShape parent,
+<span class="lineNum">     350 </span>            :                                MutableHandle&lt;StackShape&gt; child)
+<span class="lineNum">     351 </span>            : {
+<span class="lineNum">     352 </span><span class="lineCov">          1 :     Shape* shape = getChildPropertyOnDictionary(cx, obj, parent, child);</span>
+<span class="lineNum">     353 </span>            : 
+<span class="lineNum">     354 </span><span class="lineCov">          1 :     if (!obj-&gt;inDictionaryMode()) {</span>
+<span class="lineNum">     355 </span><span class="lineCov">          1 :         shape = cx-&gt;zone()-&gt;propertyTree().getChild(cx, parent, child);</span>
+<span class="lineNum">     356 </span><span class="lineCov">          1 :         if (!shape)</span>
+<span class="lineNum">     357 </span>            :             return nullptr;
+<span class="lineNum">     358 </span>            :         //MOZ_ASSERT(shape-&gt;parent == parent);
+<span class="lineNum">     359 </span>            :         //MOZ_ASSERT_IF(parent != lastProperty(), parent == lastProperty()-&gt;parent);
+<span class="lineNum">     360 </span><span class="lineCov">          1 :         if (!obj-&gt;setLastProperty(cx, shape))</span>
+<span class="lineNum">     361 </span>            :             return nullptr;
+<span class="lineNum">     362 </span>            :     }
+<span class="lineNum">     363 </span>            : 
+<span class="lineNum">     364 </span><span class="lineCov">          1 :     return shape;</span>
+<span class="lineNum">     365 </span>            : }
+<a name="366"><span class="lineNum">     366 </span>            : </a>
+<span class="lineNum">     367 </span>            : /* static */ bool
+<span class="lineNum">     368 </span><span class="lineCov">          1 : js::NativeObject::toDictionaryMode(JSContext* cx, HandleNativeObject obj)</span>
+<span class="lineNum">     369 </span>            : {
+<span class="lineNum">     370 </span>            :     MOZ_ASSERT(!obj-&gt;inDictionaryMode());
+<span class="lineNum">     371 </span>            :     MOZ_ASSERT(cx-&gt;isInsideCurrentCompartment(obj));
+<span class="lineNum">     372 </span>            : 
+<span class="lineNum">     373 </span><span class="lineCov">          1 :     uint32_t span = obj-&gt;slotSpan();</span>
+<span class="lineNum">     374 </span>            : 
+<span class="lineNum">     375 </span>            :     // Clone the shapes into a new dictionary list. Don't update the last
+<span class="lineNum">     376 </span>            :     // property of this object until done, otherwise a GC triggered while
+<span class="lineNum">     377 </span>            :     // creating the dictionary will get the wrong slot span for this object.
+<span class="lineNum">     378 </span>            :     RootedShape root(cx);
+<span class="lineNum">     379 </span>            :     RootedShape dictionaryShape(cx);
+<span class="lineNum">     380 </span>            : 
+<span class="lineNum">     381 </span><span class="lineCov">          1 :     RootedShape shape(cx, obj-&gt;lastProperty());</span>
+<span class="lineNum">     382 </span><span class="lineCov">          1 :     while (shape) {</span>
+<span class="lineNum">     383 </span>            :         MOZ_ASSERT(!shape-&gt;inDictionary());
+<span class="lineNum">     384 </span>            : 
+<span class="lineNum">     385 </span><span class="lineCov">          1 :         Shape* dprop = shape-&gt;isAccessorShape() ? Allocate&lt;AccessorShape&gt;(cx) : Allocate&lt;Shape&gt;(cx);</span>
+<span class="lineNum">     386 </span><span class="lineCov">          1 :         if (!dprop) {</span>
+<span class="lineNum">     387 </span><span class="lineNoCov">          0 :             ReportOutOfMemory(cx);</span>
+<span class="lineNum">     388 </span><span class="lineNoCov">          0 :             return false;</span>
+<span class="lineNum">     389 </span>            :         }
+<span class="lineNum">     390 </span>            : 
+<span class="lineNum">     391 </span><span class="lineCov">          1 :         GCPtrShape* listp = dictionaryShape ? &amp;dictionaryShape-&gt;parent : nullptr;</span>
+<span class="lineNum">     392 </span><span class="lineCov">          1 :         StackShape child(shape);</span>
+<span class="lineNum">     393 </span><span class="lineCov">          1 :         dprop-&gt;initDictionaryShape(child, obj-&gt;numFixedSlots(), listp);</span>
+<span class="lineNum">     394 </span>            : 
+<span class="lineNum">     395 </span><span class="lineCov">          1 :         if (!dictionaryShape)</span>
+<span class="lineNum">     396 </span><span class="lineCov">          1 :             root = dprop;</span>
+<span class="lineNum">     397 </span>            : 
+<span class="lineNum">     398 </span>            :         MOZ_ASSERT(!dprop-&gt;hasTable());
+<span class="lineNum">     399 </span><span class="lineCov">          1 :         dictionaryShape = dprop;</span>
+<span class="lineNum">     400 </span><span class="lineCov">          1 :         shape = shape-&gt;previous();</span>
+<span class="lineNum">     401 </span>            :     }
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span><span class="lineCov">          1 :     if (!Shape::hashify(cx, root)) {</span>
+<span class="lineNum">     404 </span><span class="lineNoCov">          0 :         ReportOutOfMemory(cx);</span>
+<span class="lineNum">     405 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     406 </span>            :     }
+<span class="lineNum">     407 </span>            : 
+<span class="lineNum">     408 </span><span class="lineCov">          1 :     if (IsInsideNursery(obj) &amp;&amp;</span>
+<span class="lineNum">     409 </span><span class="lineCov">          1 :         !cx-&gt;nursery().queueDictionaryModeObjectToSweep(obj))</span>
+<span class="lineNum">     410 </span>            :     {
+<span class="lineNum">     411 </span><span class="lineNoCov">          0 :         ReportOutOfMemory(cx);</span>
+<span class="lineNum">     412 </span><span class="lineNoCov">          0 :         return false;</span>
+<span class="lineNum">     413 </span>            :     }
+<span class="lineNum">     414 </span>            : 
+<span class="lineNum">     415 </span>            :     MOZ_ASSERT(root-&gt;listp == nullptr);
+<span class="lineNum">     416 </span><span class="lineCov">          1 :     root-&gt;listp = &amp;obj-&gt;shape_;</span>
+<span class="lineNum">     417 </span><span class="lineCov">          1 :     obj-&gt;shape_ = root;</span>
+<span class="lineNum">     418 </span>            : 
+<span class="lineNum">     419 </span>            :     MOZ_ASSERT(obj-&gt;inDictionaryMode());
+<span class="lineNum">     420 </span><span class="lineCov">          1 :     root-&gt;base()-&gt;setSlotSpan(span);</span>
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span><span class="lineCov">          1 :     return true;</span>
+<span class="lineNum">     423 </span>            : }
+<a name="424"><span class="lineNum">     424 </span>            : </a>
+<span class="lineNum">     425 </span>            : /* static */ Shape*
+<span class="lineNum">     426 </span><span class="lineCov">          1 : NativeObject::addProperty(JSContext* cx, HandleNativeObject obj, HandleId id,</span>
+<span class="lineNum">     427 </span>            :                           GetterOp getter, SetterOp setter, uint32_t slot, unsigned attrs,
+<span class="lineNum">     428 </span>            :                           unsigned flags, bool allowDictionary)
+<span class="lineNum">     429 </span>            : {
+<span class="lineNum">     430 </span>            :     MOZ_ASSERT(!JSID_IS_VOID(id));
+<span class="lineNum">     431 </span>            :     MOZ_ASSERT(getter != JS_PropertyStub);
+<span class="lineNum">     432 </span>            :     MOZ_ASSERT(setter != JS_StrictPropertyStub);
+<span class="lineNum">     433 </span>            : 
+<span class="lineNum">     434 </span>            :     bool extensible;
+<span class="lineNum">     435 </span><span class="lineCov">          1 :     if (!IsExtensible(cx, obj, &amp;extensible))</span>
+<span class="lineNum">     436 </span>            :         return nullptr;
+<span class="lineNum">     437 </span><span class="lineCov">          1 :     if (!extensible) {</span>
+<span class="lineNum">     438 </span><span class="lineNoCov">          0 :         if (!cx-&gt;helperThread())</span>
+<span class="lineNum">     439 </span><span class="lineNoCov">          0 :             JSObject::reportNotExtensible(cx, obj);</span>
+<span class="lineNum">     440 </span>            :         return nullptr;
+<span class="lineNum">     441 </span>            :     }
+<span class="lineNum">     442 </span>            : 
+<span class="lineNum">     443 </span>            :     AutoKeepShapeTables keep(cx);
+<span class="lineNum">     444 </span><span class="lineCov">          1 :     ShapeTable::Entry* entry = nullptr;</span>
+<span class="lineNum">     445 </span><span class="lineCov">          1 :     if (obj-&gt;inDictionaryMode()) {</span>
+<span class="lineNum">     446 </span><span class="lineNoCov">          0 :         ShapeTable* table = obj-&gt;lastProperty()-&gt;ensureTableForDictionary(cx, keep);</span>
+<span class="lineNum">     447 </span><span class="lineNoCov">          0 :         if (!table)</span>
+<span class="lineNum">     448 </span>            :             return nullptr;
+<span class="lineNum">     449 </span><span class="lineNoCov">          0 :         entry = &amp;table-&gt;search&lt;MaybeAdding::Adding&gt;(id, keep);</span>
+<span class="lineNum">     450 </span>            :     }
+<span class="lineNum">     451 </span>            : 
+<span class="lineNum">     452 </span>            :     return addPropertyInternal(cx, obj, id, getter, setter, slot, attrs, flags, entry,
+<span class="lineNum">     453 </span><span class="lineCov">          1 :                                allowDictionary, keep);</span>
+<span class="lineNum">     454 </span>            : }
+<a name="455"><span class="lineNum">     455 </span>            : </a>
+<span class="lineNum">     456 </span>            : static bool
+<span class="lineNum">     457 </span><span class="lineCov">          1 : ShouldConvertToDictionary(NativeObject* obj)</span>
+<span class="lineNum">     458 </span>            : {
+<span class="lineNum">     459 </span>            :     /*
+<span class="lineNum">     460 </span>            :      * Use a lower limit if this object is likely a hashmap (SETELEM was used
+<span class="lineNum">     461 </span>            :      * to set properties).
+<span class="lineNum">     462 </span>            :      */
+<span class="lineNum">     463 </span><span class="lineCov">          1 :     if (obj-&gt;hadElementsAccess())</span>
+<span class="lineNum">     464 </span><span class="lineCov">          1 :         return obj-&gt;lastProperty()-&gt;entryCount() &gt;= PropertyTree::MAX_HEIGHT_WITH_ELEMENTS_ACCESS;</span>
+<span class="lineNum">     465 </span><span class="lineCov">          1 :     return obj-&gt;lastProperty()-&gt;entryCount() &gt;= PropertyTree::MAX_HEIGHT;</span>
+<span class="lineNum">     466 </span>            : }
+<a name="467"><span class="lineNum">     467 </span>            : </a>
+<span class="lineNum">     468 </span>            : /* static */ Shape*
+<span class="lineNum">     469 </span><span class="lineCov">          1 : NativeObject::addPropertyInternal(JSContext* cx,</span>
+<span class="lineNum">     470 </span>            :                                   HandleNativeObject obj, HandleId id,
+<span class="lineNum">     471 </span>            :                                   GetterOp getter, SetterOp setter,
+<span class="lineNum">     472 </span>            :                                   uint32_t slot, unsigned attrs,
+<span class="lineNum">     473 </span>            :                                   unsigned flags, ShapeTable::Entry* entry,
+<span class="lineNum">     474 </span>            :                                   bool allowDictionary, const AutoKeepShapeTables&amp; keep)
+<span class="lineNum">     475 </span>            : {
+<span class="lineNum">     476 </span>            :     MOZ_ASSERT_IF(!allowDictionary, !obj-&gt;inDictionaryMode());
+<span class="lineNum">     477 </span>            :     MOZ_ASSERT(getter != JS_PropertyStub);
+<span class="lineNum">     478 </span>            :     MOZ_ASSERT(setter != JS_StrictPropertyStub);
+<span class="lineNum">     479 </span>            : 
+<span class="lineNum">     480 </span><span class="lineCov">          1 :     AutoRooterGetterSetter gsRoot(cx, attrs, &amp;getter, &amp;setter);</span>
+<span class="lineNum">     481 </span>            : 
+<span class="lineNum">     482 </span>            :     /*
+<span class="lineNum">     483 </span>            :      * The code below deals with either converting obj to dictionary mode or
+<span class="lineNum">     484 </span>            :      * growing an object that's already in dictionary mode. Either way,
+<span class="lineNum">     485 </span>            :      * dictionray operations are safe if thread local.
+<span class="lineNum">     486 </span>            :      */
+<span class="lineNum">     487 </span><span class="lineCov">          1 :     ShapeTable* table = nullptr;</span>
+<span class="lineNum">     488 </span><span class="lineCov">          1 :     if (!obj-&gt;inDictionaryMode()) {</span>
+<span class="lineNum">     489 </span>            :         bool stableSlot =
+<span class="lineNum">     490 </span><span class="lineCov">          1 :             (slot == SHAPE_INVALID_SLOT) ||</span>
+<span class="lineNum">     491 </span><span class="lineCov">          1 :             obj-&gt;lastProperty()-&gt;hasMissingSlot() ||</span>
+<span class="lineNum">     492 </span><span class="lineCov">          1 :             (slot == obj-&gt;lastProperty()-&gt;maybeSlot() + 1);</span>
+<span class="lineNum">     493 </span>            :         MOZ_ASSERT_IF(!allowDictionary, stableSlot);
+<span class="lineNum">     494 </span><span class="lineCov">          1 :         if (allowDictionary &amp;&amp;</span>
+<span class="lineNum">     495 </span><span class="lineCov">          1 :             (!stableSlot || ShouldConvertToDictionary(obj)))</span>
+<span class="lineNum">     496 </span>            :         {
+<span class="lineNum">     497 </span><span class="lineCov">          1 :             if (!toDictionaryMode(cx, obj))</span>
+<span class="lineNum">     498 </span>            :                 return nullptr;
+<span class="lineNum">     499 </span><span class="lineCov">          1 :             table = obj-&gt;lastProperty()-&gt;maybeTable(keep);</span>
+<span class="lineNum">     500 </span><span class="lineCov">          1 :             entry = &amp;table-&gt;search&lt;MaybeAdding::Adding&gt;(id, keep);</span>
+<span class="lineNum">     501 </span>            :         }
+<span class="lineNum">     502 </span>            :     } else {
+<span class="lineNum">     503 </span><span class="lineCov">          1 :         table = obj-&gt;lastProperty()-&gt;ensureTableForDictionary(cx, keep);</span>
+<span class="lineNum">     504 </span><span class="lineCov">          1 :         if (!table)</span>
+<span class="lineNum">     505 </span>            :             return nullptr;
+<span class="lineNum">     506 </span><span class="lineCov">          1 :         if (table-&gt;needsToGrow()) {</span>
+<span class="lineNum">     507 </span><span class="lineCov">          1 :             if (!table-&gt;grow(cx))</span>
+<span class="lineNum">     508 </span>            :                 return nullptr;
+<span class="lineNum">     509 </span><span class="lineCov">          1 :             entry = &amp;table-&gt;search&lt;MaybeAdding::Adding&gt;(id, keep);</span>
+<span class="lineNum">     510 </span>            :             MOZ_ASSERT(!entry-&gt;shape());
+<span class="lineNum">     511 </span>            :         }
+<span class="lineNum">     512 </span>            :     }
+<span class="lineNum">     513 </span>            : 
+<span class="lineNum">     514 </span>            :     MOZ_ASSERT(!!table == !!entry);
+<span class="lineNum">     515 </span>            : 
+<span class="lineNum">     516 </span>            :     /* Find or create a property tree node labeled by our arguments. */
+<span class="lineNum">     517 </span>            :     RootedShape shape(cx);
+<span class="lineNum">     518 </span>            :     {
+<span class="lineNum">     519 </span><span class="lineCov">          1 :         RootedShape last(cx, obj-&gt;lastProperty());</span>
+<span class="lineNum">     520 </span>            : 
+<span class="lineNum">     521 </span>            :         uint32_t index;
+<span class="lineNum">     522 </span><span class="lineCov">          1 :         bool indexed = IdIsIndex(id, &amp;index);</span>
+<span class="lineNum">     523 </span>            : 
+<span class="lineNum">     524 </span>            :         Rooted&lt;UnownedBaseShape*&gt; nbase(cx);
+<span class="lineNum">     525 </span><span class="lineCov">          1 :         if (!indexed) {</span>
+<span class="lineNum">     526 </span><span class="lineCov">          1 :             nbase = last-&gt;base()-&gt;unowned();</span>
+<span class="lineNum">     527 </span>            :         } else {
+<span class="lineNum">     528 </span><span class="lineCov">          1 :             StackBaseShape base(last-&gt;base());</span>
+<span class="lineNum">     529 </span><span class="lineCov">          1 :             base.flags |= BaseShape::INDEXED;</span>
+<span class="lineNum">     530 </span><span class="lineCov">          1 :             nbase = BaseShape::getUnowned(cx, base);</span>
+<span class="lineNum">     531 </span><span class="lineCov">          1 :             if (!nbase)</span>
+<span class="lineNum">     532 </span><span class="lineCov">          1 :                 return nullptr;</span>
+<span class="lineNum">     533 </span>            :         }
+<span class="lineNum">     534 </span>            : 
+<span class="lineNum">     535 </span><span class="lineCov">          1 :         Rooted&lt;StackShape&gt; child(cx, StackShape(nbase, id, slot, attrs, flags));</span>
+<span class="lineNum">     536 </span><span class="lineCov">          1 :         child.updateGetterSetter(getter, setter);</span>
+<span class="lineNum">     537 </span><span class="lineCov">          1 :         shape = getChildProperty(cx, obj, last, &amp;child);</span>
+<span class="lineNum">     538 </span>            :     }
+<span class="lineNum">     539 </span>            : 
+<span class="lineNum">     540 </span><span class="lineCov">          1 :     if (shape) {</span>
+<span class="lineNum">     541 </span>            :         MOZ_ASSERT(shape == obj-&gt;lastProperty());
+<span class="lineNum">     542 </span>            : 
+<span class="lineNum">     543 </span><span class="lineCov">          1 :         if (table) {</span>
+<span class="lineNum">     544 </span>            :             /* Store the tree node pointer in the table entry for id. */
+<span class="lineNum">     545 </span><span class="lineCov">          1 :             entry-&gt;setPreservingCollision(shape);</span>
+<span class="lineNum">     546 </span><span class="lineCov">          1 :             table-&gt;incEntryCount();</span>
+<span class="lineNum">     547 </span>            : 
+<span class="lineNum">     548 </span>            :             /* Pass the table along to the new last property, namely shape. */
+<span class="lineNum">     549 </span>            :             MOZ_ASSERT(shape-&gt;parent-&gt;maybeTable(keep) == table);
+<span class="lineNum">     550 </span><span class="lineCov">          1 :             shape-&gt;parent-&gt;handoffTableTo(shape);</span>
+<span class="lineNum">     551 </span>            :         }
+<span class="lineNum">     552 </span>            : 
+<span class="lineNum">     553 </span><span class="lineCov">          1 :         obj-&gt;checkShapeConsistency();</span>
+<span class="lineNum">     554 </span><span class="lineCov">          1 :         return shape;</span>
+<span class="lineNum">     555 </span>            :     }
+<span class="lineNum">     556 </span>            : 
+<span class="lineNum">     557 </span>            :     obj-&gt;checkShapeConsistency();
+<span class="lineNum">     558 </span>            :     return nullptr;
+<span class="lineNum">     559 </span>            : }
+<a name="560"><span class="lineNum">     560 </span>            : </a>
+<span class="lineNum">     561 </span>            : Shape*
+<span class="lineNum">     562 </span><span class="lineCov">          1 : js::ReshapeForAllocKind(JSContext* cx, Shape* shape, TaggedProto proto,</span>
+<span class="lineNum">     563 </span>            :                                  gc::AllocKind allocKind)
+<span class="lineNum">     564 </span>            : {
+<span class="lineNum">     565 </span>            :     // Compute the number of fixed slots with the new allocation kind.
+<span class="lineNum">     566 </span><span class="lineCov">          1 :     size_t nfixed = gc::GetGCKindSlots(allocKind, shape-&gt;getObjectClass());</span>
+<span class="lineNum">     567 </span>            : 
+<span class="lineNum">     568 </span>            :     // Get all the ids in the shape, in order.
+<span class="lineNum">     569 </span><span class="lineCov">          1 :     js::AutoIdVector ids(cx);</span>
+<span class="lineNum">     570 </span>            :     {
+<span class="lineNum">     571 </span><span class="lineCov">          1 :         for (unsigned i = 0; i &lt; shape-&gt;slotSpan(); i++) {</span>
+<span class="lineNum">     572 </span><span class="lineCov">          1 :             if (!ids.append(JSID_VOID))</span>
+<span class="lineNum">     573 </span>            :                 return nullptr;
+<span class="lineNum">     574 </span>            :         }
+<span class="lineNum">     575 </span>            :         Shape* nshape = shape;
+<span class="lineNum">     576 </span><span class="lineCov">          1 :         while (!nshape-&gt;isEmptyShape()) {</span>
+<span class="lineNum">     577 </span><span class="lineCov">          1 :             ids[nshape-&gt;slot()].set(nshape-&gt;propid());</span>
+<span class="lineNum">     578 </span><span class="lineCov">          1 :             nshape = nshape-&gt;previous();</span>
+<span class="lineNum">     579 </span>            :         }
+<span class="lineNum">     580 </span>            :     }
+<span class="lineNum">     581 </span>            : 
+<span class="lineNum">     582 </span>            :     // Construct the new shape, without updating type information.
+<span class="lineNum">     583 </span>            :     RootedId id(cx);
+<span class="lineNum">     584 </span>            :     RootedShape newShape(cx, EmptyShape::getInitialShape(cx, shape-&gt;getObjectClass(),
+<span class="lineNum">     585 </span><span class="lineCov">          1 :                                                          proto, nfixed, shape-&gt;getObjectFlags()));</span>
+<span class="lineNum">     586 </span><span class="lineCov">          1 :     if (!newShape)</span>
+<span class="lineNum">     587 </span>            :         return nullptr;
+<span class="lineNum">     588 </span>            : 
+<span class="lineNum">     589 </span><span class="lineCov">          1 :     for (unsigned i = 0; i &lt; ids.length(); i++) {</span>
+<span class="lineNum">     590 </span><span class="lineCov">          1 :         id = ids[i];</span>
+<span class="lineNum">     591 </span>            : 
+<span class="lineNum">     592 </span>            :         uint32_t index;
+<span class="lineNum">     593 </span><span class="lineCov">          1 :         bool indexed = IdIsIndex(id, &amp;index);</span>
+<span class="lineNum">     594 </span>            : 
+<span class="lineNum">     595 </span><span class="lineCov">          1 :         Rooted&lt;UnownedBaseShape*&gt; nbase(cx, newShape-&gt;base()-&gt;unowned());</span>
+<span class="lineNum">     596 </span><span class="lineCov">          1 :         if (indexed) {</span>
+<span class="lineNum">     597 </span><span class="lineNoCov">          0 :             StackBaseShape base(nbase);</span>
+<span class="lineNum">     598 </span><span class="lineNoCov">          0 :             base.flags |= BaseShape::INDEXED;</span>
+<span class="lineNum">     599 </span><span class="lineNoCov">          0 :             nbase = BaseShape::getUnowned(cx, base);</span>
+<span class="lineNum">     600 </span><span class="lineNoCov">          0 :             if (!nbase)</span>
+<span class="lineNum">     601 </span><span class="lineNoCov">          0 :                 return nullptr;</span>
+<span class="lineNum">     602 </span>            :         }
+<span class="lineNum">     603 </span>            : 
+<span class="lineNum">     604 </span><span class="lineCov">          1 :         Rooted&lt;StackShape&gt; child(cx, StackShape(nbase, id, i, JSPROP_ENUMERATE, 0));</span>
+<span class="lineNum">     605 </span><span class="lineCov">          1 :         newShape = cx-&gt;zone()-&gt;propertyTree().getChild(cx, newShape, child);</span>
+<span class="lineNum">     606 </span><span class="lineCov">          1 :         if (!newShape)</span>
+<span class="lineNum">     607 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     608 </span>            :     }
+<span class="lineNum">     609 </span>            : 
+<span class="lineNum">     610 </span><span class="lineCov">          1 :     return newShape;</span>
+<span class="lineNum">     611 </span>            : }
+<span class="lineNum">     612 </span>            : 
+<span class="lineNum">     613 </span>            : /*
+<span class="lineNum">     614 </span>            :  * Check and adjust the new attributes for the shape to make sure that our
+<span class="lineNum">     615 </span>            :  * slot access optimizations are sound. It is responsibility of the callers to
+<span class="lineNum">     616 </span>            :  * enforce all restrictions from ECMA-262 v5 8.12.9 [[DefineOwnProperty]].
+<a name="617"><span class="lineNum">     617 </span>            :  */</a>
+<span class="lineNum">     618 </span>            : static inline bool
+<span class="lineNum">     619 </span><span class="lineCov">          1 : CheckCanChangeAttrs(JSContext* cx, JSObject* obj, Shape* shape, unsigned* attrsp)</span>
+<span class="lineNum">     620 </span>            : {
+<span class="lineNum">     621 </span><span class="lineCov">          1 :     if (shape-&gt;configurable())</span>
+<span class="lineNum">     622 </span>            :         return true;
+<span class="lineNum">     623 </span>            : 
+<span class="lineNum">     624 </span>            :     /* A permanent property must stay permanent. */
+<span class="lineNum">     625 </span><span class="lineCov">          1 :     *attrsp |= JSPROP_PERMANENT;</span>
+<span class="lineNum">     626 </span>            : 
+<span class="lineNum">     627 </span>            :     /* Reject attempts to remove a slot from the permanent data property. */
+<span class="lineNum">     628 </span><span class="lineCov">          1 :     if (shape-&gt;isDataDescriptor() &amp;&amp; shape-&gt;hasSlot() &amp;&amp;</span>
+<span class="lineNum">     629 </span><span class="lineCov">          1 :         (*attrsp &amp; (JSPROP_GETTER | JSPROP_SETTER | JSPROP_SHARED)))</span>
+<span class="lineNum">     630 </span>            :     {
+<span class="lineNum">     631 </span><span class="lineNoCov">          0 :         if (!cx-&gt;helperThread())</span>
+<span class="lineNum">     632 </span><span class="lineNoCov">          0 :             JSObject::reportNotConfigurable(cx, shape-&gt;propid());</span>
+<span class="lineNum">     633 </span>            :         return false;
+<span class="lineNum">     634 </span>            :     }
+<span class="lineNum">     635 </span>            : 
+<span class="lineNum">     636 </span>            :     return true;
+<span class="lineNum">     637 </span>            : }
+<a name="638"><span class="lineNum">     638 </span>            : </a>
+<span class="lineNum">     639 </span>            : /* static */ Shape*
+<span class="lineNum">     640 </span><span class="lineCov">          1 : NativeObject::putProperty(JSContext* cx, HandleNativeObject obj, HandleId id,</span>
+<span class="lineNum">     641 </span>            :                           GetterOp getter, SetterOp setter, uint32_t slot, unsigned attrs,
+<span class="lineNum">     642 </span>            :                           unsigned flags)
+<span class="lineNum">     643 </span>            : {
+<span class="lineNum">     644 </span>            :     MOZ_ASSERT(!JSID_IS_VOID(id));
+<span class="lineNum">     645 </span>            :     MOZ_ASSERT(getter != JS_PropertyStub);
+<span class="lineNum">     646 </span>            :     MOZ_ASSERT(setter != JS_StrictPropertyStub);
+<span class="lineNum">     647 </span>            : 
+<span class="lineNum">     648 </span>            : #ifdef DEBUG
+<span class="lineNum">     649 </span>            :     if (obj-&gt;is&lt;ArrayObject&gt;()) {
+<span class="lineNum">     650 </span>            :         ArrayObject* arr = &amp;obj-&gt;as&lt;ArrayObject&gt;();
+<span class="lineNum">     651 </span>            :         uint32_t index;
+<span class="lineNum">     652 </span>            :         if (IdIsIndex(id, &amp;index))
+<span class="lineNum">     653 </span>            :             MOZ_ASSERT(index &lt; arr-&gt;length() || arr-&gt;lengthIsWritable());
+<span class="lineNum">     654 </span>            :     }
+<span class="lineNum">     655 </span>            : #endif
+<span class="lineNum">     656 </span>            : 
+<span class="lineNum">     657 </span><span class="lineCov">          1 :     AutoRooterGetterSetter gsRoot(cx, attrs, &amp;getter, &amp;setter);</span>
+<span class="lineNum">     658 </span>            : 
+<span class="lineNum">     659 </span>            :     /*
+<span class="lineNum">     660 </span>            :      * Search for id in order to claim its entry if table has been allocated.
+<span class="lineNum">     661 </span>            :      *
+<span class="lineNum">     662 </span>            :      * Note that we can only try to claim an entry in a table that is thread
+<span class="lineNum">     663 </span>            :      * local. An object may be thread local *without* its shape being thread
+<span class="lineNum">     664 </span>            :      * local. The only thread local objects that *also* have thread local
+<span class="lineNum">     665 </span>            :      * shapes are dictionaries that were allocated/converted thread
+<span class="lineNum">     666 </span>            :      * locally. Only for those objects we can try to claim an entry in its
+<span class="lineNum">     667 </span>            :      * shape table.
+<span class="lineNum">     668 </span>            :      */
+<span class="lineNum">     669 </span><span class="lineCov">          1 :     AutoKeepShapeTables keep(cx);</span>
+<span class="lineNum">     670 </span>            :     ShapeTable::Entry* entry;
+<span class="lineNum">     671 </span>            :     RootedShape shape(cx);
+<span class="lineNum">     672 </span><span class="lineCov">          1 :     if (!Shape::search&lt;MaybeAdding::Adding&gt;(cx, obj-&gt;lastProperty(), id, keep,</span>
+<span class="lineNum">     673 </span><span class="lineCov">          1 :                                             shape.address(), &amp;entry))</span>
+<span class="lineNum">     674 </span>            :     {
+<span class="lineNum">     675 </span>            :         return nullptr;
+<span class="lineNum">     676 </span>            :     }
+<span class="lineNum">     677 </span>            : 
+<span class="lineNum">     678 </span><span class="lineCov">          1 :     if (!shape) {</span>
+<span class="lineNum">     679 </span>            :         /*
+<span class="lineNum">     680 </span>            :          * You can't add properties to a non-extensible object, but you can change
+<span class="lineNum">     681 </span>            :          * attributes of properties in such objects.
+<span class="lineNum">     682 </span>            :          */
+<span class="lineNum">     683 </span>            :         bool extensible;
+<span class="lineNum">     684 </span>            : 
+<span class="lineNum">     685 </span><span class="lineCov">          1 :         if (!IsExtensible(cx, obj, &amp;extensible))</span>
+<span class="lineNum">     686 </span>            :             return nullptr;
+<span class="lineNum">     687 </span>            : 
+<span class="lineNum">     688 </span><span class="lineCov">          1 :         if (!extensible) {</span>
+<span class="lineNum">     689 </span><span class="lineNoCov">          0 :             if (!cx-&gt;helperThread())</span>
+<span class="lineNum">     690 </span><span class="lineNoCov">          0 :                 JSObject::reportNotExtensible(cx, obj);</span>
+<span class="lineNum">     691 </span>            :             return nullptr;
+<span class="lineNum">     692 </span>            :         }
+<span class="lineNum">     693 </span>            : 
+<span class="lineNum">     694 </span>            :         return addPropertyInternal(cx, obj, id, getter, setter, slot, attrs, flags,
+<span class="lineNum">     695 </span><span class="lineCov">          1 :                                    entry, true, keep);</span>
+<span class="lineNum">     696 </span>            :     }
+<span class="lineNum">     697 </span>            : 
+<span class="lineNum">     698 </span>            :     /* Property exists: search must have returned a valid entry. */
+<span class="lineNum">     699 </span>            :     MOZ_ASSERT_IF(entry, !entry-&gt;isRemoved());
+<span class="lineNum">     700 </span>            : 
+<span class="lineNum">     701 </span><span class="lineCov">          1 :     if (!CheckCanChangeAttrs(cx, obj, shape, &amp;attrs))</span>
+<span class="lineNum">     702 </span>            :         return nullptr;
+<span class="lineNum">     703 </span>            : 
+<span class="lineNum">     704 </span>            :     /*
+<span class="lineNum">     705 </span>            :      * If the caller wants to allocate a slot, but doesn't care which slot,
+<span class="lineNum">     706 </span>            :      * copy the existing shape's slot into slot so we can match shape, if all
+<span class="lineNum">     707 </span>            :      * other members match.
+<span class="lineNum">     708 </span>            :      */
+<span class="lineNum">     709 </span><span class="lineCov">          1 :     bool hadSlot = shape-&gt;hasSlot();</span>
+<span class="lineNum">     710 </span><span class="lineCov">          1 :     uint32_t oldSlot = shape-&gt;maybeSlot();</span>
+<span class="lineNum">     711 </span><span class="lineCov">          1 :     if (!(attrs &amp; JSPROP_SHARED) &amp;&amp; slot == SHAPE_INVALID_SLOT &amp;&amp; hadSlot)</span>
+<span class="lineNum">     712 </span><span class="lineCov">          1 :         slot = oldSlot;</span>
+<span class="lineNum">     713 </span>            : 
+<span class="lineNum">     714 </span>            :     Rooted&lt;UnownedBaseShape*&gt; nbase(cx);
+<span class="lineNum">     715 </span>            :     {
+<span class="lineNum">     716 </span>            :         uint32_t index;
+<span class="lineNum">     717 </span><span class="lineCov">          1 :         bool indexed = IdIsIndex(id, &amp;index);</span>
+<span class="lineNum">     718 </span><span class="lineCov">          1 :         StackBaseShape base(obj-&gt;lastProperty()-&gt;base());</span>
+<span class="lineNum">     719 </span><span class="lineCov">          1 :         if (indexed)</span>
+<span class="lineNum">     720 </span><span class="lineNoCov">          0 :             base.flags |= BaseShape::INDEXED;</span>
+<span class="lineNum">     721 </span><span class="lineCov">          1 :         nbase = BaseShape::getUnowned(cx, base);</span>
+<span class="lineNum">     722 </span><span class="lineCov">          1 :         if (!nbase)</span>
+<span class="lineNum">     723 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     724 </span>            :     }
+<span class="lineNum">     725 </span>            : 
+<span class="lineNum">     726 </span>            :     /*
+<span class="lineNum">     727 </span>            :      * Now that we've possibly preserved slot, check whether all members match.
+<span class="lineNum">     728 </span>            :      * If so, this is a redundant &quot;put&quot; and we can return without more work.
+<span class="lineNum">     729 </span>            :      */
+<span class="lineNum">     730 </span><span class="lineCov">          1 :     if (shape-&gt;matchesParamsAfterId(nbase, slot, attrs, flags, getter, setter))</span>
+<span class="lineNum">     731 </span>            :         return shape;
+<span class="lineNum">     732 </span>            : 
+<span class="lineNum">     733 </span>            :     /*
+<span class="lineNum">     734 </span>            :      * Overwriting a non-last property requires switching to dictionary mode.
+<span class="lineNum">     735 </span>            :      * The shape tree is shared immutable, and we can't removeProperty and then
+<span class="lineNum">     736 </span>            :      * addPropertyInternal because a failure under add would lose data.
+<span class="lineNum">     737 </span>            :      */
+<span class="lineNum">     738 </span><span class="lineCov">          1 :     if (shape != obj-&gt;lastProperty() &amp;&amp; !obj-&gt;inDictionaryMode()) {</span>
+<span class="lineNum">     739 </span><span class="lineCov">          1 :         if (!toDictionaryMode(cx, obj))</span>
+<span class="lineNum">     740 </span>            :             return nullptr;
+<span class="lineNum">     741 </span><span class="lineCov">          1 :         ShapeTable* table = obj-&gt;lastProperty()-&gt;maybeTable(keep);</span>
+<span class="lineNum">     742 </span>            :         MOZ_ASSERT(table);
+<span class="lineNum">     743 </span><span class="lineCov">          1 :         entry = &amp;table-&gt;search&lt;MaybeAdding::NotAdding&gt;(shape-&gt;propid(), keep);</span>
+<span class="lineNum">     744 </span><span class="lineCov">          1 :         shape = entry-&gt;shape();</span>
+<span class="lineNum">     745 </span>            :     }
+<span class="lineNum">     746 </span>            : 
+<span class="lineNum">     747 </span>            :     MOZ_ASSERT_IF(shape-&gt;hasSlot() &amp;&amp; !(attrs &amp; JSPROP_SHARED), shape-&gt;slot() == slot);
+<span class="lineNum">     748 </span>            : 
+<span class="lineNum">     749 </span><span class="lineCov">          1 :     if (obj-&gt;inDictionaryMode()) {</span>
+<span class="lineNum">     750 </span>            :         /*
+<span class="lineNum">     751 </span>            :          * Updating some property in a dictionary-mode object. Create a new
+<span class="lineNum">     752 </span>            :          * shape for the existing property, and also generate a new shape for
+<span class="lineNum">     753 </span>            :          * the last property of the dictionary (unless the modified property
+<span class="lineNum">     754 </span>            :          * is also the last property).
+<span class="lineNum">     755 </span>            :          */
+<span class="lineNum">     756 </span><span class="lineCov">          1 :         bool updateLast = (shape == obj-&gt;lastProperty());</span>
+<span class="lineNum">     757 </span><span class="lineCov">          1 :         bool accessorShape = getter || setter || (attrs &amp; (JSPROP_GETTER | JSPROP_SETTER));</span>
+<span class="lineNum">     758 </span><span class="lineCov">          1 :         shape = NativeObject::replaceWithNewEquivalentShape(cx, obj, shape, nullptr,</span>
+<span class="lineNum">     759 </span><span class="lineCov">          1 :                                                             accessorShape);</span>
+<span class="lineNum">     760 </span><span class="lineCov">          1 :         if (!shape)</span>
+<span class="lineNum">     761 </span>            :             return nullptr;
+<span class="lineNum">     762 </span><span class="lineCov">          1 :         if (!updateLast &amp;&amp; !NativeObject::generateOwnShape(cx, obj))</span>
+<span class="lineNum">     763 </span>            :             return nullptr;
+<span class="lineNum">     764 </span>            : 
+<span class="lineNum">     765 </span>            :         /*
+<span class="lineNum">     766 </span>            :          * FIXME bug 593129 -- slot allocation and NativeObject *this must move
+<span class="lineNum">     767 </span>            :          * out of here!
+<span class="lineNum">     768 </span>            :          */
+<span class="lineNum">     769 </span><span class="lineCov">          1 :         if (slot == SHAPE_INVALID_SLOT &amp;&amp; !(attrs &amp; JSPROP_SHARED)) {</span>
+<span class="lineNum">     770 </span><span class="lineCov">          1 :             if (!allocSlot(cx, obj, &amp;slot))</span>
+<span class="lineNum">     771 </span>            :                 return nullptr;
+<span class="lineNum">     772 </span>            :         }
+<span class="lineNum">     773 </span>            : 
+<span class="lineNum">     774 </span><span class="lineCov">          1 :         if (updateLast)</span>
+<span class="lineNum">     775 </span><span class="lineCov">          1 :             shape-&gt;base()-&gt;adoptUnowned(nbase);</span>
+<span class="lineNum">     776 </span>            :         else
+<span class="lineNum">     777 </span><span class="lineCov">          1 :             shape-&gt;base_ = nbase;</span>
+<span class="lineNum">     778 </span>            : 
+<span class="lineNum">     779 </span>            :         MOZ_ASSERT_IF(attrs &amp; (JSPROP_GETTER | JSPROP_SETTER), attrs &amp; JSPROP_SHARED);
+<span class="lineNum">     780 </span>            : 
+<span class="lineNum">     781 </span><span class="lineCov">          1 :         shape-&gt;setSlot(slot);</span>
+<span class="lineNum">     782 </span><span class="lineCov">          1 :         shape-&gt;attrs = uint8_t(attrs);</span>
+<span class="lineNum">     783 </span><span class="lineCov">          1 :         shape-&gt;flags = flags | Shape::IN_DICTIONARY | (accessorShape ? Shape::ACCESSOR_SHAPE : 0);</span>
+<span class="lineNum">     784 </span><span class="lineCov">          1 :         if (shape-&gt;isAccessorShape()) {</span>
+<span class="lineNum">     785 </span><span class="lineCov">          1 :             AccessorShape&amp; accShape = shape-&gt;asAccessorShape();</span>
+<span class="lineNum">     786 </span><span class="lineCov">          1 :             accShape.rawGetter = getter;</span>
+<span class="lineNum">     787 </span><span class="lineCov">          1 :             accShape.rawSetter = setter;</span>
+<span class="lineNum">     788 </span><span class="lineCov">          1 :             GetterSetterWriteBarrierPost(&amp;accShape);</span>
+<span class="lineNum">     789 </span>            :         } else {
+<span class="lineNum">     790 </span>            :             MOZ_ASSERT(!getter);
+<span class="lineNum">     791 </span>            :             MOZ_ASSERT(!setter);
+<span class="lineNum">     792 </span>            :         }
+<span class="lineNum">     793 </span>            :     } else {
+<span class="lineNum">     794 </span>            :         /*
+<span class="lineNum">     795 </span>            :          * Updating the last property in a non-dictionary-mode object. Find an
+<span class="lineNum">     796 </span>            :          * alternate shared child of the last property's previous shape.
+<span class="lineNum">     797 </span>            :          */
+<span class="lineNum">     798 </span><span class="lineCov">          1 :         StackBaseShape base(obj-&gt;lastProperty()-&gt;base());</span>
+<span class="lineNum">     799 </span>            : 
+<span class="lineNum">     800 </span><span class="lineCov">          1 :         UnownedBaseShape* nbase = BaseShape::getUnowned(cx, base);</span>
+<span class="lineNum">     801 </span><span class="lineCov">          1 :         if (!nbase)</span>
+<span class="lineNum">     802 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     803 </span>            : 
+<span class="lineNum">     804 </span>            :         MOZ_ASSERT(shape == obj-&gt;lastProperty());
+<span class="lineNum">     805 </span>            : 
+<span class="lineNum">     806 </span>            :         /* Find or create a property tree node labeled by our arguments. */
+<span class="lineNum">     807 </span><span class="lineCov">          1 :         Rooted&lt;StackShape&gt; child(cx, StackShape(nbase, id, slot, attrs, flags));</span>
+<span class="lineNum">     808 </span><span class="lineCov">          1 :         child.updateGetterSetter(getter, setter);</span>
+<span class="lineNum">     809 </span><span class="lineCov">          1 :         RootedShape parent(cx, shape-&gt;parent);</span>
+<span class="lineNum">     810 </span><span class="lineCov">          1 :         Shape* newShape = getChildProperty(cx, obj, parent, &amp;child);</span>
+<span class="lineNum">     811 </span>            : 
+<span class="lineNum">     812 </span><span class="lineCov">          1 :         if (!newShape) {</span>
+<span class="lineNum">     813 </span><span class="lineNoCov">          0 :             obj-&gt;checkShapeConsistency();</span>
+<span class="lineNum">     814 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">     815 </span>            :         }
+<span class="lineNum">     816 </span>            : 
+<span class="lineNum">     817 </span><span class="lineCov">          1 :         shape = newShape;</span>
+<span class="lineNum">     818 </span>            :     }
+<span class="lineNum">     819 </span>            : 
+<span class="lineNum">     820 </span>            :     /*
+<span class="lineNum">     821 </span>            :      * Can't fail now, so free the previous incarnation's slot if the new shape
+<span class="lineNum">     822 </span>            :      * has no slot. But we do not need to free oldSlot (and must not, as trying
+<span class="lineNum">     823 </span>            :      * to will botch an assertion in JSObject::freeSlot) if the new last
+<span class="lineNum">     824 </span>            :      * property (shape here) has a slotSpan that does not cover it.
+<span class="lineNum">     825 </span>            :      */
+<span class="lineNum">     826 </span><span class="lineCov">          1 :     if (hadSlot &amp;&amp; !shape-&gt;hasSlot()) {</span>
+<span class="lineNum">     827 </span><span class="lineCov">          1 :         if (oldSlot &lt; obj-&gt;slotSpan())</span>
+<span class="lineNum">     828 </span><span class="lineCov">          1 :             obj-&gt;freeSlot(cx, oldSlot);</span>
+<span class="lineNum">     829 </span>            :         /* Note: The optimization based on propertyRemovals is only relevant to the active thread. */
+<span class="lineNum">     830 </span><span class="lineCov">          1 :         if (!cx-&gt;helperThread())</span>
+<span class="lineNum">     831 </span><span class="lineCov">          1 :             ++cx-&gt;propertyRemovals;</span>
+<span class="lineNum">     832 </span>            :     }
+<span class="lineNum">     833 </span>            : 
+<span class="lineNum">     834 </span><span class="lineCov">          1 :     obj-&gt;checkShapeConsistency();</span>
+<span class="lineNum">     835 </span>            : 
+<span class="lineNum">     836 </span><span class="lineCov">          1 :     return shape;</span>
+<span class="lineNum">     837 </span>            : }
+<a name="838"><span class="lineNum">     838 </span>            : </a>
+<span class="lineNum">     839 </span>            : /* static */ Shape*
+<span class="lineNum">     840 </span><span class="lineCov">          1 : NativeObject::changeProperty(JSContext* cx, HandleNativeObject obj, HandleShape shape,</span>
+<span class="lineNum">     841 </span>            :                              unsigned attrs, GetterOp getter, SetterOp setter)
+<span class="lineNum">     842 </span>            : {
+<span class="lineNum">     843 </span>            :     MOZ_ASSERT(obj-&gt;containsPure(shape));
+<span class="lineNum">     844 </span>            :     MOZ_ASSERT(getter != JS_PropertyStub);
+<span class="lineNum">     845 </span>            :     MOZ_ASSERT(setter != JS_StrictPropertyStub);
+<span class="lineNum">     846 </span>            :     MOZ_ASSERT_IF(attrs &amp; (JSPROP_GETTER | JSPROP_SETTER), attrs &amp; JSPROP_SHARED);
+<span class="lineNum">     847 </span>            : 
+<span class="lineNum">     848 </span>            :     /* Allow only shared (slotless) =&gt; unshared (slotful) transition. */
+<span class="lineNum">     849 </span>            :     MOZ_ASSERT(!((attrs ^ shape-&gt;attrs) &amp; JSPROP_SHARED) ||
+<span class="lineNum">     850 </span>            :                !(attrs &amp; JSPROP_SHARED));
+<span class="lineNum">     851 </span>            : 
+<span class="lineNum">     852 </span><span class="lineCov">          1 :     MarkTypePropertyNonData(cx, obj, shape-&gt;propid());</span>
+<span class="lineNum">     853 </span>            : 
+<span class="lineNum">     854 </span><span class="lineCov">          1 :     if (!CheckCanChangeAttrs(cx, obj, shape, &amp;attrs))</span>
+<span class="lineNum">     855 </span>            :         return nullptr;
+<span class="lineNum">     856 </span>            : 
+<span class="lineNum">     857 </span><span class="lineCov">          1 :     if (shape-&gt;attrs == attrs &amp;&amp; shape-&gt;getter() == getter &amp;&amp; shape-&gt;setter() == setter)</span>
+<span class="lineNum">     858 </span>            :         return shape;
+<span class="lineNum">     859 </span>            : 
+<span class="lineNum">     860 </span>            :     /*
+<span class="lineNum">     861 </span>            :      * Let JSObject::putProperty handle this |overwriting| case, including
+<span class="lineNum">     862 </span>            :      * the conservation of shape-&gt;slot (if it's valid). We must not call
+<span class="lineNum">     863 </span>            :      * removeProperty because it will free an allocated shape-&gt;slot, and
+<span class="lineNum">     864 </span>            :      * putProperty won't re-allocate it.
+<span class="lineNum">     865 </span>            :      */
+<span class="lineNum">     866 </span><span class="lineCov">          1 :     RootedId propid(cx, shape-&gt;propid());</span>
+<span class="lineNum">     867 </span>            :     Shape* newShape = putProperty(cx, obj, propid, getter, setter,
+<span class="lineNum">     868 </span><span class="lineCov">          1 :                                   shape-&gt;maybeSlot(), attrs, shape-&gt;flags);</span>
+<span class="lineNum">     869 </span>            : 
+<span class="lineNum">     870 </span><span class="lineCov">          1 :     obj-&gt;checkShapeConsistency();</span>
+<span class="lineNum">     871 </span><span class="lineCov">          1 :     return newShape;</span>
+<span class="lineNum">     872 </span>            : }
+<a name="873"><span class="lineNum">     873 </span>            : </a>
+<span class="lineNum">     874 </span>            : /* static */ bool
+<span class="lineNum">     875 </span><span class="lineCov">          1 : NativeObject::removeProperty(JSContext* cx, HandleNativeObject obj, jsid id_)</span>
+<span class="lineNum">     876 </span>            : {
+<span class="lineNum">     877 </span>            :     RootedId id(cx, id_);
+<span class="lineNum">     878 </span>            : 
+<span class="lineNum">     879 </span><span class="lineCov">          1 :     AutoKeepShapeTables keep(cx);</span>
+<span class="lineNum">     880 </span>            :     ShapeTable::Entry* entry;
+<span class="lineNum">     881 </span>            :     RootedShape shape(cx);
+<span class="lineNum">     882 </span><span class="lineCov">          1 :     if (!Shape::search(cx, obj-&gt;lastProperty(), id, keep, shape.address(), &amp;entry))</span>
+<span class="lineNum">     883 </span>            :         return false;
+<span class="lineNum">     884 </span>            : 
+<span class="lineNum">     885 </span><span class="lineCov">          1 :     if (!shape)</span>
+<span class="lineNum">     886 </span>            :         return true;
+<span class="lineNum">     887 </span>            : 
+<span class="lineNum">     888 </span>            :     /*
+<span class="lineNum">     889 </span>            :      * If shape is not the last property added, or the last property cannot
+<span class="lineNum">     890 </span>            :      * be removed, switch to dictionary mode.
+<span class="lineNum">     891 </span>            :      */
+<span class="lineNum">     892 </span><span class="lineCov">          1 :     if (!obj-&gt;inDictionaryMode() &amp;&amp; (shape != obj-&gt;lastProperty() || !obj-&gt;canRemoveLastProperty())) {</span>
+<span class="lineNum">     893 </span><span class="lineCov">          1 :         if (!toDictionaryMode(cx, obj))</span>
+<span class="lineNum">     894 </span>            :             return false;
+<span class="lineNum">     895 </span><span class="lineCov">          1 :         ShapeTable* table = obj-&gt;lastProperty()-&gt;maybeTable(keep);</span>
+<span class="lineNum">     896 </span>            :         MOZ_ASSERT(table);
+<span class="lineNum">     897 </span><span class="lineCov">          1 :         entry = &amp;table-&gt;search&lt;MaybeAdding::NotAdding&gt;(shape-&gt;propid(), keep);</span>
+<span class="lineNum">     898 </span><span class="lineCov">          1 :         shape = entry-&gt;shape();</span>
+<span class="lineNum">     899 </span>            :     }
+<span class="lineNum">     900 </span>            : 
+<span class="lineNum">     901 </span>            :     /*
+<span class="lineNum">     902 </span>            :      * If in dictionary mode, get a new shape for the last property after the
+<span class="lineNum">     903 </span>            :      * removal. We need a fresh shape for all dictionary deletions, even of
+<span class="lineNum">     904 </span>            :      * the last property. Otherwise, a shape could replay and caches might
+<span class="lineNum">     905 </span>            :      * return deleted DictionaryShapes! See bug 595365. Do this before changing
+<span class="lineNum">     906 </span>            :      * the object or table, so the remaining removal is infallible.
+<span class="lineNum">     907 </span>            :      */
+<span class="lineNum">     908 </span>            :     RootedShape spare(cx);
+<span class="lineNum">     909 </span><span class="lineCov">          1 :     if (obj-&gt;inDictionaryMode()) {</span>
+<span class="lineNum">     910 </span>            :         /* For simplicity, always allocate an accessor shape for now. */
+<span class="lineNum">     911 </span><span class="lineCov">          1 :         spare = Allocate&lt;AccessorShape&gt;(cx);</span>
+<span class="lineNum">     912 </span><span class="lineCov">          1 :         if (!spare)</span>
+<span class="lineNum">     913 </span>            :             return false;
+<span class="lineNum">     914 </span><span class="lineCov">          1 :         new (spare) Shape(shape-&gt;base()-&gt;unowned(), 0);</span>
+<span class="lineNum">     915 </span><span class="lineCov">          1 :         if (shape == obj-&gt;lastProperty()) {</span>
+<span class="lineNum">     916 </span>            :             /*
+<span class="lineNum">     917 </span>            :              * Get an up to date unowned base shape for the new last property
+<span class="lineNum">     918 </span>            :              * when removing the dictionary's last property. Information in
+<span class="lineNum">     919 </span>            :              * base shapes for non-last properties may be out of sync with the
+<span class="lineNum">     920 </span>            :              * object's state.
+<span class="lineNum">     921 </span>            :              */
+<span class="lineNum">     922 </span><span class="lineCov">          1 :             RootedShape previous(cx, obj-&gt;lastProperty()-&gt;parent);</span>
+<span class="lineNum">     923 </span><span class="lineCov">          1 :             StackBaseShape base(obj-&gt;lastProperty()-&gt;base());</span>
+<span class="lineNum">     924 </span><span class="lineCov">          1 :             BaseShape* nbase = BaseShape::getUnowned(cx, base);</span>
+<span class="lineNum">     925 </span><span class="lineCov">          1 :             if (!nbase)</span>
+<span class="lineNum">     926 </span><span class="lineNoCov">          0 :                 return false;</span>
+<span class="lineNum">     927 </span><span class="lineCov">          1 :             previous-&gt;base_ = nbase;</span>
+<span class="lineNum">     928 </span>            :         }
+<span class="lineNum">     929 </span>            :     }
+<span class="lineNum">     930 </span>            : 
+<span class="lineNum">     931 </span>            :     /* If shape has a slot, free its slot number. */
+<span class="lineNum">     932 </span><span class="lineCov">          1 :     if (shape-&gt;hasSlot()) {</span>
+<span class="lineNum">     933 </span><span class="lineCov">          1 :         obj-&gt;freeSlot(cx, shape-&gt;slot());</span>
+<span class="lineNum">     934 </span><span class="lineCov">          1 :         if (!cx-&gt;helperThread())</span>
+<span class="lineNum">     935 </span><span class="lineCov">          1 :             ++cx-&gt;propertyRemovals;</span>
+<span class="lineNum">     936 </span>            :     }
+<span class="lineNum">     937 </span>            : 
+<span class="lineNum">     938 </span>            :     /*
+<span class="lineNum">     939 </span>            :      * A dictionary-mode object owns mutable, unique shapes on a non-circular
+<span class="lineNum">     940 </span>            :      * doubly linked list, hashed by lastProperty()-&gt;table. So we can edit the
+<span class="lineNum">     941 </span>            :      * list and hash in place.
+<span class="lineNum">     942 </span>            :      */
+<span class="lineNum">     943 </span><span class="lineCov">          1 :     if (obj-&gt;inDictionaryMode()) {</span>
+<span class="lineNum">     944 </span><span class="lineCov">          1 :         ShapeTable* table = obj-&gt;lastProperty()-&gt;maybeTable(keep);</span>
+<span class="lineNum">     945 </span>            :         MOZ_ASSERT(table);
+<span class="lineNum">     946 </span>            : 
+<span class="lineNum">     947 </span><span class="lineCov">          1 :         if (entry-&gt;hadCollision()) {</span>
+<span class="lineNum">     948 </span><span class="lineCov">          1 :             entry-&gt;setRemoved();</span>
+<span class="lineNum">     949 </span>            :             table-&gt;decEntryCount();
+<span class="lineNum">     950 </span>            :             table-&gt;incRemovedCount();
+<span class="lineNum">     951 </span>            :         } else {
+<span class="lineNum">     952 </span><span class="lineCov">          1 :             entry-&gt;setFree();</span>
+<span class="lineNum">     953 </span>            :             table-&gt;decEntryCount();
+<span class="lineNum">     954 </span>            : 
+<span class="lineNum">     955 </span>            : #ifdef DEBUG
+<span class="lineNum">     956 </span>            :             /*
+<span class="lineNum">     957 </span>            :              * Check the consistency of the table but limit the number of
+<span class="lineNum">     958 </span>            :              * checks not to alter significantly the complexity of the
+<span class="lineNum">     959 </span>            :              * delete in debug builds, see bug 534493.
+<span class="lineNum">     960 </span>            :              */
+<span class="lineNum">     961 </span>            :             Shape* aprop = obj-&gt;lastProperty();
+<span class="lineNum">     962 </span>            :             for (int n = 50; --n &gt;= 0 &amp;&amp; aprop-&gt;parent; aprop = aprop-&gt;parent)
+<span class="lineNum">     963 </span>            :                 MOZ_ASSERT_IF(aprop != shape, obj-&gt;contains(cx, aprop));
+<span class="lineNum">     964 </span>            : #endif
+<span class="lineNum">     965 </span>            :         }
+<span class="lineNum">     966 </span>            : 
+<span class="lineNum">     967 </span>            :         {
+<span class="lineNum">     968 </span>            :             /* Remove shape from its non-circular doubly linked list. */
+<span class="lineNum">     969 </span><span class="lineCov">          1 :             Shape* oldLastProp = obj-&gt;lastProperty();</span>
+<span class="lineNum">     970 </span><span class="lineCov">          1 :             shape-&gt;removeFromDictionary(obj);</span>
+<span class="lineNum">     971 </span>            : 
+<span class="lineNum">     972 </span>            :             /* Hand off table from the old to new last property. */
+<span class="lineNum">     973 </span><span class="lineCov">          1 :             oldLastProp-&gt;handoffTableTo(obj-&gt;lastProperty());</span>
+<span class="lineNum">     974 </span>            :         }
+<span class="lineNum">     975 </span>            : 
+<span class="lineNum">     976 </span>            :         /* Generate a new shape for the object, infallibly. */
+<span class="lineNum">     977 </span><span class="lineCov">          1 :         JS_ALWAYS_TRUE(NativeObject::generateOwnShape(cx, obj, spare));</span>
+<span class="lineNum">     978 </span>            : 
+<span class="lineNum">     979 </span>            :         /* Consider shrinking table if its load factor is &lt;= .25. */
+<span class="lineNum">     980 </span><span class="lineCov">          1 :         uint32_t size = table-&gt;capacity();</span>
+<span class="lineNum">     981 </span><span class="lineCov">          1 :         if (size &gt; ShapeTable::MIN_SIZE &amp;&amp; table-&gt;entryCount() &lt;= size &gt;&gt; 2)</span>
+<span class="lineNum">     982 </span><span class="lineCov">          1 :             (void) table-&gt;change(cx, -1);</span>
+<span class="lineNum">     983 </span>            :     } else {
+<span class="lineNum">     984 </span>            :         /*
+<span class="lineNum">     985 </span>            :          * Non-dictionary-mode shape tables are shared immutables, so all we
+<span class="lineNum">     986 </span>            :          * need do is retract the last property and we'll either get or else
+<span class="lineNum">     987 </span>            :          * lazily make via a later hashify the exact table for the new property
+<span class="lineNum">     988 </span>            :          * lineage.
+<span class="lineNum">     989 </span>            :          */
+<span class="lineNum">     990 </span>            :         MOZ_ASSERT(shape == obj-&gt;lastProperty());
+<span class="lineNum">     991 </span><span class="lineCov">          1 :         obj-&gt;removeLastProperty(cx);</span>
+<span class="lineNum">     992 </span>            :     }
+<span class="lineNum">     993 </span>            : 
+<span class="lineNum">     994 </span>            :     obj-&gt;checkShapeConsistency();
+<span class="lineNum">     995 </span>            :     return true;
+<span class="lineNum">     996 </span>            : }
+<a name="997"><span class="lineNum">     997 </span>            : </a>
+<span class="lineNum">     998 </span>            : /* static */ void
+<span class="lineNum">     999 </span><span class="lineCov">          1 : NativeObject::clear(JSContext* cx, HandleNativeObject obj)</span>
+<span class="lineNum">    1000 </span>            : {
+<span class="lineNum">    1001 </span><span class="lineCov">          1 :     Shape* shape = obj-&gt;lastProperty();</span>
+<span class="lineNum">    1002 </span>            :     MOZ_ASSERT(obj-&gt;inDictionaryMode() == shape-&gt;inDictionary());
+<span class="lineNum">    1003 </span>            : 
+<span class="lineNum">    1004 </span><span class="lineCov">          1 :     while (shape-&gt;parent) {</span>
+<span class="lineNum">    1005 </span>            :         shape = shape-&gt;parent;
+<span class="lineNum">    1006 </span>            :         MOZ_ASSERT(obj-&gt;inDictionaryMode() == shape-&gt;inDictionary());
+<span class="lineNum">    1007 </span>            :     }
+<span class="lineNum">    1008 </span>            :     MOZ_ASSERT(shape-&gt;isEmptyShape());
+<span class="lineNum">    1009 </span>            : 
+<span class="lineNum">    1010 </span><span class="lineCov">          1 :     if (obj-&gt;inDictionaryMode())</span>
+<span class="lineNum">    1011 </span><span class="lineNoCov">          0 :         shape-&gt;listp = &amp;obj-&gt;shape_;</span>
+<span class="lineNum">    1012 </span>            : 
+<span class="lineNum">    1013 </span><span class="lineCov">          1 :     JS_ALWAYS_TRUE(obj-&gt;setLastProperty(cx, shape));</span>
+<span class="lineNum">    1014 </span>            : 
+<span class="lineNum">    1015 </span><span class="lineCov">          1 :     if (!cx-&gt;helperThread())</span>
+<span class="lineNum">    1016 </span><span class="lineCov">          1 :         ++cx-&gt;propertyRemovals;</span>
+<span class="lineNum">    1017 </span><span class="lineCov">          1 :     obj-&gt;checkShapeConsistency();</span>
+<span class="lineNum">    1018 </span><span class="lineCov">          1 : }</span>
+<a name="1019"><span class="lineNum">    1019 </span>            : </a>
+<span class="lineNum">    1020 </span>            : /* static */ bool
+<span class="lineNum">    1021 </span><span class="lineNoCov">          0 : NativeObject::rollbackProperties(JSContext* cx, HandleNativeObject obj, uint32_t slotSpan)</span>
+<span class="lineNum">    1022 </span>            : {
+<span class="lineNum">    1023 </span>            :     /*
+<span class="lineNum">    1024 </span>            :      * Remove properties from this object until it has a matching slot span.
+<span class="lineNum">    1025 </span>            :      * The object cannot have escaped in a way which would prevent safe
+<span class="lineNum">    1026 </span>            :      * removal of the last properties.
+<span class="lineNum">    1027 </span>            :      */
+<span class="lineNum">    1028 </span>            :     MOZ_ASSERT(!obj-&gt;inDictionaryMode() &amp;&amp; slotSpan &lt;= obj-&gt;slotSpan());
+<span class="lineNum">    1029 </span>            :     while (true) {
+<span class="lineNum">    1030 </span><span class="lineNoCov">          0 :         if (obj-&gt;lastProperty()-&gt;isEmptyShape()) {</span>
+<span class="lineNum">    1031 </span>            :             MOZ_ASSERT(slotSpan == 0);
+<span class="lineNum">    1032 </span>            :             break;
+<span class="lineNum">    1033 </span>            :         } else {
+<span class="lineNum">    1034 </span><span class="lineNoCov">          0 :             uint32_t slot = obj-&gt;lastProperty()-&gt;slot();</span>
+<span class="lineNum">    1035 </span><span class="lineNoCov">          0 :             if (slot &lt; slotSpan)</span>
+<span class="lineNum">    1036 </span>            :                 break;
+<span class="lineNum">    1037 </span>            :         }
+<span class="lineNum">    1038 </span><span class="lineNoCov">          0 :         if (!NativeObject::removeProperty(cx, obj, obj-&gt;lastProperty()-&gt;propid()))</span>
+<span class="lineNum">    1039 </span>            :             return false;
+<span class="lineNum">    1040 </span>            :     }
+<span class="lineNum">    1041 </span>            : 
+<span class="lineNum">    1042 </span>            :     return true;
+<span class="lineNum">    1043 </span>            : }
+<a name="1044"><span class="lineNum">    1044 </span>            : </a>
+<span class="lineNum">    1045 </span>            : /* static */ Shape*
+<span class="lineNum">    1046 </span><span class="lineCov">          1 : NativeObject::replaceWithNewEquivalentShape(JSContext* cx, HandleNativeObject obj,</span>
+<span class="lineNum">    1047 </span>            :                                             Shape* oldShape, Shape* newShape, bool accessorShape)
+<span class="lineNum">    1048 </span>            : {
+<span class="lineNum">    1049 </span>            :     MOZ_ASSERT(cx-&gt;isInsideCurrentZone(oldShape));
+<span class="lineNum">    1050 </span>            :     MOZ_ASSERT_IF(oldShape != obj-&gt;lastProperty(),
+<span class="lineNum">    1051 </span>            :                   obj-&gt;inDictionaryMode() &amp;&amp; obj-&gt;lookup(cx, oldShape-&gt;propidRef()) == oldShape);
+<span class="lineNum">    1052 </span>            : 
+<span class="lineNum">    1053 </span><span class="lineCov">          1 :     if (!obj-&gt;inDictionaryMode()) {</span>
+<span class="lineNum">    1054 </span>            :         RootedShape newRoot(cx, newShape);
+<span class="lineNum">    1055 </span><span class="lineCov">          1 :         if (!toDictionaryMode(cx, obj))</span>
+<span class="lineNum">    1056 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">    1057 </span><span class="lineCov">          1 :         oldShape = obj-&gt;lastProperty();</span>
+<span class="lineNum">    1058 </span><span class="lineCov">          1 :         newShape = newRoot;</span>
+<span class="lineNum">    1059 </span>            :     }
+<span class="lineNum">    1060 </span>            : 
+<span class="lineNum">    1061 </span><span class="lineCov">          1 :     if (!newShape) {</span>
+<span class="lineNum">    1062 </span>            :         RootedShape oldRoot(cx, oldShape);
+<span class="lineNum">    1063 </span><span class="lineCov">          1 :         newShape = (oldShape-&gt;isAccessorShape() || accessorShape)</span>
+<span class="lineNum">    1064 </span>            :                    ? Allocate&lt;AccessorShape&gt;(cx)
+<span class="lineNum">    1065 </span><span class="lineCov">          1 :                    : Allocate&lt;Shape&gt;(cx);</span>
+<span class="lineNum">    1066 </span><span class="lineCov">          1 :         if (!newShape)</span>
+<span class="lineNum">    1067 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">    1068 </span><span class="lineCov">          1 :         new (newShape) Shape(oldRoot-&gt;base()-&gt;unowned(), 0);</span>
+<span class="lineNum">    1069 </span><span class="lineCov">          1 :         oldShape = oldRoot;</span>
+<span class="lineNum">    1070 </span>            :     }
+<span class="lineNum">    1071 </span>            : 
+<span class="lineNum">    1072 </span>            :     AutoCheckCannotGC nogc;
+<span class="lineNum">    1073 </span><span class="lineCov">          1 :     ShapeTable* table = obj-&gt;lastProperty()-&gt;ensureTableForDictionary(cx, nogc);</span>
+<span class="lineNum">    1074 </span><span class="lineCov">          1 :     if (!table)</span>
+<span class="lineNum">    1075 </span>            :         return nullptr;
+<span class="lineNum">    1076 </span>            : 
+<span class="lineNum">    1077 </span><span class="lineCov">          1 :     ShapeTable::Entry* entry = oldShape-&gt;isEmptyShape()</span>
+<span class="lineNum">    1078 </span>            :         ? nullptr
+<span class="lineNum">    1079 </span><span class="lineCov">          1 :         : &amp;table-&gt;search&lt;MaybeAdding::NotAdding&gt;(oldShape-&gt;propidRef(), nogc);</span>
+<span class="lineNum">    1080 </span>            : 
+<span class="lineNum">    1081 </span>            :     /*
+<span class="lineNum">    1082 </span>            :      * Splice the new shape into the same position as the old shape, preserving
+<span class="lineNum">    1083 </span>            :      * enumeration order (see bug 601399).
+<span class="lineNum">    1084 </span>            :      */
+<span class="lineNum">    1085 </span><span class="lineCov">          1 :     StackShape nshape(oldShape);</span>
+<span class="lineNum">    1086 </span><span class="lineCov">          1 :     newShape-&gt;initDictionaryShape(nshape, obj-&gt;numFixedSlots(), oldShape-&gt;listp);</span>
+<span class="lineNum">    1087 </span>            : 
+<span class="lineNum">    1088 </span>            :     MOZ_ASSERT(newShape-&gt;parent == oldShape);
+<span class="lineNum">    1089 </span><span class="lineCov">          1 :     oldShape-&gt;removeFromDictionary(obj);</span>
+<span class="lineNum">    1090 </span>            : 
+<span class="lineNum">    1091 </span><span class="lineCov">          1 :     if (newShape == obj-&gt;lastProperty())</span>
+<span class="lineNum">    1092 </span><span class="lineCov">          1 :         oldShape-&gt;handoffTableTo(newShape);</span>
+<span class="lineNum">    1093 </span>            : 
+<span class="lineNum">    1094 </span><span class="lineCov">          1 :     if (entry)</span>
+<span class="lineNum">    1095 </span><span class="lineCov">          1 :         entry-&gt;setPreservingCollision(newShape);</span>
+<span class="lineNum">    1096 </span><span class="lineCov">          1 :     return newShape;</span>
+<span class="lineNum">    1097 </span>            : }
+<a name="1098"><span class="lineNum">    1098 </span>            : </a>
+<span class="lineNum">    1099 </span>            : /* static */ bool
+<span class="lineNum">    1100 </span><span class="lineCov">          1 : NativeObject::shadowingShapeChange(JSContext* cx, HandleNativeObject obj, const Shape&amp; shape)</span>
+<span class="lineNum">    1101 </span>            : {
+<span class="lineNum">    1102 </span><span class="lineCov">          1 :     return generateOwnShape(cx, obj);</span>
+<span class="lineNum">    1103 </span>            : }
+<a name="1104"><span class="lineNum">    1104 </span>            : </a>
+<span class="lineNum">    1105 </span>            : /* static */ bool
+<span class="lineNum">    1106 </span><span class="lineCov">          1 : JSObject::setFlags(JSContext* cx, HandleObject obj, BaseShape::Flag flags,</span>
+<span class="lineNum">    1107 </span>            :                    GenerateShape generateShape)
+<span class="lineNum">    1108 </span>            : {
+<span class="lineNum">    1109 </span><span class="lineCov">          1 :     if (obj-&gt;hasAllFlags(flags))</span>
+<span class="lineNum">    1110 </span>            :         return true;
+<span class="lineNum">    1111 </span>            : 
+<span class="lineNum">    1112 </span><span class="lineCov">          1 :     if (obj-&gt;isNative() &amp;&amp; obj-&gt;as&lt;NativeObject&gt;().inDictionaryMode()) {</span>
+<span class="lineNum">    1113 </span><span class="lineCov">          1 :         if (generateShape == GENERATE_SHAPE) {</span>
+<span class="lineNum">    1114 </span><span class="lineCov">          1 :             if (!NativeObject::generateOwnShape(cx, obj.as&lt;NativeObject&gt;()))</span>
+<span class="lineNum">    1115 </span>            :                 return false;
+<span class="lineNum">    1116 </span>            :         }
+<span class="lineNum">    1117 </span><span class="lineCov">          1 :         StackBaseShape base(obj-&gt;as&lt;NativeObject&gt;().lastProperty());</span>
+<span class="lineNum">    1118 </span><span class="lineCov">          1 :         base.flags |= flags;</span>
+<span class="lineNum">    1119 </span><span class="lineCov">          1 :         UnownedBaseShape* nbase = BaseShape::getUnowned(cx, base);</span>
+<span class="lineNum">    1120 </span><span class="lineCov">          1 :         if (!nbase)</span>
+<span class="lineNum">    1121 </span>            :             return false;
+<span class="lineNum">    1122 </span>            : 
+<span class="lineNum">    1123 </span><span class="lineCov">          1 :         obj-&gt;as&lt;NativeObject&gt;().lastProperty()-&gt;base()-&gt;adoptUnowned(nbase);</span>
+<span class="lineNum">    1124 </span><span class="lineCov">          1 :         return true;</span>
+<span class="lineNum">    1125 </span>            :     }
+<span class="lineNum">    1126 </span>            : 
+<span class="lineNum">    1127 </span><span class="lineCov">          1 :     Shape* existingShape = obj-&gt;ensureShape(cx);</span>
+<span class="lineNum">    1128 </span><span class="lineCov">          1 :     if (!existingShape)</span>
+<span class="lineNum">    1129 </span>            :         return false;
+<span class="lineNum">    1130 </span>            : 
+<span class="lineNum">    1131 </span><span class="lineCov">          1 :     Shape* newShape = Shape::setObjectFlags(cx, flags, obj-&gt;taggedProto(), existingShape);</span>
+<span class="lineNum">    1132 </span><span class="lineCov">          1 :     if (!newShape)</span>
+<span class="lineNum">    1133 </span>            :         return false;
+<span class="lineNum">    1134 </span>            : 
+<span class="lineNum">    1135 </span>            :     // The success of the |JSObject::ensureShape| call above means that |obj|
+<span class="lineNum">    1136 </span>            :     // can be assumed to have a shape.
+<span class="lineNum">    1137 </span><span class="lineCov">          1 :     obj-&gt;as&lt;ShapedObject&gt;().setShape(newShape);</span>
+<span class="lineNum">    1138 </span>            : 
+<span class="lineNum">    1139 </span><span class="lineCov">          1 :     return true;</span>
+<span class="lineNum">    1140 </span>            : }
+<a name="1141"><span class="lineNum">    1141 </span>            : </a>
+<span class="lineNum">    1142 </span>            : /* static */ bool
+<span class="lineNum">    1143 </span><span class="lineNoCov">          0 : NativeObject::clearFlag(JSContext* cx, HandleNativeObject obj, BaseShape::Flag flag)</span>
+<span class="lineNum">    1144 </span>            : {
+<span class="lineNum">    1145 </span>            :     MOZ_ASSERT(obj-&gt;inDictionaryMode());
+<span class="lineNum">    1146 </span>            : 
+<span class="lineNum">    1147 </span>            :     MOZ_ASSERT(obj-&gt;lastProperty()-&gt;getObjectFlags() &amp; flag);
+<span class="lineNum">    1148 </span>            : 
+<span class="lineNum">    1149 </span><span class="lineNoCov">          0 :     StackBaseShape base(obj-&gt;lastProperty());</span>
+<span class="lineNum">    1150 </span><span class="lineNoCov">          0 :     base.flags &amp;= ~flag;</span>
+<span class="lineNum">    1151 </span><span class="lineNoCov">          0 :     UnownedBaseShape* nbase = BaseShape::getUnowned(cx, base);</span>
+<span class="lineNum">    1152 </span><span class="lineNoCov">          0 :     if (!nbase)</span>
+<span class="lineNum">    1153 </span>            :         return false;
+<span class="lineNum">    1154 </span>            : 
+<span class="lineNum">    1155 </span><span class="lineNoCov">          0 :     obj-&gt;lastProperty()-&gt;base()-&gt;adoptUnowned(nbase);</span>
+<span class="lineNum">    1156 </span><span class="lineNoCov">          0 :     return true;</span>
+<span class="lineNum">    1157 </span>            : }
+<a name="1158"><span class="lineNum">    1158 </span>            : </a>
+<span class="lineNum">    1159 </span>            : /* static */ Shape*
+<span class="lineNum">    1160 </span><span class="lineCov">          1 : Shape::setObjectFlags(JSContext* cx, BaseShape::Flag flags, TaggedProto proto, Shape* last)</span>
+<span class="lineNum">    1161 </span>            : {
+<span class="lineNum">    1162 </span><span class="lineCov">          1 :     if ((last-&gt;getObjectFlags() &amp; flags) == flags)</span>
+<span class="lineNum">    1163 </span>            :         return last;
+<span class="lineNum">    1164 </span>            : 
+<span class="lineNum">    1165 </span><span class="lineCov">          1 :     StackBaseShape base(last);</span>
+<span class="lineNum">    1166 </span><span class="lineCov">          1 :     base.flags |= flags;</span>
+<span class="lineNum">    1167 </span>            : 
+<span class="lineNum">    1168 </span>            :     RootedShape lastRoot(cx, last);
+<span class="lineNum">    1169 </span><span class="lineCov">          1 :     return replaceLastProperty(cx, base, proto, lastRoot);</span>
+<span class="lineNum">    1170 </span>            : }
+<span class="lineNum">    1171 </span>            : 
+<span class="lineNum">    1172 </span>            : /* static */ inline HashNumber
+<span class="lineNum">    1173 </span>            : StackBaseShape::hash(const Lookup&amp; lookup)
+<span class="lineNum">    1174 </span>            : {
+<span class="lineNum">    1175 </span><span class="lineCov">          1 :     HashNumber hash = lookup.flags;</span>
+<span class="lineNum">    1176 </span><span class="lineCov">          1 :     hash = RotateLeft(hash, 4) ^ (uintptr_t(lookup.clasp) &gt;&gt; 3);</span>
+<span class="lineNum">    1177 </span>            :     return hash;
+<span class="lineNum">    1178 </span>            : }
+<span class="lineNum">    1179 </span>            : 
+<span class="lineNum">    1180 </span>            : /* static */ inline bool
+<span class="lineNum">    1181 </span>            : StackBaseShape::match(ReadBarriered&lt;UnownedBaseShape*&gt; key, const Lookup&amp; lookup)
+<span class="lineNum">    1182 </span>            : {
+<span class="lineNum">    1183 </span><span class="lineCov">          1 :     return key.unbarrieredGet()-&gt;flags == lookup.flags &amp;&amp;</span>
+<span class="lineNum">    1184 </span><span class="lineCov">          1 :            key.unbarrieredGet()-&gt;clasp_ == lookup.clasp;</span>
+<span class="lineNum">    1185 </span>            : }
+<span class="lineNum">    1186 </span>            : 
+<span class="lineNum">    1187 </span>            : inline
+<span class="lineNum">    1188 </span>            : BaseShape::BaseShape(const StackBaseShape&amp; base)
+<span class="lineNum">    1189 </span>            :   : clasp_(base.clasp),
+<span class="lineNum">    1190 </span>            :     flags(base.flags),
+<span class="lineNum">    1191 </span>            :     slotSpan_(0),
+<span class="lineNum">    1192 </span>            :     unowned_(nullptr),
+<span class="lineNum">    1193 </span><span class="lineCov">          1 :     table_(nullptr)</span>
+<span class="lineNum">    1194 </span>            : {
+<span class="lineNum">    1195 </span>            : }
+<a name="1196"><span class="lineNum">    1196 </span>            : </a>
+<span class="lineNum">    1197 </span>            : /* static */ void
+<span class="lineNum">    1198 </span><span class="lineNoCov">          0 : BaseShape::copyFromUnowned(BaseShape&amp; dest, UnownedBaseShape&amp; src)</span>
+<span class="lineNum">    1199 </span>            : {
+<span class="lineNum">    1200 </span><span class="lineCov">          1 :     dest.clasp_ = src.clasp_;</span>
+<span class="lineNum">    1201 </span><span class="lineCov">          1 :     dest.slotSpan_ = src.slotSpan_;</span>
+<span class="lineNum">    1202 </span><span class="lineCov">          1 :     dest.unowned_ = &amp;src;</span>
+<span class="lineNum">    1203 </span><span class="lineCov">          1 :     dest.flags = src.flags | OWNED_SHAPE;</span>
+<span class="lineNum">    1204 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">    1205 </span>            : 
+<span class="lineNum">    1206 </span>            : inline void
+<span class="lineNum">    1207 </span>            : BaseShape::adoptUnowned(UnownedBaseShape* other)
+<span class="lineNum">    1208 </span>            : {
+<span class="lineNum">    1209 </span>            :     // This is a base shape owned by a dictionary object, update it to reflect the
+<span class="lineNum">    1210 </span>            :     // unowned base shape of a new last property.
+<span class="lineNum">    1211 </span>            :     MOZ_ASSERT(isOwned());
+<span class="lineNum">    1212 </span>            : 
+<span class="lineNum">    1213 </span><span class="lineCov">          1 :     uint32_t span = slotSpan();</span>
+<span class="lineNum">    1214 </span>            : 
+<span class="lineNum">    1215 </span>            :     BaseShape::copyFromUnowned(*this, *other);
+<span class="lineNum">    1216 </span><span class="lineCov">          1 :     setSlotSpan(span);</span>
+<span class="lineNum">    1217 </span>            : 
+<span class="lineNum">    1218 </span>            :     assertConsistency();
+<span class="lineNum">    1219 </span>            : }
+<a name="1220"><span class="lineNum">    1220 </span>            : </a>
+<span class="lineNum">    1221 </span>            : /* static */ UnownedBaseShape*
+<span class="lineNum">    1222 </span><span class="lineCov">          1 : BaseShape::getUnowned(JSContext* cx, StackBaseShape&amp; base)</span>
+<span class="lineNum">    1223 </span>            : {
+<span class="lineNum">    1224 </span><span class="lineCov">          1 :     auto&amp; table = cx-&gt;zone()-&gt;baseShapes();</span>
+<span class="lineNum">    1225 </span>            : 
+<span class="lineNum">    1226 </span><span class="lineCov">          1 :     if (!table.initialized() &amp;&amp; !table.init()) {</span>
+<span class="lineNum">    1227 </span><span class="lineNoCov">          0 :         ReportOutOfMemory(cx);</span>
+<span class="lineNum">    1228 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1229 </span>            :     }
+<span class="lineNum">    1230 </span>            : 
+<span class="lineNum">    1231 </span>            :     auto p = MakeDependentAddPtr(cx, table, base);
+<span class="lineNum">    1232 </span><span class="lineCov">          1 :     if (p)</span>
+<span class="lineNum">    1233 </span><span class="lineCov">          1 :         return *p;</span>
+<span class="lineNum">    1234 </span>            : 
+<span class="lineNum">    1235 </span><span class="lineCov">          1 :     BaseShape* nbase_ = Allocate&lt;BaseShape&gt;(cx);</span>
+<span class="lineNum">    1236 </span><span class="lineCov">          1 :     if (!nbase_)</span>
+<span class="lineNum">    1237 </span>            :         return nullptr;
+<span class="lineNum">    1238 </span>            : 
+<span class="lineNum">    1239 </span><span class="lineCov">          1 :     new (nbase_) BaseShape(base);</span>
+<span class="lineNum">    1240 </span>            : 
+<span class="lineNum">    1241 </span><span class="lineCov">          1 :     UnownedBaseShape* nbase = static_cast&lt;UnownedBaseShape*&gt;(nbase_);</span>
+<span class="lineNum">    1242 </span>            : 
+<span class="lineNum">    1243 </span><span class="lineCov">          1 :     if (!p.add(cx, table, base, nbase))</span>
+<span class="lineNum">    1244 </span>            :         return nullptr;
+<span class="lineNum">    1245 </span>            : 
+<span class="lineNum">    1246 </span><span class="lineCov">          1 :     return nbase;</span>
+<span class="lineNum">    1247 </span>            : }
+<a name="1248"><span class="lineNum">    1248 </span>            : </a>
+<span class="lineNum">    1249 </span>            : void
+<span class="lineNum">    1250 </span><span class="lineCov">          1 : BaseShape::assertConsistency()</span>
+<span class="lineNum">    1251 </span>            : {
+<span class="lineNum">    1252 </span>            : #ifdef DEBUG
+<span class="lineNum">    1253 </span>            :     if (isOwned()) {
+<span class="lineNum">    1254 </span>            :         UnownedBaseShape* unowned = baseUnowned();
+<span class="lineNum">    1255 </span>            :         MOZ_ASSERT(getObjectFlags() == unowned-&gt;getObjectFlags());
+<span class="lineNum">    1256 </span>            :     }
+<span class="lineNum">    1257 </span>            : #endif
+<span class="lineNum">    1258 </span><span class="lineCov">          1 : }</span>
+<a name="1259"><span class="lineNum">    1259 </span>            : </a>
+<span class="lineNum">    1260 </span>            : void
+<span class="lineNum">    1261 </span><span class="lineCov">          1 : BaseShape::traceChildren(JSTracer* trc)</span>
+<span class="lineNum">    1262 </span>            : {
+<span class="lineNum">    1263 </span>            :     traceChildrenSkipShapeTable(trc);
+<span class="lineNum">    1264 </span>            :     traceShapeTable(trc);
+<span class="lineNum">    1265 </span><span class="lineCov">          1 : }</span>
+<a name="1266"><span class="lineNum">    1266 </span>            : </a>
+<span class="lineNum">    1267 </span>            : void
+<span class="lineNum">    1268 </span><span class="lineCov">          1 : BaseShape::traceChildrenSkipShapeTable(JSTracer* trc)</span>
+<span class="lineNum">    1269 </span>            : {
+<span class="lineNum">    1270 </span><span class="lineCov">          1 :     if (isOwned())</span>
+<span class="lineNum">    1271 </span><span class="lineCov">          1 :         TraceEdge(trc, &amp;unowned_, &quot;base&quot;);</span>
+<span class="lineNum">    1272 </span>            : 
+<span class="lineNum">    1273 </span>            :     assertConsistency();
+<span class="lineNum">    1274 </span><span class="lineCov">          1 : }</span>
+<a name="1275"><span class="lineNum">    1275 </span>            : </a>
+<span class="lineNum">    1276 </span>            : void
+<span class="lineNum">    1277 </span><span class="lineNoCov">          0 : BaseShape::traceShapeTable(JSTracer* trc)</span>
+<span class="lineNum">    1278 </span>            : {
+<span class="lineNum">    1279 </span>            :     AutoCheckCannotGC nogc;
+<span class="lineNum">    1280 </span><span class="lineCov">          1 :     if (ShapeTable* table = maybeTable(nogc))</span>
+<span class="lineNum">    1281 </span><span class="lineCov">          1 :         table-&gt;trace(trc);</span>
+<span class="lineNum">    1282 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">    1283 </span>            : 
+<span class="lineNum">    1284 </span>            : #ifdef DEBUG
+<span class="lineNum">    1285 </span>            : bool
+<span class="lineNum">    1286 </span>            : BaseShape::canSkipMarkingShapeTable(Shape* lastShape)
+<span class="lineNum">    1287 </span>            : {
+<span class="lineNum">    1288 </span>            :     // Check that every shape in the shape table will be marked by marking
+<span class="lineNum">    1289 </span>            :     // |lastShape|.
+<span class="lineNum">    1290 </span>            : 
+<span class="lineNum">    1291 </span>            :     AutoCheckCannotGC nogc;
+<span class="lineNum">    1292 </span>            :     ShapeTable* table = maybeTable(nogc);
+<span class="lineNum">    1293 </span>            :     if (!table)
+<span class="lineNum">    1294 </span>            :         return true;
+<span class="lineNum">    1295 </span>            : 
+<span class="lineNum">    1296 </span>            :     uint32_t count = 0;
+<span class="lineNum">    1297 </span>            :     for (Shape::Range&lt;NoGC&gt; r(lastShape); !r.empty(); r.popFront()) {
+<span class="lineNum">    1298 </span>            :         Shape* shape = &amp;r.front();
+<span class="lineNum">    1299 </span>            :         ShapeTable::Entry&amp; entry = table-&gt;search&lt;MaybeAdding::NotAdding&gt;(shape-&gt;propid(), nogc);
+<span class="lineNum">    1300 </span>            :         if (entry.isLive())
+<span class="lineNum">    1301 </span>            :             count++;
+<span class="lineNum">    1302 </span>            :     }
+<span class="lineNum">    1303 </span>            : 
+<span class="lineNum">    1304 </span>            :     return count == table-&gt;entryCount();
+<span class="lineNum">    1305 </span>            : }
+<span class="lineNum">    1306 </span>            : #endif
+<span class="lineNum">    1307 </span>            : 
+<span class="lineNum">    1308 </span>            : #ifdef JSGC_HASH_TABLE_CHECKS
+<span class="lineNum">    1309 </span>            : 
+<span class="lineNum">    1310 </span>            : void
+<span class="lineNum">    1311 </span>            : Zone::checkBaseShapeTableAfterMovingGC()
+<span class="lineNum">    1312 </span>            : {
+<span class="lineNum">    1313 </span>            :     if (!baseShapes().initialized())
+<span class="lineNum">    1314 </span>            :         return;
+<span class="lineNum">    1315 </span>            : 
+<span class="lineNum">    1316 </span>            :     for (BaseShapeSet::Enum e(baseShapes().get()); !e.empty(); e.popFront()) {
+<span class="lineNum">    1317 </span>            :         UnownedBaseShape* base = e.front().unbarrieredGet();
+<span class="lineNum">    1318 </span>            :         CheckGCThingAfterMovingGC(base);
+<span class="lineNum">    1319 </span>            : 
+<span class="lineNum">    1320 </span>            :         BaseShapeSet::Ptr ptr = baseShapes().lookup(base);
+<span class="lineNum">    1321 </span>            :         MOZ_RELEASE_ASSERT(ptr.found() &amp;&amp; &amp;*ptr == &amp;e.front());
+<span class="lineNum">    1322 </span>            :     }
+<span class="lineNum">    1323 </span>            : }
+<span class="lineNum">    1324 </span>            : 
+<span class="lineNum">    1325 </span>            : #endif // JSGC_HASH_TABLE_CHECKS
+<a name="1326"><span class="lineNum">    1326 </span>            : </a>
+<span class="lineNum">    1327 </span>            : void
+<span class="lineNum">    1328 </span><span class="lineCov">          1 : BaseShape::finalize(FreeOp* fop)</span>
+<span class="lineNum">    1329 </span>            : {
+<span class="lineNum">    1330 </span><span class="lineCov">          1 :     if (table_) {</span>
+<span class="lineNum">    1331 </span><span class="lineCov">          1 :         fop-&gt;delete_(table_);</span>
+<span class="lineNum">    1332 </span><span class="lineCov">          1 :         table_ = nullptr;</span>
+<span class="lineNum">    1333 </span>            :     }
+<span class="lineNum">    1334 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">    1335 </span>            : 
+<span class="lineNum">    1336 </span>            : inline
+<span class="lineNum">    1337 </span>            : InitialShapeEntry::InitialShapeEntry() : shape(nullptr), proto()
+<span class="lineNum">    1338 </span>            : {
+<span class="lineNum">    1339 </span>            : }
+<span class="lineNum">    1340 </span>            : 
+<span class="lineNum">    1341 </span>            : inline
+<span class="lineNum">    1342 </span>            : InitialShapeEntry::InitialShapeEntry(Shape* shape, const Lookup::ShapeProto&amp; proto)
+<span class="lineNum">    1343 </span><span class="lineCov">          1 :   : shape(shape), proto(proto)</span>
+<span class="lineNum">    1344 </span>            : {
+<span class="lineNum">    1345 </span>            : }
+<a name="1346"><span class="lineNum">    1346 </span>            : </a>
+<span class="lineNum">    1347 </span>            : /* static */ inline HashNumber
+<span class="lineNum">    1348 </span><span class="lineCov">          1 : InitialShapeEntry::hash(const Lookup&amp; lookup)</span>
+<span class="lineNum">    1349 </span>            : {
+<span class="lineNum">    1350 </span><span class="lineCov">          1 :     return (RotateLeft(uintptr_t(lookup.clasp) &gt;&gt; 3, 4) ^ lookup.proto.hashCode()) +</span>
+<span class="lineNum">    1351 </span><span class="lineCov">          1 :            lookup.nfixed;</span>
+<span class="lineNum">    1352 </span>            : }
+<a name="1353"><span class="lineNum">    1353 </span>            : </a>
+<span class="lineNum">    1354 </span>            : /* static */ inline bool
+<span class="lineNum">    1355 </span><span class="lineCov">          1 : InitialShapeEntry::match(const InitialShapeEntry&amp; key, const Lookup&amp; lookup)</span>
+<span class="lineNum">    1356 </span>            : {
+<span class="lineNum">    1357 </span><span class="lineCov">          1 :     const Shape* shape = key.shape.unbarrieredGet();</span>
+<span class="lineNum">    1358 </span><span class="lineCov">          1 :     return lookup.clasp == shape-&gt;getObjectClass()</span>
+<span class="lineNum">    1359 </span><span class="lineCov">          1 :         &amp;&amp; lookup.nfixed == shape-&gt;numFixedSlots()</span>
+<span class="lineNum">    1360 </span><span class="lineCov">          1 :         &amp;&amp; lookup.baseFlags == shape-&gt;getObjectFlags()</span>
+<span class="lineNum">    1361 </span><span class="lineCov">          1 :         &amp;&amp; lookup.proto.match(key.proto);</span>
+<span class="lineNum">    1362 </span>            : }
+<span class="lineNum">    1363 </span>            : 
+<span class="lineNum">    1364 </span>            : #ifdef JSGC_HASH_TABLE_CHECKS
+<span class="lineNum">    1365 </span>            : 
+<span class="lineNum">    1366 </span>            : void
+<span class="lineNum">    1367 </span>            : Zone::checkInitialShapesTableAfterMovingGC()
+<span class="lineNum">    1368 </span>            : {
+<span class="lineNum">    1369 </span>            :     if (!initialShapes().initialized())
+<span class="lineNum">    1370 </span>            :         return;
+<span class="lineNum">    1371 </span>            : 
+<span class="lineNum">    1372 </span>            :     /*
+<span class="lineNum">    1373 </span>            :      * Assert that the postbarriers have worked and that nothing is left in
+<span class="lineNum">    1374 </span>            :      * initialShapes that points into the nursery, and that the hash table
+<span class="lineNum">    1375 </span>            :      * entries are discoverable.
+<span class="lineNum">    1376 </span>            :      */
+<span class="lineNum">    1377 </span>            :     for (InitialShapeSet::Enum e(initialShapes().get()); !e.empty(); e.popFront()) {
+<span class="lineNum">    1378 </span>            :         InitialShapeEntry entry = e.front();
+<span class="lineNum">    1379 </span>            :         JSProtoKey protoKey = entry.proto.key();
+<span class="lineNum">    1380 </span>            :         TaggedProto proto = entry.proto.proto().unbarrieredGet();
+<span class="lineNum">    1381 </span>            :         Shape* shape = entry.shape.unbarrieredGet();
+<span class="lineNum">    1382 </span>            : 
+<span class="lineNum">    1383 </span>            :         CheckGCThingAfterMovingGC(shape);
+<span class="lineNum">    1384 </span>            :         if (proto.isObject())
+<span class="lineNum">    1385 </span>            :             CheckGCThingAfterMovingGC(proto.toObject());
+<span class="lineNum">    1386 </span>            : 
+<span class="lineNum">    1387 </span>            :         using Lookup = InitialShapeEntry::Lookup;
+<span class="lineNum">    1388 </span>            :         Lookup lookup(shape-&gt;getObjectClass(),
+<span class="lineNum">    1389 </span>            :                       Lookup::ShapeProto(protoKey, proto),
+<span class="lineNum">    1390 </span>            :                       shape-&gt;numFixedSlots(),
+<span class="lineNum">    1391 </span>            :                       shape-&gt;getObjectFlags());
+<span class="lineNum">    1392 </span>            :         InitialShapeSet::Ptr ptr = initialShapes().lookup(lookup);
+<span class="lineNum">    1393 </span>            :         MOZ_RELEASE_ASSERT(ptr.found() &amp;&amp; &amp;*ptr == &amp;e.front());
+<span class="lineNum">    1394 </span>            :     }
+<span class="lineNum">    1395 </span>            : }
+<span class="lineNum">    1396 </span>            : 
+<span class="lineNum">    1397 </span>            : #endif // JSGC_HASH_TABLE_CHECKS
+<a name="1398"><span class="lineNum">    1398 </span>            : </a>
+<span class="lineNum">    1399 </span>            : Shape*
+<span class="lineNum">    1400 </span><span class="lineCov">          1 : EmptyShape::new_(JSContext* cx, Handle&lt;UnownedBaseShape*&gt; base, uint32_t nfixed)</span>
+<span class="lineNum">    1401 </span>            : {
+<span class="lineNum">    1402 </span><span class="lineCov">          1 :     Shape* shape = Allocate&lt;Shape&gt;(cx);</span>
+<span class="lineNum">    1403 </span><span class="lineCov">          1 :     if (!shape) {</span>
+<span class="lineNum">    1404 </span><span class="lineNoCov">          0 :         ReportOutOfMemory(cx);</span>
+<span class="lineNum">    1405 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1406 </span>            :     }
+<span class="lineNum">    1407 </span>            : 
+<span class="lineNum">    1408 </span><span class="lineCov">          1 :     new (shape) EmptyShape(base, nfixed);</span>
+<span class="lineNum">    1409 </span><span class="lineCov">          1 :     return shape;</span>
+<span class="lineNum">    1410 </span>            : }
+<a name="1411"><span class="lineNum">    1411 </span>            : </a>
+<span class="lineNum">    1412 </span>            : static bool
+<span class="lineNum">    1413 </span><span class="lineCov">          1 : IsOriginalProto(GlobalObject* global, JSProtoKey key, JSObject&amp; proto)</span>
+<span class="lineNum">    1414 </span>            : {
+<span class="lineNum">    1415 </span><span class="lineCov">          1 :     if (global-&gt;getPrototype(key) != ObjectValue(proto))</span>
+<span class="lineNum">    1416 </span>            :         return false;
+<span class="lineNum">    1417 </span>            : 
+<span class="lineNum">    1418 </span><span class="lineCov">          1 :     if (key == JSProto_Object) {</span>
+<span class="lineNum">    1419 </span>            :         MOZ_ASSERT(proto.staticPrototypeIsImmutable(),
+<span class="lineNum">    1420 </span>            :                    &quot;proto should be Object.prototype, whose prototype is &quot;
+<span class="lineNum">    1421 </span>            :                    &quot;immutable&quot;);
+<span class="lineNum">    1422 </span>            :         MOZ_ASSERT(proto.staticPrototype() == nullptr,
+<span class="lineNum">    1423 </span>            :                    &quot;Object.prototype must have null prototype&quot;);
+<span class="lineNum">    1424 </span>            :         return true;
+<span class="lineNum">    1425 </span>            :     }
+<span class="lineNum">    1426 </span>            : 
+<span class="lineNum">    1427 </span>            :     // Check that other prototypes still have Object.prototype as proto.
+<span class="lineNum">    1428 </span><span class="lineCov">          1 :     JSObject* protoProto = proto.staticPrototype();</span>
+<span class="lineNum">    1429 </span><span class="lineCov">          1 :     if (!protoProto || global-&gt;getPrototype(JSProto_Object) != ObjectValue(*protoProto))</span>
+<span class="lineNum">    1430 </span>            :         return false;
+<span class="lineNum">    1431 </span>            : 
+<span class="lineNum">    1432 </span>            :     MOZ_ASSERT(protoProto-&gt;staticPrototypeIsImmutable(),
+<span class="lineNum">    1433 </span>            :                &quot;protoProto should be Object.prototype, whose prototype is &quot;
+<span class="lineNum">    1434 </span>            :                &quot;immutable&quot;);
+<span class="lineNum">    1435 </span>            :     MOZ_ASSERT(protoProto-&gt;staticPrototype() == nullptr,
+<span class="lineNum">    1436 </span>            :                &quot;Object.prototype must have null prototype&quot;);
+<span class="lineNum">    1437 </span><span class="lineCov">          1 :     return true;</span>
+<span class="lineNum">    1438 </span>            : }
+<a name="1439"><span class="lineNum">    1439 </span>            : </a>
+<span class="lineNum">    1440 </span>            : static JSProtoKey
+<span class="lineNum">    1441 </span><span class="lineCov">          1 : GetInitialShapeProtoKey(TaggedProto proto, JSContext* cx)</span>
+<span class="lineNum">    1442 </span>            : {
+<span class="lineNum">    1443 </span><span class="lineCov">          1 :     if (proto.isObject() &amp;&amp; proto.toObject()-&gt;hasStaticPrototype()) {</span>
+<span class="lineNum">    1444 </span><span class="lineCov">          1 :         GlobalObject* global = cx-&gt;global();</span>
+<span class="lineNum">    1445 </span><span class="lineCov">          1 :         JSObject&amp; obj = *proto.toObject();</span>
+<span class="lineNum">    1446 </span>            :         MOZ_ASSERT(global == &amp;obj.global());
+<span class="lineNum">    1447 </span>            : 
+<span class="lineNum">    1448 </span><span class="lineCov">          1 :         if (IsOriginalProto(global, JSProto_Object, obj))</span>
+<span class="lineNum">    1449 </span>            :             return JSProto_Object;
+<span class="lineNum">    1450 </span><span class="lineCov">          1 :         if (IsOriginalProto(global, JSProto_Function, obj))</span>
+<span class="lineNum">    1451 </span>            :             return JSProto_Function;
+<span class="lineNum">    1452 </span><span class="lineCov">          1 :         if (IsOriginalProto(global, JSProto_Array, obj))</span>
+<span class="lineNum">    1453 </span>            :             return JSProto_Array;
+<span class="lineNum">    1454 </span><span class="lineCov">          1 :         if (IsOriginalProto(global, JSProto_RegExp, obj))</span>
+<span class="lineNum">    1455 </span>            :             return JSProto_RegExp;
+<span class="lineNum">    1456 </span>            :     }
+<span class="lineNum">    1457 </span>            :     return JSProto_LIMIT;
+<span class="lineNum">    1458 </span>            : }
+<a name="1459"><span class="lineNum">    1459 </span>            : </a>
+<span class="lineNum">    1460 </span>            : /* static */ Shape*
+<span class="lineNum">    1461 </span><span class="lineCov">          1 : EmptyShape::getInitialShape(JSContext* cx, const Class* clasp, TaggedProto proto,</span>
+<span class="lineNum">    1462 </span>            :                             size_t nfixed, uint32_t objectFlags)
+<span class="lineNum">    1463 </span>            : {
+<span class="lineNum">    1464 </span>            :     MOZ_ASSERT_IF(proto.isObject(), cx-&gt;isInsideCurrentCompartment(proto.toObject()));
+<span class="lineNum">    1465 </span>            : 
+<span class="lineNum">    1466 </span><span class="lineCov">          1 :     auto&amp; table = cx-&gt;zone()-&gt;initialShapes();</span>
+<span class="lineNum">    1467 </span>            : 
+<span class="lineNum">    1468 </span><span class="lineCov">          1 :     if (!table.initialized() &amp;&amp; !table.init()) {</span>
+<span class="lineNum">    1469 </span><span class="lineNoCov">          0 :         ReportOutOfMemory(cx);</span>
+<span class="lineNum">    1470 </span><span class="lineNoCov">          0 :         return nullptr;</span>
+<span class="lineNum">    1471 </span>            :     }
+<span class="lineNum">    1472 </span>            : 
+<span class="lineNum">    1473 </span>            :     using Lookup = InitialShapeEntry::Lookup;
+<span class="lineNum">    1474 </span>            :     auto protoPointer = MakeDependentAddPtr(cx, table,
+<span class="lineNum">    1475 </span>            :                                             Lookup(clasp, Lookup::ShapeProto(proto),
+<span class="lineNum">    1476 </span><span class="lineCov">          1 :                                                    nfixed, objectFlags));</span>
+<span class="lineNum">    1477 </span><span class="lineCov">          1 :     if (protoPointer)</span>
+<span class="lineNum">    1478 </span><span class="lineCov">          1 :         return protoPointer-&gt;shape;</span>
+<span class="lineNum">    1479 </span>            : 
+<span class="lineNum">    1480 </span>            :     // No entry for this proto. If the proto is one of a few common builtin
+<span class="lineNum">    1481 </span>            :     // prototypes, try to do a lookup based on the JSProtoKey, so we can share
+<span class="lineNum">    1482 </span>            :     // shapes across globals.
+<span class="lineNum">    1483 </span>            :     Rooted&lt;TaggedProto&gt; protoRoot(cx, proto);
+<span class="lineNum">    1484 </span><span class="lineCov">          1 :     Shape* shape = nullptr;</span>
+<span class="lineNum">    1485 </span><span class="lineCov">          1 :     bool insertKey = false;</span>
+<span class="lineNum">    1486 </span>            :     mozilla::Maybe&lt;DependentAddPtr&lt;InitialShapeSet&gt;&gt; keyPointer;
+<span class="lineNum">    1487 </span>            : 
+<span class="lineNum">    1488 </span><span class="lineCov">          1 :     JSProtoKey key = GetInitialShapeProtoKey(protoRoot, cx);</span>
+<span class="lineNum">    1489 </span><span class="lineCov">          1 :     if (key != JSProto_LIMIT) {</span>
+<span class="lineNum">    1490 </span>            :         keyPointer.emplace(MakeDependentAddPtr(cx, table.get(),
+<span class="lineNum">    1491 </span>            :                                                Lookup(clasp, Lookup::ShapeProto(key),
+<span class="lineNum">    1492 </span><span class="lineCov">          1 :                                                       nfixed, objectFlags)));</span>
+<span class="lineNum">    1493 </span><span class="lineCov">          1 :         if (keyPointer.ref()) {</span>
+<span class="lineNum">    1494 </span><span class="lineCov">          1 :             shape = keyPointer.ref()-&gt;shape;</span>
+<span class="lineNum">    1495 </span>            :             MOZ_ASSERT(shape);
+<span class="lineNum">    1496 </span>            :         } else {
+<span class="lineNum">    1497 </span>            :             insertKey = true;
+<span class="lineNum">    1498 </span>            :         }
+<span class="lineNum">    1499 </span>            :     }
+<span class="lineNum">    1500 </span>            : 
+<span class="lineNum">    1501 </span><span class="lineCov">          1 :     if (!shape) {</span>
+<span class="lineNum">    1502 </span><span class="lineCov">          1 :         StackBaseShape base(cx, clasp, objectFlags);</span>
+<span class="lineNum">    1503 </span><span class="lineCov">          1 :         Rooted&lt;UnownedBaseShape*&gt; nbase(cx, BaseShape::getUnowned(cx, base));</span>
+<span class="lineNum">    1504 </span><span class="lineCov">          1 :         if (!nbase)</span>
+<span class="lineNum">    1505 </span>            :             return nullptr;
+<span class="lineNum">    1506 </span>            : 
+<span class="lineNum">    1507 </span><span class="lineCov">          1 :         shape = EmptyShape::new_(cx, nbase, nfixed);</span>
+<span class="lineNum">    1508 </span><span class="lineCov">          1 :         if (!shape)</span>
+<span class="lineNum">    1509 </span>            :             return nullptr;
+<span class="lineNum">    1510 </span>            :     }
+<span class="lineNum">    1511 </span>            : 
+<span class="lineNum">    1512 </span><span class="lineCov">          1 :     Lookup::ShapeProto shapeProto(protoRoot);</span>
+<span class="lineNum">    1513 </span><span class="lineCov">          1 :     Lookup lookup(clasp, shapeProto, nfixed, objectFlags);</span>
+<span class="lineNum">    1514 </span><span class="lineCov">          1 :     if (!protoPointer.add(cx, table, lookup, InitialShapeEntry(shape, shapeProto)))</span>
+<span class="lineNum">    1515 </span>            :         return nullptr;
+<span class="lineNum">    1516 </span>            : 
+<span class="lineNum">    1517 </span>            :     // Also add an entry based on the JSProtoKey, if needed.
+<span class="lineNum">    1518 </span><span class="lineCov">          1 :     if (insertKey) {</span>
+<span class="lineNum">    1519 </span>            :         Lookup::ShapeProto shapeProto(key);
+<span class="lineNum">    1520 </span><span class="lineCov">          1 :         Lookup lookup(clasp, shapeProto, nfixed, objectFlags);</span>
+<span class="lineNum">    1521 </span><span class="lineCov">          1 :         if (!keyPointer-&gt;add(cx, table.get(), lookup, InitialShapeEntry(shape, shapeProto)))</span>
+<span class="lineNum">    1522 </span><span class="lineNoCov">          0 :             return nullptr;</span>
+<span class="lineNum">    1523 </span>            :     }
+<span class="lineNum">    1524 </span>            : 
+<span class="lineNum">    1525 </span><span class="lineCov">          1 :     return shape;</span>
+<span class="lineNum">    1526 </span>            : }
+<a name="1527"><span class="lineNum">    1527 </span>            : </a>
+<span class="lineNum">    1528 </span>            : /* static */ Shape*
+<span class="lineNum">    1529 </span><span class="lineCov">          1 : EmptyShape::getInitialShape(JSContext* cx, const Class* clasp, TaggedProto proto,</span>
+<span class="lineNum">    1530 </span>            :                             AllocKind kind, uint32_t objectFlags)
+<span class="lineNum">    1531 </span>            : {
+<span class="lineNum">    1532 </span><span class="lineCov">          1 :     return getInitialShape(cx, clasp, proto, GetGCKindSlots(kind, clasp), objectFlags);</span>
+<span class="lineNum">    1533 </span>            : }
+<a name="1534"><span class="lineNum">    1534 </span>            : </a>
+<span class="lineNum">    1535 </span>            : void
+<span class="lineNum">    1536 </span><span class="lineCov">          1 : NewObjectCache::invalidateEntriesForShape(JSContext* cx, HandleShape shape, HandleObject proto)</span>
+<span class="lineNum">    1537 </span>            : {
+<span class="lineNum">    1538 </span><span class="lineCov">          1 :     const Class* clasp = shape-&gt;getObjectClass();</span>
+<span class="lineNum">    1539 </span>            : 
+<span class="lineNum">    1540 </span><span class="lineCov">          1 :     gc::AllocKind kind = gc::GetGCObjectKind(shape-&gt;numFixedSlots());</span>
+<span class="lineNum">    1541 </span><span class="lineCov">          1 :     if (CanBeFinalizedInBackground(kind, clasp))</span>
+<span class="lineNum">    1542 </span><span class="lineCov">          1 :         kind = GetBackgroundAllocKind(kind);</span>
+<span class="lineNum">    1543 </span>            : 
+<span class="lineNum">    1544 </span><span class="lineCov">          1 :     RootedObjectGroup group(cx, ObjectGroup::defaultNewGroup(cx, clasp, TaggedProto(proto)));</span>
+<span class="lineNum">    1545 </span><span class="lineCov">          1 :     if (!group) {</span>
+<span class="lineNum">    1546 </span>            :         purge();
+<span class="lineNum">    1547 </span><span class="lineNoCov">          0 :         cx-&gt;recoverFromOutOfMemory();</span>
+<span class="lineNum">    1548 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">    1549 </span>            :     }
+<span class="lineNum">    1550 </span>            : 
+<span class="lineNum">    1551 </span>            :     EntryIndex entry;
+<span class="lineNum">    1552 </span><span class="lineCov">          1 :     for (CompartmentsInZoneIter comp(shape-&gt;zone()); !comp.done(); comp.next()) {</span>
+<span class="lineNum">    1553 </span><span class="lineCov">          1 :         if (GlobalObject* global = comp-&gt;unsafeUnbarrieredMaybeGlobal()) {</span>
+<span class="lineNum">    1554 </span><span class="lineCov">          1 :             if (lookupGlobal(clasp, global, kind, &amp;entry))</span>
+<span class="lineNum">    1555 </span><span class="lineCov">          1 :                 PodZero(&amp;entries[entry]);</span>
+<span class="lineNum">    1556 </span>            :         }
+<span class="lineNum">    1557 </span>            :     }
+<span class="lineNum">    1558 </span><span class="lineCov">          1 :     if (!proto-&gt;is&lt;GlobalObject&gt;() &amp;&amp; lookupProto(clasp, proto, kind, &amp;entry))</span>
+<span class="lineNum">    1559 </span><span class="lineCov">          1 :         PodZero(&amp;entries[entry]);</span>
+<span class="lineNum">    1560 </span><span class="lineCov">          1 :     if (lookupGroup(group, kind, &amp;entry))</span>
+<span class="lineNum">    1561 </span><span class="lineNoCov">          0 :         PodZero(&amp;entries[entry]);</span>
+<span class="lineNum">    1562 </span>            : }
+<a name="1563"><span class="lineNum">    1563 </span>            : </a>
+<span class="lineNum">    1564 </span>            : /* static */ void
+<span class="lineNum">    1565 </span><span class="lineCov">          1 : EmptyShape::insertInitialShape(JSContext* cx, HandleShape shape, HandleObject proto)</span>
+<span class="lineNum">    1566 </span>            : {
+<span class="lineNum">    1567 </span>            :     using Lookup = InitialShapeEntry::Lookup;
+<span class="lineNum">    1568 </span>            :     Lookup lookup(shape-&gt;getObjectClass(), Lookup::ShapeProto(TaggedProto(proto)),
+<span class="lineNum">    1569 </span><span class="lineCov">          1 :                   shape-&gt;numFixedSlots(), shape-&gt;getObjectFlags());</span>
+<span class="lineNum">    1570 </span>            : 
+<span class="lineNum">    1571 </span><span class="lineCov">          1 :     InitialShapeSet::Ptr p = cx-&gt;zone()-&gt;initialShapes().lookup(lookup);</span>
+<span class="lineNum">    1572 </span>            :     MOZ_ASSERT(p);
+<span class="lineNum">    1573 </span>            : 
+<span class="lineNum">    1574 </span><span class="lineCov">          1 :     InitialShapeEntry&amp; entry = const_cast&lt;InitialShapeEntry&amp;&gt;(*p);</span>
+<span class="lineNum">    1575 </span>            : 
+<span class="lineNum">    1576 </span>            :     // The metadata callback can end up causing redundant changes of the initial shape.
+<span class="lineNum">    1577 </span><span class="lineCov">          1 :     if (entry.shape == shape)</span>
+<span class="lineNum">    1578 </span><span class="lineNoCov">          0 :         return;</span>
+<span class="lineNum">    1579 </span>            : 
+<span class="lineNum">    1580 </span>            :     // The new shape had better be rooted at the old one.
+<span class="lineNum">    1581 </span>            : #ifdef DEBUG
+<span class="lineNum">    1582 </span>            :     Shape* nshape = shape;
+<span class="lineNum">    1583 </span>            :     while (!nshape-&gt;isEmptyShape())
+<span class="lineNum">    1584 </span>            :         nshape = nshape-&gt;previous();
+<span class="lineNum">    1585 </span>            :     MOZ_ASSERT(nshape == entry.shape);
+<span class="lineNum">    1586 </span>            : #endif
+<span class="lineNum">    1587 </span>            : 
+<span class="lineNum">    1588 </span><span class="lineCov">          1 :     entry.shape = ReadBarrieredShape(shape);</span>
+<span class="lineNum">    1589 </span>            : 
+<span class="lineNum">    1590 </span>            :     // For certain prototypes -- namely, those of various builtin classes,
+<span class="lineNum">    1591 </span>            :     // keyed by JSProtoKey |key| -- there are two entries: one for a lookup
+<span class="lineNum">    1592 </span>            :     // via |proto|, and one for a lookup via |key|.  If this is such a
+<span class="lineNum">    1593 </span>            :     // prototype, also update the alternate |key|-keyed shape.
+<span class="lineNum">    1594 </span><span class="lineCov">          1 :     JSProtoKey key = GetInitialShapeProtoKey(TaggedProto(proto), cx);</span>
+<span class="lineNum">    1595 </span><span class="lineCov">          1 :     if (key != JSProto_LIMIT) {</span>
+<span class="lineNum">    1596 </span>            :         Lookup lookup(shape-&gt;getObjectClass(), Lookup::ShapeProto(key),
+<span class="lineNum">    1597 </span><span class="lineCov">          1 :                       shape-&gt;numFixedSlots(), shape-&gt;getObjectFlags());</span>
+<span class="lineNum">    1598 </span><span class="lineCov">          1 :         if (InitialShapeSet::Ptr p = cx-&gt;zone()-&gt;initialShapes().lookup(lookup)) {</span>
+<span class="lineNum">    1599 </span><span class="lineCov">          1 :             InitialShapeEntry&amp; entry = const_cast&lt;InitialShapeEntry&amp;&gt;(*p);</span>
+<span class="lineNum">    1600 </span><span class="lineCov">          1 :             if (entry.shape != shape)</span>
+<span class="lineNum">    1601 </span><span class="lineCov">          1 :                 entry.shape = ReadBarrieredShape(shape);</span>
+<span class="lineNum">    1602 </span>            :         }
+<span class="lineNum">    1603 </span>            :     }
+<span class="lineNum">    1604 </span>            : 
+<span class="lineNum">    1605 </span>            :     /*
+<span class="lineNum">    1606 </span>            :      * This affects the shape that will be produced by the various NewObject
+<span class="lineNum">    1607 </span>            :      * methods, so clear any cache entry referring to the old shape. This is
+<span class="lineNum">    1608 </span>            :      * not required for correctness: the NewObject must always check for a
+<span class="lineNum">    1609 </span>            :      * nativeEmpty() result and generate the appropriate properties if found.
+<span class="lineNum">    1610 </span>            :      * Clearing the cache entry avoids this duplicate regeneration.
+<span class="lineNum">    1611 </span>            :      *
+<span class="lineNum">    1612 </span>            :      * Clearing is not necessary when this context is running off
+<span class="lineNum">    1613 </span>            :      * thread, as it will not use the new object cache for allocations.
+<span class="lineNum">    1614 </span>            :      */
+<span class="lineNum">    1615 </span><span class="lineCov">          1 :     if (!cx-&gt;helperThread())</span>
+<span class="lineNum">    1616 </span><span class="lineCov">          1 :         cx-&gt;caches().newObjectCache.invalidateEntriesForShape(cx, shape, proto);</span>
+<span class="lineNum">    1617 </span>            : }
+<a name="1618"><span class="lineNum">    1618 </span>            : </a>
+<span class="lineNum">    1619 </span>            : void
+<span class="lineNum">    1620 </span><span class="lineCov">          1 : Zone::fixupInitialShapeTable()</span>
+<span class="lineNum">    1621 </span>            : {
+<span class="lineNum">    1622 </span><span class="lineCov">          1 :     if (!initialShapes().initialized())</span>
+<span class="lineNum">    1623 </span><span class="lineCov">          1 :         return;</span>
+<span class="lineNum">    1624 </span>            : 
+<span class="lineNum">    1625 </span><span class="lineCov">          1 :     for (InitialShapeSet::Enum e(initialShapes().get()); !e.empty(); e.popFront()) {</span>
+<span class="lineNum">    1626 </span>            :         // The shape may have been moved, but we can update that in place.
+<span class="lineNum">    1627 </span><span class="lineCov">          1 :         Shape* shape = e.front().shape.unbarrieredGet();</span>
+<span class="lineNum">    1628 </span><span class="lineCov">          1 :         if (IsForwarded(shape)) {</span>
+<span class="lineNum">    1629 </span><span class="lineCov">          1 :             shape = Forwarded(shape);</span>
+<span class="lineNum">    1630 </span><span class="lineCov">          1 :             e.mutableFront().shape.set(shape);</span>
+<span class="lineNum">    1631 </span>            :         }
+<span class="lineNum">    1632 </span><span class="lineCov">          1 :         shape-&gt;updateBaseShapeAfterMovingGC();</span>
+<span class="lineNum">    1633 </span>            : 
+<span class="lineNum">    1634 </span>            :         // If the prototype has moved we have to rekey the entry.
+<span class="lineNum">    1635 </span><span class="lineCov">          1 :         InitialShapeEntry entry = e.front();</span>
+<span class="lineNum">    1636 </span><span class="lineCov">          1 :         if (entry.proto.proto().isObject() &amp;&amp; IsForwarded(entry.proto.proto().toObject())) {</span>
+<span class="lineNum">    1637 </span><span class="lineCov">          1 :             entry.proto.setProto(TaggedProto(Forwarded(entry.proto.proto().toObject())));</span>
+<span class="lineNum">    1638 </span>            :             using Lookup = InitialShapeEntry::Lookup;
+<span class="lineNum">    1639 </span>            :             Lookup relookup(shape-&gt;getObjectClass(),
+<span class="lineNum">    1640 </span>            :                             Lookup::ShapeProto(entry.proto),
+<span class="lineNum">    1641 </span>            :                             shape-&gt;numFixedSlots(),
+<span class="lineNum">    1642 </span><span class="lineCov">          1 :                             shape-&gt;getObjectFlags());</span>
+<span class="lineNum">    1643 </span>            :             e.rekeyFront(relookup, entry);
+<span class="lineNum">    1644 </span>            :         }
+<span class="lineNum">    1645 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">    1646 </span>            : }
+<a name="1647"><span class="lineNum">    1647 </span>            : </a>
+<span class="lineNum">    1648 </span>            : void
+<span class="lineNum">    1649 </span><span class="lineCov">          1 : AutoRooterGetterSetter::Inner::trace(JSTracer* trc)</span>
+<span class="lineNum">    1650 </span>            : {
+<span class="lineNum">    1651 </span><span class="lineCov">          1 :     if ((attrs &amp; JSPROP_GETTER) &amp;&amp; *pgetter)</span>
+<span class="lineNum">    1652 </span><span class="lineCov">          1 :         TraceRoot(trc, (JSObject**) pgetter, &quot;AutoRooterGetterSetter getter&quot;);</span>
+<span class="lineNum">    1653 </span><span class="lineCov">          1 :     if ((attrs &amp; JSPROP_SETTER) &amp;&amp; *psetter)</span>
+<span class="lineNum">    1654 </span><span class="lineCov">          1 :         TraceRoot(trc, (JSObject**) psetter, &quot;AutoRooterGetterSetter setter&quot;);</span>
+<span class="lineNum">    1655 </span><span class="lineCov">          1 : }</span>
+<a name="1656"><span class="lineNum">    1656 </span>            : </a>
+<span class="lineNum">    1657 </span>            : JS::ubi::Node::Size
+<span class="lineNum">    1658 </span><span class="lineCov">          1 : JS::ubi::Concrete&lt;js::Shape&gt;::size(mozilla::MallocSizeOf mallocSizeOf) const</span>
+<span class="lineNum">    1659 </span>            : {
+<span class="lineNum">    1660 </span><span class="lineCov">          1 :     Size size = js::gc::Arena::thingSize(get().asTenured().getAllocKind());</span>
+<span class="lineNum">    1661 </span>            : 
+<span class="lineNum">    1662 </span>            :     AutoCheckCannotGC nogc;
+<span class="lineNum">    1663 </span><span class="lineCov">          1 :     if (ShapeTable* table = get().maybeTable(nogc))</span>
+<span class="lineNum">    1664 </span><span class="lineCov">          1 :         size += table-&gt;sizeOfIncludingThis(mallocSizeOf);</span>
+<span class="lineNum">    1665 </span>            : 
+<span class="lineNum">    1666 </span><span class="lineCov">          1 :     if (!get().inDictionary() &amp;&amp; get().kids.isHash())</span>
+<span class="lineNum">    1667 </span><span class="lineCov">          1 :         size += get().kids.toHash()-&gt;sizeOfIncludingThis(mallocSizeOf);</span>
+<span class="lineNum">    1668 </span>            : 
+<span class="lineNum">    1669 </span><span class="lineCov">          1 :     return size;</span>
+<span class="lineNum">    1670 </span>            : }
+<a name="1671"><span class="lineNum">    1671 </span>            : </a>
+<span class="lineNum">    1672 </span>            : JS::ubi::Node::Size
+<span class="lineNum">    1673 </span><span class="lineCov">          1 : JS::ubi::Concrete&lt;js::BaseShape&gt;::size(mozilla::MallocSizeOf mallocSizeOf) const</span>
+<span class="lineNum">    1674 </span>            : {
+<span class="lineNum">    1675 </span><span class="lineCov">          1 :     return js::gc::Arena::thingSize(get().asTenured().getAllocKind());</span>
+<span class="lineNum">    1676 </span>            : }
+<a name="1677"><span class="lineNum">    1677 </span>            : </a>
+<span class="lineNum">    1678 </span>            : void
+<span class="lineNum">    1679 </span><span class="lineCov">          1 : PropertyResult::trace(JSTracer* trc)</span>
+<span class="lineNum">    1680 </span>            : {
+<span class="lineNum">    1681 </span><span class="lineCov">          1 :     if (isNativeProperty())</span>
+<span class="lineNum">    1682 </span><span class="lineCov">          1 :         TraceRoot(trc, &amp;shape_, &quot;PropertyResult::shape_&quot;);</span>
+<span class="lineNum">    1683 </span><span class="lineCov">          1 : }</span>
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

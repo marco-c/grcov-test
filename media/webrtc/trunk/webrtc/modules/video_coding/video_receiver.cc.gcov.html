@@ -1,0 +1,664 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - media/webrtc/trunk/webrtc/modules/video_coding/video_receiver.cc</title>
+  <link rel="stylesheet" type="text/css" href="../../../../../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../../../../../index.html">top level</a> - <a href="index.html">media/webrtc/trunk/webrtc/modules/video_coding</a> - video_receiver.cc<span style="font-size: 80%;"> (source / <a href="video_receiver.cc.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">161</td>
+            <td class="headerCovTableEntry">249</td>
+            <td class="headerCovTableEntryLo">64.7 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">21</td>
+            <td class="headerCovTableEntry">34</td>
+            <td class="headerCovTableEntryLo">61.8 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /*</a>
+<span class="lineNum">       2 </span>            :  *  Copyright (c) 2013 The WebRTC project authors. All Rights Reserved.
+<span class="lineNum">       3 </span>            :  *
+<span class="lineNum">       4 </span>            :  *  Use of this source code is governed by a BSD-style license
+<span class="lineNum">       5 </span>            :  *  that can be found in the LICENSE file in the root of the source
+<span class="lineNum">       6 </span>            :  *  tree. An additional intellectual property rights grant can be found
+<span class="lineNum">       7 </span>            :  *  in the file PATENTS.  All contributing project authors may
+<span class="lineNum">       8 </span>            :  *  be found in the AUTHORS file in the root of the source tree.
+<span class="lineNum">       9 </span>            :  */
+<span class="lineNum">      10 </span>            : 
+<span class="lineNum">      11 </span>            : #include &quot;webrtc/base/checks.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;webrtc/base/logging.h&quot;
+<span class="lineNum">      13 </span>            : #include &quot;webrtc/base/trace_event.h&quot;
+<span class="lineNum">      14 </span>            : #include &quot;webrtc/common_types.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;webrtc/common_video/libyuv/include/webrtc_libyuv.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;webrtc/modules/video_coding/include/video_codec_interface.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;webrtc/modules/video_coding/encoded_frame.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;webrtc/modules/video_coding/jitter_buffer.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;webrtc/modules/video_coding/packet.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;webrtc/modules/video_coding/video_coding_impl.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;webrtc/system_wrappers/include/clock.h&quot;
+<span class="lineNum">      22 </span>            : 
+<span class="lineNum">      23 </span>            : // #define DEBUG_DECODER_BIT_STREAM
+<span class="lineNum">      24 </span>            : 
+<span class="lineNum">      25 </span>            : namespace webrtc {
+<a name="26"><span class="lineNum">      26 </span>            : namespace vcm {</a>
+<span class="lineNum">      27 </span>            : 
+<span class="lineNum">      28 </span><span class="lineCov">          1 : VideoReceiver::VideoReceiver(Clock* clock, EventFactory* event_factory)</span>
+<span class="lineNum">      29 </span>            :     : clock_(clock),
+<span class="lineNum">      30 </span>            :       process_crit_sect_(CriticalSectionWrapper::CreateCriticalSection()),
+<span class="lineNum">      31 </span><span class="lineCov">          1 :       _receiveCritSect(CriticalSectionWrapper::CreateCriticalSection()),</span>
+<span class="lineNum">      32 </span>            :       _receiveState(kReceiveStateInitial),
+<span class="lineNum">      33 </span>            :       _timing(clock_),
+<span class="lineNum">      34 </span>            :       _receiver(&amp;_timing, clock_, event_factory),
+<span class="lineNum">      35 </span>            :       _decodedFrameCallback(&amp;_timing, clock_),
+<span class="lineNum">      36 </span>            :       _frameTypeCallback(NULL),
+<span class="lineNum">      37 </span>            :       _receiveStatsCallback(NULL),
+<span class="lineNum">      38 </span>            :       _decoderTimingCallback(NULL),
+<span class="lineNum">      39 </span>            :       _packetRequestCallback(NULL),
+<span class="lineNum">      40 </span>            :       _receiveStateCallback(NULL),
+<span class="lineNum">      41 </span>            :       render_buffer_callback_(NULL),
+<span class="lineNum">      42 </span>            :       _decoder(NULL),
+<span class="lineNum">      43 </span>            : #ifdef DEBUG_DECODER_BIT_STREAM
+<span class="lineNum">      44 </span>            :       _bitStreamBeforeDecoder(NULL),
+<span class="lineNum">      45 </span>            : #endif
+<span class="lineNum">      46 </span>            :       _frameFromFile(),
+<span class="lineNum">      47 </span>            :       _scheduleKeyRequest(false),
+<span class="lineNum">      48 </span>            :       max_nack_list_size_(0),
+<span class="lineNum">      49 </span>            :       pre_decode_image_callback_(NULL),
+<span class="lineNum">      50 </span>            :       _codecDataBase(nullptr, nullptr),
+<span class="lineNum">      51 </span>            :       _receiveStatsTimer(1000, clock_),
+<span class="lineNum">      52 </span>            :       _retransmissionTimer(10, clock_),
+<span class="lineNum">      53 </span><span class="lineCov">          1 :       _keyRequestTimer(500, clock_) {</span>
+<span class="lineNum">      54 </span>            :   assert(clock_);
+<span class="lineNum">      55 </span>            : #ifdef DEBUG_DECODER_BIT_STREAM
+<span class="lineNum">      56 </span>            :   _bitStreamBeforeDecoder = fopen(&quot;decoderBitStream.bit&quot;, &quot;wb&quot;);
+<span class="lineNum">      57 </span>            : #endif
+<a name="58"><span class="lineNum">      58 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">      59 </span>            : 
+<span class="lineNum">      60 </span><span class="lineCov">          1 : VideoReceiver::~VideoReceiver() {</span>
+<span class="lineNum">      61 </span><span class="lineCov">          1 :   delete _receiveCritSect;</span>
+<span class="lineNum">      62 </span>            : #ifdef DEBUG_DECODER_BIT_STREAM
+<span class="lineNum">      63 </span>            :   fclose(_bitStreamBeforeDecoder);
+<span class="lineNum">      64 </span>            : #endif
+<a name="65"><span class="lineNum">      65 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">      66 </span>            : 
+<span class="lineNum">      67 </span><span class="lineCov">          1 : int32_t VideoReceiver::Process() {</span>
+<span class="lineNum">      68 </span><span class="lineCov">          1 :   int32_t returnValue = VCM_OK;</span>
+<span class="lineNum">      69 </span>            : 
+<span class="lineNum">      70 </span>            :   // Receive-side statistics
+<span class="lineNum">      71 </span><span class="lineCov">          1 :   if (_receiveStatsTimer.TimeUntilProcess() == 0) {</span>
+<span class="lineNum">      72 </span><span class="lineCov">          1 :     _receiveStatsTimer.Processed();</span>
+<span class="lineNum">      73 </span><span class="lineCov">          1 :     CriticalSectionScoped cs(process_crit_sect_.get());</span>
+<span class="lineNum">      74 </span><span class="lineCov">          1 :     if (_receiveStatsCallback != NULL) {</span>
+<span class="lineNum">      75 </span>            :       uint32_t bitRate;
+<span class="lineNum">      76 </span>            :       uint32_t frameRate;
+<span class="lineNum">      77 </span><span class="lineCov">          1 :       _receiver.ReceiveStatistics(&amp;bitRate, &amp;frameRate);</span>
+<span class="lineNum">      78 </span><span class="lineCov">          1 :       _receiveStatsCallback-&gt;OnReceiveRatesUpdated(bitRate, frameRate);</span>
+<span class="lineNum">      79 </span>            :     }
+<span class="lineNum">      80 </span>            : 
+<span class="lineNum">      81 </span><span class="lineCov">          1 :     if (_decoderTimingCallback != NULL) {</span>
+<span class="lineNum">      82 </span>            :       int decode_ms;
+<span class="lineNum">      83 </span>            :       int max_decode_ms;
+<span class="lineNum">      84 </span>            :       int current_delay_ms;
+<span class="lineNum">      85 </span>            :       int target_delay_ms;
+<span class="lineNum">      86 </span>            :       int jitter_buffer_ms;
+<span class="lineNum">      87 </span>            :       int min_playout_delay_ms;
+<span class="lineNum">      88 </span>            :       int render_delay_ms;
+<span class="lineNum">      89 </span>            :       _timing.GetTimings(&amp;decode_ms, &amp;max_decode_ms, &amp;current_delay_ms,
+<span class="lineNum">      90 </span>            :                          &amp;target_delay_ms, &amp;jitter_buffer_ms,
+<span class="lineNum">      91 </span><span class="lineCov">          1 :                          &amp;min_playout_delay_ms, &amp;render_delay_ms);</span>
+<span class="lineNum">      92 </span>            :       _decoderTimingCallback-&gt;OnDecoderTiming(
+<span class="lineNum">      93 </span>            :           decode_ms, max_decode_ms, current_delay_ms, target_delay_ms,
+<span class="lineNum">      94 </span><span class="lineCov">          1 :           jitter_buffer_ms, min_playout_delay_ms, render_delay_ms);</span>
+<span class="lineNum">      95 </span>            :     }
+<span class="lineNum">      96 </span>            : 
+<span class="lineNum">      97 </span>            :     // Size of render buffer.
+<span class="lineNum">      98 </span><span class="lineCov">          1 :     if (render_buffer_callback_) {</span>
+<span class="lineNum">      99 </span><span class="lineNoCov">          0 :       int buffer_size_ms = _receiver.RenderBufferSizeMs();</span>
+<span class="lineNum">     100 </span><span class="lineNoCov">          0 :       render_buffer_callback_-&gt;RenderBufferSizeMs(buffer_size_ms);</span>
+<span class="lineNum">     101 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     102 </span>            :   }
+<span class="lineNum">     103 </span>            : 
+<span class="lineNum">     104 </span>            :   // Key frame requests
+<span class="lineNum">     105 </span><span class="lineCov">          1 :   if (_keyRequestTimer.TimeUntilProcess() == 0) {</span>
+<span class="lineNum">     106 </span><span class="lineCov">          1 :     _keyRequestTimer.Processed();</span>
+<span class="lineNum">     107 </span><span class="lineCov">          1 :     bool request_key_frame = false;</span>
+<span class="lineNum">     108 </span>            :     {
+<span class="lineNum">     109 </span><span class="lineCov">          1 :       CriticalSectionScoped cs(process_crit_sect_.get());</span>
+<span class="lineNum">     110 </span><span class="lineCov">          1 :       request_key_frame = _scheduleKeyRequest &amp;&amp; _frameTypeCallback != NULL;</span>
+<span class="lineNum">     111 </span>            :     }
+<span class="lineNum">     112 </span><span class="lineCov">          1 :     if (request_key_frame) {</span>
+<span class="lineNum">     113 </span><span class="lineNoCov">          0 :       const int32_t ret = RequestKeyFrame();</span>
+<span class="lineNum">     114 </span><span class="lineNoCov">          0 :       if (ret != VCM_OK &amp;&amp; returnValue == VCM_OK) {</span>
+<span class="lineNum">     115 </span><span class="lineNoCov">          0 :         returnValue = ret;</span>
+<span class="lineNum">     116 </span>            :       }
+<span class="lineNum">     117 </span>            :     }
+<span class="lineNum">     118 </span>            :   }
+<span class="lineNum">     119 </span>            : 
+<span class="lineNum">     120 </span>            :   // Packet retransmission requests
+<span class="lineNum">     121 </span>            :   // TODO(holmer): Add API for changing Process interval and make sure it's
+<span class="lineNum">     122 </span>            :   // disabled when NACK is off.
+<span class="lineNum">     123 </span><span class="lineCov">          1 :   if (_retransmissionTimer.TimeUntilProcess() == 0) {</span>
+<span class="lineNum">     124 </span><span class="lineCov">          1 :     _retransmissionTimer.Processed();</span>
+<span class="lineNum">     125 </span><span class="lineCov">          1 :     bool callback_registered = false;</span>
+<span class="lineNum">     126 </span>            :     uint16_t length;
+<span class="lineNum">     127 </span>            :     {
+<span class="lineNum">     128 </span><span class="lineCov">          1 :       CriticalSectionScoped cs(process_crit_sect_.get());</span>
+<span class="lineNum">     129 </span><span class="lineCov">          1 :       length = max_nack_list_size_;</span>
+<span class="lineNum">     130 </span><span class="lineCov">          1 :       callback_registered = _packetRequestCallback != NULL;</span>
+<span class="lineNum">     131 </span>            :     }
+<span class="lineNum">     132 </span><span class="lineCov">          1 :     if (callback_registered &amp;&amp; length &gt; 0) {</span>
+<span class="lineNum">     133 </span>            :       // Collect sequence numbers from the default receiver.
+<span class="lineNum">     134 </span><span class="lineCov">          1 :       bool request_key_frame = false;</span>
+<span class="lineNum">     135 </span><span class="lineCov">          1 :       std::vector&lt;uint16_t&gt; nackList = _receiver.NackList(&amp;request_key_frame);</span>
+<span class="lineNum">     136 </span><span class="lineCov">          1 :       int32_t ret = VCM_OK;</span>
+<span class="lineNum">     137 </span><span class="lineCov">          1 :       if (request_key_frame) {</span>
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 :         ret = RequestKeyFrame();</span>
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :         if (ret != VCM_OK &amp;&amp; returnValue == VCM_OK) {</span>
+<span class="lineNum">     140 </span><span class="lineNoCov">          0 :           returnValue = ret;</span>
+<span class="lineNum">     141 </span>            :         }
+<span class="lineNum">     142 </span>            :       }
+<span class="lineNum">     143 </span><span class="lineCov">          1 :       if (ret == VCM_OK &amp;&amp; !nackList.empty()) {</span>
+<span class="lineNum">     144 </span><span class="lineCov">          1 :         CriticalSectionScoped cs(process_crit_sect_.get());</span>
+<span class="lineNum">     145 </span><span class="lineCov">          1 :         if (_packetRequestCallback != NULL) {</span>
+<span class="lineNum">     146 </span><span class="lineCov">          1 :           _packetRequestCallback-&gt;ResendPackets(&amp;nackList[0], nackList.size());</span>
+<span class="lineNum">     147 </span><span class="lineCov">          1 :         }</span>
+<span class="lineNum">     148 </span>            :       }
+<span class="lineNum">     149 </span>            :     }
+<span class="lineNum">     150 </span>            :   }
+<span class="lineNum">     151 </span>            : 
+<span class="lineNum">     152 </span><span class="lineCov">          1 :   return returnValue;</span>
+<a name="153"><span class="lineNum">     153 </span>            : }</a>
+<span class="lineNum">     154 </span>            : 
+<span class="lineNum">     155 </span><span class="lineNoCov">          0 : void VideoReceiver::SetReceiveState(VideoReceiveState state) {</span>
+<span class="lineNum">     156 </span><span class="lineNoCov">          0 :   if (state == _receiveState) {</span>
+<span class="lineNum">     157 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     158 </span>            :   }
+<span class="lineNum">     159 </span><span class="lineNoCov">          0 :   if (state == kReceiveStatePreemptiveNACK &amp;&amp;</span>
+<span class="lineNum">     160 </span><span class="lineNoCov">          0 :       (_receiveState == kReceiveStateWaitingKey ||</span>
+<span class="lineNum">     161 </span>            :        _receiveState == kReceiveStateDecodingWithErrors)) {
+<span class="lineNum">     162 </span>            :     // invalid state transition - this lets us try to set it on NACK
+<span class="lineNum">     163 </span>            :     // without worrying about the current state
+<span class="lineNum">     164 </span>            :     return;
+<span class="lineNum">     165 </span>            :   }
+<span class="lineNum">     166 </span><span class="lineNoCov">          0 :   _receiveState = state;</span>
+<span class="lineNum">     167 </span>            : 
+<span class="lineNum">     168 </span><span class="lineNoCov">          0 :   CriticalSectionScoped cs(process_crit_sect_.get());</span>
+<span class="lineNum">     169 </span><span class="lineNoCov">          0 :   if (_receiveStateCallback != NULL) {</span>
+<span class="lineNum">     170 </span><span class="lineNoCov">          0 :     _receiveStateCallback-&gt;ReceiveStateChange(_receiveState);</span>
+<span class="lineNum">     171 </span><span class="lineNoCov">          0 :   }</span>
+<a name="172"><span class="lineNum">     172 </span>            : }</a>
+<span class="lineNum">     173 </span>            : 
+<span class="lineNum">     174 </span><span class="lineCov">          1 : int64_t VideoReceiver::TimeUntilNextProcess() {</span>
+<span class="lineNum">     175 </span><span class="lineCov">          1 :   int64_t timeUntilNextProcess = _receiveStatsTimer.TimeUntilProcess();</span>
+<span class="lineNum">     176 </span><span class="lineCov">          1 :   if (_receiver.NackMode() != kNoNack) {</span>
+<span class="lineNum">     177 </span>            :     // We need a Process call more often if we are relying on
+<span class="lineNum">     178 </span>            :     // retransmissions
+<span class="lineNum">     179 </span>            :     timeUntilNextProcess =
+<span class="lineNum">     180 </span><span class="lineCov">          1 :         VCM_MIN(timeUntilNextProcess, _retransmissionTimer.TimeUntilProcess());</span>
+<span class="lineNum">     181 </span>            :   }
+<span class="lineNum">     182 </span>            :   timeUntilNextProcess =
+<span class="lineNum">     183 </span><span class="lineCov">          1 :       VCM_MIN(timeUntilNextProcess, _keyRequestTimer.TimeUntilProcess());</span>
+<span class="lineNum">     184 </span>            : 
+<span class="lineNum">     185 </span><span class="lineCov">          1 :   return timeUntilNextProcess;</span>
+<a name="186"><span class="lineNum">     186 </span>            : }</a>
+<span class="lineNum">     187 </span>            : 
+<span class="lineNum">     188 </span><span class="lineCov">          1 : int32_t VideoReceiver::SetReceiveChannelParameters(int64_t rtt) {</span>
+<span class="lineNum">     189 </span><span class="lineCov">          1 :   CriticalSectionScoped receiveCs(_receiveCritSect);</span>
+<span class="lineNum">     190 </span><span class="lineCov">          1 :   _receiver.UpdateRtt(rtt);</span>
+<span class="lineNum">     191 </span><span class="lineCov">          1 :   return 0;</span>
+<span class="lineNum">     192 </span>            : }
+<span class="lineNum">     193 </span>            : 
+<span class="lineNum">     194 </span>            : // Enable or disable a video protection method.
+<span class="lineNum">     195 </span>            : // Note: This API should be deprecated, as it does not offer a distinction
+<a name="196"><span class="lineNum">     196 </span>            : // between the protection method and decoding with or without errors. If such a</a>
+<span class="lineNum">     197 </span>            : // behavior is desired, use the following API: SetReceiverRobustnessMode.
+<span class="lineNum">     198 </span><span class="lineCov">          1 : int32_t VideoReceiver::SetVideoProtection(VCMVideoProtection videoProtection,</span>
+<span class="lineNum">     199 </span>            :                                           bool enable) {
+<span class="lineNum">     200 </span>            :   // By default, do not decode with errors.
+<span class="lineNum">     201 </span><span class="lineCov">          1 :   _receiver.SetDecodeErrorMode(kNoErrors);</span>
+<span class="lineNum">     202 </span><span class="lineCov">          1 :   switch (videoProtection) {</span>
+<span class="lineNum">     203 </span>            :     case kProtectionNack: {
+<span class="lineNum">     204 </span>            :       RTC_DCHECK(enable);
+<span class="lineNum">     205 </span><span class="lineCov">          1 :       _receiver.SetNackMode(kNack, -1, -1);</span>
+<span class="lineNum">     206 </span><span class="lineCov">          1 :       break;</span>
+<span class="lineNum">     207 </span>            :     }
+<span class="lineNum">     208 </span>            : 
+<span class="lineNum">     209 </span>            :     case kProtectionNackFEC: {
+<span class="lineNum">     210 </span><span class="lineNoCov">          0 :       CriticalSectionScoped cs(_receiveCritSect);</span>
+<span class="lineNum">     211 </span>            :       RTC_DCHECK(enable);
+<span class="lineNum">     212 </span><span class="lineNoCov">          0 :       _receiver.SetNackMode(kNack, media_optimization::kLowRttNackMs, -1);</span>
+<span class="lineNum">     213 </span><span class="lineNoCov">          0 :       _receiver.SetDecodeErrorMode(kNoErrors);</span>
+<span class="lineNum">     214 </span><span class="lineNoCov">          0 :       break;</span>
+<span class="lineNum">     215 </span>            :     }
+<span class="lineNum">     216 </span>            :     case kProtectionFEC:
+<span class="lineNum">     217 </span>            :     case kProtectionNone:
+<span class="lineNum">     218 </span>            :       // No receiver-side protection.
+<span class="lineNum">     219 </span>            :       RTC_DCHECK(enable);
+<span class="lineNum">     220 </span><span class="lineNoCov">          0 :       _receiver.SetNackMode(kNoNack, -1, -1);</span>
+<span class="lineNum">     221 </span><span class="lineNoCov">          0 :       _receiver.SetDecodeErrorMode(kWithErrors);</span>
+<span class="lineNum">     222 </span><span class="lineNoCov">          0 :       break;</span>
+<span class="lineNum">     223 </span>            :   }
+<span class="lineNum">     224 </span><span class="lineCov">          1 :   return VCM_OK;</span>
+<span class="lineNum">     225 </span>            : }
+<span class="lineNum">     226 </span>            : 
+<a name="227"><span class="lineNum">     227 </span>            : // Register a receive callback. Will be called whenever there is a new frame</a>
+<span class="lineNum">     228 </span>            : // ready for rendering.
+<span class="lineNum">     229 </span><span class="lineCov">          1 : int32_t VideoReceiver::RegisterReceiveCallback(</span>
+<span class="lineNum">     230 </span>            :     VCMReceiveCallback* receiveCallback) {
+<span class="lineNum">     231 </span><span class="lineCov">          1 :   CriticalSectionScoped cs(_receiveCritSect);</span>
+<span class="lineNum">     232 </span><span class="lineCov">          1 :   _decodedFrameCallback.SetUserReceiveCallback(receiveCallback);</span>
+<span class="lineNum">     233 </span><span class="lineCov">          1 :   return VCM_OK;</span>
+<a name="234"><span class="lineNum">     234 </span>            : }</a>
+<span class="lineNum">     235 </span>            : 
+<span class="lineNum">     236 </span><span class="lineCov">          1 : int32_t VideoReceiver::RegisterReceiveStatisticsCallback(</span>
+<span class="lineNum">     237 </span>            :     VCMReceiveStatisticsCallback* receiveStats) {
+<span class="lineNum">     238 </span><span class="lineCov">          1 :   CriticalSectionScoped cs(process_crit_sect_.get());</span>
+<span class="lineNum">     239 </span><span class="lineCov">          1 :   _receiver.RegisterStatsCallback(receiveStats);</span>
+<span class="lineNum">     240 </span><span class="lineCov">          1 :   _receiveStatsCallback = receiveStats;</span>
+<span class="lineNum">     241 </span><span class="lineCov">          1 :   return VCM_OK;</span>
+<a name="242"><span class="lineNum">     242 </span>            : }</a>
+<span class="lineNum">     243 </span>            : 
+<span class="lineNum">     244 </span><span class="lineCov">          1 : int32_t VideoReceiver::RegisterDecoderTimingCallback(</span>
+<span class="lineNum">     245 </span>            :     VCMDecoderTimingCallback* decoderTiming) {
+<span class="lineNum">     246 </span><span class="lineCov">          1 :   CriticalSectionScoped cs(process_crit_sect_.get());</span>
+<span class="lineNum">     247 </span><span class="lineCov">          1 :   _decoderTimingCallback = decoderTiming;</span>
+<span class="lineNum">     248 </span><span class="lineCov">          1 :   return VCM_OK;</span>
+<span class="lineNum">     249 </span>            : }
+<a name="250"><span class="lineNum">     250 </span>            : </a>
+<span class="lineNum">     251 </span>            : // Register an externally defined decoder object.
+<span class="lineNum">     252 </span><span class="lineCov">          1 : void VideoReceiver::RegisterExternalDecoder(VideoDecoder* externalDecoder,</span>
+<span class="lineNum">     253 </span>            :                                             uint8_t payloadType) {
+<span class="lineNum">     254 </span><span class="lineCov">          1 :   CriticalSectionScoped cs(_receiveCritSect);</span>
+<span class="lineNum">     255 </span><span class="lineCov">          1 :   if (externalDecoder == NULL) {</span>
+<span class="lineNum">     256 </span>            :     // Make sure the VCM updates the decoder next time it decodes.
+<span class="lineNum">     257 </span><span class="lineNoCov">          0 :     _decoder = NULL;</span>
+<span class="lineNum">     258 </span><span class="lineNoCov">          0 :     RTC_CHECK(_codecDataBase.DeregisterExternalDecoder(payloadType));</span>
+<span class="lineNum">     259 </span><span class="lineNoCov">          0 :     return;</span>
+<span class="lineNum">     260 </span>            :   }
+<span class="lineNum">     261 </span><span class="lineCov">          1 :   _codecDataBase.RegisterExternalDecoder(externalDecoder, payloadType);</span>
+<span class="lineNum">     262 </span>            : }
+<a name="263"><span class="lineNum">     263 </span>            : </a>
+<span class="lineNum">     264 </span>            : // Register a frame type request callback.
+<span class="lineNum">     265 </span><span class="lineCov">          1 : int32_t VideoReceiver::RegisterFrameTypeCallback(</span>
+<span class="lineNum">     266 </span>            :     VCMFrameTypeCallback* frameTypeCallback) {
+<span class="lineNum">     267 </span><span class="lineCov">          1 :   CriticalSectionScoped cs(process_crit_sect_.get());</span>
+<span class="lineNum">     268 </span><span class="lineCov">          1 :   _frameTypeCallback = frameTypeCallback;</span>
+<span class="lineNum">     269 </span><span class="lineCov">          1 :   return VCM_OK;</span>
+<a name="270"><span class="lineNum">     270 </span>            : }</a>
+<span class="lineNum">     271 </span>            : 
+<span class="lineNum">     272 </span><span class="lineCov">          1 : int32_t VideoReceiver::RegisterPacketRequestCallback(</span>
+<span class="lineNum">     273 </span>            :     VCMPacketRequestCallback* callback) {
+<span class="lineNum">     274 </span><span class="lineCov">          1 :   CriticalSectionScoped cs(process_crit_sect_.get());</span>
+<span class="lineNum">     275 </span><span class="lineCov">          1 :   _packetRequestCallback = callback;</span>
+<span class="lineNum">     276 </span><span class="lineCov">          1 :   return VCM_OK;</span>
+<a name="277"><span class="lineNum">     277 </span>            : }</a>
+<span class="lineNum">     278 </span>            : 
+<span class="lineNum">     279 </span><span class="lineCov">          1 : int32_t VideoReceiver::RegisterReceiveStateCallback(</span>
+<span class="lineNum">     280 </span>            :     VCMReceiveStateCallback* callback) {
+<span class="lineNum">     281 </span><span class="lineCov">          1 :   CriticalSectionScoped cs(process_crit_sect_.get());</span>
+<span class="lineNum">     282 </span><span class="lineCov">          1 :   _receiveStateCallback = callback;</span>
+<span class="lineNum">     283 </span><span class="lineCov">          1 :   return VCM_OK;</span>
+<a name="284"><span class="lineNum">     284 </span>            : }</a>
+<span class="lineNum">     285 </span>            : 
+<span class="lineNum">     286 </span><span class="lineNoCov">          0 : int VideoReceiver::RegisterRenderBufferSizeCallback(</span>
+<span class="lineNum">     287 </span>            :     VCMRenderBufferSizeCallback* callback) {
+<span class="lineNum">     288 </span><span class="lineNoCov">          0 :   CriticalSectionScoped cs(process_crit_sect_.get());</span>
+<span class="lineNum">     289 </span><span class="lineNoCov">          0 :   render_buffer_callback_ = callback;</span>
+<span class="lineNum">     290 </span><span class="lineNoCov">          0 :   return VCM_OK;</span>
+<a name="291"><span class="lineNum">     291 </span>            : }</a>
+<span class="lineNum">     292 </span>            : 
+<span class="lineNum">     293 </span><span class="lineNoCov">          0 : void VideoReceiver::TriggerDecoderShutdown() {</span>
+<span class="lineNum">     294 </span><span class="lineNoCov">          0 :   _receiver.TriggerDecoderShutdown();</span>
+<span class="lineNum">     295 </span><span class="lineNoCov">          0 : }</span>
+<span class="lineNum">     296 </span>            : 
+<a name="297"><span class="lineNum">     297 </span>            : // Decode next frame, blocking.</a>
+<span class="lineNum">     298 </span>            : // Should be called as often as possible to get the most out of the decoder.
+<span class="lineNum">     299 </span><span class="lineCov">          1 : int32_t VideoReceiver::Decode(uint16_t maxWaitTimeMs) {</span>
+<span class="lineNum">     300 </span>            :   int64_t nextRenderTimeMs;
+<span class="lineNum">     301 </span><span class="lineCov">          1 :   bool prefer_late_decoding = false;</span>
+<span class="lineNum">     302 </span>            :   {
+<span class="lineNum">     303 </span><span class="lineCov">          1 :     CriticalSectionScoped cs(_receiveCritSect);</span>
+<span class="lineNum">     304 </span><span class="lineCov">          1 :     prefer_late_decoding = _codecDataBase.PrefersLateDecoding();</span>
+<span class="lineNum">     305 </span>            :   }
+<span class="lineNum">     306 </span>            : 
+<span class="lineNum">     307 </span>            :   VCMEncodedFrame* frame = _receiver.FrameForDecoding(
+<span class="lineNum">     308 </span><span class="lineCov">          1 :       maxWaitTimeMs, &amp;nextRenderTimeMs, prefer_late_decoding);</span>
+<span class="lineNum">     309 </span>            : 
+<span class="lineNum">     310 </span><span class="lineCov">          1 :   if (!frame)</span>
+<span class="lineNum">     311 </span>            :     return VCM_FRAME_NOT_READY;
+<span class="lineNum">     312 </span>            : 
+<span class="lineNum">     313 </span><span class="lineCov">          1 :   CriticalSectionScoped cs(_receiveCritSect);</span>
+<span class="lineNum">     314 </span>            : 
+<span class="lineNum">     315 </span>            :   // If this frame was too late, we should adjust the delay accordingly
+<span class="lineNum">     316 </span>            :   _timing.UpdateCurrentDelay(frame-&gt;RenderTimeMs(),
+<span class="lineNum">     317 </span><span class="lineCov">          1 :                              clock_-&gt;TimeInMilliseconds());</span>
+<span class="lineNum">     318 </span>            : 
+<span class="lineNum">     319 </span><span class="lineCov">          1 :   if (pre_decode_image_callback_) {</span>
+<span class="lineNum">     320 </span><span class="lineCov">          1 :     EncodedImage encoded_image(frame-&gt;EncodedImage());</span>
+<span class="lineNum">     321 </span><span class="lineCov">          1 :     int qp = -1;</span>
+<span class="lineNum">     322 </span><span class="lineCov">          1 :     if (qp_parser_.GetQp(*frame, &amp;qp)) {</span>
+<span class="lineNum">     323 </span><span class="lineCov">          1 :       encoded_image.qp_ = qp;</span>
+<span class="lineNum">     324 </span>            :     }
+<span class="lineNum">     325 </span>            :     pre_decode_image_callback_-&gt;Encoded(encoded_image, frame-&gt;CodecSpecific(),
+<span class="lineNum">     326 </span><span class="lineCov">          1 :                                         NULL);</span>
+<span class="lineNum">     327 </span>            :   }
+<span class="lineNum">     328 </span>            : 
+<span class="lineNum">     329 </span>            : #ifdef DEBUG_DECODER_BIT_STREAM
+<span class="lineNum">     330 </span>            :   if (_bitStreamBeforeDecoder != NULL) {
+<span class="lineNum">     331 </span>            :     // Write bit stream to file for debugging purposes
+<span class="lineNum">     332 </span>            :     if (fwrite(frame-&gt;Buffer(), 1, frame-&gt;Length(), _bitStreamBeforeDecoder) !=
+<span class="lineNum">     333 </span>            :         frame-&gt;Length()) {
+<span class="lineNum">     334 </span>            :       return -1;
+<span class="lineNum">     335 </span>            :     }
+<span class="lineNum">     336 </span>            :   }
+<span class="lineNum">     337 </span>            : #endif
+<span class="lineNum">     338 </span><span class="lineCov">          1 :   const int32_t ret = Decode(*frame);</span>
+<span class="lineNum">     339 </span><span class="lineCov">          1 :   _receiver.ReleaseFrame(frame);</span>
+<span class="lineNum">     340 </span><span class="lineCov">          1 :   return ret;</span>
+<a name="341"><span class="lineNum">     341 </span>            : }</a>
+<span class="lineNum">     342 </span>            : 
+<span class="lineNum">     343 </span><span class="lineNoCov">          0 : int32_t VideoReceiver::RequestSliceLossIndication(</span>
+<span class="lineNum">     344 </span>            :     const uint64_t pictureID) const {
+<span class="lineNum">     345 </span><span class="lineNoCov">          0 :   TRACE_EVENT1(&quot;webrtc&quot;, &quot;RequestSLI&quot;, &quot;picture_id&quot;, pictureID);</span>
+<span class="lineNum">     346 </span><span class="lineNoCov">          0 :   CriticalSectionScoped cs(process_crit_sect_.get());</span>
+<span class="lineNum">     347 </span><span class="lineNoCov">          0 :   if (_frameTypeCallback != NULL) {</span>
+<span class="lineNum">     348 </span>            :     const int32_t ret =
+<span class="lineNum">     349 </span><span class="lineNoCov">          0 :         _frameTypeCallback-&gt;SliceLossIndicationRequest(pictureID);</span>
+<span class="lineNum">     350 </span><span class="lineNoCov">          0 :     if (ret &lt; 0) {</span>
+<span class="lineNum">     351 </span><span class="lineNoCov">          0 :       return ret;</span>
+<span class="lineNum">     352 </span>            :     }
+<span class="lineNum">     353 </span>            :   } else {
+<span class="lineNum">     354 </span>            :     return VCM_MISSING_CALLBACK;
+<span class="lineNum">     355 </span>            :   }
+<span class="lineNum">     356 </span><span class="lineNoCov">          0 :   return VCM_OK;</span>
+<a name="357"><span class="lineNum">     357 </span>            : }</a>
+<span class="lineNum">     358 </span>            : 
+<span class="lineNum">     359 </span><span class="lineNoCov">          0 : int32_t VideoReceiver::RequestKeyFrame() {</span>
+<span class="lineNum">     360 </span><span class="lineNoCov">          0 :   TRACE_EVENT0(&quot;webrtc&quot;, &quot;RequestKeyFrame&quot;);</span>
+<span class="lineNum">     361 </span><span class="lineNoCov">          0 :   CriticalSectionScoped process_cs(process_crit_sect_.get());</span>
+<span class="lineNum">     362 </span><span class="lineNoCov">          0 :   if (_frameTypeCallback != NULL) {</span>
+<span class="lineNum">     363 </span><span class="lineNoCov">          0 :     const int32_t ret = _frameTypeCallback-&gt;RequestKeyFrame();</span>
+<span class="lineNum">     364 </span><span class="lineNoCov">          0 :     if (ret &lt; 0) {</span>
+<span class="lineNum">     365 </span>            :       return ret;
+<span class="lineNum">     366 </span>            :     }
+<span class="lineNum">     367 </span><span class="lineNoCov">          0 :     _scheduleKeyRequest = false;</span>
+<span class="lineNum">     368 </span>            :   } else {
+<span class="lineNum">     369 </span>            :     return VCM_MISSING_CALLBACK;
+<span class="lineNum">     370 </span>            :   }
+<span class="lineNum">     371 </span><span class="lineNoCov">          0 :   return VCM_OK;</span>
+<span class="lineNum">     372 </span>            : }
+<a name="373"><span class="lineNum">     373 </span>            : </a>
+<span class="lineNum">     374 </span>            : // Must be called from inside the receive side critical section.
+<span class="lineNum">     375 </span><span class="lineCov">          1 : int32_t VideoReceiver::Decode(const VCMEncodedFrame&amp; frame) {</span>
+<span class="lineNum">     376 </span><span class="lineCov">          1 :   TRACE_EVENT_ASYNC_STEP1(&quot;webrtc&quot;, &quot;Video&quot;, frame.TimeStamp(), &quot;Decode&quot;,</span>
+<span class="lineNum">     377 </span>            :                           &quot;type&quot;, frame.FrameType());
+<span class="lineNum">     378 </span>            :   // Change decoder if payload type has changed
+<span class="lineNum">     379 </span><span class="lineCov">          1 :   _decoder = _codecDataBase.GetDecoder(frame, &amp;_decodedFrameCallback);</span>
+<span class="lineNum">     380 </span><span class="lineCov">          1 :   if (_decoder == NULL) {</span>
+<span class="lineNum">     381 </span>            :     return VCM_NO_CODEC_REGISTERED;
+<span class="lineNum">     382 </span>            :   }
+<span class="lineNum">     383 </span>            :   // Decode a frame
+<span class="lineNum">     384 </span><span class="lineCov">          1 :   int32_t ret = _decoder-&gt;Decode(frame, clock_-&gt;TimeInMilliseconds());</span>
+<span class="lineNum">     385 </span>            : 
+<span class="lineNum">     386 </span>            :   // Check for failed decoding, run frame type request callback if needed.
+<span class="lineNum">     387 </span><span class="lineCov">          1 :   bool request_key_frame = false;</span>
+<span class="lineNum">     388 </span><span class="lineCov">          1 :   if (ret &lt; 0) {</span>
+<span class="lineNum">     389 </span><span class="lineNoCov">          0 :     if (ret == VCM_ERROR_REQUEST_SLI) {</span>
+<span class="lineNum">     390 </span>            :       return RequestSliceLossIndication(
+<span class="lineNum">     391 </span><span class="lineNoCov">          0 :           _decodedFrameCallback.LastReceivedPictureID() + 1);</span>
+<span class="lineNum">     392 </span>            :     } else {
+<span class="lineNum">     393 </span>            :       request_key_frame = true;
+<span class="lineNum">     394 </span>            :     }
+<span class="lineNum">     395 </span><span class="lineCov">          1 :   } else if (ret == VCM_REQUEST_SLI) {</span>
+<span class="lineNum">     396 </span>            :     ret = RequestSliceLossIndication(
+<span class="lineNum">     397 </span><span class="lineNoCov">          0 :         _decodedFrameCallback.LastReceivedPictureID() + 1);</span>
+<span class="lineNum">     398 </span>            :   }
+<span class="lineNum">     399 </span><span class="lineCov">          1 :   if (!frame.Complete() || frame.MissingFrame()) {</span>
+<span class="lineNum">     400 </span><span class="lineNoCov">          0 :     request_key_frame = true;</span>
+<span class="lineNum">     401 </span><span class="lineNoCov">          0 :     ret = VCM_OK;</span>
+<span class="lineNum">     402 </span>            :   }
+<span class="lineNum">     403 </span><span class="lineCov">          1 :   if (request_key_frame) {</span>
+<span class="lineNum">     404 </span><span class="lineNoCov">          0 :     CriticalSectionScoped cs(process_crit_sect_.get());</span>
+<span class="lineNum">     405 </span><span class="lineNoCov">          0 :     _scheduleKeyRequest = true;</span>
+<span class="lineNum">     406 </span>            :   }
+<span class="lineNum">     407 </span><span class="lineCov">          1 :   TRACE_EVENT_ASYNC_END0(&quot;webrtc&quot;, &quot;Video&quot;, frame.TimeStamp());</span>
+<span class="lineNum">     408 </span><span class="lineCov">          1 :   return ret;</span>
+<span class="lineNum">     409 </span>            : }
+<a name="410"><span class="lineNum">     410 </span>            : </a>
+<span class="lineNum">     411 </span>            : // Reset the decoder state
+<span class="lineNum">     412 </span><span class="lineCov">          1 : int32_t VideoReceiver::ResetDecoder() {</span>
+<span class="lineNum">     413 </span><span class="lineCov">          1 :   bool reset_key_request = false;</span>
+<span class="lineNum">     414 </span>            :   {
+<span class="lineNum">     415 </span><span class="lineCov">          1 :     CriticalSectionScoped cs(_receiveCritSect);</span>
+<span class="lineNum">     416 </span><span class="lineCov">          1 :     _receiver.Reset();</span>
+<span class="lineNum">     417 </span><span class="lineCov">          1 :     _timing.Reset();</span>
+<span class="lineNum">     418 </span><span class="lineCov">          1 :     reset_key_request = true;</span>
+<span class="lineNum">     419 </span><span class="lineCov">          1 :     if (_decoder != NULL) {</span>
+<span class="lineNum">     420 </span>            :       //    _receiver.Reset();
+<span class="lineNum">     421 </span>            :       //    _timing.Reset();
+<span class="lineNum">     422 </span><span class="lineCov">          1 :       _decoder-&gt;Reset();</span>
+<span class="lineNum">     423 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">     424 </span>            :   }
+<span class="lineNum">     425 </span>            :   if (reset_key_request) {
+<span class="lineNum">     426 </span><span class="lineCov">          1 :     CriticalSectionScoped cs(process_crit_sect_.get());</span>
+<span class="lineNum">     427 </span><span class="lineCov">          1 :     _scheduleKeyRequest = false;</span>
+<span class="lineNum">     428 </span>            :   }
+<span class="lineNum">     429 </span><span class="lineCov">          1 :   return VCM_OK;</span>
+<span class="lineNum">     430 </span>            : }
+<a name="431"><span class="lineNum">     431 </span>            : </a>
+<span class="lineNum">     432 </span>            : // Register possible receive codecs, can be called multiple times
+<span class="lineNum">     433 </span><span class="lineCov">          1 : int32_t VideoReceiver::RegisterReceiveCodec(const VideoCodec* receiveCodec,</span>
+<span class="lineNum">     434 </span>            :                                             int32_t numberOfCores,
+<span class="lineNum">     435 </span>            :                                             bool requireKeyFrame) {
+<span class="lineNum">     436 </span><span class="lineCov">          1 :   CriticalSectionScoped cs(_receiveCritSect);</span>
+<span class="lineNum">     437 </span><span class="lineCov">          1 :   if (receiveCodec == NULL) {</span>
+<span class="lineNum">     438 </span>            :     return VCM_PARAMETER_ERROR;
+<span class="lineNum">     439 </span>            :   }
+<span class="lineNum">     440 </span><span class="lineCov">          1 :   if (!_codecDataBase.RegisterReceiveCodec(receiveCodec, numberOfCores,</span>
+<span class="lineNum">     441 </span><span class="lineCov">          1 :                                            requireKeyFrame)) {</span>
+<span class="lineNum">     442 </span>            :     return -1;
+<span class="lineNum">     443 </span>            :   }
+<span class="lineNum">     444 </span><span class="lineCov">          1 :   return 0;</span>
+<span class="lineNum">     445 </span>            : }
+<a name="446"><span class="lineNum">     446 </span>            : </a>
+<span class="lineNum">     447 </span>            : // Get current received codec
+<span class="lineNum">     448 </span><span class="lineNoCov">          0 : int32_t VideoReceiver::ReceiveCodec(VideoCodec* currentReceiveCodec) const {</span>
+<span class="lineNum">     449 </span><span class="lineNoCov">          0 :   CriticalSectionScoped cs(_receiveCritSect);</span>
+<span class="lineNum">     450 </span><span class="lineNoCov">          0 :   if (currentReceiveCodec == NULL) {</span>
+<span class="lineNum">     451 </span>            :     return VCM_PARAMETER_ERROR;
+<span class="lineNum">     452 </span>            :   }
+<span class="lineNum">     453 </span><span class="lineNoCov">          0 :   return _codecDataBase.ReceiveCodec(currentReceiveCodec) ? 0 : -1;</span>
+<span class="lineNum">     454 </span>            : }
+<a name="455"><span class="lineNum">     455 </span>            : </a>
+<span class="lineNum">     456 </span>            : // Get current received codec
+<span class="lineNum">     457 </span><span class="lineNoCov">          0 : VideoCodecType VideoReceiver::ReceiveCodec() const {</span>
+<span class="lineNum">     458 </span><span class="lineNoCov">          0 :   CriticalSectionScoped cs(_receiveCritSect);</span>
+<span class="lineNum">     459 </span><span class="lineNoCov">          0 :   return _codecDataBase.ReceiveCodec();</span>
+<span class="lineNum">     460 </span>            : }
+<a name="461"><span class="lineNum">     461 </span>            : </a>
+<span class="lineNum">     462 </span>            : // Incoming packet from network parsed and ready for decode, non blocking.
+<span class="lineNum">     463 </span><span class="lineCov">          1 : int32_t VideoReceiver::IncomingPacket(const uint8_t* incomingPayload,</span>
+<span class="lineNum">     464 </span>            :                                       size_t payloadLength,
+<span class="lineNum">     465 </span>            :                                       const WebRtcRTPHeader&amp; rtpInfo) {
+<span class="lineNum">     466 </span><span class="lineCov">          1 :   if (rtpInfo.frameType == kVideoFrameKey) {</span>
+<span class="lineNum">     467 </span><span class="lineCov">          1 :     TRACE_EVENT1(&quot;webrtc&quot;, &quot;VCM::PacketKeyFrame&quot;, &quot;seqnum&quot;,</span>
+<span class="lineNum">     468 </span><span class="lineCov">          1 :                  rtpInfo.header.sequenceNumber);</span>
+<span class="lineNum">     469 </span>            :   }
+<span class="lineNum">     470 </span><span class="lineCov">          1 :   if (incomingPayload == NULL) {</span>
+<span class="lineNum">     471 </span>            :     // The jitter buffer doesn't handle non-zero payload lengths for packets
+<span class="lineNum">     472 </span>            :     // without payload.
+<span class="lineNum">     473 </span>            :     // TODO(holmer): We should fix this in the jitter buffer.
+<span class="lineNum">     474 </span><span class="lineCov">          1 :     payloadLength = 0;</span>
+<span class="lineNum">     475 </span>            :   }
+<span class="lineNum">     476 </span><span class="lineCov">          1 :   const VCMPacket packet(incomingPayload, payloadLength, rtpInfo);</span>
+<span class="lineNum">     477 </span>            :   int32_t ret = _receiver.InsertPacket(packet, rtpInfo.type.Video.width,
+<span class="lineNum">     478 </span><span class="lineCov">          1 :                                        rtpInfo.type.Video.height);</span>
+<span class="lineNum">     479 </span>            :   // TODO(holmer): Investigate if this somehow should use the key frame
+<span class="lineNum">     480 </span>            :   // request scheduling to throttle the requests.
+<span class="lineNum">     481 </span><span class="lineCov">          1 :   if (ret == VCM_FLUSH_INDICATOR) {</span>
+<span class="lineNum">     482 </span><span class="lineNoCov">          0 :     RequestKeyFrame();</span>
+<span class="lineNum">     483 </span><span class="lineNoCov">          0 :     ResetDecoder();</span>
+<span class="lineNum">     484 </span><span class="lineNoCov">          0 :     SetReceiveState(kReceiveStateWaitingKey);</span>
+<span class="lineNum">     485 </span><span class="lineCov">          1 :   } else if (ret &lt; 0) {</span>
+<span class="lineNum">     486 </span><span class="lineNoCov">          0 :     return ret;</span>
+<span class="lineNum">     487 </span>            :   }
+<span class="lineNum">     488 </span>            :   return VCM_OK;
+<span class="lineNum">     489 </span>            : }
+<span class="lineNum">     490 </span>            : 
+<span class="lineNum">     491 </span>            : // Minimum playout delay (used for lip-sync). This is the minimum delay required
+<a name="492"><span class="lineNum">     492 </span>            : // to sync with audio. Not included in  VideoCodingModule::Delay()</a>
+<span class="lineNum">     493 </span>            : // Defaults to 0 ms.
+<span class="lineNum">     494 </span><span class="lineNoCov">          0 : int32_t VideoReceiver::SetMinimumPlayoutDelay(uint32_t minPlayoutDelayMs) {</span>
+<span class="lineNum">     495 </span><span class="lineNoCov">          0 :   _timing.set_min_playout_delay(minPlayoutDelayMs);</span>
+<span class="lineNum">     496 </span><span class="lineNoCov">          0 :   return VCM_OK;</span>
+<span class="lineNum">     497 </span>            : }
+<span class="lineNum">     498 </span>            : 
+<a name="499"><span class="lineNum">     499 </span>            : // The estimated delay caused by rendering, defaults to</a>
+<span class="lineNum">     500 </span>            : // kDefaultRenderDelayMs = 10 ms
+<span class="lineNum">     501 </span><span class="lineNoCov">          0 : int32_t VideoReceiver::SetRenderDelay(uint32_t timeMS) {</span>
+<span class="lineNum">     502 </span><span class="lineCov">          1 :   _timing.set_render_delay(timeMS);</span>
+<span class="lineNum">     503 </span><span class="lineNoCov">          0 :   return VCM_OK;</span>
+<span class="lineNum">     504 </span>            : }
+<a name="505"><span class="lineNum">     505 </span>            : </a>
+<span class="lineNum">     506 </span>            : // Current video delay
+<span class="lineNum">     507 </span><span class="lineNoCov">          0 : int32_t VideoReceiver::Delay() const {</span>
+<span class="lineNum">     508 </span><span class="lineCov">          1 :   return _timing.TargetVideoDelay();</span>
+<a name="509"><span class="lineNum">     509 </span>            : }</a>
+<span class="lineNum">     510 </span>            : 
+<span class="lineNum">     511 </span><span class="lineNoCov">          0 : uint32_t VideoReceiver::DiscardedPackets() const {</span>
+<span class="lineNum">     512 </span><span class="lineNoCov">          0 :   return _receiver.DiscardedPackets();</span>
+<a name="513"><span class="lineNum">     513 </span>            : }</a>
+<span class="lineNum">     514 </span>            : 
+<span class="lineNum">     515 </span><span class="lineNoCov">          0 : int VideoReceiver::SetReceiverRobustnessMode(</span>
+<span class="lineNum">     516 </span>            :     ReceiverRobustness robustnessMode,
+<span class="lineNum">     517 </span>            :     VCMDecodeErrorMode decode_error_mode) {
+<span class="lineNum">     518 </span><span class="lineNoCov">          0 :   CriticalSectionScoped cs(_receiveCritSect);</span>
+<span class="lineNum">     519 </span><span class="lineNoCov">          0 :   switch (robustnessMode) {</span>
+<span class="lineNum">     520 </span>            :     case VideoCodingModule::kNone:
+<span class="lineNum">     521 </span><span class="lineNoCov">          0 :       _receiver.SetNackMode(kNoNack, -1, -1);</span>
+<span class="lineNum">     522 </span><span class="lineNoCov">          0 :       break;</span>
+<span class="lineNum">     523 </span>            :     case VideoCodingModule::kHardNack:
+<span class="lineNum">     524 </span>            :       // Always wait for retransmissions (except when decoding with errors).
+<span class="lineNum">     525 </span><span class="lineNoCov">          0 :       _receiver.SetNackMode(kNack, -1, -1);</span>
+<span class="lineNum">     526 </span><span class="lineNoCov">          0 :       break;</span>
+<span class="lineNum">     527 </span>            :     case VideoCodingModule::kSoftNack:
+<span class="lineNum">     528 </span>            : #if 1
+<span class="lineNum">     529 </span>            :       assert(false);  // TODO(hlundin): Not completed.
+<span class="lineNum">     530 </span>            :       return VCM_NOT_IMPLEMENTED;
+<span class="lineNum">     531 </span>            : #else
+<span class="lineNum">     532 </span>            :       // Enable hybrid NACK/FEC. Always wait for retransmissions and don't add
+<span class="lineNum">     533 </span>            :       // extra delay when RTT is above kLowRttNackMs.
+<span class="lineNum">     534 </span>            :       _receiver.SetNackMode(kNack, media_optimization::kLowRttNackMs, -1);
+<span class="lineNum">     535 </span>            :       break;
+<span class="lineNum">     536 </span>            : #endif
+<span class="lineNum">     537 </span>            :     case VideoCodingModule::kReferenceSelection:
+<span class="lineNum">     538 </span>            : #if 1
+<span class="lineNum">     539 </span>            :       assert(false);  // TODO(hlundin): Not completed.
+<span class="lineNum">     540 </span>            :       return VCM_NOT_IMPLEMENTED;
+<span class="lineNum">     541 </span>            : #else
+<span class="lineNum">     542 </span>            :       if (decode_error_mode == kNoErrors) {
+<span class="lineNum">     543 </span>            :         return VCM_PARAMETER_ERROR;
+<span class="lineNum">     544 </span>            :       }
+<span class="lineNum">     545 </span>            :       _receiver.SetNackMode(kNoNack, -1, -1);
+<span class="lineNum">     546 </span>            :       break;
+<span class="lineNum">     547 </span>            : #endif
+<span class="lineNum">     548 </span>            :   }
+<span class="lineNum">     549 </span><span class="lineNoCov">          0 :   _receiver.SetDecodeErrorMode(decode_error_mode);</span>
+<span class="lineNum">     550 </span><span class="lineNoCov">          0 :   return VCM_OK;</span>
+<a name="551"><span class="lineNum">     551 </span>            : }</a>
+<span class="lineNum">     552 </span>            : 
+<span class="lineNum">     553 </span><span class="lineCov">          1 : void VideoReceiver::SetDecodeErrorMode(VCMDecodeErrorMode decode_error_mode) {</span>
+<span class="lineNum">     554 </span><span class="lineCov">          1 :   CriticalSectionScoped cs(_receiveCritSect);</span>
+<span class="lineNum">     555 </span><span class="lineCov">          1 :   _receiver.SetDecodeErrorMode(decode_error_mode);</span>
+<a name="556"><span class="lineNum">     556 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     557 </span>            : 
+<span class="lineNum">     558 </span><span class="lineCov">          1 : void VideoReceiver::SetNackSettings(size_t max_nack_list_size,</span>
+<span class="lineNum">     559 </span>            :                                     int max_packet_age_to_nack,
+<span class="lineNum">     560 </span>            :                                     int max_incomplete_time_ms) {
+<span class="lineNum">     561 </span><span class="lineCov">          1 :   if (max_nack_list_size != 0) {</span>
+<span class="lineNum">     562 </span><span class="lineCov">          1 :     CriticalSectionScoped process_cs(process_crit_sect_.get());</span>
+<span class="lineNum">     563 </span><span class="lineCov">          1 :     max_nack_list_size_ = max_nack_list_size;</span>
+<span class="lineNum">     564 </span>            :   }
+<span class="lineNum">     565 </span>            :   _receiver.SetNackSettings(max_nack_list_size, max_packet_age_to_nack,
+<span class="lineNum">     566 </span><span class="lineCov">          1 :                             max_incomplete_time_ms);</span>
+<a name="567"><span class="lineNum">     567 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     568 </span>            : 
+<span class="lineNum">     569 </span><span class="lineNoCov">          0 : int VideoReceiver::SetMinReceiverDelay(int desired_delay_ms) {</span>
+<span class="lineNum">     570 </span><span class="lineNoCov">          0 :   return _receiver.SetMinReceiverDelay(desired_delay_ms);</span>
+<a name="571"><span class="lineNum">     571 </span>            : }</a>
+<span class="lineNum">     572 </span>            : 
+<span class="lineNum">     573 </span><span class="lineCov">          1 : void VideoReceiver::RegisterPreDecodeImageCallback(</span>
+<span class="lineNum">     574 </span>            :     EncodedImageCallback* observer) {
+<span class="lineNum">     575 </span><span class="lineCov">          1 :   CriticalSectionScoped cs(_receiveCritSect);</span>
+<span class="lineNum">     576 </span><span class="lineCov">          1 :   pre_decode_image_callback_ = observer;</span>
+<span class="lineNum">     577 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     578 </span>            : 
+<span class="lineNum">     579 </span>            : }  // namespace vcm
+<span class="lineNum">     580 </span>            : }  // namespace webrtc
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../../../../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>

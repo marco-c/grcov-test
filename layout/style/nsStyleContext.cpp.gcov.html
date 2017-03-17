@@ -1,0 +1,1890 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - output.info - layout/style/nsStyleContext.cpp</title>
+  <link rel="stylesheet" type="text/css" href="../../gcov.css">
+</head>
+
+<body>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="title">LCOV - code coverage report</td></tr>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+
+    <tr>
+      <td width="100%">
+        <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="35%" class="headerValue"><a href="../../index.html">top level</a> - <a href="index.html">layout/style</a> - nsStyleContext.cpp<span style="font-size: 80%;"> (source / <a href="nsStyleContext.cpp.func-sort-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="15%"></td>
+            <td width="10%" class="headerCovTableHead">Hit</td>
+            <td width="10%" class="headerCovTableHead">Total</td>
+            <td width="15%" class="headerCovTableHead">Coverage</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">output.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntry">382</td>
+            <td class="headerCovTableEntry">420</td>
+            <td class="headerCovTableEntryHi">91.0 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Date:</td>
+            <td class="headerValue">2017-03-17 01:02:30</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntry">35</td>
+            <td class="headerCovTableEntry">41</td>
+            <td class="headerCovTableEntryMed">85.4 %</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Legend:</td>
+            <td class="headerValueLeg">            Lines:
+            <span class="coverLegendCov">hit</span>
+            <span class="coverLegendNoCov">not hit</span>
+</td>
+            <td></td>
+          </tr>
+          <tr><td><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+  </table>
+
+  <table cellpadding=0 cellspacing=0 border=0>
+    <tr>
+      <td><br></td>
+    </tr>
+    <tr>
+      <td>
+<pre class="sourceHeading">          Line data    Source code</pre>
+<pre class="source">
+<a name="1"><span class="lineNum">       1 </span>            : /* -*- Mode: C++; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */</a>
+<span class="lineNum">       2 </span>            : /* This Source Code Form is subject to the terms of the Mozilla Public
+<span class="lineNum">       3 </span>            :  * License, v. 2.0. If a copy of the MPL was not distributed with this
+<span class="lineNum">       4 </span>            :  * file, You can obtain one at http://mozilla.org/MPL/2.0/. */
+<span class="lineNum">       5 </span>            : 
+<span class="lineNum">       6 </span>            : /* the interface (to internal code) for retrieving computed style data */
+<span class="lineNum">       7 </span>            : 
+<span class="lineNum">       8 </span>            : #include &quot;nsStyleContext.h&quot;
+<span class="lineNum">       9 </span>            : 
+<span class="lineNum">      10 </span>            : #include &quot;CSSVariableImageTable.h&quot;
+<span class="lineNum">      11 </span>            : #include &quot;mozilla/DebugOnly.h&quot;
+<span class="lineNum">      12 </span>            : #include &quot;mozilla/Maybe.h&quot;
+<span class="lineNum">      13 </span>            : 
+<span class="lineNum">      14 </span>            : #include &quot;nsCSSAnonBoxes.h&quot;
+<span class="lineNum">      15 </span>            : #include &quot;nsCSSPseudoElements.h&quot;
+<span class="lineNum">      16 </span>            : #include &quot;nsFontMetrics.h&quot;
+<span class="lineNum">      17 </span>            : #include &quot;nsStyleConsts.h&quot;
+<span class="lineNum">      18 </span>            : #include &quot;nsStyleStruct.h&quot;
+<span class="lineNum">      19 </span>            : #include &quot;nsStyleStructInlines.h&quot;
+<span class="lineNum">      20 </span>            : #include &quot;nsString.h&quot;
+<span class="lineNum">      21 </span>            : #include &quot;nsPresContext.h&quot;
+<span class="lineNum">      22 </span>            : #include &quot;nsIStyleRule.h&quot;
+<span class="lineNum">      23 </span>            : 
+<span class="lineNum">      24 </span>            : #include &quot;nsCOMPtr.h&quot;
+<span class="lineNum">      25 </span>            : #include &quot;nsStyleSet.h&quot;
+<span class="lineNum">      26 </span>            : #include &quot;nsIPresShell.h&quot;
+<span class="lineNum">      27 </span>            : 
+<span class="lineNum">      28 </span>            : #include &quot;nsRuleNode.h&quot;
+<span class="lineNum">      29 </span>            : #include &quot;GeckoProfiler.h&quot;
+<span class="lineNum">      30 </span>            : #include &quot;nsIDocument.h&quot;
+<span class="lineNum">      31 </span>            : #include &quot;nsPrintfCString.h&quot;
+<span class="lineNum">      32 </span>            : #include &quot;RubyUtils.h&quot;
+<span class="lineNum">      33 </span>            : #include &quot;mozilla/Preferences.h&quot;
+<span class="lineNum">      34 </span>            : #include &quot;mozilla/ArenaObjectID.h&quot;
+<span class="lineNum">      35 </span>            : #include &quot;mozilla/StyleSetHandle.h&quot;
+<span class="lineNum">      36 </span>            : #include &quot;mozilla/StyleSetHandleInlines.h&quot;
+<span class="lineNum">      37 </span>            : 
+<span class="lineNum">      38 </span>            : #include &quot;mozilla/ReflowInput.h&quot;
+<span class="lineNum">      39 </span>            : #include &quot;nsLayoutUtils.h&quot;
+<span class="lineNum">      40 </span>            : #include &quot;nsCoord.h&quot;
+<span class="lineNum">      41 </span>            : 
+<span class="lineNum">      42 </span>            : // Ensure the binding function declarations in nsStyleContext.h matches
+<span class="lineNum">      43 </span>            : // those in ServoBindings.h.
+<span class="lineNum">      44 </span>            : #include &quot;mozilla/ServoBindings.h&quot;
+<span class="lineNum">      45 </span>            : 
+<span class="lineNum">      46 </span>            : using namespace mozilla;
+<span class="lineNum">      47 </span>            : 
+<span class="lineNum">      48 </span>            : //----------------------------------------------------------------------
+<span class="lineNum">      49 </span>            : 
+<span class="lineNum">      50 </span>            : #ifdef DEBUG
+<span class="lineNum">      51 </span>            : 
+<span class="lineNum">      52 </span>            : // Check that the style struct IDs are in the same order as they are
+<span class="lineNum">      53 </span>            : // in nsStyleStructList.h, since when we set up the IDs, we include
+<span class="lineNum">      54 </span>            : // the inherited and reset structs spearately from nsStyleStructList.h
+<span class="lineNum">      55 </span>            : enum DebugStyleStruct {
+<span class="lineNum">      56 </span>            : #define STYLE_STRUCT(name, checkdata_cb) eDebugStyleStruct_##name,
+<span class="lineNum">      57 </span>            : #include &quot;nsStyleStructList.h&quot;
+<span class="lineNum">      58 </span>            : #undef STYLE_STRUCT
+<span class="lineNum">      59 </span>            : };
+<span class="lineNum">      60 </span>            : 
+<span class="lineNum">      61 </span>            : #define STYLE_STRUCT(name, checkdata_cb) \
+<span class="lineNum">      62 </span>            :   static_assert(static_cast&lt;int&gt;(eDebugStyleStruct_##name) == \
+<span class="lineNum">      63 </span>            :                   static_cast&lt;int&gt;(eStyleStruct_##name), \
+<span class="lineNum">      64 </span>            :                 &quot;Style struct IDs are not declared in order?&quot;);
+<span class="lineNum">      65 </span>            : #include &quot;nsStyleStructList.h&quot;
+<span class="lineNum">      66 </span>            : #undef STYLE_STRUCT
+<span class="lineNum">      67 </span>            : 
+<span class="lineNum">      68 </span>            : const uint32_t nsStyleContext::sDependencyTable[] = {
+<span class="lineNum">      69 </span>            : #define STYLE_STRUCT(name, checkdata_cb)
+<span class="lineNum">      70 </span>            : #define STYLE_STRUCT_DEP(dep) NS_STYLE_INHERIT_BIT(dep) |
+<span class="lineNum">      71 </span>            : #define STYLE_STRUCT_END() 0,
+<span class="lineNum">      72 </span>            : #include &quot;nsStyleStructList.h&quot;
+<span class="lineNum">      73 </span>            : #undef STYLE_STRUCT
+<span class="lineNum">      74 </span>            : #undef STYLE_STRUCT_DEP
+<span class="lineNum">      75 </span>            : #undef STYLE_STRUCT_END
+<span class="lineNum">      76 </span>            : };
+<span class="lineNum">      77 </span>            : 
+<span class="lineNum">      78 </span>            : // Whether to perform expensive assertions in the nsStyleContext destructor.
+<span class="lineNum">      79 </span>            : static bool sExpensiveStyleStructAssertionsEnabled;
+<a name="80"><span class="lineNum">      80 </span>            : #endif</a>
+<span class="lineNum">      81 </span>            : 
+<span class="lineNum">      82 </span><span class="lineCov">          1 : nsStyleContext::nsStyleContext(nsStyleContext* aParent,</span>
+<span class="lineNum">      83 </span>            :                                OwningStyleContextSource&amp;&amp; aSource,
+<span class="lineNum">      84 </span>            :                                nsIAtom* aPseudoTag,
+<span class="lineNum">      85 </span>            :                                CSSPseudoElementType aPseudoType)
+<span class="lineNum">      86 </span>            :   : mParent(aParent)
+<span class="lineNum">      87 </span>            :   , mChild(nullptr)
+<span class="lineNum">      88 </span>            :   , mEmptyChild(nullptr)
+<span class="lineNum">      89 </span>            :   , mPseudoTag(aPseudoTag)
+<span class="lineNum">      90 </span>            :   , mSource(Move(aSource))
+<span class="lineNum">      91 </span>            : #ifdef MOZ_STYLO
+<span class="lineNum">      92 </span>            :   , mPresContext(nullptr)
+<span class="lineNum">      93 </span>            : #endif
+<span class="lineNum">      94 </span>            :   , mCachedResetData(nullptr)
+<span class="lineNum">      95 </span><span class="lineCov">          1 :   , mBits(((uint64_t)aPseudoType) &lt;&lt; NS_STYLE_CONTEXT_TYPE_SHIFT)</span>
+<span class="lineNum">      96 </span><span class="lineCov">          1 :   , mRefCnt(0)</span>
+<span class="lineNum">      97 </span>            : #ifdef DEBUG
+<span class="lineNum">      98 </span>            :   , mFrameRefCnt(0)
+<span class="lineNum">      99 </span>            :   , mComputingStruct(nsStyleStructID_None)
+<span class="lineNum">     100 </span>            : #endif
+<a name="101"><span class="lineNum">     101 </span><span class="lineCov">          1 : {}</span></a>
+<span class="lineNum">     102 </span>            : 
+<span class="lineNum">     103 </span><span class="lineCov">          1 : nsStyleContext::nsStyleContext(nsStyleContext* aParent,</span>
+<span class="lineNum">     104 </span>            :                                nsIAtom* aPseudoTag,
+<span class="lineNum">     105 </span>            :                                CSSPseudoElementType aPseudoType,
+<span class="lineNum">     106 </span>            :                                already_AddRefed&lt;nsRuleNode&gt; aRuleNode,
+<span class="lineNum">     107 </span>            :                                bool aSkipParentDisplayBasedStyleFixup)
+<span class="lineNum">     108 </span><span class="lineCov">          1 :   : nsStyleContext(aParent, OwningStyleContextSource(Move(aRuleNode)),</span>
+<span class="lineNum">     109 </span><span class="lineCov">          1 :                    aPseudoTag, aPseudoType)</span>
+<span class="lineNum">     110 </span>            : {
+<span class="lineNum">     111 </span>            : #ifdef MOZ_STYLO
+<span class="lineNum">     112 </span>            :   mPresContext = mSource.AsGeckoRuleNode()-&gt;PresContext();
+<span class="lineNum">     113 </span>            : #endif
+<span class="lineNum">     114 </span>            : 
+<span class="lineNum">     115 </span><span class="lineCov">          1 :   if (aParent) {</span>
+<span class="lineNum">     116 </span>            : #ifdef DEBUG
+<span class="lineNum">     117 </span>            :     nsRuleNode *r1 = mParent-&gt;RuleNode(), *r2 = mSource.AsGeckoRuleNode();
+<span class="lineNum">     118 </span>            :     while (r1-&gt;GetParent())
+<span class="lineNum">     119 </span>            :       r1 = r1-&gt;GetParent();
+<span class="lineNum">     120 </span>            :     while (r2-&gt;GetParent())
+<span class="lineNum">     121 </span>            :       r2 = r2-&gt;GetParent();
+<span class="lineNum">     122 </span>            :     NS_ASSERTION(r1 == r2, &quot;must be in the same rule tree as parent&quot;);
+<span class="lineNum">     123 </span>            : #endif
+<span class="lineNum">     124 </span>            :   } else {
+<span class="lineNum">     125 </span><span class="lineCov">          1 :     PresContext()-&gt;PresShell()-&gt;StyleSet()-&gt;RootStyleContextAdded();</span>
+<span class="lineNum">     126 </span>            :   }
+<span class="lineNum">     127 </span>            : 
+<span class="lineNum">     128 </span><span class="lineCov">          1 :   mSource.AsGeckoRuleNode()-&gt;SetUsedDirectly(); // before ApplyStyleFixups()!</span>
+<span class="lineNum">     129 </span><span class="lineCov">          1 :   FinishConstruction(aSkipParentDisplayBasedStyleFixup);</span>
+<a name="130"><span class="lineNum">     130 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     131 </span>            : 
+<span class="lineNum">     132 </span><span class="lineNoCov">          0 : nsStyleContext::nsStyleContext(nsStyleContext* aParent,</span>
+<span class="lineNum">     133 </span>            :                                nsPresContext* aPresContext,
+<span class="lineNum">     134 </span>            :                                nsIAtom* aPseudoTag,
+<span class="lineNum">     135 </span>            :                                CSSPseudoElementType aPseudoType,
+<span class="lineNum">     136 </span>            :                                already_AddRefed&lt;ServoComputedValues&gt; aComputedValues,
+<span class="lineNum">     137 </span>            :                                bool aSkipParentDisplayBasedStyleFixup)
+<span class="lineNum">     138 </span><span class="lineNoCov">          0 :   : nsStyleContext(aParent, OwningStyleContextSource(Move(aComputedValues)),</span>
+<span class="lineNum">     139 </span><span class="lineNoCov">          0 :                    aPseudoTag, aPseudoType)</span>
+<span class="lineNum">     140 </span>            : {
+<span class="lineNum">     141 </span>            : #ifdef MOZ_STYLO
+<span class="lineNum">     142 </span>            :   mPresContext = aPresContext;
+<span class="lineNum">     143 </span>            : #endif
+<span class="lineNum">     144 </span>            : 
+<span class="lineNum">     145 </span><span class="lineNoCov">          0 :   FinishConstruction(aSkipParentDisplayBasedStyleFixup);</span>
+<span class="lineNum">     146 </span><span class="lineNoCov">          0 : }</span>
+<a name="147"><span class="lineNum">     147 </span>            : </a>
+<span class="lineNum">     148 </span>            : void
+<span class="lineNum">     149 </span><span class="lineCov">          1 : nsStyleContext::FinishConstruction(bool aSkipParentDisplayBasedStyleFixup)</span>
+<span class="lineNum">     150 </span>            : {
+<span class="lineNum">     151 </span>            :   // This check has to be done &quot;backward&quot;, because if it were written the
+<span class="lineNum">     152 </span>            :   // more natural way it wouldn't fail even when it needed to.
+<span class="lineNum">     153 </span>            :   static_assert((UINT64_MAX &gt;&gt; NS_STYLE_CONTEXT_TYPE_SHIFT) &gt;=
+<span class="lineNum">     154 </span>            :                  static_cast&lt;CSSPseudoElementTypeBase&gt;(
+<span class="lineNum">     155 </span>            :                    CSSPseudoElementType::MAX),
+<span class="lineNum">     156 </span>            :                 &quot;pseudo element bits no longer fit in a uint64_t&quot;);
+<span class="lineNum">     157 </span>            :   MOZ_ASSERT(!mSource.IsNull());
+<span class="lineNum">     158 </span>            : 
+<span class="lineNum">     159 </span>            : #ifdef DEBUG
+<span class="lineNum">     160 </span>            :   static_assert(MOZ_ARRAY_LENGTH(nsStyleContext::sDependencyTable)
+<span class="lineNum">     161 </span>            :                   == nsStyleStructID_Length,
+<span class="lineNum">     162 </span>            :                 &quot;Number of items in dependency table doesn't match IDs&quot;);
+<span class="lineNum">     163 </span>            : #endif
+<span class="lineNum">     164 </span>            : 
+<span class="lineNum">     165 </span><span class="lineCov">          1 :   mNextSibling = this;</span>
+<span class="lineNum">     166 </span><span class="lineCov">          1 :   mPrevSibling = this;</span>
+<span class="lineNum">     167 </span><span class="lineCov">          1 :   if (mParent) {</span>
+<span class="lineNum">     168 </span><span class="lineCov">          1 :     mParent-&gt;AddChild(this);</span>
+<span class="lineNum">     169 </span>            :   }
+<span class="lineNum">     170 </span>            : 
+<span class="lineNum">     171 </span><span class="lineCov">          1 :   SetStyleBits();</span>
+<span class="lineNum">     172 </span><span class="lineCov">          1 :   if (!mSource.IsServoComputedValues()) {</span>
+<span class="lineNum">     173 </span><span class="lineCov">          1 :     ApplyStyleFixups(aSkipParentDisplayBasedStyleFixup);</span>
+<span class="lineNum">     174 </span>            :   }
+<span class="lineNum">     175 </span>            : 
+<span class="lineNum">     176 </span>            :   #define eStyleStruct_LastItem (nsStyleStructID_Length - 1)
+<span class="lineNum">     177 </span>            :   NS_ASSERTION(NS_STYLE_INHERIT_MASK &amp; NS_STYLE_INHERIT_BIT(LastItem),
+<span class="lineNum">     178 </span>            :                &quot;NS_STYLE_INHERIT_MASK must be bigger, and other bits shifted&quot;);
+<span class="lineNum">     179 </span>            :   #undef eStyleStruct_LastItem
+<span class="lineNum">     180 </span><span class="lineCov">          1 : }</span>
+<a name="181"><span class="lineNum">     181 </span>            : </a>
+<span class="lineNum">     182 </span>            : void
+<span class="lineNum">     183 </span><span class="lineNoCov">          0 : nsStyleContext::EnsureStructsForServo(const nsStyleContext* aOldContext)</span>
+<span class="lineNum">     184 </span>            : {
+<span class="lineNum">     185 </span>            :   MOZ_ASSERT(aOldContext);
+<span class="lineNum">     186 </span>            :   MOZ_ASSERT(mSource.IsServoComputedValues() &amp;&amp;
+<span class="lineNum">     187 </span>            :              aOldContext-&gt;mSource.IsServoComputedValues());
+<span class="lineNum">     188 </span>            : 
+<span class="lineNum">     189 </span>            :   // NOTE(emilio): We could do better here. We only call Style##name_() because
+<span class="lineNum">     190 </span>            :   // we need to run FinishStyle, but otherwise this is only a bitwise or.
+<span class="lineNum">     191 </span>            :   //
+<span class="lineNum">     192 </span>            :   // We could reduce the FFI traffic we do only doing it for structs that have
+<span class="lineNum">     193 </span>            :   // non-trivial FinishStyle.
+<span class="lineNum">     194 </span>            : #define STYLE_STRUCT(name_, checkdata_cb)                                      \
+<span class="lineNum">     195 </span>            :   if (aOldContext-&gt;mBits &amp; NS_STYLE_INHERIT_BIT(name_)) {                      \
+<span class="lineNum">     196 </span>            :     mozilla::Unused &lt;&lt; Style##name_();                                         \
+<span class="lineNum">     197 </span>            :   }
+<span class="lineNum">     198 </span>            : 
+<span class="lineNum">     199 </span>            : #include &quot;nsStyleStructList.h&quot;
+<span class="lineNum">     200 </span>            : 
+<span class="lineNum">     201 </span>            : #undef STYLE_STRUCT
+<span class="lineNum">     202 </span>            : 
+<span class="lineNum">     203 </span>            : #ifdef DEBUG
+<span class="lineNum">     204 </span>            :   auto oldMask = aOldContext-&gt;mBits &amp; NS_STYLE_INHERIT_MASK;
+<span class="lineNum">     205 </span>            :   auto newMask = mBits &amp; NS_STYLE_INHERIT_MASK;
+<span class="lineNum">     206 </span>            :   MOZ_ASSERT((oldMask &amp; newMask) == oldMask,
+<span class="lineNum">     207 </span>            :              &quot;Should have at least as many structs computed as the &quot;
+<span class="lineNum">     208 </span>            :              &quot;old context!&quot;);
+<span class="lineNum">     209 </span>            : #endif
+<a name="210"><span class="lineNum">     210 </span><span class="lineNoCov">          0 : }</span></a>
+<span class="lineNum">     211 </span>            : 
+<span class="lineNum">     212 </span><span class="lineCov">          1 : nsStyleContext::~nsStyleContext()</span>
+<span class="lineNum">     213 </span>            : {
+<span class="lineNum">     214 </span>            :   NS_ASSERTION((nullptr == mChild) &amp;&amp; (nullptr == mEmptyChild), &quot;destructing context with children&quot;);
+<span class="lineNum">     215 </span>            :   MOZ_ASSERT_IF(mSource.IsServoComputedValues(), !mCachedResetData);
+<span class="lineNum">     216 </span>            : 
+<span class="lineNum">     217 </span>            : #ifdef DEBUG
+<span class="lineNum">     218 </span>            :   if (mSource.IsServoComputedValues()) {
+<span class="lineNum">     219 </span>            :     MOZ_ASSERT(!mCachedResetData,
+<span class="lineNum">     220 </span>            :                &quot;Servo shouldn't cache reset structs in nsStyleContext&quot;);
+<span class="lineNum">     221 </span>            :     for (const auto* data : mCachedInheritedData.mStyleStructs) {
+<span class="lineNum">     222 </span>            :       MOZ_ASSERT(!data,
+<span class="lineNum">     223 </span>            :                  &quot;Servo shouldn't cache inherit structs in nsStyleContext&quot;);
+<span class="lineNum">     224 </span>            :     }
+<span class="lineNum">     225 </span>            :   }
+<span class="lineNum">     226 </span>            : 
+<span class="lineNum">     227 </span>            :   if (sExpensiveStyleStructAssertionsEnabled) {
+<span class="lineNum">     228 </span>            :     // Assert that the style structs we are about to destroy are not referenced
+<span class="lineNum">     229 </span>            :     // anywhere else in the style context tree.  These checks are expensive,
+<span class="lineNum">     230 </span>            :     // which is why they are not enabled by default.
+<span class="lineNum">     231 </span>            :     nsStyleContext* root = this;
+<span class="lineNum">     232 </span>            :     while (root-&gt;mParent) {
+<span class="lineNum">     233 </span>            :       root = root-&gt;mParent;
+<span class="lineNum">     234 </span>            :     }
+<span class="lineNum">     235 </span>            :     root-&gt;AssertStructsNotUsedElsewhere(this,
+<span class="lineNum">     236 </span>            :                                         std::numeric_limits&lt;int32_t&gt;::max());
+<span class="lineNum">     237 </span>            :   } else {
+<span class="lineNum">     238 </span>            :     // In DEBUG builds when the pref is not enabled, we perform a more limited
+<span class="lineNum">     239 </span>            :     // check just of the children of this style context.
+<span class="lineNum">     240 </span>            :     AssertStructsNotUsedElsewhere(this, 2);
+<span class="lineNum">     241 </span>            :   }
+<span class="lineNum">     242 </span>            : #endif
+<span class="lineNum">     243 </span>            : 
+<span class="lineNum">     244 </span><span class="lineCov">          1 :   nsPresContext *presContext = PresContext();</span>
+<span class="lineNum">     245 </span><span class="lineCov">          1 :   DebugOnly&lt;nsStyleSet*&gt; geckoStyleSet = presContext-&gt;PresShell()-&gt;StyleSet()-&gt;GetAsGecko();</span>
+<span class="lineNum">     246 </span>            :   NS_ASSERTION(!geckoStyleSet ||
+<span class="lineNum">     247 </span>            :                geckoStyleSet-&gt;GetRuleTree() == mSource.AsGeckoRuleNode()-&gt;RuleTree() ||
+<span class="lineNum">     248 </span>            :                geckoStyleSet-&gt;IsInRuleTreeReconstruct(),
+<span class="lineNum">     249 </span>            :                &quot;destroying style context from old rule tree too late&quot;);
+<span class="lineNum">     250 </span>            : 
+<span class="lineNum">     251 </span><span class="lineCov">          1 :   if (mParent) {</span>
+<span class="lineNum">     252 </span><span class="lineCov">          1 :     mParent-&gt;RemoveChild(this);</span>
+<span class="lineNum">     253 </span>            :   } else {
+<span class="lineNum">     254 </span><span class="lineCov">          1 :     presContext-&gt;StyleSet()-&gt;RootStyleContextRemoved();</span>
+<span class="lineNum">     255 </span>            :   }
+<span class="lineNum">     256 </span>            : 
+<span class="lineNum">     257 </span>            :   // Free up our data structs.
+<span class="lineNum">     258 </span><span class="lineCov">          1 :   mCachedInheritedData.DestroyStructs(mBits, presContext);</span>
+<span class="lineNum">     259 </span><span class="lineCov">          1 :   if (mCachedResetData) {</span>
+<span class="lineNum">     260 </span><span class="lineCov">          1 :     mCachedResetData-&gt;Destroy(mBits, presContext);</span>
+<span class="lineNum">     261 </span>            :   }
+<span class="lineNum">     262 </span>            : 
+<span class="lineNum">     263 </span>            :   // Free any ImageValues we were holding on to for CSS variable values.
+<span class="lineNum">     264 </span><span class="lineCov">          1 :   CSSVariableImageTable::RemoveAll(this);</span>
+<span class="lineNum">     265 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">     266 </span>            : 
+<span class="lineNum">     267 </span>            : #ifdef DEBUG
+<span class="lineNum">     268 </span>            : void
+<span class="lineNum">     269 </span>            : nsStyleContext::AssertStructsNotUsedElsewhere(
+<span class="lineNum">     270 </span>            :                                        nsStyleContext* aDestroyingContext,
+<span class="lineNum">     271 </span>            :                                        int32_t aLevels) const
+<span class="lineNum">     272 </span>            : {
+<span class="lineNum">     273 </span>            :   if (aLevels == 0) {
+<span class="lineNum">     274 </span>            :     return;
+<span class="lineNum">     275 </span>            :   }
+<span class="lineNum">     276 </span>            : 
+<span class="lineNum">     277 </span>            :   void* data;
+<span class="lineNum">     278 </span>            : 
+<span class="lineNum">     279 </span>            :   if (mBits &amp; NS_STYLE_IS_GOING_AWAY) {
+<span class="lineNum">     280 </span>            :     return;
+<span class="lineNum">     281 </span>            :   }
+<span class="lineNum">     282 </span>            : 
+<span class="lineNum">     283 </span>            :   if (this != aDestroyingContext) {
+<span class="lineNum">     284 </span>            :     nsInheritedStyleData&amp; destroyingInheritedData =
+<span class="lineNum">     285 </span>            :       aDestroyingContext-&gt;mCachedInheritedData;
+<span class="lineNum">     286 </span>            : #define STYLE_STRUCT_INHERITED(name_, checkdata_cb)                            \
+<span class="lineNum">     287 </span>            :     data = destroyingInheritedData.mStyleStructs[eStyleStruct_##name_];        \
+<span class="lineNum">     288 </span>            :     if (data &amp;&amp;                                                                \
+<span class="lineNum">     289 </span>            :         !(aDestroyingContext-&gt;mBits &amp; NS_STYLE_INHERIT_BIT(name_)) &amp;&amp;          \
+<span class="lineNum">     290 </span>            :          (mCachedInheritedData.mStyleStructs[eStyleStruct_##name_] == data)) { \
+<span class="lineNum">     291 </span>            :       printf_stderr(&quot;style struct %p found on style context %p\n&quot;, data, this);\
+<span class="lineNum">     292 </span>            :       nsString url;                                                            \
+<span class="lineNum">     293 </span>            :       nsresult rv = PresContext()-&gt;Document()-&gt;GetURL(url);                    \
+<span class="lineNum">     294 </span>            :       if (NS_SUCCEEDED(rv)) {                                                  \
+<span class="lineNum">     295 </span>            :         printf_stderr(&quot;  in %s\n&quot;, NS_ConvertUTF16toUTF8(url).get());          \
+<span class="lineNum">     296 </span>            :       }                                                                        \
+<span class="lineNum">     297 </span>            :       MOZ_ASSERT(false, &quot;destroying &quot; #name_ &quot; style struct still present &quot;    \
+<span class="lineNum">     298 </span>            :                         &quot;in style context tree&quot;);                              \
+<span class="lineNum">     299 </span>            :     }
+<span class="lineNum">     300 </span>            : #define STYLE_STRUCT_RESET(name_, checkdata_cb)
+<span class="lineNum">     301 </span>            : 
+<span class="lineNum">     302 </span>            : #include &quot;nsStyleStructList.h&quot;
+<span class="lineNum">     303 </span>            : 
+<span class="lineNum">     304 </span>            : #undef STYLE_STRUCT_INHERITED
+<span class="lineNum">     305 </span>            : #undef STYLE_STRUCT_RESET
+<span class="lineNum">     306 </span>            : 
+<span class="lineNum">     307 </span>            :     if (mCachedResetData) {
+<span class="lineNum">     308 </span>            :       nsResetStyleData* destroyingResetData =
+<span class="lineNum">     309 </span>            :         aDestroyingContext-&gt;mCachedResetData;
+<span class="lineNum">     310 </span>            :       if (destroyingResetData) {
+<span class="lineNum">     311 </span>            : #define STYLE_STRUCT_INHERITED(name_, checkdata_cb_)
+<span class="lineNum">     312 </span>            : #define STYLE_STRUCT_RESET(name_, checkdata_cb)                                \
+<span class="lineNum">     313 </span>            :         data = destroyingResetData-&gt;mStyleStructs[eStyleStruct_##name_];       \
+<span class="lineNum">     314 </span>            :         if (data &amp;&amp;                                                            \
+<span class="lineNum">     315 </span>            :             !(aDestroyingContext-&gt;mBits &amp; NS_STYLE_INHERIT_BIT(name_)) &amp;&amp;      \
+<span class="lineNum">     316 </span>            :             (mCachedResetData-&gt;mStyleStructs[eStyleStruct_##name_] == data)) { \
+<span class="lineNum">     317 </span>            :           printf_stderr(&quot;style struct %p found on style context %p\n&quot;, data,   \
+<span class="lineNum">     318 </span>            :                         this);                                                 \
+<span class="lineNum">     319 </span>            :           nsString url;                                                        \
+<span class="lineNum">     320 </span>            :           nsresult rv = PresContext()-&gt;Document()-&gt;GetURL(url);                \
+<span class="lineNum">     321 </span>            :           if (NS_SUCCEEDED(rv)) {                                              \
+<span class="lineNum">     322 </span>            :             printf_stderr(&quot;  in %s\n&quot;, NS_ConvertUTF16toUTF8(url).get());      \
+<span class="lineNum">     323 </span>            :           }                                                                    \
+<span class="lineNum">     324 </span>            :           MOZ_ASSERT(false, &quot;destroying &quot; #name_ &quot; style struct still present &quot;\
+<span class="lineNum">     325 </span>            :                             &quot;in style context tree&quot;);                          \
+<span class="lineNum">     326 </span>            :         }
+<span class="lineNum">     327 </span>            : 
+<span class="lineNum">     328 </span>            : #include &quot;nsStyleStructList.h&quot;
+<span class="lineNum">     329 </span>            : 
+<span class="lineNum">     330 </span>            : #undef STYLE_STRUCT_INHERITED
+<span class="lineNum">     331 </span>            : #undef STYLE_STRUCT_RESET
+<span class="lineNum">     332 </span>            :       }
+<span class="lineNum">     333 </span>            :     }
+<span class="lineNum">     334 </span>            :   }
+<span class="lineNum">     335 </span>            : 
+<span class="lineNum">     336 </span>            :   if (mChild) {
+<span class="lineNum">     337 </span>            :     const nsStyleContext* child = mChild;
+<span class="lineNum">     338 </span>            :     do {
+<span class="lineNum">     339 </span>            :       child-&gt;AssertStructsNotUsedElsewhere(aDestroyingContext, aLevels - 1);
+<span class="lineNum">     340 </span>            :       child = child-&gt;mNextSibling;
+<span class="lineNum">     341 </span>            :     } while (child != mChild);
+<span class="lineNum">     342 </span>            :   }
+<span class="lineNum">     343 </span>            : 
+<span class="lineNum">     344 </span>            :   if (mEmptyChild) {
+<span class="lineNum">     345 </span>            :     const nsStyleContext* child = mEmptyChild;
+<span class="lineNum">     346 </span>            :     do {
+<span class="lineNum">     347 </span>            :       child-&gt;AssertStructsNotUsedElsewhere(aDestroyingContext, aLevels - 1);
+<span class="lineNum">     348 </span>            :       child = child-&gt;mNextSibling;
+<span class="lineNum">     349 </span>            :     } while (child != mEmptyChild);
+<span class="lineNum">     350 </span>            :   }
+<span class="lineNum">     351 </span>            : }
+<a name="352"><span class="lineNum">     352 </span>            : #endif</a>
+<span class="lineNum">     353 </span>            : 
+<span class="lineNum">     354 </span><span class="lineCov">          1 : void nsStyleContext::AddChild(nsStyleContext* aChild)</span>
+<span class="lineNum">     355 </span>            : {
+<span class="lineNum">     356 </span>            :   NS_ASSERTION(aChild-&gt;mPrevSibling == aChild &amp;&amp;
+<span class="lineNum">     357 </span>            :                aChild-&gt;mNextSibling == aChild,
+<span class="lineNum">     358 </span>            :                &quot;child already in a child list&quot;);
+<span class="lineNum">     359 </span>            : 
+<span class="lineNum">     360 </span><span class="lineCov">          1 :   nsStyleContext **listPtr = aChild-&gt;mSource.MatchesNoRules() ? &amp;mEmptyChild : &amp;mChild;</span>
+<span class="lineNum">     361 </span>            :   // Explicitly dereference listPtr so that compiler doesn't have to know that mNextSibling
+<span class="lineNum">     362 </span>            :   // etc. don't alias with what ever listPtr points at.
+<span class="lineNum">     363 </span><span class="lineCov">          1 :   nsStyleContext *list = *listPtr;</span>
+<span class="lineNum">     364 </span>            : 
+<span class="lineNum">     365 </span>            :   // Insert at the beginning of the list.  See also FindChildWithRules.
+<span class="lineNum">     366 </span><span class="lineCov">          1 :   if (list) {</span>
+<span class="lineNum">     367 </span>            :     // Link into existing elements, if there are any.
+<span class="lineNum">     368 </span><span class="lineCov">          1 :     aChild-&gt;mNextSibling = list;</span>
+<span class="lineNum">     369 </span><span class="lineCov">          1 :     aChild-&gt;mPrevSibling = list-&gt;mPrevSibling;</span>
+<span class="lineNum">     370 </span><span class="lineCov">          1 :     list-&gt;mPrevSibling-&gt;mNextSibling = aChild;</span>
+<span class="lineNum">     371 </span><span class="lineCov">          1 :     list-&gt;mPrevSibling = aChild;</span>
+<span class="lineNum">     372 </span>            :   }
+<span class="lineNum">     373 </span><span class="lineCov">          1 :   (*listPtr) = aChild;</span>
+<a name="374"><span class="lineNum">     374 </span><span class="lineCov">          1 : }</span></a>
+<span class="lineNum">     375 </span>            : 
+<span class="lineNum">     376 </span><span class="lineCov">          1 : void nsStyleContext::RemoveChild(nsStyleContext* aChild)</span>
+<span class="lineNum">     377 </span>            : {
+<span class="lineNum">     378 </span>            :   NS_PRECONDITION(nullptr != aChild &amp;&amp; this == aChild-&gt;mParent, &quot;bad argument&quot;);
+<span class="lineNum">     379 </span>            : 
+<span class="lineNum">     380 </span><span class="lineCov">          1 :   nsStyleContext **list = aChild-&gt;mSource.MatchesNoRules() ? &amp;mEmptyChild : &amp;mChild;</span>
+<span class="lineNum">     381 </span>            : 
+<span class="lineNum">     382 </span><span class="lineCov">          1 :   if (aChild-&gt;mPrevSibling != aChild) { // has siblings</span>
+<span class="lineNum">     383 </span><span class="lineCov">          1 :     if ((*list) == aChild) {</span>
+<span class="lineNum">     384 </span><span class="lineCov">          1 :       (*list) = (*list)-&gt;mNextSibling;</span>
+<span class="lineNum">     385 </span>            :     }
+<span class="lineNum">     386 </span>            :   }
+<span class="lineNum">     387 </span>            :   else {
+<span class="lineNum">     388 </span>            :     NS_ASSERTION((*list) == aChild, &quot;bad sibling pointers&quot;);
+<span class="lineNum">     389 </span><span class="lineCov">          1 :     (*list) = nullptr;</span>
+<span class="lineNum">     390 </span>            :   }
+<span class="lineNum">     391 </span>            : 
+<span class="lineNum">     392 </span><span class="lineCov">          1 :   aChild-&gt;mPrevSibling-&gt;mNextSibling = aChild-&gt;mNextSibling;</span>
+<span class="lineNum">     393 </span><span class="lineCov">          1 :   aChild-&gt;mNextSibling-&gt;mPrevSibling = aChild-&gt;mPrevSibling;</span>
+<span class="lineNum">     394 </span><span class="lineCov">          1 :   aChild-&gt;mNextSibling = aChild;</span>
+<span class="lineNum">     395 </span><span class="lineCov">          1 :   aChild-&gt;mPrevSibling = aChild;</span>
+<span class="lineNum">     396 </span><span class="lineCov">          1 : }</span>
+<a name="397"><span class="lineNum">     397 </span>            : </a>
+<span class="lineNum">     398 </span>            : void
+<span class="lineNum">     399 </span><span class="lineCov">          1 : nsStyleContext::MoveTo(nsStyleContext* aNewParent)</span>
+<span class="lineNum">     400 </span>            : {
+<span class="lineNum">     401 </span>            :   MOZ_ASSERT(aNewParent != mParent);
+<span class="lineNum">     402 </span>            : 
+<span class="lineNum">     403 </span>            :   // This function shouldn't be getting called if the parents have different
+<span class="lineNum">     404 </span>            :   // values for some flags in mBits (unless the flag is also set on this style
+<span class="lineNum">     405 </span>            :   // context) because if that were the case we would need to recompute those
+<span class="lineNum">     406 </span>            :   // bits for |this|.
+<span class="lineNum">     407 </span>            : 
+<span class="lineNum">     408 </span>            : #define CHECK_FLAG(bit_) \
+<span class="lineNum">     409 </span>            :   MOZ_ASSERT((mParent-&gt;mBits &amp; (bit_)) == (aNewParent-&gt;mBits &amp; (bit_)) ||     \
+<span class="lineNum">     410 </span>            :              (mBits &amp; (bit_)),                                                \
+<span class="lineNum">     411 </span>            :              &quot;MoveTo cannot be called if &quot; #bit_ &quot; value on old and new &quot;     \
+<span class="lineNum">     412 </span>            :              &quot;style context parents do not match, unless the flag is set &quot;    \
+<span class="lineNum">     413 </span>            :              &quot;on this style context&quot;);
+<span class="lineNum">     414 </span>            : 
+<span class="lineNum">     415 </span>            :   CHECK_FLAG(NS_STYLE_HAS_PSEUDO_ELEMENT_DATA)
+<span class="lineNum">     416 </span>            :   CHECK_FLAG(NS_STYLE_IN_DISPLAY_NONE_SUBTREE)
+<span class="lineNum">     417 </span>            :   CHECK_FLAG(NS_STYLE_HAS_TEXT_DECORATION_LINES)
+<span class="lineNum">     418 </span>            :   CHECK_FLAG(NS_STYLE_RELEVANT_LINK_VISITED)
+<span class="lineNum">     419 </span>            : 
+<span class="lineNum">     420 </span>            : #undef CHECK_FLAG
+<span class="lineNum">     421 </span>            : 
+<span class="lineNum">     422 </span>            :   // Assertions checking for visited style are just to avoid some tricky
+<span class="lineNum">     423 </span>            :   // cases we can't be bothered handling at the moment.
+<span class="lineNum">     424 </span>            :   MOZ_ASSERT(!IsStyleIfVisited());
+<span class="lineNum">     425 </span>            :   MOZ_ASSERT(!mParent-&gt;IsStyleIfVisited());
+<span class="lineNum">     426 </span>            :   MOZ_ASSERT(!aNewParent-&gt;IsStyleIfVisited());
+<span class="lineNum">     427 </span>            :   MOZ_ASSERT(!mStyleIfVisited || mStyleIfVisited-&gt;mParent == mParent);
+<span class="lineNum">     428 </span>            : 
+<span class="lineNum">     429 </span><span class="lineCov">          1 :   if (mParent-&gt;HasChildThatUsesResetStyle()) {</span>
+<span class="lineNum">     430 </span><span class="lineCov">          1 :     aNewParent-&gt;AddStyleBit(NS_STYLE_HAS_CHILD_THAT_USES_RESET_STYLE);</span>
+<span class="lineNum">     431 </span>            :   }
+<span class="lineNum">     432 </span>            : 
+<span class="lineNum">     433 </span><span class="lineCov">          1 :   mParent-&gt;RemoveChild(this);</span>
+<span class="lineNum">     434 </span><span class="lineCov">          1 :   mParent = aNewParent;</span>
+<span class="lineNum">     435 </span><span class="lineCov">          1 :   mParent-&gt;AddChild(this);</span>
+<span class="lineNum">     436 </span>            : 
+<span class="lineNum">     437 </span><span class="lineCov">          1 :   if (mStyleIfVisited) {</span>
+<span class="lineNum">     438 </span><span class="lineCov">          1 :     mStyleIfVisited-&gt;mParent-&gt;RemoveChild(mStyleIfVisited);</span>
+<span class="lineNum">     439 </span><span class="lineCov">          1 :     mStyleIfVisited-&gt;mParent = aNewParent;</span>
+<span class="lineNum">     440 </span><span class="lineCov">          1 :     mStyleIfVisited-&gt;mParent-&gt;AddChild(mStyleIfVisited);</span>
+<span class="lineNum">     441 </span>            :   }
+<span class="lineNum">     442 </span><span class="lineCov">          1 : }</span>
+<a name="443"><span class="lineNum">     443 </span>            : </a>
+<span class="lineNum">     444 </span>            : already_AddRefed&lt;nsStyleContext&gt;
+<span class="lineNum">     445 </span><span class="lineCov">          1 : nsStyleContext::FindChildWithRules(const nsIAtom* aPseudoTag,</span>
+<span class="lineNum">     446 </span>            :                                    NonOwningStyleContextSource aSource,
+<span class="lineNum">     447 </span>            :                                    NonOwningStyleContextSource aSourceIfVisited,
+<span class="lineNum">     448 </span>            :                                    bool aRelevantLinkVisited)
+<span class="lineNum">     449 </span>            : {
+<span class="lineNum">     450 </span><span class="lineCov">          1 :   uint32_t threshold = 10; // The # of siblings we're willing to examine</span>
+<span class="lineNum">     451 </span>            :                            // before just giving this whole thing up.
+<span class="lineNum">     452 </span>            : 
+<span class="lineNum">     453 </span>            :   RefPtr&lt;nsStyleContext&gt; result;
+<span class="lineNum">     454 </span><span class="lineCov">          1 :   nsStyleContext *list = aSource.MatchesNoRules() ? mEmptyChild : mChild;</span>
+<span class="lineNum">     455 </span>            : 
+<span class="lineNum">     456 </span><span class="lineCov">          1 :   if (list) {</span>
+<span class="lineNum">     457 </span>            :     nsStyleContext *child = list;
+<span class="lineNum">     458 </span><span class="lineCov">          1 :     do {</span>
+<span class="lineNum">     459 </span><span class="lineCov">          1 :       if (child-&gt;mSource.AsRaw() == aSource &amp;&amp;</span>
+<span class="lineNum">     460 </span><span class="lineCov">          1 :           child-&gt;mPseudoTag == aPseudoTag &amp;&amp;</span>
+<span class="lineNum">     461 </span><span class="lineCov">          1 :           !child-&gt;IsStyleIfVisited() &amp;&amp;</span>
+<span class="lineNum">     462 </span><span class="lineCov">          1 :           child-&gt;RelevantLinkVisited() == aRelevantLinkVisited) {</span>
+<span class="lineNum">     463 </span><span class="lineCov">          1 :         bool match = false;</span>
+<span class="lineNum">     464 </span><span class="lineCov">          1 :         if (!aSourceIfVisited.IsNull()) {</span>
+<span class="lineNum">     465 </span><span class="lineCov">          1 :           match = child-&gt;GetStyleIfVisited() &amp;&amp;</span>
+<span class="lineNum">     466 </span><span class="lineCov">          1 :                   child-&gt;GetStyleIfVisited()-&gt;mSource.AsRaw() == aSourceIfVisited;</span>
+<span class="lineNum">     467 </span>            :         } else {
+<span class="lineNum">     468 </span><span class="lineCov">          1 :           match = !child-&gt;GetStyleIfVisited();</span>
+<span class="lineNum">     469 </span>            :         }
+<span class="lineNum">     470 </span><span class="lineCov">          1 :         if (match &amp;&amp; !(child-&gt;mBits &amp; NS_STYLE_INELIGIBLE_FOR_SHARING)) {</span>
+<span class="lineNum">     471 </span>            :           result = child;
+<span class="lineNum">     472 </span>            :           break;
+<span class="lineNum">     473 </span>            :         }
+<span class="lineNum">     474 </span>            :       }
+<span class="lineNum">     475 </span><span class="lineCov">          1 :       child = child-&gt;mNextSibling;</span>
+<span class="lineNum">     476 </span><span class="lineCov">          1 :       threshold--;</span>
+<span class="lineNum">     477 </span><span class="lineCov">          1 :       if (threshold == 0)</span>
+<span class="lineNum">     478 </span>            :         break;
+<span class="lineNum">     479 </span>            :     } while (child != list);
+<span class="lineNum">     480 </span>            :   }
+<span class="lineNum">     481 </span>            : 
+<span class="lineNum">     482 </span><span class="lineCov">          1 :   if (result) {</span>
+<span class="lineNum">     483 </span><span class="lineCov">          1 :     if (result != list) {</span>
+<span class="lineNum">     484 </span>            :       // Move result to the front of the list.
+<span class="lineNum">     485 </span><span class="lineCov">          1 :       RemoveChild(result);</span>
+<span class="lineNum">     486 </span><span class="lineCov">          1 :       AddChild(result);</span>
+<span class="lineNum">     487 </span>            :     }
+<span class="lineNum">     488 </span><span class="lineCov">          1 :     result-&gt;mBits |= NS_STYLE_IS_SHARED;</span>
+<span class="lineNum">     489 </span>            :   }
+<span class="lineNum">     490 </span>            : 
+<span class="lineNum">     491 </span><span class="lineCov">          1 :   return result.forget();</span>
+<a name="492"><span class="lineNum">     492 </span>            : }</a>
+<span class="lineNum">     493 </span>            : 
+<span class="lineNum">     494 </span><span class="lineCov">          1 : const void* nsStyleContext::StyleData(nsStyleStructID aSID)</span>
+<span class="lineNum">     495 </span>            : {
+<span class="lineNum">     496 </span><span class="lineCov">          1 :   const void* cachedData = GetCachedStyleData(aSID);</span>
+<span class="lineNum">     497 </span><span class="lineCov">          1 :   if (cachedData)</span>
+<span class="lineNum">     498 </span>            :     return cachedData; // We have computed data stored on this node in the context tree.
+<span class="lineNum">     499 </span>            :   // Our style source will take care of it for us.
+<span class="lineNum">     500 </span>            :   const void* newData;
+<span class="lineNum">     501 </span><span class="lineCov">          1 :   if (mSource.IsGeckoRuleNode()) {</span>
+<span class="lineNum">     502 </span><span class="lineCov">          1 :     newData = mSource.AsGeckoRuleNode()-&gt;GetStyleData(aSID, this, true);</span>
+<span class="lineNum">     503 </span><span class="lineCov">          1 :     if (!nsCachedStyleData::IsReset(aSID)) {</span>
+<span class="lineNum">     504 </span>            :       // always cache inherited data on the style context; the rule
+<span class="lineNum">     505 </span>            :       // node set the bit in mBits for us if needed.
+<span class="lineNum">     506 </span><span class="lineCov">          1 :       mCachedInheritedData.mStyleStructs[aSID] = const_cast&lt;void*&gt;(newData);</span>
+<span class="lineNum">     507 </span>            :     }
+<span class="lineNum">     508 </span>            :   } else {
+<span class="lineNum">     509 </span>            :     newData = StyleStructFromServoComputedValues(aSID);
+<span class="lineNum">     510 </span>            : 
+<span class="lineNum">     511 </span>            :     // perform any remaining main thread work on the struct
+<span class="lineNum">     512 </span>            :     switch (aSID) {
+<span class="lineNum">     513 </span>            : #define STYLE_STRUCT(name_, checkdata_cb_)                                    \
+<span class="lineNum">     514 </span>            :       case eStyleStruct_##name_: {                                            \
+<span class="lineNum">     515 </span>            :         auto data = static_cast&lt;const nsStyle##name_*&gt;(newData);              \
+<span class="lineNum">     516 </span>            :         const_cast&lt;nsStyle##name_*&gt;(data)-&gt;FinishStyle(PresContext());        \
+<span class="lineNum">     517 </span>            :         break;                                                                \
+<span class="lineNum">     518 </span>            :       }
+<span class="lineNum">     519 </span>            : #include &quot;nsStyleStructList.h&quot;
+<span class="lineNum">     520 </span>            : #undef STYLE_STRUCT
+<span class="lineNum">     521 </span>            :       default:
+<span class="lineNum">     522 </span>            :         MOZ_ASSERT_UNREACHABLE(&quot;unexpected nsStyleStructID value&quot;);
+<span class="lineNum">     523 </span>            :         break;
+<span class="lineNum">     524 </span>            :     }
+<span class="lineNum">     525 </span>            : 
+<span class="lineNum">     526 </span>            :     // The Servo-backed StyleContextSource owns the struct.
+<span class="lineNum">     527 </span>            :     AddStyleBit(nsCachedStyleData::GetBitForSID(aSID));
+<span class="lineNum">     528 </span>            : 
+<span class="lineNum">     529 </span>            :     // XXXbholley: Unconditionally caching reset structs here defeats the memory
+<span class="lineNum">     530 </span>            :     // optimization where we lazily allocate mCachedResetData, so that we can avoid
+<span class="lineNum">     531 </span>            :     // performing an FFI call each time we want to get the style structs. We should
+<span class="lineNum">     532 </span>            :     // measure the tradeoffs at some point. If the FFI overhead is low and the memory
+<span class="lineNum">     533 </span>            :     // win significant, we should consider _always_ grabbing the struct over FFI, and
+<span class="lineNum">     534 </span>            :     // potentially giving mCachedInheritedData the same treatment.
+<span class="lineNum">     535 </span>            :     //
+<span class="lineNum">     536 </span>            :     // Note that there is a similar comment in the struct getters in nsStyleContext.h.
+<span class="lineNum">     537 </span>            :     SetStyle(aSID, const_cast&lt;void*&gt;(newData));
+<span class="lineNum">     538 </span>            :   }
+<span class="lineNum">     539 </span><span class="lineCov">          1 :   return newData;</span>
+<span class="lineNum">     540 </span>            : }
+<span class="lineNum">     541 </span>            : 
+<span class="lineNum">     542 </span>            : // This is an evil evil function, since it forces you to alloc your own separate copy of
+<span class="lineNum">     543 </span>            : // style data!  Do not use this function unless you absolutely have to!  You should avoid
+<a name="544"><span class="lineNum">     544 </span>            : // this at all costs! -dwh</a>
+<span class="lineNum">     545 </span>            : void*
+<span class="lineNum">     546 </span><span class="lineCov">          1 : nsStyleContext::GetUniqueStyleData(const nsStyleStructID&amp; aSID)</span>
+<span class="lineNum">     547 </span>            : {
+<span class="lineNum">     548 </span>            :   MOZ_ASSERT(!mSource.IsServoComputedValues(),
+<span class="lineNum">     549 </span>            :              &quot;Can't COW-mutate servo values from Gecko!&quot;);
+<span class="lineNum">     550 </span>            : 
+<span class="lineNum">     551 </span>            :   // If we already own the struct and no kids could depend on it, then
+<span class="lineNum">     552 </span>            :   // just return it.  (We leak in this case if there are kids -- and this
+<span class="lineNum">     553 </span>            :   // function really shouldn't be called for style contexts that could
+<span class="lineNum">     554 </span>            :   // have kids depending on the data.  ClearStyleData would be OK, but
+<span class="lineNum">     555 </span>            :   // this test for no mChild or mEmptyChild doesn't catch that case.)
+<span class="lineNum">     556 </span><span class="lineCov">          1 :   const void *current = StyleData(aSID);</span>
+<span class="lineNum">     557 </span><span class="lineCov">          1 :   if (!mChild &amp;&amp; !mEmptyChild &amp;&amp;</span>
+<span class="lineNum">     558 </span><span class="lineCov">          1 :       !(mBits &amp; nsCachedStyleData::GetBitForSID(aSID)) &amp;&amp;</span>
+<span class="lineNum">     559 </span><span class="lineCov">          1 :       GetCachedStyleData(aSID))</span>
+<span class="lineNum">     560 </span>            :     return const_cast&lt;void*&gt;(current);
+<span class="lineNum">     561 </span>            : 
+<span class="lineNum">     562 </span>            :   void* result;
+<span class="lineNum">     563 </span><span class="lineCov">          1 :   nsPresContext *presContext = PresContext();</span>
+<span class="lineNum">     564 </span><span class="lineCov">          1 :   switch (aSID) {</span>
+<span class="lineNum">     565 </span>            : 
+<span class="lineNum">     566 </span>            : #define UNIQUE_CASE(c_)                                                       \
+<span class="lineNum">     567 </span>            :   case eStyleStruct_##c_:                                                     \
+<span class="lineNum">     568 </span>            :     result = new (presContext) nsStyle##c_(                                   \
+<span class="lineNum">     569 </span>            :       * static_cast&lt;const nsStyle##c_ *&gt;(current));                           \
+<span class="lineNum">     570 </span>            :     break;
+<span class="lineNum">     571 </span>            : 
+<span class="lineNum">     572 </span><span class="lineNoCov">          0 :   UNIQUE_CASE(Font)</span>
+<span class="lineNum">     573 </span><span class="lineCov">          1 :   UNIQUE_CASE(Display)</span>
+<span class="lineNum">     574 </span><span class="lineNoCov">          0 :   UNIQUE_CASE(Text)</span>
+<span class="lineNum">     575 </span><span class="lineNoCov">          0 :   UNIQUE_CASE(TextReset)</span>
+<span class="lineNum">     576 </span><span class="lineCov">          1 :   UNIQUE_CASE(Visibility)</span>
+<span class="lineNum">     577 </span>            : 
+<span class="lineNum">     578 </span>            : #undef UNIQUE_CASE
+<span class="lineNum">     579 </span>            : 
+<span class="lineNum">     580 </span>            :   default:
+<span class="lineNum">     581 </span>            :     NS_ERROR(&quot;Struct type not supported.  Please find another way to do this if you can!&quot;);
+<span class="lineNum">     582 </span>            :     return nullptr;
+<span class="lineNum">     583 </span>            :   }
+<span class="lineNum">     584 </span>            : 
+<span class="lineNum">     585 </span><span class="lineCov">          1 :   SetStyle(aSID, result);</span>
+<span class="lineNum">     586 </span><span class="lineCov">          1 :   mBits &amp;= ~static_cast&lt;uint64_t&gt;(nsCachedStyleData::GetBitForSID(aSID));</span>
+<span class="lineNum">     587 </span>            : 
+<span class="lineNum">     588 </span><span class="lineCov">          1 :   return result;</span>
+<span class="lineNum">     589 </span>            : }
+<span class="lineNum">     590 </span>            : 
+<span class="lineNum">     591 </span>            : // This is an evil function, but less evil than GetUniqueStyleData. It
+<a name="592"><span class="lineNum">     592 </span>            : // creates an empty style struct for this nsStyleContext.</a>
+<span class="lineNum">     593 </span>            : void*
+<span class="lineNum">     594 </span><span class="lineCov">          1 : nsStyleContext::CreateEmptyStyleData(const nsStyleStructID&amp; aSID)</span>
+<span class="lineNum">     595 </span>            : {
+<span class="lineNum">     596 </span>            :   MOZ_ASSERT(!mChild &amp;&amp; !mEmptyChild &amp;&amp;
+<span class="lineNum">     597 </span>            :              !(mBits &amp; nsCachedStyleData::GetBitForSID(aSID)) &amp;&amp;
+<span class="lineNum">     598 </span>            :              !GetCachedStyleData(aSID),
+<span class="lineNum">     599 </span>            :              &quot;This style should not have been computed&quot;);
+<span class="lineNum">     600 </span>            : 
+<span class="lineNum">     601 </span>            :   void* result;
+<span class="lineNum">     602 </span><span class="lineCov">          1 :   nsPresContext* presContext = PresContext();</span>
+<span class="lineNum">     603 </span><span class="lineCov">          1 :   switch (aSID) {</span>
+<span class="lineNum">     604 </span>            : #define UNIQUE_CASE(c_) \
+<span class="lineNum">     605 </span>            :     case eStyleStruct_##c_: \
+<span class="lineNum">     606 </span>            :       result = new (presContext) nsStyle##c_(presContext); \
+<span class="lineNum">     607 </span>            :       break;
+<span class="lineNum">     608 </span>            : 
+<span class="lineNum">     609 </span><span class="lineCov">          1 :   UNIQUE_CASE(Border)</span>
+<span class="lineNum">     610 </span><span class="lineCov">          1 :   UNIQUE_CASE(Padding)</span>
+<span class="lineNum">     611 </span>            : 
+<span class="lineNum">     612 </span>            : #undef UNIQUE_CASE
+<span class="lineNum">     613 </span>            : 
+<span class="lineNum">     614 </span>            :   default:
+<span class="lineNum">     615 </span>            :     NS_ERROR(&quot;Struct type not supported.&quot;);
+<span class="lineNum">     616 </span>            :     return nullptr;
+<span class="lineNum">     617 </span>            :   }
+<span class="lineNum">     618 </span>            : 
+<span class="lineNum">     619 </span>            :   // The new struct is owned by this style context, but that we don't
+<span class="lineNum">     620 </span>            :   // need to clear the bit in mBits because we've asserted that at the
+<span class="lineNum">     621 </span>            :   // top of this function.
+<span class="lineNum">     622 </span><span class="lineCov">          1 :   SetStyle(aSID, result);</span>
+<span class="lineNum">     623 </span><span class="lineCov">          1 :   return result;</span>
+<span class="lineNum">     624 </span>            : }
+<a name="625"><span class="lineNum">     625 </span>            : </a>
+<span class="lineNum">     626 </span>            : void
+<span class="lineNum">     627 </span><span class="lineCov">          1 : nsStyleContext::SetStyle(nsStyleStructID aSID, void* aStruct)</span>
+<span class="lineNum">     628 </span>            : {
+<span class="lineNum">     629 </span>            :   MOZ_ASSERT(!mSource.IsServoComputedValues(),
+<span class="lineNum">     630 </span>            :              &quot;Servo shouldn't cache style structs in the style context!&quot;);
+<span class="lineNum">     631 </span>            :   // This method should only be called from nsRuleNode!  It is not a public
+<span class="lineNum">     632 </span>            :   // method!
+<span class="lineNum">     633 </span>            : 
+<span class="lineNum">     634 </span>            :   NS_ASSERTION(aSID &gt;= 0 &amp;&amp; aSID &lt; nsStyleStructID_Length, &quot;out of bounds&quot;);
+<span class="lineNum">     635 </span>            : 
+<span class="lineNum">     636 </span>            :   // NOTE:  nsCachedStyleData::GetStyleData works roughly the same way.
+<span class="lineNum">     637 </span>            :   // See the comments there (in nsRuleNode.h) for more details about
+<span class="lineNum">     638 </span>            :   // what this is doing and why.
+<span class="lineNum">     639 </span>            : 
+<span class="lineNum">     640 </span>            :   void** dataSlot;
+<span class="lineNum">     641 </span><span class="lineCov">          1 :   if (nsCachedStyleData::IsReset(aSID)) {</span>
+<span class="lineNum">     642 </span><span class="lineCov">          1 :     if (!mCachedResetData) {</span>
+<span class="lineNum">     643 </span><span class="lineCov">          1 :       mCachedResetData = new (PresContext()) nsResetStyleData;</span>
+<span class="lineNum">     644 </span>            :     }
+<span class="lineNum">     645 </span><span class="lineCov">          1 :     dataSlot = &amp;mCachedResetData-&gt;mStyleStructs[aSID];</span>
+<span class="lineNum">     646 </span>            :   } else {
+<span class="lineNum">     647 </span><span class="lineCov">          1 :     dataSlot = &amp;mCachedInheritedData.mStyleStructs[aSID];</span>
+<span class="lineNum">     648 </span>            :   }
+<span class="lineNum">     649 </span>            :   NS_ASSERTION(!*dataSlot || (mBits &amp; nsCachedStyleData::GetBitForSID(aSID)),
+<span class="lineNum">     650 </span>            :                &quot;Going to leak style data&quot;);
+<span class="lineNum">     651 </span><span class="lineCov">          1 :   *dataSlot = aStruct;</span>
+<span class="lineNum">     652 </span><span class="lineCov">          1 : }</span>
+<a name="653"><span class="lineNum">     653 </span>            : </a>
+<span class="lineNum">     654 </span>            : static bool
+<span class="lineNum">     655 </span><span class="lineCov">          1 : ShouldSuppressLineBreak(const nsStyleContext* aContext,</span>
+<span class="lineNum">     656 </span>            :                         const nsStyleDisplay* aDisplay,
+<span class="lineNum">     657 </span>            :                         const nsStyleContext* aParentContext,
+<span class="lineNum">     658 </span>            :                         const nsStyleDisplay* aParentDisplay)
+<span class="lineNum">     659 </span>            : {
+<span class="lineNum">     660 </span>            :   // The display change should only occur for &quot;in-flow&quot; children
+<span class="lineNum">     661 </span><span class="lineCov">          1 :   if (aDisplay-&gt;IsOutOfFlowStyle()) {</span>
+<span class="lineNum">     662 </span>            :     return false;
+<span class="lineNum">     663 </span>            :   }
+<span class="lineNum">     664 </span>            :   // Display value of any anonymous box should not be touched. In most
+<span class="lineNum">     665 </span>            :   // cases, anonymous boxes are actually not in ruby frame, but instead,
+<span class="lineNum">     666 </span>            :   // some other frame with a ruby display value. Non-element pseudos
+<span class="lineNum">     667 </span>            :   // which represents text frames, as well as ruby pseudos are excluded
+<span class="lineNum">     668 </span>            :   // because we still want to set the flag for them.
+<span class="lineNum">     669 </span><span class="lineCov">          1 :   if ((aContext-&gt;GetPseudoType() == CSSPseudoElementType::InheritingAnonBox ||</span>
+<span class="lineNum">     670 </span><span class="lineCov">          1 :        aContext-&gt;GetPseudoType() == CSSPseudoElementType::NonInheritingAnonBox) &amp;&amp;</span>
+<span class="lineNum">     671 </span><span class="lineCov">          1 :       !nsCSSAnonBoxes::IsNonElement(aContext-&gt;GetPseudo()) &amp;&amp;</span>
+<span class="lineNum">     672 </span><span class="lineCov">          1 :       !RubyUtils::IsRubyPseudo(aContext-&gt;GetPseudo())) {</span>
+<span class="lineNum">     673 </span>            :     return false;
+<span class="lineNum">     674 </span>            :   }
+<span class="lineNum">     675 </span><span class="lineCov">          1 :   if (aParentContext-&gt;ShouldSuppressLineBreak()) {</span>
+<span class="lineNum">     676 </span>            :     // Line break suppressing bit is propagated to any children of
+<span class="lineNum">     677 </span>            :     // line participants, which include inline, contents, and inline
+<span class="lineNum">     678 </span>            :     // ruby boxes.
+<span class="lineNum">     679 </span><span class="lineCov">          1 :     if (aParentDisplay-&gt;mDisplay == mozilla::StyleDisplay::Inline ||</span>
+<span class="lineNum">     680 </span><span class="lineCov">          1 :         aParentDisplay-&gt;mDisplay == mozilla::StyleDisplay::Contents ||</span>
+<span class="lineNum">     681 </span><span class="lineCov">          1 :         aParentDisplay-&gt;mDisplay == mozilla::StyleDisplay::Ruby ||</span>
+<span class="lineNum">     682 </span>            :         aParentDisplay-&gt;mDisplay == mozilla::StyleDisplay::RubyBaseContainer) {
+<span class="lineNum">     683 </span>            :       return true;
+<span class="lineNum">     684 </span>            :     }
+<span class="lineNum">     685 </span>            :   }
+<span class="lineNum">     686 </span>            :   // Any descendant of ruby level containers is non-breakable, but
+<span class="lineNum">     687 </span>            :   // the level containers themselves are breakable. We have to check
+<span class="lineNum">     688 </span>            :   // the container display type against all ruby display type here
+<span class="lineNum">     689 </span>            :   // because any of the ruby boxes could be anonymous.
+<span class="lineNum">     690 </span>            :   // Note that, when certain HTML tags, e.g. form controls, have ruby
+<span class="lineNum">     691 </span>            :   // level container display type, they could also escape from this flag
+<span class="lineNum">     692 </span>            :   // while they shouldn't. However, it is generally fine since they
+<span class="lineNum">     693 </span>            :   // won't usually break the assertion that there is no line break
+<span class="lineNum">     694 </span>            :   // inside ruby, because:
+<span class="lineNum">     695 </span>            :   // 1. their display types, the ruby level container types, are inline-
+<span class="lineNum">     696 </span>            :   //    outside, which means they won't cause any forced line break; and
+<span class="lineNum">     697 </span>            :   // 2. they never start an inline span, which means their children, if
+<span class="lineNum">     698 </span>            :   //    any, won't be able to break the line its ruby ancestor lays; and
+<span class="lineNum">     699 </span>            :   // 3. their parent frame is always a ruby content frame (due to
+<span class="lineNum">     700 </span>            :   //    anonymous ruby box generation), which makes line layout suppress
+<span class="lineNum">     701 </span>            :   //    any optional line break around this frame.
+<span class="lineNum">     702 </span>            :   // However, there is one special case which is BR tag, because it
+<span class="lineNum">     703 </span>            :   // directly affects the line layout. This case is handled by the BR
+<span class="lineNum">     704 </span>            :   // frame which checks the flag of its parent frame instead of itself.
+<span class="lineNum">     705 </span><span class="lineCov">          1 :   if ((aParentDisplay-&gt;IsRubyDisplayType() &amp;&amp;</span>
+<span class="lineNum">     706 </span><span class="lineCov">          1 :        aDisplay-&gt;mDisplay != mozilla::StyleDisplay::RubyBaseContainer &amp;&amp;</span>
+<span class="lineNum">     707 </span><span class="lineCov">          1 :        aDisplay-&gt;mDisplay != mozilla::StyleDisplay::RubyTextContainer) ||</span>
+<span class="lineNum">     708 </span>            :       // Since ruby base and ruby text may exist themselves without any
+<span class="lineNum">     709 </span>            :       // non-anonymous frame outside, we should also check them.
+<span class="lineNum">     710 </span><span class="lineCov">          1 :       aDisplay-&gt;mDisplay == mozilla::StyleDisplay::RubyBase ||</span>
+<span class="lineNum">     711 </span>            :       aDisplay-&gt;mDisplay == mozilla::StyleDisplay::RubyText) {
+<span class="lineNum">     712 </span>            :     return true;
+<span class="lineNum">     713 </span>            :   }
+<span class="lineNum">     714 </span><span class="lineCov">          1 :   return false;</span>
+<span class="lineNum">     715 </span>            : }
+<span class="lineNum">     716 </span>            : 
+<span class="lineNum">     717 </span>            : // Flex &amp; grid containers blockify their children.
+<span class="lineNum">     718 </span>            : //  &quot;The display value of a flex item is blockified&quot;
+<span class="lineNum">     719 </span>            : //    https://drafts.csswg.org/css-flexbox-1/#flex-items
+<span class="lineNum">     720 </span>            : //  &quot;The display value of a grid item is blockified&quot;
+<span class="lineNum">     721 </span>            : //    https://drafts.csswg.org/css-grid/#grid-items
+<span class="lineNum">     722 </span>            : static bool
+<span class="lineNum">     723 </span>            : ShouldBlockifyChildren(const nsStyleDisplay* aStyleDisp)
+<span class="lineNum">     724 </span>            : {
+<span class="lineNum">     725 </span><span class="lineCov">          1 :   auto displayVal = aStyleDisp-&gt;mDisplay;</span>
+<span class="lineNum">     726 </span>            :   return mozilla::StyleDisplay::Flex == displayVal ||
+<span class="lineNum">     727 </span>            :     mozilla::StyleDisplay::InlineFlex == displayVal ||
+<span class="lineNum">     728 </span><span class="lineCov">          1 :     mozilla::StyleDisplay::Grid == displayVal ||</span>
+<span class="lineNum">     729 </span>            :     mozilla::StyleDisplay::InlineGrid == displayVal;
+<span class="lineNum">     730 </span>            : }
+<a name="731"><span class="lineNum">     731 </span>            : </a>
+<span class="lineNum">     732 </span>            : void
+<span class="lineNum">     733 </span><span class="lineCov">          1 : nsStyleContext::SetStyleBits()</span>
+<span class="lineNum">     734 </span>            : {
+<span class="lineNum">     735 </span>            :   // XXXbholley: We should get this information directly from the
+<span class="lineNum">     736 </span>            :   // ServoComputedValues rather than computing it here. This setup for
+<span class="lineNum">     737 </span>            :   // ServoComputedValues-backed nsStyleContexts is probably not something
+<span class="lineNum">     738 </span>            :   // we should ship.
+<span class="lineNum">     739 </span>            :   //
+<span class="lineNum">     740 </span>            :   // For example, NS_STYLE_IS_TEXT_COMBINED is still set in ApplyStyleFixups,
+<span class="lineNum">     741 </span>            :   // which isn't called for ServoComputedValues.
+<span class="lineNum">     742 </span>            : 
+<span class="lineNum">     743 </span>            :   // See if we have any text decorations.
+<span class="lineNum">     744 </span>            :   // First see if our parent has text decorations.  If our parent does, then we inherit the bit.
+<span class="lineNum">     745 </span><span class="lineCov">          1 :   if (mParent &amp;&amp; mParent-&gt;HasTextDecorationLines()) {</span>
+<span class="lineNum">     746 </span><span class="lineCov">          1 :     mBits |= NS_STYLE_HAS_TEXT_DECORATION_LINES;</span>
+<span class="lineNum">     747 </span>            :   } else {
+<span class="lineNum">     748 </span>            :     // We might have defined a decoration.
+<span class="lineNum">     749 </span><span class="lineCov">          1 :     if (StyleTextReset()-&gt;HasTextDecorationLines()) {</span>
+<span class="lineNum">     750 </span><span class="lineCov">          1 :       mBits |= NS_STYLE_HAS_TEXT_DECORATION_LINES;</span>
+<span class="lineNum">     751 </span>            :     }
+<span class="lineNum">     752 </span>            :   }
+<span class="lineNum">     753 </span>            : 
+<span class="lineNum">     754 </span><span class="lineCov">          1 :   if ((mParent &amp;&amp; mParent-&gt;HasPseudoElementData()) || IsPseudoElement()) {</span>
+<span class="lineNum">     755 </span><span class="lineCov">          1 :     mBits |= NS_STYLE_HAS_PSEUDO_ELEMENT_DATA;</span>
+<span class="lineNum">     756 </span>            :   }
+<span class="lineNum">     757 </span>            : 
+<span class="lineNum">     758 </span>            :   // Set the NS_STYLE_IN_DISPLAY_NONE_SUBTREE bit
+<span class="lineNum">     759 </span><span class="lineCov">          1 :   const nsStyleDisplay* disp = StyleDisplay();</span>
+<span class="lineNum">     760 </span><span class="lineCov">          1 :   if ((mParent &amp;&amp; mParent-&gt;IsInDisplayNoneSubtree()) ||</span>
+<span class="lineNum">     761 </span><span class="lineCov">          1 :       disp-&gt;mDisplay == mozilla::StyleDisplay::None) {</span>
+<span class="lineNum">     762 </span><span class="lineCov">          1 :     mBits |= NS_STYLE_IN_DISPLAY_NONE_SUBTREE;</span>
+<span class="lineNum">     763 </span>            :   }
+<span class="lineNum">     764 </span><span class="lineCov">          1 : }</span>
+<a name="765"><span class="lineNum">     765 </span>            : </a>
+<span class="lineNum">     766 </span>            : void
+<span class="lineNum">     767 </span><span class="lineCov">          1 : nsStyleContext::ApplyStyleFixups(bool aSkipParentDisplayBasedStyleFixup)</span>
+<span class="lineNum">     768 </span>            : {
+<span class="lineNum">     769 </span>            :   MOZ_ASSERT(!mSource.IsServoComputedValues(),
+<span class="lineNum">     770 </span>            :              &quot;Can't do Gecko style fixups on Servo values&quot;);
+<span class="lineNum">     771 </span>            : 
+<span class="lineNum">     772 </span>            : #define GET_UNIQUE_STYLE_DATA(name_) \
+<span class="lineNum">     773 </span>            :   static_cast&lt;nsStyle##name_*&gt;(GetUniqueStyleData(eStyleStruct_##name_))
+<span class="lineNum">     774 </span>            : 
+<span class="lineNum">     775 </span>            :   // CSS Inline Layout Level 3 - 3.5 Sizing Initial Letters:
+<span class="lineNum">     776 </span>            :   // For an N-line drop initial in a Western script, the cap-height of the
+<span class="lineNum">     777 </span>            :   // letter needs to be (N – 1) times the line-height, plus the cap-height
+<span class="lineNum">     778 </span>            :   // of the surrounding text.
+<span class="lineNum">     779 </span><span class="lineCov">          1 :   if (mPseudoTag == nsCSSPseudoElements::firstLetter) {</span>
+<span class="lineNum">     780 </span><span class="lineCov">          1 :     const nsStyleTextReset* textReset = StyleTextReset();</span>
+<span class="lineNum">     781 </span><span class="lineCov">          1 :     if (textReset-&gt;mInitialLetterSize != 0.0f) {</span>
+<span class="lineNum">     782 </span><span class="lineNoCov">          0 :       nsStyleContext* containerSC = mParent;</span>
+<span class="lineNum">     783 </span><span class="lineNoCov">          0 :       const nsStyleDisplay* containerDisp = containerSC-&gt;StyleDisplay();</span>
+<span class="lineNum">     784 </span><span class="lineNoCov">          0 :       while (containerDisp-&gt;mDisplay == mozilla::StyleDisplay::Contents) {</span>
+<span class="lineNum">     785 </span><span class="lineNoCov">          0 :         if (!containerSC-&gt;GetParent()) {</span>
+<span class="lineNum">     786 </span>            :           break;
+<span class="lineNum">     787 </span>            :         }
+<span class="lineNum">     788 </span><span class="lineNoCov">          0 :         containerSC = containerSC-&gt;GetParent();</span>
+<span class="lineNum">     789 </span>            :         containerDisp = containerSC-&gt;StyleDisplay();
+<span class="lineNum">     790 </span>            :       }
+<span class="lineNum">     791 </span>            :       nscoord containerLH =
+<span class="lineNum">     792 </span><span class="lineNoCov">          0 :         ReflowInput::CalcLineHeight(nullptr, containerSC, NS_AUTOHEIGHT, 1.0f);</span>
+<span class="lineNum">     793 </span>            :       RefPtr&lt;nsFontMetrics&gt; containerFM =
+<span class="lineNum">     794 </span><span class="lineNoCov">          0 :         nsLayoutUtils::GetFontMetricsForStyleContext(containerSC);</span>
+<span class="lineNum">     795 </span>            :       MOZ_ASSERT(containerFM, &quot;Should have fontMetrics!!&quot;);
+<span class="lineNum">     796 </span><span class="lineNoCov">          0 :       nscoord containerCH = containerFM-&gt;CapHeight();</span>
+<span class="lineNum">     797 </span>            :       RefPtr&lt;nsFontMetrics&gt; firstLetterFM =
+<span class="lineNum">     798 </span><span class="lineNoCov">          0 :         nsLayoutUtils::GetFontMetricsForStyleContext(this);</span>
+<span class="lineNum">     799 </span>            :       MOZ_ASSERT(firstLetterFM, &quot;Should have fontMetrics!!&quot;);
+<span class="lineNum">     800 </span><span class="lineNoCov">          0 :       nscoord firstLetterCH = firstLetterFM-&gt;CapHeight();</span>
+<span class="lineNum">     801 </span><span class="lineNoCov">          0 :       nsStyleFont* mutableStyleFont = GET_UNIQUE_STYLE_DATA(Font);</span>
+<span class="lineNum">     802 </span>            :       float invCapHeightRatio =
+<span class="lineNum">     803 </span><span class="lineNoCov">          0 :         mutableStyleFont-&gt;mFont.size / NSCoordToFloat(firstLetterCH);</span>
+<span class="lineNum">     804 </span>            :       mutableStyleFont-&gt;mFont.size =
+<span class="lineNum">     805 </span><span class="lineNoCov">          0 :         NSToCoordRound(((textReset-&gt;mInitialLetterSize - 1) * containerLH +</span>
+<span class="lineNum">     806 </span>            :                         containerCH) *
+<span class="lineNum">     807 </span><span class="lineNoCov">          0 :                        invCapHeightRatio);</span>
+<span class="lineNum">     808 </span>            :     }
+<span class="lineNum">     809 </span>            :   }
+<span class="lineNum">     810 </span>            : 
+<span class="lineNum">     811 </span>            :   // Change writing mode of text frame for text-combine-upright. We use
+<span class="lineNum">     812 </span>            :   // style structs of the parent to avoid triggering computation before
+<span class="lineNum">     813 </span>            :   // we change the writing mode.
+<span class="lineNum">     814 </span>            :   // It is safe to look at the parent's style because we are looking at
+<span class="lineNum">     815 </span>            :   // inherited properties, and ::-moz-text never matches any rules.
+<span class="lineNum">     816 </span><span class="lineCov">          1 :   if (mPseudoTag == nsCSSAnonBoxes::mozText &amp;&amp; mParent &amp;&amp;</span>
+<span class="lineNum">     817 </span><span class="lineCov">          1 :       mParent-&gt;StyleVisibility()-&gt;mWritingMode !=</span>
+<span class="lineNum">     818 </span><span class="lineCov">          1 :         NS_STYLE_WRITING_MODE_HORIZONTAL_TB &amp;&amp;</span>
+<span class="lineNum">     819 </span><span class="lineCov">          1 :       mParent-&gt;StyleText()-&gt;mTextCombineUpright ==</span>
+<span class="lineNum">     820 </span>            :         NS_STYLE_TEXT_COMBINE_UPRIGHT_ALL) {
+<span class="lineNum">     821 </span>            :     MOZ_ASSERT(!PeekStyleVisibility(), &quot;If StyleVisibility was already &quot;
+<span class="lineNum">     822 </span>            :                &quot;computed, some properties may have been computed &quot;
+<span class="lineNum">     823 </span>            :                &quot;incorrectly based on the old writing mode value&quot;);
+<span class="lineNum">     824 </span><span class="lineCov">          1 :     nsStyleVisibility* mutableVis = GET_UNIQUE_STYLE_DATA(Visibility);</span>
+<span class="lineNum">     825 </span><span class="lineCov">          1 :     mutableVis-&gt;mWritingMode = NS_STYLE_WRITING_MODE_HORIZONTAL_TB;</span>
+<span class="lineNum">     826 </span><span class="lineCov">          1 :     AddStyleBit(NS_STYLE_IS_TEXT_COMBINED);</span>
+<span class="lineNum">     827 </span>            :   }
+<span class="lineNum">     828 </span>            : 
+<span class="lineNum">     829 </span>            :   // CSS 2.1 10.1: Propagate the root element's 'direction' to the ICB.
+<span class="lineNum">     830 </span>            :   // (PageContentFrame/CanvasFrame etc will inherit 'direction')
+<span class="lineNum">     831 </span><span class="lineCov">          1 :   if (mPseudoTag == nsCSSAnonBoxes::viewport) {</span>
+<span class="lineNum">     832 </span><span class="lineCov">          1 :     nsPresContext* presContext = PresContext();</span>
+<span class="lineNum">     833 </span><span class="lineCov">          1 :     mozilla::dom::Element* docElement = presContext-&gt;Document()-&gt;GetRootElement();</span>
+<span class="lineNum">     834 </span><span class="lineCov">          1 :     if (docElement) {</span>
+<span class="lineNum">     835 </span>            :       RefPtr&lt;nsStyleContext&gt; rootStyle =
+<span class="lineNum">     836 </span><span class="lineCov">          1 :         presContext-&gt;StyleSet()-&gt;AsGecko()-&gt;ResolveStyleFor(docElement, nullptr);</span>
+<span class="lineNum">     837 </span><span class="lineCov">          1 :       auto dir = rootStyle-&gt;StyleVisibility()-&gt;mDirection;</span>
+<span class="lineNum">     838 </span><span class="lineCov">          1 :       if (dir != StyleVisibility()-&gt;mDirection) {</span>
+<span class="lineNum">     839 </span><span class="lineCov">          1 :         nsStyleVisibility* uniqueVisibility = GET_UNIQUE_STYLE_DATA(Visibility);</span>
+<span class="lineNum">     840 </span><span class="lineCov">          1 :         uniqueVisibility-&gt;mDirection = dir;</span>
+<span class="lineNum">     841 </span><span class="lineCov">          1 :       }</span>
+<span class="lineNum">     842 </span>            :     }
+<span class="lineNum">     843 </span>            :   }
+<span class="lineNum">     844 </span>            : 
+<span class="lineNum">     845 </span>            :   // Correct tables.
+<span class="lineNum">     846 </span><span class="lineCov">          1 :   const nsStyleDisplay* disp = StyleDisplay();</span>
+<span class="lineNum">     847 </span><span class="lineCov">          1 :   if (disp-&gt;mDisplay == mozilla::StyleDisplay::Table) {</span>
+<span class="lineNum">     848 </span>            :     // -moz-center and -moz-right are used for HTML's alignment
+<span class="lineNum">     849 </span>            :     // This is covering the &lt;div align=&quot;right&quot;&gt;&lt;table&gt;...&lt;/table&gt;&lt;/div&gt; case.
+<span class="lineNum">     850 </span>            :     // In this case, we don't want to inherit the text alignment into the table.
+<span class="lineNum">     851 </span><span class="lineCov">          1 :     const nsStyleText* text = StyleText();</span>
+<span class="lineNum">     852 </span>            : 
+<span class="lineNum">     853 </span><span class="lineCov">          1 :     if (text-&gt;mTextAlign == NS_STYLE_TEXT_ALIGN_MOZ_LEFT ||</span>
+<span class="lineNum">     854 </span><span class="lineCov">          1 :         text-&gt;mTextAlign == NS_STYLE_TEXT_ALIGN_MOZ_CENTER ||</span>
+<span class="lineNum">     855 </span>            :         text-&gt;mTextAlign == NS_STYLE_TEXT_ALIGN_MOZ_RIGHT)
+<span class="lineNum">     856 </span>            :     {
+<span class="lineNum">     857 </span><span class="lineCov">          1 :       nsStyleText* uniqueText = GET_UNIQUE_STYLE_DATA(Text);</span>
+<span class="lineNum">     858 </span><span class="lineCov">          1 :       uniqueText-&gt;mTextAlign = NS_STYLE_TEXT_ALIGN_START;</span>
+<span class="lineNum">     859 </span>            :     }
+<span class="lineNum">     860 </span>            :   }
+<span class="lineNum">     861 </span>            : 
+<span class="lineNum">     862 </span>            :   // CSS2.1 section 9.2.4 specifies fixups for the 'display' property of
+<span class="lineNum">     863 </span>            :   // the root element.  We can't implement them in nsRuleNode because we
+<span class="lineNum">     864 </span>            :   // don't want to store all display structs that aren't 'block',
+<span class="lineNum">     865 </span>            :   // 'inline', or 'table' in the style context tree on the off chance
+<span class="lineNum">     866 </span>            :   // that the root element has its style reresolved later.  So do them
+<span class="lineNum">     867 </span>            :   // here if needed, by changing the style data, so that other code
+<span class="lineNum">     868 </span>            :   // doesn't get confused by looking at the style data.
+<span class="lineNum">     869 </span><span class="lineCov">          1 :   if (!mParent &amp;&amp;</span>
+<span class="lineNum">     870 </span>            :       // We don't want to blockify various anon boxes that just happen to not
+<span class="lineNum">     871 </span>            :       // inherit from anything.  So restrict blockification only to actual
+<span class="lineNum">     872 </span>            :       // elements, the viewport (which should be block anyway, but in SVG
+<span class="lineNum">     873 </span>            :       // document's isn't because we lazy-load ua.css there), and the ::backdrop
+<span class="lineNum">     874 </span>            :       // pseudo-element.  This last is explicitly allowed to have any specified
+<span class="lineNum">     875 </span>            :       // display type in the spec, but computes to a blockified display type per
+<span class="lineNum">     876 </span>            :       // various provisions of
+<span class="lineNum">     877 </span>            :       // https://fullscreen.spec.whatwg.org/#new-stacking-layer
+<span class="lineNum">     878 </span><span class="lineCov">          1 :       (!mPseudoTag ||</span>
+<span class="lineNum">     879 </span><span class="lineCov">          1 :        mPseudoTag == nsCSSAnonBoxes::viewport ||</span>
+<span class="lineNum">     880 </span><span class="lineCov">          1 :        mPseudoTag == nsCSSPseudoElements::backdrop)) {</span>
+<span class="lineNum">     881 </span><span class="lineCov">          1 :     auto displayVal = disp-&gt;mDisplay;</span>
+<span class="lineNum">     882 </span><span class="lineCov">          1 :     if (displayVal != mozilla::StyleDisplay::Contents) {</span>
+<span class="lineNum">     883 </span><span class="lineCov">          1 :       nsRuleNode::EnsureBlockDisplay(displayVal, true);</span>
+<span class="lineNum">     884 </span>            :     } else {
+<span class="lineNum">     885 </span>            :       // http://dev.w3.org/csswg/css-display/#transformations
+<span class="lineNum">     886 </span>            :       // &quot;... a display-outside of 'contents' computes to block-level
+<span class="lineNum">     887 </span>            :       //  on the root element.&quot;
+<span class="lineNum">     888 </span><span class="lineNoCov">          0 :       displayVal = mozilla::StyleDisplay::Block;</span>
+<span class="lineNum">     889 </span>            :     }
+<span class="lineNum">     890 </span><span class="lineCov">          1 :     if (displayVal != disp-&gt;mDisplay) {</span>
+<span class="lineNum">     891 </span><span class="lineCov">          1 :       nsStyleDisplay* mutable_display = GET_UNIQUE_STYLE_DATA(Display);</span>
+<span class="lineNum">     892 </span><span class="lineCov">          1 :       disp = mutable_display;</span>
+<span class="lineNum">     893 </span>            : 
+<span class="lineNum">     894 </span>            :       // If we're in this code, then mOriginalDisplay doesn't matter
+<span class="lineNum">     895 </span>            :       // for purposes of the cascade (because this nsStyleDisplay
+<span class="lineNum">     896 </span>            :       // isn't living in the ruletree anyway), and for determining
+<span class="lineNum">     897 </span>            :       // hypothetical boxes it's better to have mOriginalDisplay
+<span class="lineNum">     898 </span>            :       // matching mDisplay here.
+<span class="lineNum">     899 </span>            :       mutable_display-&gt;mOriginalDisplay = mutable_display-&gt;mDisplay =
+<span class="lineNum">     900 </span><span class="lineCov">          1 :         displayVal;</span>
+<span class="lineNum">     901 </span>            :     }
+<span class="lineNum">     902 </span>            :   }
+<span class="lineNum">     903 </span>            : 
+<span class="lineNum">     904 </span>            :   // Adjust the &quot;display&quot; values of flex and grid items (but not for raw text
+<span class="lineNum">     905 </span>            :   // or placeholders). CSS3 Flexbox section 4 says:
+<span class="lineNum">     906 </span>            :   //   # The computed 'display' of a flex item is determined
+<span class="lineNum">     907 </span>            :   //   # by applying the table in CSS 2.1 Chapter 9.7.
+<span class="lineNum">     908 </span>            :   // ...which converts inline-level elements to their block-level equivalents.
+<span class="lineNum">     909 </span>            :   // Any block-level element directly contained by elements with ruby display
+<span class="lineNum">     910 </span>            :   // values are converted to their inline-level equivalents.
+<span class="lineNum">     911 </span><span class="lineCov">          1 :   if (!aSkipParentDisplayBasedStyleFixup &amp;&amp; mParent) {</span>
+<span class="lineNum">     912 </span>            :     // Skip display:contents ancestors to reach the potential container.
+<span class="lineNum">     913 </span>            :     // (If there are only display:contents ancestors between this node and
+<span class="lineNum">     914 </span>            :     // a flex/grid container ancestor, then this node is a flex/grid item, since
+<span class="lineNum">     915 </span>            :     // its parent *in the frame tree* will be the flex/grid container. So we treat
+<span class="lineNum">     916 </span>            :     // it like a flex/grid item here.)
+<span class="lineNum">     917 </span><span class="lineCov">          1 :     nsStyleContext* containerContext = mParent;</span>
+<span class="lineNum">     918 </span><span class="lineCov">          1 :     const nsStyleDisplay* containerDisp = containerContext-&gt;StyleDisplay();</span>
+<span class="lineNum">     919 </span><span class="lineCov">          1 :     while (containerDisp-&gt;mDisplay == mozilla::StyleDisplay::Contents) {</span>
+<span class="lineNum">     920 </span><span class="lineNoCov">          0 :       if (!containerContext-&gt;GetParent()) {</span>
+<span class="lineNum">     921 </span>            :         break;
+<span class="lineNum">     922 </span>            :       }
+<span class="lineNum">     923 </span><span class="lineNoCov">          0 :       containerContext = containerContext-&gt;GetParent();</span>
+<span class="lineNum">     924 </span>            :       containerDisp = containerContext-&gt;StyleDisplay();
+<span class="lineNum">     925 </span>            :     }
+<span class="lineNum">     926 </span><span class="lineCov">          1 :     if (ShouldBlockifyChildren(containerDisp) &amp;&amp;</span>
+<span class="lineNum">     927 </span><span class="lineCov">          1 :         !nsCSSAnonBoxes::IsNonElement(GetPseudo())) {</span>
+<span class="lineNum">     928 </span>            :       // NOTE: Technically, we shouldn't modify the 'display' value of
+<span class="lineNum">     929 </span>            :       // positioned elements, since they aren't flex/grid items. However,
+<span class="lineNum">     930 </span>            :       // we don't need to worry about checking for that, because if we're
+<span class="lineNum">     931 </span>            :       // positioned, we'll have already been through a call to
+<span class="lineNum">     932 </span>            :       // EnsureBlockDisplay() in nsRuleNode, so this call here won't change
+<span class="lineNum">     933 </span>            :       // anything. So we're OK.
+<span class="lineNum">     934 </span><span class="lineCov">          1 :       auto displayVal = disp-&gt;mDisplay;</span>
+<span class="lineNum">     935 </span><span class="lineCov">          1 :       nsRuleNode::EnsureBlockDisplay(displayVal);</span>
+<span class="lineNum">     936 </span><span class="lineCov">          1 :       if (displayVal != disp-&gt;mDisplay) {</span>
+<span class="lineNum">     937 </span>            :         NS_ASSERTION(!disp-&gt;IsAbsolutelyPositionedStyle(),
+<span class="lineNum">     938 </span>            :                      &quot;We shouldn't be changing the display value of &quot;
+<span class="lineNum">     939 </span>            :                      &quot;positioned content (and we should have already &quot;
+<span class="lineNum">     940 </span>            :                      &quot;converted its display value to be block-level...)&quot;);
+<span class="lineNum">     941 </span><span class="lineCov">          1 :         nsStyleDisplay* mutable_display = GET_UNIQUE_STYLE_DATA(Display);</span>
+<span class="lineNum">     942 </span><span class="lineCov">          1 :         disp = mutable_display;</span>
+<span class="lineNum">     943 </span><span class="lineCov">          1 :         mutable_display-&gt;mDisplay = displayVal;</span>
+<span class="lineNum">     944 </span>            :       }
+<span class="lineNum">     945 </span>            :     }
+<span class="lineNum">     946 </span>            :   }
+<span class="lineNum">     947 </span>            : 
+<span class="lineNum">     948 </span>            :   // Note: This must come after the blockification above, otherwise we fail
+<span class="lineNum">     949 </span>            :   // the grid-item-blockifying-001.html reftest.
+<span class="lineNum">     950 </span><span class="lineCov">          1 :   if (mParent &amp;&amp; ::ShouldSuppressLineBreak(this, disp, mParent,</span>
+<span class="lineNum">     951 </span><span class="lineCov">          1 :                                            mParent-&gt;StyleDisplay())) {</span>
+<span class="lineNum">     952 </span><span class="lineCov">          1 :     mBits |= NS_STYLE_SUPPRESS_LINEBREAK;</span>
+<span class="lineNum">     953 </span><span class="lineCov">          1 :     auto displayVal = disp-&gt;mDisplay;</span>
+<span class="lineNum">     954 </span><span class="lineCov">          1 :     nsRuleNode::EnsureInlineDisplay(displayVal);</span>
+<span class="lineNum">     955 </span><span class="lineCov">          1 :     if (displayVal != disp-&gt;mDisplay) {</span>
+<span class="lineNum">     956 </span><span class="lineCov">          1 :       nsStyleDisplay* mutable_display = GET_UNIQUE_STYLE_DATA(Display);</span>
+<span class="lineNum">     957 </span><span class="lineCov">          1 :       disp = mutable_display;</span>
+<span class="lineNum">     958 </span><span class="lineCov">          1 :       mutable_display-&gt;mDisplay = displayVal;</span>
+<span class="lineNum">     959 </span>            :     }
+<span class="lineNum">     960 </span>            :   }
+<span class="lineNum">     961 </span>            :   // Suppress border/padding of ruby level containers
+<span class="lineNum">     962 </span><span class="lineCov">          1 :   if (disp-&gt;mDisplay == mozilla::StyleDisplay::RubyBaseContainer ||</span>
+<span class="lineNum">     963 </span>            :       disp-&gt;mDisplay == mozilla::StyleDisplay::RubyTextContainer) {
+<span class="lineNum">     964 </span><span class="lineCov">          1 :     CreateEmptyStyleData(eStyleStruct_Border);</span>
+<span class="lineNum">     965 </span><span class="lineCov">          1 :     CreateEmptyStyleData(eStyleStruct_Padding);</span>
+<span class="lineNum">     966 </span>            :   }
+<span class="lineNum">     967 </span><span class="lineCov">          1 :   if (disp-&gt;IsRubyDisplayType()) {</span>
+<span class="lineNum">     968 </span>            :     // Per CSS Ruby spec section Bidi Reordering, for all ruby boxes,
+<span class="lineNum">     969 </span>            :     // the 'normal' and 'embed' values of 'unicode-bidi' should compute to
+<span class="lineNum">     970 </span>            :     // 'isolate', and 'bidi-override' should compute to 'isolate-override'.
+<span class="lineNum">     971 </span><span class="lineCov">          1 :     const nsStyleTextReset* textReset = StyleTextReset();</span>
+<span class="lineNum">     972 </span><span class="lineCov">          1 :     uint8_t unicodeBidi = textReset-&gt;mUnicodeBidi;</span>
+<span class="lineNum">     973 </span><span class="lineCov">          1 :     if (unicodeBidi == NS_STYLE_UNICODE_BIDI_NORMAL ||</span>
+<span class="lineNum">     974 </span>            :         unicodeBidi == NS_STYLE_UNICODE_BIDI_EMBED) {
+<span class="lineNum">     975 </span>            :       unicodeBidi = NS_STYLE_UNICODE_BIDI_ISOLATE;
+<span class="lineNum">     976 </span><span class="lineCov">          1 :     } else if (unicodeBidi == NS_STYLE_UNICODE_BIDI_BIDI_OVERRIDE) {</span>
+<span class="lineNum">     977 </span><span class="lineNoCov">          0 :       unicodeBidi = NS_STYLE_UNICODE_BIDI_ISOLATE_OVERRIDE;</span>
+<span class="lineNum">     978 </span>            :     }
+<span class="lineNum">     979 </span><span class="lineCov">          1 :     if (unicodeBidi != textReset-&gt;mUnicodeBidi) {</span>
+<span class="lineNum">     980 </span><span class="lineNoCov">          0 :       nsStyleTextReset* mutableTextReset = GET_UNIQUE_STYLE_DATA(TextReset);</span>
+<span class="lineNum">     981 </span><span class="lineNoCov">          0 :       mutableTextReset-&gt;mUnicodeBidi = unicodeBidi;</span>
+<span class="lineNum">     982 </span>            :     }
+<span class="lineNum">     983 </span>            :   }
+<span class="lineNum">     984 </span>            : 
+<span class="lineNum">     985 </span>            :   /*
+<span class="lineNum">     986 </span>            :    * According to https://drafts.csswg.org/css-writing-modes-3/#block-flow:
+<span class="lineNum">     987 </span>            :    *
+<span class="lineNum">     988 </span>            :    * If a box has a different block flow direction than its containing block:
+<span class="lineNum">     989 </span>            :    *   * If the box has a specified display of inline, its display computes
+<span class="lineNum">     990 </span>            :    *     to inline-block. [CSS21]
+<span class="lineNum">     991 </span>            :    *   ...etc.
+<span class="lineNum">     992 </span>            :    */
+<span class="lineNum">     993 </span><span class="lineCov">          1 :   if (disp-&gt;mDisplay == mozilla::StyleDisplay::Inline &amp;&amp;</span>
+<span class="lineNum">     994 </span><span class="lineCov">          1 :       !nsCSSAnonBoxes::IsNonElement(mPseudoTag) &amp;&amp;</span>
+<span class="lineNum">     995 </span><span class="lineCov">          1 :       mParent) {</span>
+<span class="lineNum">     996 </span><span class="lineCov">          1 :     auto cbContext = mParent;</span>
+<span class="lineNum">     997 </span><span class="lineCov">          1 :     while (cbContext-&gt;StyleDisplay()-&gt;mDisplay == mozilla::StyleDisplay::Contents) {</span>
+<span class="lineNum">     998 </span><span class="lineNoCov">          0 :       cbContext = cbContext-&gt;mParent;</span>
+<span class="lineNum">     999 </span>            :     }
+<span class="lineNum">    1000 </span>            :     MOZ_ASSERT(cbContext, &quot;the root context can't have display:contents&quot;);
+<span class="lineNum">    1001 </span>            :     // We don't need the full mozilla::WritingMode value (incorporating dir
+<span class="lineNum">    1002 </span>            :     // and text-orientation) here; just the writing-mode property is enough.
+<span class="lineNum">    1003 </span><span class="lineCov">          1 :     if (StyleVisibility()-&gt;mWritingMode !=</span>
+<span class="lineNum">    1004 </span><span class="lineCov">          1 :           cbContext-&gt;StyleVisibility()-&gt;mWritingMode) {</span>
+<span class="lineNum">    1005 </span><span class="lineCov">          1 :       nsStyleDisplay* mutable_display = GET_UNIQUE_STYLE_DATA(Display);</span>
+<span class="lineNum">    1006 </span><span class="lineCov">          1 :       disp = mutable_display;</span>
+<span class="lineNum">    1007 </span>            :       mutable_display-&gt;mOriginalDisplay = mutable_display-&gt;mDisplay =
+<span class="lineNum">    1008 </span><span class="lineCov">          1 :         mozilla::StyleDisplay::InlineBlock;</span>
+<span class="lineNum">    1009 </span><span class="lineCov">          1 :     }</span>
+<span class="lineNum">    1010 </span>            :   }
+<span class="lineNum">    1011 </span>            : 
+<span class="lineNum">    1012 </span>            :   // Compute User Interface style, to trigger loads of cursors
+<span class="lineNum">    1013 </span><span class="lineCov">          1 :   StyleUserInterface();</span>
+<span class="lineNum">    1014 </span>            : #undef GET_UNIQUE_STYLE_DATA
+<span class="lineNum">    1015 </span><span class="lineCov">          1 : }</span>
+<span class="lineNum">    1016 </span>            : 
+<a name="1017"><span class="lineNum">    1017 </span>            : template&lt;class StyleContextLike&gt;</a>
+<span class="lineNum">    1018 </span>            : nsChangeHint
+<span class="lineNum">    1019 </span><span class="lineCov">          1 : nsStyleContext::CalcStyleDifferenceInternal(StyleContextLike* aNewContext,</span>
+<span class="lineNum">    1020 </span>            :                                             nsChangeHint aParentHintsNotHandledForDescendants,
+<span class="lineNum">    1021 </span>            :                                             uint32_t* aEqualStructs,
+<span class="lineNum">    1022 </span>            :                                             uint32_t* aSamePointerStructs)
+<span class="lineNum">    1023 </span>            : {
+<span class="lineNum">    1024 </span><span class="lineCov">          1 :   PROFILER_LABEL(&quot;nsStyleContext&quot;, &quot;CalcStyleDifference&quot;,</span>
+<span class="lineNum">    1025 </span>            :     js::ProfileEntry::Category::CSS);
+<span class="lineNum">    1026 </span>            :   MOZ_ASSERT(NS_IsHintSubset(aParentHintsNotHandledForDescendants,
+<span class="lineNum">    1027 </span>            :                              nsChangeHint_Hints_NotHandledForDescendants),
+<span class="lineNum">    1028 </span>            :              &quot;caller is passing inherited hints, but shouldn't be&quot;);
+<span class="lineNum">    1029 </span>            : 
+<span class="lineNum">    1030 </span>            :   static_assert(nsStyleStructID_Length &lt;= 32,
+<span class="lineNum">    1031 </span>            :                 &quot;aEqualStructs is not big enough&quot;);
+<span class="lineNum">    1032 </span>            : 
+<span class="lineNum">    1033 </span><span class="lineCov">          1 :   *aEqualStructs = 0;</span>
+<span class="lineNum">    1034 </span>            : 
+<span class="lineNum">    1035 </span><span class="lineCov">          1 :   nsChangeHint hint = nsChangeHint(0);</span>
+<span class="lineNum">    1036 </span><span class="lineCov">          1 :   NS_ENSURE_TRUE(aNewContext, hint);</span>
+<span class="lineNum">    1037 </span>            :   // We must always ensure that we populate the structs on the new style
+<span class="lineNum">    1038 </span>            :   // context that are filled in on the old context, so that if we get
+<span class="lineNum">    1039 </span>            :   // two style changes in succession, the second of which causes a real
+<span class="lineNum">    1040 </span>            :   // style change, the PeekStyleData doesn't return null (implying that
+<span class="lineNum">    1041 </span>            :   // nobody ever looked at that struct's data).  In other words, we
+<span class="lineNum">    1042 </span>            :   // can't skip later structs if we get a big change up front, because
+<span class="lineNum">    1043 </span>            :   // we could later get a small change in one of those structs that we
+<span class="lineNum">    1044 </span>            :   // don't want to miss.
+<span class="lineNum">    1045 </span>            : 
+<span class="lineNum">    1046 </span>            :   // If our sources are the same, then any differences in style data
+<span class="lineNum">    1047 </span>            :   // are already accounted for by differences on ancestors.  We know
+<span class="lineNum">    1048 </span>            :   // this because CalcStyleDifference is always called on two style
+<span class="lineNum">    1049 </span>            :   // contexts that point to the same element, so we know that our
+<span class="lineNum">    1050 </span>            :   // position in the style context tree is the same and our position in
+<span class="lineNum">    1051 </span>            :   // the rule node tree (if applicable) is also the same.
+<span class="lineNum">    1052 </span>            :   // However, if there were noninherited style change hints on the
+<span class="lineNum">    1053 </span>            :   // parent, we might produce these same noninherited hints on this
+<span class="lineNum">    1054 </span>            :   // style context's frame due to 'inherit' values, so we do need to
+<span class="lineNum">    1055 </span>            :   // compare.
+<span class="lineNum">    1056 </span>            :   // (Things like 'em' units are handled by the change hint produced
+<span class="lineNum">    1057 </span>            :   // by font-size changing, so we don't need to worry about them like
+<span class="lineNum">    1058 </span>            :   // we worry about 'inherit' values.)
+<span class="lineNum">    1059 </span><span class="lineCov">          1 :   bool compare = StyleSource() != aNewContext-&gt;StyleSource();</span>
+<span class="lineNum">    1060 </span>            : 
+<span class="lineNum">    1061 </span><span class="lineCov">          1 :   DebugOnly&lt;uint32_t&gt; structsFound = 0;</span>
+<span class="lineNum">    1062 </span>            : 
+<span class="lineNum">    1063 </span>            :   // If we had any change in variable values, then we'll need to examine
+<span class="lineNum">    1064 </span>            :   // all of the other style structs too, even if the new style context has
+<span class="lineNum">    1065 </span>            :   // the same source as the old one.
+<span class="lineNum">    1066 </span><span class="lineCov">          1 :   const nsStyleVariables* thisVariables = PeekStyleVariables();</span>
+<span class="lineNum">    1067 </span><span class="lineCov">          1 :   if (thisVariables) {</span>
+<span class="lineNum">    1068 </span><span class="lineCov">          1 :     structsFound |= NS_STYLE_INHERIT_BIT(Variables);</span>
+<span class="lineNum">    1069 </span><span class="lineCov">          1 :     const nsStyleVariables* otherVariables = aNewContext-&gt;StyleVariables();</span>
+<span class="lineNum">    1070 </span><span class="lineCov">          1 :     if (thisVariables-&gt;mVariables == otherVariables-&gt;mVariables) {</span>
+<span class="lineNum">    1071 </span><span class="lineCov">          1 :       *aEqualStructs |= NS_STYLE_INHERIT_BIT(Variables);</span>
+<span class="lineNum">    1072 </span>            :     } else {
+<span class="lineNum">    1073 </span>            :       compare = true;
+<span class="lineNum">    1074 </span>            :     }
+<span class="lineNum">    1075 </span>            :   } else {
+<span class="lineNum">    1076 </span><span class="lineCov">          1 :     *aEqualStructs |= NS_STYLE_INHERIT_BIT(Variables);</span>
+<span class="lineNum">    1077 </span>            :   }
+<span class="lineNum">    1078 </span>            : 
+<span class="lineNum">    1079 </span><span class="lineCov">          1 :   DebugOnly&lt;int&gt; styleStructCount = 1;  // count Variables already</span>
+<span class="lineNum">    1080 </span>            : 
+<span class="lineNum">    1081 </span>            : #define DO_STRUCT_DIFFERENCE(struct_)                                         \
+<span class="lineNum">    1082 </span>            :   PR_BEGIN_MACRO                                                              \
+<span class="lineNum">    1083 </span>            :     const nsStyle##struct_* this##struct_ = PeekStyle##struct_();             \
+<span class="lineNum">    1084 </span>            :     if (this##struct_) {                                                      \
+<span class="lineNum">    1085 </span>            :       structsFound |= NS_STYLE_INHERIT_BIT(struct_);                          \
+<span class="lineNum">    1086 </span>            :       const nsStyle##struct_* other##struct_ = aNewContext-&gt;Style##struct_(); \
+<span class="lineNum">    1087 </span>            :       nsChangeHint maxDifference = nsStyle##struct_::MaxDifference();         \
+<span class="lineNum">    1088 </span>            :       nsChangeHint differenceAlwaysHandledForDescendants =                    \
+<span class="lineNum">    1089 </span>            :         nsStyle##struct_::DifferenceAlwaysHandledForDescendants();            \
+<span class="lineNum">    1090 </span>            :       if (this##struct_ == other##struct_) {                                  \
+<span class="lineNum">    1091 </span>            :         /* The very same struct, so we know that there will be no */          \
+<span class="lineNum">    1092 </span>            :         /* differences.                                           */          \
+<span class="lineNum">    1093 </span>            :         *aEqualStructs |= NS_STYLE_INHERIT_BIT(struct_);                      \
+<span class="lineNum">    1094 </span>            :       } else if (compare ||                                                   \
+<span class="lineNum">    1095 </span>            :                  ((maxDifference &amp; ~differenceAlwaysHandledForDescendants) &amp;  \
+<span class="lineNum">    1096 </span>            :                   aParentHintsNotHandledForDescendants)) {                    \
+<span class="lineNum">    1097 </span>            :         nsChangeHint difference =                                             \
+<span class="lineNum">    1098 </span>            :           this##struct_-&gt;CalcDifference(*other##struct_ EXTRA_DIFF_ARGS);     \
+<span class="lineNum">    1099 </span>            :         NS_ASSERTION(NS_IsHintSubset(difference, maxDifference),              \
+<span class="lineNum">    1100 </span>            :                      &quot;CalcDifference() returned bigger hint than &quot;            \
+<span class="lineNum">    1101 </span>            :                      &quot;MaxDifference()&quot;);                                      \
+<span class="lineNum">    1102 </span>            :         hint |= difference;                                                   \
+<span class="lineNum">    1103 </span>            :         if (!difference) {                                                    \
+<span class="lineNum">    1104 </span>            :           *aEqualStructs |= NS_STYLE_INHERIT_BIT(struct_);                    \
+<span class="lineNum">    1105 </span>            :         }                                                                     \
+<span class="lineNum">    1106 </span>            :       } else {                                                                \
+<span class="lineNum">    1107 </span>            :         /* We still must call CalcDifference to see if there were any */      \
+<span class="lineNum">    1108 </span>            :         /* changes so that we can set *aEqualStructs appropriately.   */      \
+<span class="lineNum">    1109 </span>            :         nsChangeHint difference =                                             \
+<span class="lineNum">    1110 </span>            :           this##struct_-&gt;CalcDifference(*other##struct_ EXTRA_DIFF_ARGS);     \
+<span class="lineNum">    1111 </span>            :         NS_ASSERTION(NS_IsHintSubset(difference, maxDifference),              \
+<span class="lineNum">    1112 </span>            :                      &quot;CalcDifference() returned bigger hint than &quot;            \
+<span class="lineNum">    1113 </span>            :                      &quot;MaxDifference()&quot;);                                      \
+<span class="lineNum">    1114 </span>            :         if (!difference) {                                                    \
+<span class="lineNum">    1115 </span>            :           *aEqualStructs |= NS_STYLE_INHERIT_BIT(struct_);                    \
+<span class="lineNum">    1116 </span>            :         }                                                                     \
+<span class="lineNum">    1117 </span>            :       }                                                                       \
+<span class="lineNum">    1118 </span>            :     } else {                                                                  \
+<span class="lineNum">    1119 </span>            :       *aEqualStructs |= NS_STYLE_INHERIT_BIT(struct_);                        \
+<span class="lineNum">    1120 </span>            :     }                                                                         \
+<span class="lineNum">    1121 </span>            :     styleStructCount++;                                                       \
+<span class="lineNum">    1122 </span>            :   PR_END_MACRO
+<span class="lineNum">    1123 </span>            : 
+<span class="lineNum">    1124 </span>            :   // In general, we want to examine structs starting with those that can
+<span class="lineNum">    1125 </span>            :   // cause the largest style change, down to those that can cause the
+<span class="lineNum">    1126 </span>            :   // smallest.  This lets us skip later ones if we already have a hint
+<span class="lineNum">    1127 </span>            :   // that subsumes their MaxDifference.  (As the hints get
+<span class="lineNum">    1128 </span>            :   // finer-grained, this optimization is becoming less useful, though.)
+<span class="lineNum">    1129 </span>            : #define EXTRA_DIFF_ARGS /* nothing */
+<span class="lineNum">    1130 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(Display);</span>
+<span class="lineNum">    1131 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(XUL);</span>
+<span class="lineNum">    1132 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(Column);</span>
+<span class="lineNum">    1133 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(Content);</span>
+<span class="lineNum">    1134 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(UserInterface);</span>
+<span class="lineNum">    1135 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(Visibility);</span>
+<span class="lineNum">    1136 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(Outline);</span>
+<span class="lineNum">    1137 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(TableBorder);</span>
+<span class="lineNum">    1138 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(Table);</span>
+<span class="lineNum">    1139 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(UIReset);</span>
+<span class="lineNum">    1140 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(Text);</span>
+<span class="lineNum">    1141 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(List);</span>
+<span class="lineNum">    1142 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(SVGReset);</span>
+<span class="lineNum">    1143 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(SVG);</span>
+<span class="lineNum">    1144 </span>            : #undef EXTRA_DIFF_ARGS
+<span class="lineNum">    1145 </span>            : #define EXTRA_DIFF_ARGS , PeekStyleVisibility()
+<span class="lineNum">    1146 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(Position);</span>
+<span class="lineNum">    1147 </span>            : #undef EXTRA_DIFF_ARGS
+<span class="lineNum">    1148 </span>            : #define EXTRA_DIFF_ARGS /* nothing */
+<span class="lineNum">    1149 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(Font);</span>
+<span class="lineNum">    1150 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(Margin);</span>
+<span class="lineNum">    1151 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(Padding);</span>
+<span class="lineNum">    1152 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(Border);</span>
+<span class="lineNum">    1153 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(TextReset);</span>
+<span class="lineNum">    1154 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(Effects);</span>
+<span class="lineNum">    1155 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(Background);</span>
+<span class="lineNum">    1156 </span><span class="lineCov">          1 :   DO_STRUCT_DIFFERENCE(Color);</span>
+<span class="lineNum">    1157 </span>            : #undef EXTRA_DIFF_ARGS
+<span class="lineNum">    1158 </span>            : 
+<span class="lineNum">    1159 </span>            : #undef DO_STRUCT_DIFFERENCE
+<span class="lineNum">    1160 </span>            : 
+<span class="lineNum">    1161 </span>            :   MOZ_ASSERT(styleStructCount == nsStyleStructID_Length,
+<span class="lineNum">    1162 </span>            :              &quot;missing a call to DO_STRUCT_DIFFERENCE&quot;);
+<span class="lineNum">    1163 </span>            : 
+<span class="lineNum">    1164 </span>            : #ifdef DEBUG
+<span class="lineNum">    1165 </span>            :   #define STYLE_STRUCT(name_, callback_)                                      \
+<span class="lineNum">    1166 </span>            :     MOZ_ASSERT(!!(structsFound &amp; NS_STYLE_INHERIT_BIT(name_)) ==              \
+<span class="lineNum">    1167 </span>            :                !!PeekStyle##name_(),                                          \
+<span class="lineNum">    1168 </span>            :                &quot;PeekStyleData results must not change in the middle of &quot;      \
+<span class="lineNum">    1169 </span>            :                &quot;difference calculation.&quot;);
+<span class="lineNum">    1170 </span>            :   #include &quot;nsStyleStructList.h&quot;
+<span class="lineNum">    1171 </span>            :   #undef STYLE_STRUCT
+<span class="lineNum">    1172 </span>            : #endif
+<span class="lineNum">    1173 </span>            : 
+<span class="lineNum">    1174 </span>            :   // We check for struct pointer equality here rather than as part of the
+<span class="lineNum">    1175 </span>            :   // DO_STRUCT_DIFFERENCE calls, since those calls can result in structs
+<span class="lineNum">    1176 </span>            :   // we previously examined and found to be null on this style context
+<span class="lineNum">    1177 </span>            :   // getting computed by later DO_STRUCT_DIFFERENCE calls (which can
+<span class="lineNum">    1178 </span>            :   // happen when the nsRuleNode::ComputeXXXData method looks up another
+<span class="lineNum">    1179 </span>            :   // struct.)  This is important for callers in RestyleManager that
+<span class="lineNum">    1180 </span>            :   // need to know the equality or not of the final set of cached struct
+<span class="lineNum">    1181 </span>            :   // pointers.
+<span class="lineNum">    1182 </span><span class="lineCov">          1 :   *aSamePointerStructs = 0;</span>
+<span class="lineNum">    1183 </span>            : 
+<span class="lineNum">    1184 </span>            : #define STYLE_STRUCT(name_, callback_)                                        \
+<span class="lineNum">    1185 </span>            :   {                                                                           \
+<span class="lineNum">    1186 </span>            :     const nsStyle##name_* data = PeekStyle##name_();                          \
+<span class="lineNum">    1187 </span>            :     if (!data || data == aNewContext-&gt;Style##name_()) {                       \
+<span class="lineNum">    1188 </span>            :       *aSamePointerStructs |= NS_STYLE_INHERIT_BIT(name_);                    \
+<span class="lineNum">    1189 </span>            :     }                                                                         \
+<span class="lineNum">    1190 </span>            :   }
+<span class="lineNum">    1191 </span>            : #include &quot;nsStyleStructList.h&quot;
+<span class="lineNum">    1192 </span>            : #undef STYLE_STRUCT
+<span class="lineNum">    1193 </span>            : 
+<span class="lineNum">    1194 </span>            :   // Note that we do not check whether this-&gt;RelevantLinkVisited() !=
+<span class="lineNum">    1195 </span>            :   // aNewContext-&gt;RelevantLinkVisited(); we don't need to since
+<span class="lineNum">    1196 </span>            :   // nsCSSFrameConstructor::DoContentStateChanged always adds
+<span class="lineNum">    1197 </span>            :   // nsChangeHint_RepaintFrame for NS_EVENT_STATE_VISITED changes (and
+<span class="lineNum">    1198 </span>            :   // needs to, since HasStateDependentStyle probably doesn't work right
+<span class="lineNum">    1199 </span>            :   // for NS_EVENT_STATE_VISITED).  Hopefully this doesn't actually
+<span class="lineNum">    1200 </span>            :   // expose whether links are visited to performance tests since all
+<span class="lineNum">    1201 </span>            :   // link coloring happens asynchronously at a time when it's hard for
+<span class="lineNum">    1202 </span>            :   // the page to measure.
+<span class="lineNum">    1203 </span>            :   // However, we do need to compute the larger of the changes that can
+<span class="lineNum">    1204 </span>            :   // happen depending on whether the link is visited or unvisited, since
+<span class="lineNum">    1205 </span>            :   // doing only the one that's currently appropriate would expose which
+<span class="lineNum">    1206 </span>            :   // links are in history to easy performance measurement.  Therefore,
+<span class="lineNum">    1207 </span>            :   // here, we add nsChangeHint_RepaintFrame hints (the maximum for
+<span class="lineNum">    1208 </span>            :   // things that can depend on :visited) for the properties on which we
+<span class="lineNum">    1209 </span>            :   // call GetVisitedDependentColor.
+<span class="lineNum">    1210 </span><span class="lineCov">          1 :   nsStyleContext *thisVis = GetStyleIfVisited(),</span>
+<span class="lineNum">    1211 </span><span class="lineCov">          1 :                 *otherVis = aNewContext-&gt;GetStyleIfVisited();</span>
+<span class="lineNum">    1212 </span><span class="lineCov">          1 :   if (!thisVis != !otherVis) {</span>
+<span class="lineNum">    1213 </span>            :     // One style context has a style-if-visited and the other doesn't.
+<span class="lineNum">    1214 </span>            :     // Presume a difference.
+<span class="lineNum">    1215 </span>            :     hint |= nsChangeHint_RepaintFrame;
+<span class="lineNum">    1216 </span><span class="lineCov">          1 :   } else if (thisVis &amp;&amp; !NS_IsHintSubset(nsChangeHint_RepaintFrame, hint)) {</span>
+<span class="lineNum">    1217 </span>            :     // We'll handle visited style differently in servo. Assert against being
+<span class="lineNum">    1218 </span>            :     // in the parallel traversal to avoid static analysis hazards when calling
+<span class="lineNum">    1219 </span>            :     // StyleFoo() below.
+<span class="lineNum">    1220 </span>            :     MOZ_ASSERT(!ServoStyleSet::IsInServoTraversal());
+<span class="lineNum">    1221 </span>            : 
+<span class="lineNum">    1222 </span>            :     // Both style contexts have a style-if-visited.
+<span class="lineNum">    1223 </span><span class="lineCov">          1 :     bool change = false;</span>
+<span class="lineNum">    1224 </span>            : 
+<span class="lineNum">    1225 </span>            :     // NB: Calling Peek on |this|, not |thisVis|, since callers may look
+<span class="lineNum">    1226 </span>            :     // at a struct on |this| without looking at the same struct on
+<span class="lineNum">    1227 </span>            :     // |thisVis| (including this function if we skip one of these checks
+<span class="lineNum">    1228 </span>            :     // due to change being true already or due to the old style context
+<span class="lineNum">    1229 </span>            :     // not having a style-if-visited), but not the other way around.
+<span class="lineNum">    1230 </span>            : #define STYLE_FIELD(name_) thisVisStruct-&gt;name_ != otherVisStruct-&gt;name_
+<span class="lineNum">    1231 </span>            : #define STYLE_STRUCT(name_, fields_)                                    \
+<span class="lineNum">    1232 </span>            :     if (!change &amp;&amp; PeekStyle##name_()) {                                \
+<span class="lineNum">    1233 </span>            :       const nsStyle##name_* thisVisStruct = thisVis-&gt;Style##name_();    \
+<span class="lineNum">    1234 </span>            :       const nsStyle##name_* otherVisStruct = otherVis-&gt;Style##name_();  \
+<span class="lineNum">    1235 </span>            :       if (MOZ_FOR_EACH_SEPARATED(STYLE_FIELD, (||), (), fields_)) {     \
+<span class="lineNum">    1236 </span>            :         change = true;                                                  \
+<span class="lineNum">    1237 </span>            :       }                                                                 \
+<span class="lineNum">    1238 </span>            :     }
+<span class="lineNum">    1239 </span>            : #include &quot;nsCSSVisitedDependentPropList.h&quot;
+<span class="lineNum">    1240 </span>            : #undef STYLE_STRUCT
+<span class="lineNum">    1241 </span>            : #undef STYLE_FIELD
+<span class="lineNum">    1242 </span>            : 
+<span class="lineNum">    1243 </span><span class="lineCov">          1 :     if (change) {</span>
+<span class="lineNum">    1244 </span>            :       hint |= nsChangeHint_RepaintFrame;
+<span class="lineNum">    1245 </span>            :     }
+<span class="lineNum">    1246 </span>            :   }
+<span class="lineNum">    1247 </span>            : 
+<span class="lineNum">    1248 </span><span class="lineCov">          1 :   if (hint &amp; nsChangeHint_UpdateContainingBlock) {</span>
+<span class="lineNum">    1249 </span>            :     // If a struct returned nsChangeHint_UpdateContainingBlock, that
+<span class="lineNum">    1250 </span>            :     // means that one property's influence on whether we're a containing
+<span class="lineNum">    1251 </span>            :     // block for abs-pos or fixed-pos elements has changed.  However, we
+<span class="lineNum">    1252 </span>            :     // only need to return the hint if the overall computation of
+<span class="lineNum">    1253 </span>            :     // whether we establish a containing block has changed.
+<span class="lineNum">    1254 </span>            : 
+<span class="lineNum">    1255 </span>            :     // This depends on data in nsStyleDisplay and nsStyleEffects, so we
+<span class="lineNum">    1256 </span>            :     // do it here.
+<span class="lineNum">    1257 </span>            : 
+<span class="lineNum">    1258 </span>            :     // Note that it's perhaps good for this test to be last because it
+<span class="lineNum">    1259 </span>            :     // doesn't use Peek* functions to get the structs on the old
+<span class="lineNum">    1260 </span>            :     // context.  But this isn't a big concern because these struct
+<span class="lineNum">    1261 </span>            :     // getters should be called during frame construction anyway.
+<span class="lineNum">    1262 </span><span class="lineCov">          1 :     if (ThreadsafeStyleDisplay()-&gt;IsAbsPosContainingBlockForAppropriateFrame(this) ==</span>
+<span class="lineNum">    1263 </span>            :         aNewContext-&gt;ThreadsafeStyleDisplay()-&gt;
+<span class="lineNum">    1264 </span>            :           IsAbsPosContainingBlockForAppropriateFrame(aNewContext) &amp;&amp;
+<span class="lineNum">    1265 </span><span class="lineCov">          1 :         ThreadsafeStyleDisplay()-&gt;IsFixedPosContainingBlockForAppropriateFrame(this) ==</span>
+<span class="lineNum">    1266 </span>            :         aNewContext-&gt;ThreadsafeStyleDisplay()-&gt;
+<span class="lineNum">    1267 </span>            :           IsFixedPosContainingBlockForAppropriateFrame(aNewContext)) {
+<span class="lineNum">    1268 </span>            :       // While some styles that cause the frame to be a containing block
+<span class="lineNum">    1269 </span>            :       // has changed, the overall result hasn't.
+<span class="lineNum">    1270 </span><span class="lineCov">          1 :       hint &amp;= ~nsChangeHint_UpdateContainingBlock;</span>
+<span class="lineNum">    1271 </span>            :     }
+<span class="lineNum">    1272 </span>            :   }
+<span class="lineNum">    1273 </span>            : 
+<span class="lineNum">    1274 </span>            :   MOZ_ASSERT(NS_IsHintSubset(hint, nsChangeHint_AllHints),
+<span class="lineNum">    1275 </span>            :              &quot;Added a new hint without bumping AllHints?&quot;);
+<span class="lineNum">    1276 </span><span class="lineCov">          1 :   return hint &amp; ~nsChangeHint_NeutralChange;</span>
+<span class="lineNum">    1277 </span>            : }
+<a name="1278"><span class="lineNum">    1278 </span>            : </a>
+<span class="lineNum">    1279 </span>            : nsChangeHint
+<span class="lineNum">    1280 </span><span class="lineCov">          1 : nsStyleContext::CalcStyleDifference(nsStyleContext* aNewContext,</span>
+<span class="lineNum">    1281 </span>            :                                     nsChangeHint aParentHintsNotHandledForDescendants,
+<span class="lineNum">    1282 </span>            :                                     uint32_t* aEqualStructs,
+<span class="lineNum">    1283 </span>            :                                     uint32_t* aSamePointerStructs)
+<span class="lineNum">    1284 </span>            : {
+<span class="lineNum">    1285 </span>            :   return CalcStyleDifferenceInternal(aNewContext,
+<span class="lineNum">    1286 </span>            :                                      aParentHintsNotHandledForDescendants,
+<span class="lineNum">    1287 </span>            :                                      aEqualStructs,
+<span class="lineNum">    1288 </span><span class="lineCov">          1 :                                      aSamePointerStructs);</span>
+<span class="lineNum">    1289 </span>            : }
+<span class="lineNum">    1290 </span>            : 
+<span class="lineNum">    1291 </span>            : class MOZ_STACK_CLASS FakeStyleContext
+<span class="lineNum">    1292 </span>            : {
+<span class="lineNum">    1293 </span>            : public:
+<span class="lineNum">    1294 </span>            :   explicit FakeStyleContext(const ServoComputedValues* aComputedValues)
+<span class="lineNum">    1295 </span><span class="lineNoCov">          0 :     : mComputedValues(aComputedValues) {}</span>
+<span class="lineNum">    1296 </span>            : 
+<span class="lineNum">    1297 </span>            :   mozilla::NonOwningStyleContextSource StyleSource() const {
+<span class="lineNum">    1298 </span><span class="lineNoCov">          0 :     return mozilla::NonOwningStyleContextSource(mComputedValues);</span>
+<span class="lineNum">    1299 </span>            :   }
+<span class="lineNum">    1300 </span>            : 
+<span class="lineNum">    1301 </span>            :   nsStyleContext* GetStyleIfVisited() {
+<span class="lineNum">    1302 </span>            :     // XXXbholley: This is wrong. Need to implement to get visited handling
+<span class="lineNum">    1303 </span>            :     // corrrect!
+<span class="lineNum">    1304 </span>            :     return nullptr;
+<span class="lineNum">    1305 </span>            :   }
+<span class="lineNum">    1306 </span>            : 
+<span class="lineNum">    1307 </span>            :   #define STYLE_STRUCT(name_, checkdata_cb_)                                  \
+<span class="lineNum">    1308 </span>            :   const nsStyle##name_ * Style##name_() {                                     \
+<span class="lineNum">    1309 </span>            :     return Servo_GetStyle##name_(mComputedValues);                            \
+<span class="lineNum">    1310 </span>            :   }                                                                           \
+<span class="lineNum">    1311 </span>            :   const nsStyle##name_ * ThreadsafeStyle##name_() {                           \
+<span class="lineNum">    1312 </span>            :     return Servo_GetStyle##name_(mComputedValues);                            \
+<span class="lineNum">    1313 </span>            :   }
+<span class="lineNum">    1314 </span>            :   #include &quot;nsStyleStructList.h&quot;
+<span class="lineNum">    1315 </span>            :   #undef STYLE_STRUCT
+<span class="lineNum">    1316 </span>            : 
+<span class="lineNum">    1317 </span>            : private:
+<span class="lineNum">    1318 </span>            :   const ServoComputedValues* MOZ_NON_OWNING_REF mComputedValues;
+<span class="lineNum">    1319 </span>            : };
+<a name="1320"><span class="lineNum">    1320 </span>            : </a>
+<span class="lineNum">    1321 </span>            : nsChangeHint
+<span class="lineNum">    1322 </span><span class="lineNoCov">          0 : nsStyleContext::CalcStyleDifference(const ServoComputedValues* aNewComputedValues,</span>
+<span class="lineNum">    1323 </span>            :                                     nsChangeHint aParentHintsNotHandledForDescendants,
+<span class="lineNum">    1324 </span>            :                                     uint32_t* aEqualStructs,
+<span class="lineNum">    1325 </span>            :                                     uint32_t* aSamePointerStructs)
+<span class="lineNum">    1326 </span>            : {
+<span class="lineNum">    1327 </span>            :   FakeStyleContext newContext(aNewComputedValues);
+<span class="lineNum">    1328 </span>            :   return CalcStyleDifferenceInternal(&amp;newContext,
+<span class="lineNum">    1329 </span>            :                                      aParentHintsNotHandledForDescendants,
+<span class="lineNum">    1330 </span>            :                                      aEqualStructs,
+<span class="lineNum">    1331 </span><span class="lineNoCov">          0 :                                      aSamePointerStructs);</span>
+<span class="lineNum">    1332 </span>            : }
+<span class="lineNum">    1333 </span>            : 
+<span class="lineNum">    1334 </span>            : #ifdef DEBUG
+<span class="lineNum">    1335 </span>            : void nsStyleContext::List(FILE* out, int32_t aIndent, bool aListDescendants)
+<span class="lineNum">    1336 </span>            : {
+<span class="lineNum">    1337 </span>            :   nsAutoCString str;
+<span class="lineNum">    1338 </span>            :   // Indent
+<span class="lineNum">    1339 </span>            :   int32_t ix;
+<span class="lineNum">    1340 </span>            :   for (ix = aIndent; --ix &gt;= 0; ) {
+<span class="lineNum">    1341 </span>            :     str.AppendLiteral(&quot;  &quot;);
+<span class="lineNum">    1342 </span>            :   }
+<span class="lineNum">    1343 </span>            :   str.Append(nsPrintfCString(&quot;%p(%d) parent=%p &quot;,
+<span class="lineNum">    1344 </span>            :                              (void*)this, mRefCnt, (void *)mParent));
+<span class="lineNum">    1345 </span>            :   if (mPseudoTag) {
+<span class="lineNum">    1346 </span>            :     nsAutoString  buffer;
+<span class="lineNum">    1347 </span>            :     mPseudoTag-&gt;ToString(buffer);
+<span class="lineNum">    1348 </span>            :     AppendUTF16toUTF8(buffer, str);
+<span class="lineNum">    1349 </span>            :     str.Append(' ');
+<span class="lineNum">    1350 </span>            :   }
+<span class="lineNum">    1351 </span>            : 
+<span class="lineNum">    1352 </span>            :   if (mSource.IsServoComputedValues()) {
+<span class="lineNum">    1353 </span>            :     fprintf_stderr(out, &quot;%s{ServoComputedValues}\n&quot;, str.get());
+<span class="lineNum">    1354 </span>            :   } else if (mSource.IsGeckoRuleNode()) {
+<span class="lineNum">    1355 </span>            :     fprintf_stderr(out, &quot;%s{\n&quot;, str.get());
+<span class="lineNum">    1356 </span>            :     str.Truncate();
+<span class="lineNum">    1357 </span>            :     nsRuleNode* ruleNode = mSource.AsGeckoRuleNode();
+<span class="lineNum">    1358 </span>            :     while (ruleNode) {
+<span class="lineNum">    1359 </span>            :       nsIStyleRule *styleRule = ruleNode-&gt;GetRule();
+<span class="lineNum">    1360 </span>            :       if (styleRule) {
+<span class="lineNum">    1361 </span>            :         styleRule-&gt;List(out, aIndent + 1);
+<span class="lineNum">    1362 </span>            :       }
+<span class="lineNum">    1363 </span>            :       ruleNode = ruleNode-&gt;GetParent();
+<span class="lineNum">    1364 </span>            :     }
+<span class="lineNum">    1365 </span>            :     for (ix = aIndent; --ix &gt;= 0; ) {
+<span class="lineNum">    1366 </span>            :       str.AppendLiteral(&quot;  &quot;);
+<span class="lineNum">    1367 </span>            :     }
+<span class="lineNum">    1368 </span>            :     fprintf_stderr(out, &quot;%s}\n&quot;, str.get());
+<span class="lineNum">    1369 </span>            :   }
+<span class="lineNum">    1370 </span>            :   else {
+<span class="lineNum">    1371 </span>            :     fprintf_stderr(out, &quot;%s{}\n&quot;, str.get());
+<span class="lineNum">    1372 </span>            :   }
+<span class="lineNum">    1373 </span>            : 
+<span class="lineNum">    1374 </span>            :   if (aListDescendants) {
+<span class="lineNum">    1375 </span>            :     if (nullptr != mChild) {
+<span class="lineNum">    1376 </span>            :       nsStyleContext* child = mChild;
+<span class="lineNum">    1377 </span>            :       do {
+<span class="lineNum">    1378 </span>            :         child-&gt;List(out, aIndent + 1, aListDescendants);
+<span class="lineNum">    1379 </span>            :         child = child-&gt;mNextSibling;
+<span class="lineNum">    1380 </span>            :       } while (mChild != child);
+<span class="lineNum">    1381 </span>            :     }
+<span class="lineNum">    1382 </span>            :     if (nullptr != mEmptyChild) {
+<span class="lineNum">    1383 </span>            :       nsStyleContext* child = mEmptyChild;
+<span class="lineNum">    1384 </span>            :       do {
+<span class="lineNum">    1385 </span>            :         child-&gt;List(out, aIndent + 1, aListDescendants);
+<span class="lineNum">    1386 </span>            :         child = child-&gt;mNextSibling;
+<span class="lineNum">    1387 </span>            :       } while (mEmptyChild != child);
+<span class="lineNum">    1388 </span>            :     }
+<span class="lineNum">    1389 </span>            :   }
+<span class="lineNum">    1390 </span>            : }
+<span class="lineNum">    1391 </span>            : #endif
+<span class="lineNum">    1392 </span>            : 
+<span class="lineNum">    1393 </span>            : // Overloaded new operator. Initializes the memory to 0 and relies on an arena
+<a name="1394"><span class="lineNum">    1394 </span>            : // (which comes from the presShell) to perform the allocation.</a>
+<span class="lineNum">    1395 </span>            : void*
+<span class="lineNum">    1396 </span><span class="lineCov">          1 : nsStyleContext::operator new(size_t sz, nsPresContext* aPresContext)</span>
+<span class="lineNum">    1397 </span>            : {
+<span class="lineNum">    1398 </span>            :   // Check the recycle list first.
+<span class="lineNum">    1399 </span>            :   return aPresContext-&gt;PresShell()-&gt;
+<span class="lineNum">    1400 </span><span class="lineCov">          1 :     AllocateByObjectID(eArenaObjectID_nsStyleContext, sz);</span>
+<span class="lineNum">    1401 </span>            : }
+<span class="lineNum">    1402 </span>            : 
+<span class="lineNum">    1403 </span>            : // Overridden to prevent the global delete from being called, since the memory
+<a name="1404"><span class="lineNum">    1404 </span>            : // came out of an nsIArena instead of the global delete operator's heap.</a>
+<span class="lineNum">    1405 </span>            : void
+<span class="lineNum">    1406 </span><span class="lineCov">          1 : nsStyleContext::Destroy()</span>
+<span class="lineNum">    1407 </span>            : {
+<span class="lineNum">    1408 </span>            :   // Get the pres context.
+<span class="lineNum">    1409 </span><span class="lineCov">          1 :   RefPtr&lt;nsPresContext&gt; presContext = PresContext();</span>
+<span class="lineNum">    1410 </span>            : 
+<span class="lineNum">    1411 </span>            :   // Call our destructor.
+<span class="lineNum">    1412 </span><span class="lineCov">          1 :   this-&gt;~nsStyleContext();</span>
+<span class="lineNum">    1413 </span>            : 
+<span class="lineNum">    1414 </span>            :   // Don't let the memory be freed, since it will be recycled
+<span class="lineNum">    1415 </span>            :   // instead. Don't call the global operator delete.
+<span class="lineNum">    1416 </span>            :   presContext-&gt;PresShell()-&gt;
+<span class="lineNum">    1417 </span><span class="lineCov">          1 :     FreeByObjectID(eArenaObjectID_nsStyleContext, this);</span>
+<span class="lineNum">    1418 </span><span class="lineCov">          1 : }</span>
+<a name="1419"><span class="lineNum">    1419 </span>            : </a>
+<span class="lineNum">    1420 </span>            : already_AddRefed&lt;nsStyleContext&gt;
+<span class="lineNum">    1421 </span><span class="lineCov">          1 : NS_NewStyleContext(nsStyleContext* aParentContext,</span>
+<span class="lineNum">    1422 </span>            :                    nsIAtom* aPseudoTag,
+<span class="lineNum">    1423 </span>            :                    CSSPseudoElementType aPseudoType,
+<span class="lineNum">    1424 </span>            :                    nsRuleNode* aRuleNode,
+<span class="lineNum">    1425 </span>            :                    bool aSkipParentDisplayBasedStyleFixup)
+<span class="lineNum">    1426 </span>            : {
+<span class="lineNum">    1427 </span><span class="lineCov">          1 :   RefPtr&lt;nsRuleNode&gt; node = aRuleNode;</span>
+<span class="lineNum">    1428 </span>            :   RefPtr&lt;nsStyleContext&gt; context =
+<span class="lineNum">    1429 </span>            :     new (aRuleNode-&gt;PresContext())
+<span class="lineNum">    1430 </span>            :     nsStyleContext(aParentContext, aPseudoTag, aPseudoType, node.forget(),
+<span class="lineNum">    1431 </span><span class="lineCov">          1 :                    aSkipParentDisplayBasedStyleFixup);</span>
+<span class="lineNum">    1432 </span><span class="lineCov">          1 :   return context.forget();</span>
+<span class="lineNum">    1433 </span>            : }
+<a name="1434"><span class="lineNum">    1434 </span>            : </a>
+<span class="lineNum">    1435 </span>            : already_AddRefed&lt;nsStyleContext&gt;
+<span class="lineNum">    1436 </span><span class="lineNoCov">          0 : NS_NewStyleContext(nsStyleContext* aParentContext,</span>
+<span class="lineNum">    1437 </span>            :                    nsPresContext* aPresContext,
+<span class="lineNum">    1438 </span>            :                    nsIAtom* aPseudoTag,
+<span class="lineNum">    1439 </span>            :                    CSSPseudoElementType aPseudoType,
+<span class="lineNum">    1440 </span>            :                    already_AddRefed&lt;ServoComputedValues&gt; aComputedValues,
+<span class="lineNum">    1441 </span>            :                    bool aSkipParentDisplayBasedStyleFixup)
+<span class="lineNum">    1442 </span>            : {
+<span class="lineNum">    1443 </span>            :   RefPtr&lt;nsStyleContext&gt; context =
+<span class="lineNum">    1444 </span>            :     new (aPresContext)
+<span class="lineNum">    1445 </span>            :     nsStyleContext(aParentContext, aPresContext, aPseudoTag, aPseudoType,
+<span class="lineNum">    1446 </span><span class="lineNoCov">          0 :                    Move(aComputedValues), aSkipParentDisplayBasedStyleFixup);</span>
+<span class="lineNum">    1447 </span><span class="lineNoCov">          0 :   return context.forget();</span>
+<span class="lineNum">    1448 </span>            : }
+<a name="1449"><span class="lineNum">    1449 </span>            : </a>
+<span class="lineNum">    1450 </span>            : nsIPresShell*
+<span class="lineNum">    1451 </span><span class="lineCov">          1 : nsStyleContext::Arena()</span>
+<span class="lineNum">    1452 </span>            : {
+<span class="lineNum">    1453 </span><span class="lineCov">          1 :   return PresContext()-&gt;PresShell();</span>
+<span class="lineNum">    1454 </span>            : }
+<span class="lineNum">    1455 </span>            : 
+<a name="1456"><span class="lineNum">    1456 </span>            : template&lt;typename Func&gt;</a>
+<span class="lineNum">    1457 </span>            : static nscolor
+<span class="lineNum">    1458 </span><span class="lineCov">          1 : GetVisitedDependentColorInternal(nsStyleContext* aSc, Func aColorFunc)</span>
+<span class="lineNum">    1459 </span>            : {
+<span class="lineNum">    1460 </span>            :   nscolor colors[2];
+<span class="lineNum">    1461 </span><span class="lineCov">          1 :   colors[0] = aColorFunc(aSc);</span>
+<span class="lineNum">    1462 </span><span class="lineCov">          1 :   if (nsStyleContext* visitedStyle = aSc-&gt;GetStyleIfVisited()) {</span>
+<span class="lineNum">    1463 </span><span class="lineCov">          1 :     colors[1] = aColorFunc(visitedStyle);</span>
+<span class="lineNum">    1464 </span>            :     return nsStyleContext::
+<span class="lineNum">    1465 </span><span class="lineCov">          1 :       CombineVisitedColors(colors, aSc-&gt;RelevantLinkVisited());</span>
+<span class="lineNum">    1466 </span>            :   }
+<span class="lineNum">    1467 </span>            :   return colors[0];
+<span class="lineNum">    1468 </span>            : }
+<span class="lineNum">    1469 </span>            : 
+<span class="lineNum">    1470 </span>            : static nscolor
+<span class="lineNum">    1471 </span>            : ExtractColor(nsStyleContext* aContext, const nscolor&amp; aColor)
+<span class="lineNum">    1472 </span>            : {
+<span class="lineNum">    1473 </span>            :   return aColor;
+<span class="lineNum">    1474 </span>            : }
+<a name="1475"><span class="lineNum">    1475 </span>            : </a>
+<span class="lineNum">    1476 </span>            : static nscolor
+<span class="lineNum">    1477 </span><span class="lineCov">          1 : ExtractColor(nsStyleContext* aContext, const StyleComplexColor&amp; aColor)</span>
+<span class="lineNum">    1478 </span>            : {
+<span class="lineNum">    1479 </span><span class="lineCov">          1 :   return aContext-&gt;StyleColor()-&gt;CalcComplexColor(aColor);</span>
+<span class="lineNum">    1480 </span>            : }
+<span class="lineNum">    1481 </span>            : 
+<span class="lineNum">    1482 </span>            : static nscolor
+<span class="lineNum">    1483 </span>            : ExtractColor(nsStyleContext* aContext, const nsStyleSVGPaint&amp; aPaintServer)
+<span class="lineNum">    1484 </span>            : {
+<span class="lineNum">    1485 </span><span class="lineCov">          1 :   return aPaintServer.Type() == eStyleSVGPaintType_Color</span>
+<span class="lineNum">    1486 </span><span class="lineCov">          1 :     ? aPaintServer.GetColor() : NS_RGBA(0, 0, 0, 0);</span>
+<span class="lineNum">    1487 </span>            : }
+<span class="lineNum">    1488 </span>            : 
+<span class="lineNum">    1489 </span>            : #define STYLE_FIELD(struct_, field_) aField == &amp;struct_::field_ ||
+<span class="lineNum">    1490 </span>            : #define STYLE_STRUCT(name_, fields_)                                          \
+<span class="lineNum">    1491 </span>            :   template&lt;&gt; nscolor                                                          \
+<span class="lineNum">    1492 </span>            :   nsStyleContext::GetVisitedDependentColor(                                   \
+<span class="lineNum">    1493 </span>            :     decltype(nsStyle##name_::MOZ_ARG_1 fields_) nsStyle##name_::* aField)     \
+<span class="lineNum">    1494 </span>            :   {                                                                           \
+<span class="lineNum">    1495 </span>            :     MOZ_ASSERT(MOZ_FOR_EACH(STYLE_FIELD, (nsStyle##name_,), fields_) false,   \
+<span class="lineNum">    1496 </span>            :                &quot;Getting visited-dependent color for a field in nsStyle&quot;#name_ \
+<span class="lineNum">    1497 </span>            :                &quot; which is not listed in nsCSSVisitedDependentPropList.h&quot;);    \
+<span class="lineNum">    1498 </span>            :     return GetVisitedDependentColorInternal(this,                             \
+<span class="lineNum">    1499 </span>            :                                             [aField](nsStyleContext* sc) {    \
+<span class="lineNum">    1500 </span>            :       return ExtractColor(sc, sc-&gt;Style##name_()-&gt;*aField);                   \
+<span class="lineNum">    1501 </span>            :     });                                                                       \
+<span class="lineNum">    1502 </span>            :   }
+<span class="lineNum">    1503 </span>            : #include &quot;nsCSSVisitedDependentPropList.h&quot;
+<span class="lineNum">    1504 </span>            : #undef STYLE_STRUCT
+<span class="lineNum">    1505 </span>            : #undef STYLE_FIELD
+<span class="lineNum">    1506 </span>            : 
+<span class="lineNum">    1507 </span>            : struct ColorIndexSet {
+<span class="lineNum">    1508 </span>            :   uint8_t colorIndex, alphaIndex;
+<span class="lineNum">    1509 </span>            : };
+<span class="lineNum">    1510 </span>            : 
+<span class="lineNum">    1511 </span>            : static const ColorIndexSet gVisitedIndices[2] = { { 0, 0 }, { 1, 0 } };
+<a name="1512"><span class="lineNum">    1512 </span>            : </a>
+<span class="lineNum">    1513 </span>            : /* static */ nscolor
+<span class="lineNum">    1514 </span><span class="lineCov">          1 : nsStyleContext::CombineVisitedColors(nscolor *aColors, bool aLinkIsVisited)</span>
+<span class="lineNum">    1515 </span>            : {
+<span class="lineNum">    1516 </span><span class="lineCov">          1 :   if (NS_GET_A(aColors[1]) == 0) {</span>
+<span class="lineNum">    1517 </span>            :     // If the style-if-visited is transparent, then just use the
+<span class="lineNum">    1518 </span>            :     // unvisited style rather than using the (meaningless) color
+<span class="lineNum">    1519 </span>            :     // components of the visited style along with a potentially
+<span class="lineNum">    1520 </span>            :     // non-transparent alpha value.
+<span class="lineNum">    1521 </span><span class="lineCov">          1 :     aLinkIsVisited = false;</span>
+<span class="lineNum">    1522 </span>            :   }
+<span class="lineNum">    1523 </span>            : 
+<span class="lineNum">    1524 </span>            :   // NOTE: We want this code to have as little timing dependence as
+<span class="lineNum">    1525 </span>            :   // possible on whether this-&gt;RelevantLinkVisited() is true.
+<span class="lineNum">    1526 </span>            :   const ColorIndexSet &amp;set =
+<span class="lineNum">    1527 </span><span class="lineCov">          1 :     gVisitedIndices[aLinkIsVisited ? 1 : 0];</span>
+<span class="lineNum">    1528 </span>            : 
+<span class="lineNum">    1529 </span><span class="lineCov">          1 :   nscolor colorColor = aColors[set.colorIndex];</span>
+<span class="lineNum">    1530 </span><span class="lineCov">          1 :   nscolor alphaColor = aColors[set.alphaIndex];</span>
+<span class="lineNum">    1531 </span><span class="lineCov">          1 :   return NS_RGBA(NS_GET_R(colorColor), NS_GET_G(colorColor),</span>
+<span class="lineNum">    1532 </span>            :                  NS_GET_B(colorColor), NS_GET_A(alphaColor));
+<span class="lineNum">    1533 </span>            : }
+<span class="lineNum">    1534 </span>            : 
+<span class="lineNum">    1535 </span>            : #ifdef DEBUG
+<span class="lineNum">    1536 </span>            : /* static */ void
+<span class="lineNum">    1537 </span>            : nsStyleContext::AssertStyleStructMaxDifferenceValid()
+<span class="lineNum">    1538 </span>            : {
+<span class="lineNum">    1539 </span>            : #define STYLE_STRUCT(name, checkdata_cb)                                     \
+<span class="lineNum">    1540 </span>            :     MOZ_ASSERT(NS_IsHintSubset(nsStyle##name::DifferenceAlwaysHandledForDescendants(), \
+<span class="lineNum">    1541 </span>            :                                nsStyle##name::MaxDifference()));
+<span class="lineNum">    1542 </span>            : #include &quot;nsStyleStructList.h&quot;
+<span class="lineNum">    1543 </span>            : #undef STYLE_STRUCT
+<span class="lineNum">    1544 </span>            : }
+<span class="lineNum">    1545 </span>            : 
+<span class="lineNum">    1546 </span>            : /* static */ const char*
+<span class="lineNum">    1547 </span>            : nsStyleContext::StructName(nsStyleStructID aSID)
+<span class="lineNum">    1548 </span>            : {
+<span class="lineNum">    1549 </span>            :   switch (aSID) {
+<span class="lineNum">    1550 </span>            : #define STYLE_STRUCT(name_, checkdata_cb)                                     \
+<span class="lineNum">    1551 </span>            :     case eStyleStruct_##name_:                                                \
+<span class="lineNum">    1552 </span>            :       return #name_;
+<span class="lineNum">    1553 </span>            : #include &quot;nsStyleStructList.h&quot;
+<span class="lineNum">    1554 </span>            : #undef STYLE_STRUCT
+<span class="lineNum">    1555 </span>            :     default:
+<span class="lineNum">    1556 </span>            :       return &quot;Unknown&quot;;
+<span class="lineNum">    1557 </span>            :   }
+<span class="lineNum">    1558 </span>            : }
+<span class="lineNum">    1559 </span>            : 
+<span class="lineNum">    1560 </span>            : /* static */ bool
+<span class="lineNum">    1561 </span>            : nsStyleContext::LookupStruct(const nsACString&amp; aName, nsStyleStructID&amp; aResult)
+<span class="lineNum">    1562 </span>            : {
+<span class="lineNum">    1563 </span>            :   if (false)
+<span class="lineNum">    1564 </span>            :     ;
+<span class="lineNum">    1565 </span>            : #define STYLE_STRUCT(name_, checkdata_cb_)                                    \
+<span class="lineNum">    1566 </span>            :   else if (aName.EqualsLiteral(#name_))                                       \
+<span class="lineNum">    1567 </span>            :     aResult = eStyleStruct_##name_;
+<span class="lineNum">    1568 </span>            : #include &quot;nsStyleStructList.h&quot;
+<span class="lineNum">    1569 </span>            : #undef STYLE_STRUCT
+<span class="lineNum">    1570 </span>            :   else
+<span class="lineNum">    1571 </span>            :     return false;
+<span class="lineNum">    1572 </span>            :   return true;
+<span class="lineNum">    1573 </span>            : }
+<span class="lineNum">    1574 </span>            : #endif
+<a name="1575"><span class="lineNum">    1575 </span>            : </a>
+<span class="lineNum">    1576 </span>            : void
+<span class="lineNum">    1577 </span><span class="lineCov">          1 : nsStyleContext::SwapStyleData(nsStyleContext* aNewContext, uint32_t aStructs)</span>
+<span class="lineNum">    1578 </span>            : {
+<span class="lineNum">    1579 </span>            :   static_assert(nsStyleStructID_Length &lt;= 32, &quot;aStructs is not big enough&quot;);
+<span class="lineNum">    1580 </span>            : 
+<span class="lineNum">    1581 </span><span class="lineCov">          1 :   for (nsStyleStructID i = nsStyleStructID_Inherited_Start;</span>
+<span class="lineNum">    1582 </span>            :        i &lt; nsStyleStructID_Inherited_Start + nsStyleStructID_Inherited_Count;
+<span class="lineNum">    1583 </span>            :        i = nsStyleStructID(i + 1)) {
+<span class="lineNum">    1584 </span><span class="lineCov">          1 :     uint32_t bit = nsCachedStyleData::GetBitForSID(i);</span>
+<span class="lineNum">    1585 </span><span class="lineCov">          1 :     if (!(aStructs &amp; bit)) {</span>
+<span class="lineNum">    1586 </span>            :       continue;
+<span class="lineNum">    1587 </span>            :     }
+<span class="lineNum">    1588 </span><span class="lineCov">          1 :     void*&amp; thisData = mCachedInheritedData.mStyleStructs[i];</span>
+<span class="lineNum">    1589 </span><span class="lineCov">          1 :     void*&amp; otherData = aNewContext-&gt;mCachedInheritedData.mStyleStructs[i];</span>
+<span class="lineNum">    1590 </span><span class="lineCov">          1 :     if (mBits &amp; bit) {</span>
+<span class="lineNum">    1591 </span><span class="lineCov">          1 :       if (thisData == otherData) {</span>
+<span class="lineNum">    1592 </span><span class="lineCov">          1 :         thisData = nullptr;</span>
+<span class="lineNum">    1593 </span>            :       }
+<span class="lineNum">    1594 </span><span class="lineCov">          1 :     } else if (!(aNewContext-&gt;mBits &amp; bit) &amp;&amp; thisData &amp;&amp; otherData) {</span>
+<span class="lineNum">    1595 </span>            :       std::swap(thisData, otherData);
+<span class="lineNum">    1596 </span>            :     }
+<span class="lineNum">    1597 </span>            :   }
+<span class="lineNum">    1598 </span>            : 
+<span class="lineNum">    1599 </span><span class="lineCov">          1 :   for (nsStyleStructID i = nsStyleStructID_Reset_Start;</span>
+<span class="lineNum">    1600 </span>            :        i &lt; nsStyleStructID_Reset_Start + nsStyleStructID_Reset_Count;
+<span class="lineNum">    1601 </span>            :        i = nsStyleStructID(i + 1)) {
+<span class="lineNum">    1602 </span><span class="lineCov">          1 :     uint32_t bit = nsCachedStyleData::GetBitForSID(i);</span>
+<span class="lineNum">    1603 </span><span class="lineCov">          1 :     if (!(aStructs &amp; bit)) {</span>
+<span class="lineNum">    1604 </span>            :       continue;
+<span class="lineNum">    1605 </span>            :     }
+<span class="lineNum">    1606 </span><span class="lineCov">          1 :     if (!mCachedResetData) {</span>
+<span class="lineNum">    1607 </span><span class="lineCov">          1 :       mCachedResetData = new (PresContext()) nsResetStyleData;</span>
+<span class="lineNum">    1608 </span>            :     }
+<span class="lineNum">    1609 </span><span class="lineCov">          1 :     if (!aNewContext-&gt;mCachedResetData) {</span>
+<span class="lineNum">    1610 </span><span class="lineCov">          1 :       aNewContext-&gt;mCachedResetData = new (PresContext()) nsResetStyleData;</span>
+<span class="lineNum">    1611 </span>            :     }
+<span class="lineNum">    1612 </span><span class="lineCov">          1 :     void*&amp; thisData = mCachedResetData-&gt;mStyleStructs[i];</span>
+<span class="lineNum">    1613 </span><span class="lineCov">          1 :     void*&amp; otherData = aNewContext-&gt;mCachedResetData-&gt;mStyleStructs[i];</span>
+<span class="lineNum">    1614 </span><span class="lineCov">          1 :     if (mBits &amp; bit) {</span>
+<span class="lineNum">    1615 </span><span class="lineCov">          1 :       if (thisData == otherData) {</span>
+<span class="lineNum">    1616 </span><span class="lineCov">          1 :         thisData = nullptr;</span>
+<span class="lineNum">    1617 </span>            :       }
+<span class="lineNum">    1618 </span><span class="lineCov">          1 :     } else if (!(aNewContext-&gt;mBits &amp; bit) &amp;&amp; thisData &amp;&amp; otherData) {</span>
+<span class="lineNum">    1619 </span>            :       std::swap(thisData, otherData);
+<span class="lineNum">    1620 </span>            :     }
+<span class="lineNum">    1621 </span>            :   }
+<span class="lineNum">    1622 </span><span class="lineCov">          1 : }</span>
+<a name="1623"><span class="lineNum">    1623 </span>            : </a>
+<span class="lineNum">    1624 </span>            : void
+<span class="lineNum">    1625 </span><span class="lineCov">          1 : nsStyleContext::ClearCachedInheritedStyleDataOnDescendants(uint32_t aStructs)</span>
+<span class="lineNum">    1626 </span>            : {
+<span class="lineNum">    1627 </span><span class="lineCov">          1 :   if (mChild) {</span>
+<span class="lineNum">    1628 </span>            :     nsStyleContext* child = mChild;
+<span class="lineNum">    1629 </span><span class="lineCov">          1 :     do {</span>
+<span class="lineNum">    1630 </span><span class="lineCov">          1 :       child-&gt;DoClearCachedInheritedStyleDataOnDescendants(aStructs);</span>
+<span class="lineNum">    1631 </span><span class="lineCov">          1 :       child = child-&gt;mNextSibling;</span>
+<span class="lineNum">    1632 </span><span class="lineCov">          1 :     } while (mChild != child);</span>
+<span class="lineNum">    1633 </span>            :   }
+<span class="lineNum">    1634 </span><span class="lineCov">          1 :   if (mEmptyChild) {</span>
+<span class="lineNum">    1635 </span>            :     nsStyleContext* child = mEmptyChild;
+<span class="lineNum">    1636 </span><span class="lineCov">          1 :     do {</span>
+<span class="lineNum">    1637 </span><span class="lineCov">          1 :       child-&gt;DoClearCachedInheritedStyleDataOnDescendants(aStructs);</span>
+<span class="lineNum">    1638 </span><span class="lineCov">          1 :       child = child-&gt;mNextSibling;</span>
+<span class="lineNum">    1639 </span><span class="lineCov">          1 :     } while (mEmptyChild != child);</span>
+<span class="lineNum">    1640 </span>            :   }
+<span class="lineNum">    1641 </span><span class="lineCov">          1 : }</span>
+<a name="1642"><span class="lineNum">    1642 </span>            : </a>
+<span class="lineNum">    1643 </span>            : void
+<span class="lineNum">    1644 </span><span class="lineCov">          1 : nsStyleContext::DoClearCachedInheritedStyleDataOnDescendants(uint32_t aStructs)</span>
+<span class="lineNum">    1645 </span>            : {
+<span class="lineNum">    1646 </span>            :   NS_ASSERTION(mFrameRefCnt == 0, &quot;frame still referencing style context&quot;);
+<span class="lineNum">    1647 </span><span class="lineCov">          1 :   for (nsStyleStructID i = nsStyleStructID_Inherited_Start;</span>
+<span class="lineNum">    1648 </span>            :        i &lt; nsStyleStructID_Inherited_Start + nsStyleStructID_Inherited_Count;
+<span class="lineNum">    1649 </span>            :        i = nsStyleStructID(i + 1)) {
+<span class="lineNum">    1650 </span><span class="lineCov">          1 :     uint32_t bit = nsCachedStyleData::GetBitForSID(i);</span>
+<span class="lineNum">    1651 </span><span class="lineCov">          1 :     if (aStructs &amp; bit) {</span>
+<span class="lineNum">    1652 </span><span class="lineCov">          1 :       if (!(mBits &amp; bit) &amp;&amp; mCachedInheritedData.mStyleStructs[i]) {</span>
+<span class="lineNum">    1653 </span><span class="lineCov">          1 :         aStructs &amp;= ~bit;</span>
+<span class="lineNum">    1654 </span>            :       } else {
+<span class="lineNum">    1655 </span><span class="lineCov">          1 :         mCachedInheritedData.mStyleStructs[i] = nullptr;</span>
+<span class="lineNum">    1656 </span>            :       }
+<span class="lineNum">    1657 </span>            :     }
+<span class="lineNum">    1658 </span>            :   }
+<span class="lineNum">    1659 </span>            : 
+<span class="lineNum">    1660 </span><span class="lineCov">          1 :   if (mCachedResetData) {</span>
+<span class="lineNum">    1661 </span><span class="lineCov">          1 :     for (nsStyleStructID i = nsStyleStructID_Reset_Start;</span>
+<span class="lineNum">    1662 </span>            :          i &lt; nsStyleStructID_Reset_Start + nsStyleStructID_Reset_Count;
+<span class="lineNum">    1663 </span>            :          i = nsStyleStructID(i + 1)) {
+<span class="lineNum">    1664 </span><span class="lineCov">          1 :       uint32_t bit = nsCachedStyleData::GetBitForSID(i);</span>
+<span class="lineNum">    1665 </span><span class="lineCov">          1 :       if (aStructs &amp; bit) {</span>
+<span class="lineNum">    1666 </span><span class="lineCov">          1 :         if (!(mBits &amp; bit) &amp;&amp; mCachedResetData-&gt;mStyleStructs[i]) {</span>
+<span class="lineNum">    1667 </span><span class="lineCov">          1 :           aStructs &amp;= ~bit;</span>
+<span class="lineNum">    1668 </span>            :         } else {
+<span class="lineNum">    1669 </span><span class="lineCov">          1 :           mCachedResetData-&gt;mStyleStructs[i] = nullptr;</span>
+<span class="lineNum">    1670 </span>            :         }
+<span class="lineNum">    1671 </span>            :       }
+<span class="lineNum">    1672 </span>            :     }
+<span class="lineNum">    1673 </span>            :   }
+<span class="lineNum">    1674 </span>            : 
+<span class="lineNum">    1675 </span><span class="lineCov">          1 :   if (aStructs == 0) {</span>
+<span class="lineNum">    1676 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">    1677 </span>            :   }
+<span class="lineNum">    1678 </span>            : 
+<span class="lineNum">    1679 </span><span class="lineCov">          1 :   ClearCachedInheritedStyleDataOnDescendants(aStructs);</span>
+<span class="lineNum">    1680 </span>            : }
+<a name="1681"><span class="lineNum">    1681 </span>            : </a>
+<span class="lineNum">    1682 </span>            : void
+<span class="lineNum">    1683 </span><span class="lineCov">          1 : nsStyleContext::SetIneligibleForSharing()</span>
+<span class="lineNum">    1684 </span>            : {
+<span class="lineNum">    1685 </span><span class="lineCov">          1 :   if (mBits &amp; NS_STYLE_INELIGIBLE_FOR_SHARING) {</span>
+<span class="lineNum">    1686 </span><span class="lineCov">          1 :     return;</span>
+<span class="lineNum">    1687 </span>            :   }
+<span class="lineNum">    1688 </span><span class="lineCov">          1 :   mBits |= NS_STYLE_INELIGIBLE_FOR_SHARING;</span>
+<span class="lineNum">    1689 </span><span class="lineCov">          1 :   if (mChild) {</span>
+<span class="lineNum">    1690 </span>            :     nsStyleContext* child = mChild;
+<span class="lineNum">    1691 </span><span class="lineCov">          1 :     do {</span>
+<span class="lineNum">    1692 </span><span class="lineCov">          1 :       child-&gt;SetIneligibleForSharing();</span>
+<span class="lineNum">    1693 </span><span class="lineCov">          1 :       child = child-&gt;mNextSibling;</span>
+<span class="lineNum">    1694 </span><span class="lineCov">          1 :     } while (mChild != child);</span>
+<span class="lineNum">    1695 </span>            :   }
+<span class="lineNum">    1696 </span><span class="lineCov">          1 :   if (mEmptyChild) {</span>
+<span class="lineNum">    1697 </span>            :     nsStyleContext* child = mEmptyChild;
+<span class="lineNum">    1698 </span><span class="lineCov">          1 :     do {</span>
+<span class="lineNum">    1699 </span><span class="lineCov">          1 :       child-&gt;SetIneligibleForSharing();</span>
+<span class="lineNum">    1700 </span><span class="lineCov">          1 :       child = child-&gt;mNextSibling;</span>
+<span class="lineNum">    1701 </span><span class="lineCov">          1 :     } while (mEmptyChild != child);</span>
+<span class="lineNum">    1702 </span>            :   }
+<span class="lineNum">    1703 </span>            : }
+<span class="lineNum">    1704 </span>            : 
+<span class="lineNum">    1705 </span>            : #ifdef RESTYLE_LOGGING
+<span class="lineNum">    1706 </span>            : nsCString
+<span class="lineNum">    1707 </span>            : nsStyleContext::GetCachedStyleDataAsString(uint32_t aStructs)
+<span class="lineNum">    1708 </span>            : {
+<span class="lineNum">    1709 </span>            :   nsCString structs;
+<span class="lineNum">    1710 </span>            :   for (nsStyleStructID i = nsStyleStructID(0);
+<span class="lineNum">    1711 </span>            :        i &lt; nsStyleStructID_Length;
+<span class="lineNum">    1712 </span>            :        i = nsStyleStructID(i + 1)) {
+<span class="lineNum">    1713 </span>            :     if (aStructs &amp; nsCachedStyleData::GetBitForSID(i)) {
+<span class="lineNum">    1714 </span>            :       const void* data = GetCachedStyleData(i);
+<span class="lineNum">    1715 </span>            :       if (!structs.IsEmpty()) {
+<span class="lineNum">    1716 </span>            :         structs.Append(' ');
+<span class="lineNum">    1717 </span>            :       }
+<span class="lineNum">    1718 </span>            :       structs.AppendPrintf(&quot;%s=%p&quot;, StructName(i), data);
+<span class="lineNum">    1719 </span>            :       if (HasCachedDependentStyleData(i)) {
+<span class="lineNum">    1720 </span>            :         structs.AppendLiteral(&quot;(dependent)&quot;);
+<span class="lineNum">    1721 </span>            :       } else {
+<span class="lineNum">    1722 </span>            :         structs.AppendLiteral(&quot;(owned)&quot;);
+<span class="lineNum">    1723 </span>            :       }
+<span class="lineNum">    1724 </span>            :     }
+<span class="lineNum">    1725 </span>            :   }
+<span class="lineNum">    1726 </span>            :   return structs;
+<span class="lineNum">    1727 </span>            : }
+<span class="lineNum">    1728 </span>            : 
+<span class="lineNum">    1729 </span>            : int32_t&amp;
+<span class="lineNum">    1730 </span>            : nsStyleContext::LoggingDepth()
+<span class="lineNum">    1731 </span>            : {
+<span class="lineNum">    1732 </span>            :   static int32_t depth = 0;
+<span class="lineNum">    1733 </span>            :   return depth;
+<span class="lineNum">    1734 </span>            : }
+<span class="lineNum">    1735 </span>            : 
+<span class="lineNum">    1736 </span>            : void
+<span class="lineNum">    1737 </span>            : nsStyleContext::LogStyleContextTree(int32_t aLoggingDepth, uint32_t aStructs)
+<span class="lineNum">    1738 </span>            : {
+<span class="lineNum">    1739 </span>            :   LoggingDepth() = aLoggingDepth;
+<span class="lineNum">    1740 </span>            :   LogStyleContextTree(true, aStructs);
+<span class="lineNum">    1741 </span>            : }
+<span class="lineNum">    1742 </span>            : 
+<span class="lineNum">    1743 </span>            : void
+<span class="lineNum">    1744 </span>            : nsStyleContext::LogStyleContextTree(bool aFirst, uint32_t aStructs)
+<span class="lineNum">    1745 </span>            : {
+<span class="lineNum">    1746 </span>            :   nsCString structs = GetCachedStyleDataAsString(aStructs);
+<span class="lineNum">    1747 </span>            :   if (!structs.IsEmpty()) {
+<span class="lineNum">    1748 </span>            :     structs.Append(' ');
+<span class="lineNum">    1749 </span>            :   }
+<span class="lineNum">    1750 </span>            : 
+<span class="lineNum">    1751 </span>            :   nsCString pseudo;
+<span class="lineNum">    1752 </span>            :   if (mPseudoTag) {
+<span class="lineNum">    1753 </span>            :     nsAutoString pseudoTag;
+<span class="lineNum">    1754 </span>            :     mPseudoTag-&gt;ToString(pseudoTag);
+<span class="lineNum">    1755 </span>            :     AppendUTF16toUTF8(pseudoTag, pseudo);
+<span class="lineNum">    1756 </span>            :     pseudo.Append(' ');
+<span class="lineNum">    1757 </span>            :   }
+<span class="lineNum">    1758 </span>            : 
+<span class="lineNum">    1759 </span>            :   nsCString flags;
+<span class="lineNum">    1760 </span>            :   if (IsStyleIfVisited()) {
+<span class="lineNum">    1761 </span>            :     flags.AppendLiteral(&quot;IS_STYLE_IF_VISITED &quot;);
+<span class="lineNum">    1762 </span>            :   }
+<span class="lineNum">    1763 </span>            :   if (HasChildThatUsesGrandancestorStyle()) {
+<span class="lineNum">    1764 </span>            :     flags.AppendLiteral(&quot;CHILD_USES_GRANDANCESTOR_STYLE &quot;);
+<span class="lineNum">    1765 </span>            :   }
+<span class="lineNum">    1766 </span>            :   if (IsShared()) {
+<span class="lineNum">    1767 </span>            :     flags.AppendLiteral(&quot;IS_SHARED &quot;);
+<span class="lineNum">    1768 </span>            :   }
+<span class="lineNum">    1769 </span>            : 
+<span class="lineNum">    1770 </span>            :   nsCString parent;
+<span class="lineNum">    1771 </span>            :   if (aFirst) {
+<span class="lineNum">    1772 </span>            :     parent.AppendPrintf(&quot;parent=%p &quot;, mParent.get());
+<span class="lineNum">    1773 </span>            :   }
+<span class="lineNum">    1774 </span>            : 
+<span class="lineNum">    1775 </span>            :   LOG_RESTYLE(&quot;%p(%d) %s%s%s%s&quot;,
+<span class="lineNum">    1776 </span>            :               this, mRefCnt,
+<span class="lineNum">    1777 </span>            :               structs.get(), pseudo.get(), flags.get(), parent.get());
+<span class="lineNum">    1778 </span>            : 
+<span class="lineNum">    1779 </span>            :   LOG_RESTYLE_INDENT();
+<span class="lineNum">    1780 </span>            : 
+<span class="lineNum">    1781 </span>            :   if (nullptr != mChild) {
+<span class="lineNum">    1782 </span>            :     nsStyleContext* child = mChild;
+<span class="lineNum">    1783 </span>            :     do {
+<span class="lineNum">    1784 </span>            :       child-&gt;LogStyleContextTree(false, aStructs);
+<span class="lineNum">    1785 </span>            :       child = child-&gt;mNextSibling;
+<span class="lineNum">    1786 </span>            :     } while (mChild != child);
+<span class="lineNum">    1787 </span>            :   }
+<span class="lineNum">    1788 </span>            :   if (nullptr != mEmptyChild) {
+<span class="lineNum">    1789 </span>            :     nsStyleContext* child = mEmptyChild;
+<span class="lineNum">    1790 </span>            :     do {
+<span class="lineNum">    1791 </span>            :       child-&gt;LogStyleContextTree(false, aStructs);
+<span class="lineNum">    1792 </span>            :       child = child-&gt;mNextSibling;
+<span class="lineNum">    1793 </span>            :     } while (mEmptyChild != child);
+<span class="lineNum">    1794 </span>            :   }
+<span class="lineNum">    1795 </span>            : }
+<span class="lineNum">    1796 </span>            : #endif
+<span class="lineNum">    1797 </span>            : 
+<span class="lineNum">    1798 </span>            : #ifdef DEBUG
+<span class="lineNum">    1799 </span>            : /* static */ void
+<span class="lineNum">    1800 </span>            : nsStyleContext::Initialize()
+<span class="lineNum">    1801 </span>            : {
+<span class="lineNum">    1802 </span>            :   Preferences::AddBoolVarCache(
+<span class="lineNum">    1803 </span>            :       &amp;sExpensiveStyleStructAssertionsEnabled,
+<span class="lineNum">    1804 </span>            :       &quot;layout.css.expensive-style-struct-assertions.enabled&quot;);
+<span class="lineNum">    1805 </span>            : }
+<span class="lineNum">    1806 </span>            : #endif
+</pre>
+      </td>
+    </tr>
+  </table>
+  <br>
+
+  <table width="100%" border=0 cellspacing=0 cellpadding=0>
+    <tr><td class="ruler"><img src="../../glass.png" width=3 height=3 alt=""></td></tr>
+    <tr><td class="versionInfo">Generated by: <a href="http://ltp.sourceforge.net/coverage/lcov.php" target="_parent">LCOV version 1.13-2-g25f5d38</a></td></tr>
+  </table>
+  <br>
+
+</body>
+</html>
