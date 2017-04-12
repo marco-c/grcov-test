@@ -8,9 +8,8 @@ def get_coverage(directory):
     return r.json()
 
 
-rootDir = os.path.expanduser('~/Documenti/FD/mozilla-central')
 maxLevel = 2
-def get_directories(directory, curLevel=0):
+def get_directories(directory, rootDir, curLevel=0):
     if curLevel == maxLevel or '.hg' in directory:
         return []
 
@@ -18,13 +17,13 @@ def get_directories(directory, curLevel=0):
 
     subdirs = []
     for d in dirs:
-        subdirs += get_directories(os.path.join(rootDir, d), curLevel + 1)
+        subdirs += get_directories(os.path.join(rootDir, d), rootDir, curLevel + 1)
 
     return dirs + subdirs
 
 
-def generate_data():
-    directories = get_directories(rootDir)
+def generate_data(rootDir):
+    directories = get_directories(rootDir, rootDir)
 
     data = dict()
 

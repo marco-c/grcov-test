@@ -143,6 +143,8 @@ def generate_report(src_dir, auto_use_gecko_dev, revision):
 def main():
     os.mkdir('report')
 
+    subprocess.call(["git", "clone", "https://github.com/mozilla/gecko-dev.git"])
+
     '''parser = argparse.ArgumentParser()
     parser.add_argument("src_dir", action="store", help="Path to the source directory")
     parser.add_argument("branch", action="store", nargs='?', help="Branch on which jobs ran")
@@ -172,7 +174,7 @@ def main():
     generate_report(os.path.abspath(args.src_dir), args.gecko_dev, revision)'''
 
 
-    coverage_by_dir.generate_data()
+    coverage_by_dir.generate_data('gecko-dev')
 
     files = [
         'style.css',
