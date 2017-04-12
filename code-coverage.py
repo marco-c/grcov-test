@@ -176,7 +176,7 @@ def main():
 
     files = [
         'style.css',
-        'coverage-by-dir.html', 'coverage-by-dir.js', 'coverage-by-dir.json',
+        'coverage_by_dir.html', 'coverage_by_dir.js', 'coverage_by_dir.json',
     ]
 
     for f in files:
