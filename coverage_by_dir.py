@@ -3,14 +3,16 @@ import json
 import requests
 
 
+MAX_LEVEL = 2
+
+
 def get_coverage(directory):
     r = requests.get('https://coveralls.io/jobs/24715266.json?paths=' + directory + '/*')
     return r.json()
 
 
-maxLevel = 2
 def get_directories(directory, rootDir, curLevel=0):
-    if curLevel == maxLevel or '.hg' in directory:
+    if curLevel == MAX_LEVEL or '.hg' in directory:
         return []
 
     dirs = [os.path.relpath(os.path.join(directory, d), rootDir) for d in os.listdir(directory) if os.path.isdir(os.path.join(directory, d))]

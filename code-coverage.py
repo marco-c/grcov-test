@@ -2,8 +2,7 @@ import os
 import shutil
 import subprocess
 import time
-import argparse
-import shutil
+# import argparse
 import requests
 
 import coverage_by_dir
@@ -172,7 +171,6 @@ def main():
     generate_info(args.grcov)
 
     generate_report(os.path.abspath(args.src_dir), args.gecko_dev, revision)'''
-
 
     coverage_by_dir.generate_data('gecko-dev')
 
