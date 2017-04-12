@@ -3,7 +3,10 @@ import shutil
 import subprocess
 import time
 import argparse
+import shutil
 import requests
+
+import coverage_by_dir
 
 
 def get_last_task():
@@ -138,7 +141,9 @@ def generate_report(src_dir, auto_use_gecko_dev, revision):
 
 
 def main():
-    parser = argparse.ArgumentParser()
+    os.mkdir('report')
+
+    '''parser = argparse.ArgumentParser()
     parser.add_argument("src_dir", action="store", help="Path to the source directory")
     parser.add_argument("branch", action="store", nargs='?', help="Branch on which jobs ran")
     parser.add_argument("commit", action="store", nargs='?', help="Commit hash for push")
@@ -164,7 +169,18 @@ def main():
 
     generate_info(args.grcov)
 
-    generate_report(os.path.abspath(args.src_dir), args.gecko_dev, revision)
+    generate_report(os.path.abspath(args.src_dir), args.gecko_dev, revision)'''
+
+
+    coverage_by_dir.generate_data()
+
+    files = [
+        'style.css',
+        'coverage-by-dir.html', 'coverage-by-dir.js', 'coverage-by-dir.json',
+    ]
+
+    for f in files:
+        shutil.copyfile(f, 'report/' + f)
 
 
 if __name__ == "__main__":
