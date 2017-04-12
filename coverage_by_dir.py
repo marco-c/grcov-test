@@ -39,5 +39,5 @@ def generate_data(rootDir):
         data[directory]['cur'] = d['paths_covered_percent']
         data[directory]['prev'] = d['paths_previous_covered_percent']
 
-    with open('coverage-by-dir.json', 'w') as f:
+    with open('coverage_by_dir.json', 'w') as f:
         json.dump(data, f)
