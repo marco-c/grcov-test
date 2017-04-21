@@ -87,6 +87,15 @@ function addRow(dir, obj) {
   }
   diff.style.color = 'white';
   diff_column.appendChild(diff);
+
+  let bugs_column = row.insertCell(4);
+  for (let bug of obj['bugs']) {
+    let bug_link = document.createElement('a');
+    bug_link.href = 'https://bugzilla.mozilla.org/show_bug.cgi?id=' + bug;
+    bug_link.textContent = bug;
+    bugs_column.appendChild(bug_link);
+    bugs_column.appendChild(document.createTextNode(', '));
+  }
 }
 
 function buildTable() {
