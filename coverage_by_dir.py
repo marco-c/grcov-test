@@ -3,7 +3,7 @@ import json
 import requests
 
 
-MAX_LEVEL = 2
+MAX_LEVEL = 3
 
 
 def get_coverage(directory):
