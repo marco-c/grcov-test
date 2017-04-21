@@ -4,8 +4,6 @@ import re
 import fnmatch
 import requests
 
-from libmozdata import hgmozilla
-
 
 MAX_LEVEL = 3
 
