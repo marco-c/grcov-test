@@ -8,10 +8,21 @@ import requests
 MAX_LEVEL = 3
 
 
+def get_mercurial_commit(github_commit):
+    url = 'https://api.pub.build.mozilla.org/mapper/gecko-dev/rev/git/%s'
+    r = requests.get(url % github_commit)
+
+    return r.text.split(' ')[1]
+
+
 def load_changesets(rev1, rev2):
     bug_pattern = re.compile('[\t ]*[Bb][Uu][Gg][\t ]*([0-9]+)')
 
     r = requests.get('https://hg.mozilla.org/mozilla-central/json-pushes?full&fromchange=' + rev1 + '&tochange=' + rev2)
+
+    if r.status_code != requests.codes.ok:
+        raise Exception('Error while loading changeset: %s' % r.text)
+
     pushes = r.json()
 
     changesets = []
@@ -33,8 +44,17 @@ def get_related_bugs(changesets, directory):
     return [bug for bug, paths in changesets if any(fnmatch.fnmatch(path, directory + '/*') for path in paths)]
 
 
-def get_coverage(directory):
-    r = requests.get('https://coveralls.io/jobs/24715266.json?paths=' + directory + '/*')
+def get_coverage_builds():
+    r = requests.get('https://coveralls.io/github/marco-c/gecko-dev.json?page=1')
+    return r.json()['builds']
+
+
+def get_coverage(commit_sha, directory):
+    r = requests.get('https://coveralls.io/builds/' + commit_sha + '.json?paths=' + directory + '/*')
+
+    if r.status_code != requests.codes.ok:
+        raise Exception('Error while loading coverage data.')
+
     return r.json()
 
 
@@ -52,14 +72,21 @@ def get_directories(directory, rootDir, curLevel=0):
 
 
 def generate_data(rootDir):
-    changesets = load_changesets('01748a2b1a463f24efd9cd8abad9ccfd76b037b8', 'a551f534773cf2d6933f78ce7d82a7a33a99643e')
+    builds = get_coverage_builds()
+
+    latest_commit = builds[0]['commit_sha']
+    previous_commit = builds[1]['commit_sha']
+    latest_mercurial_commit = get_mercurial_commit(builds[0]['commit_sha'])
+    previous_mercurial_commit = get_mercurial_commit(builds[1]['commit_sha'])
+
+    changesets = load_changesets(previous_mercurial_commit, latest_mercurial_commit)
 
     directories = get_directories(rootDir, rootDir)
 
     data = dict()
 
     for directory in directories:
-        d = get_coverage(directory)
+        d = get_coverage(latest_commit, directory)
 
         if d['selected_source_files_count'] == 0:
             continue
