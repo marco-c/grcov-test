@@ -76,8 +76,8 @@ def generate_data(rootDir):
 
     latest_commit = builds[0]['commit_sha']
     previous_commit = builds[1]['commit_sha']
-    latest_mercurial_commit = get_mercurial_commit(builds[0]['commit_sha'])
-    previous_mercurial_commit = get_mercurial_commit(builds[1]['commit_sha'])
+    latest_mercurial_commit = get_mercurial_commit(latest_commit)
+    previous_mercurial_commit = get_mercurial_commit(previous_commit)
 
     changesets = load_changesets(previous_mercurial_commit, latest_mercurial_commit)
 
